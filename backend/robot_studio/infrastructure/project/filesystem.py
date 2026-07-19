@@ -1,0 +1,161 @@
+"""Project filesystem operations and validation."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from uuid import UUID, uuid4
+
+from robot_studio.domain.models import ProjectType
+from robot_studio.infrastructure.workspace.filesystem import (
+    WORKSPACE_META_DIR,
+    WorkspaceManifest,
+    load_manifest,
+    write_manifest,
+)
+
+PROJECT_MANIFEST = "project.json"
+PROJECT_MARKER = Path(WORKSPACE_META_DIR) / PROJECT_MANIFEST
+
+
+class ProjectValidationError(Exception):
+    """Raised when a path is not a valid Robot Framework project."""
+
+
+@dataclass(frozen=True)
+class ProjectManifest:
+    id: UUID
+    name: str
+    type: ProjectType
+    created_at: datetime
+    version: int = 1
+
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "name": self.name,
+            "type": self.type.value,
+            "created_at": self.created_at.isoformat(),
+            "version": self.version,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> ProjectManifest:
+        created_raw = data["created_at"]
+        created_at = (
+            datetime.fromisoformat(created_raw)
+            if isinstance(created_raw, str)
+            else created_raw
+        )
+        return cls(
+            id=UUID(str(data["id"])),
+            name=str(data["name"]),
+            type=ProjectType(str(data.get("type", ProjectType.EMPTY.value))),
+            created_at=created_at,
+            version=int(data.get("version", 1)),
+        )
+
+
+class FilesystemProjectProvider:
+    def project_root_for_name(self, workspace_root: Path, name: str) -> Path:
+        return workspace_root / "Projects" / name
+
+    def manifest_path(self, project_root: Path) -> Path:
+        return project_root / PROJECT_MARKER
+
+    def has_manifest(self, project_root: Path) -> bool:
+        return self.manifest_path(project_root).is_file()
+
+    def write_manifest(self, project_root: Path, manifest: ProjectManifest) -> None:
+        meta_dir = project_root / WORKSPACE_META_DIR
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        target = meta_dir / PROJECT_MANIFEST
+        target.write_text(
+            json.dumps(manifest.to_dict(), indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+    def load_manifest(self, project_root: Path) -> ProjectManifest:
+        path = self.manifest_path(project_root)
+        if not path.is_file():
+            raise ProjectValidationError(
+                f"Missing project metadata at '{path}'",
+            )
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            return ProjectManifest.from_dict(raw)
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            raise ProjectValidationError(
+                f"Invalid project manifest at '{path}': {exc}",
+            ) from exc
+
+    def is_robot_project(self, path: Path) -> bool:
+        if not path.is_dir():
+            return False
+        if any(path.rglob("*.robot")):
+            return True
+        for marker in ("requirements.txt", "pyproject.toml", "robot.yaml"):
+            if (path / marker).is_file():
+                return True
+        return False
+
+    def ensure_project_dirs(self, project_root: Path) -> None:
+        for relative in ("tests", "resources", "variables"):
+            (project_root / relative).mkdir(parents=True, exist_ok=True)
+
+    def register_in_workspace(
+        self,
+        workspace_root: Path,
+        *,
+        project_id: UUID,
+        name: str,
+        path: Path,
+    ) -> None:
+        manifest = load_manifest(workspace_root)
+        resolved = str(path.resolve())
+        entries = [
+            entry
+            for entry in manifest.projects
+            if str(Path(entry.get("path", "")).expanduser().resolve()) != resolved
+            and entry.get("id") != str(project_id)
+        ]
+        try:
+            relative = str(path.resolve().relative_to(workspace_root.resolve()))
+            stored_path = relative
+        except ValueError:
+            stored_path = resolved
+
+        entries.append(
+            {
+                "id": str(project_id),
+                "name": name,
+                "path": stored_path,
+            },
+        )
+        write_manifest(
+            workspace_root,
+            WorkspaceManifest(
+                name=manifest.name,
+                version=manifest.version,
+                created_at=manifest.created_at,
+                projects=entries,
+            ),
+        )
+
+    def create_manifest(
+        self,
+        *,
+        name: str,
+        project_type: ProjectType,
+        project_id: UUID | None = None,
+        created_at: datetime | None = None,
+    ) -> ProjectManifest:
+        return ProjectManifest(
+            id=project_id or uuid4(),
+            name=name,
+            type=project_type,
+            created_at=created_at or datetime.now(UTC),
+            version=1,
+        )

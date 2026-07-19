@@ -1,0 +1,203 @@
+"""In-process event bus for decoupled module communication."""
+
+from __future__ import annotations
+
+import logging
+from abc import ABC, abstractmethod
+from collections import defaultdict
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from uuid import UUID
+
+logger = logging.getLogger(__name__)
+
+EventHandler = Callable[["DomainEvent"], Awaitable[None]]
+
+
+@dataclass(frozen=True, kw_only=True)
+class DomainEvent:
+    """Base type for all domain events."""
+
+
+@dataclass(frozen=True)
+class WorkspaceOpened(DomainEvent):
+    workspace_id: UUID
+
+
+@dataclass(frozen=True)
+class WorkspaceClosed(DomainEvent):
+    workspace_id: UUID
+
+
+@dataclass(frozen=True)
+class ProjectCreated(DomainEvent):
+    workspace_id: UUID
+    project_id: UUID
+
+
+@dataclass(frozen=True)
+class ProjectImported(DomainEvent):
+    workspace_id: UUID
+    project_id: UUID
+
+
+@dataclass(frozen=True)
+class ProjectOpened(DomainEvent):
+    workspace_id: UUID
+    project_id: UUID
+
+
+@dataclass(frozen=True)
+class EnvironmentCreated(DomainEvent):
+    workspace_id: UUID
+    environment_id: UUID
+
+
+@dataclass(frozen=True)
+class EnvironmentImported(DomainEvent):
+    workspace_id: UUID
+    environment_id: UUID
+
+
+@dataclass(frozen=True)
+class EnvironmentActivated(DomainEvent):
+    workspace_id: UUID
+    environment_id: UUID
+
+
+@dataclass(frozen=True)
+class EnvironmentCloned(DomainEvent):
+    workspace_id: UUID
+    source_environment_id: UUID
+    environment_id: UUID
+
+
+@dataclass(frozen=True)
+class EnvironmentDeleted(DomainEvent):
+    workspace_id: UUID
+    environment_id: UUID
+
+
+@dataclass(frozen=True)
+class PackageInstalled(DomainEvent):
+    workspace_id: UUID
+    environment_id: UUID
+    package_name: str
+
+
+@dataclass(frozen=True)
+class PackageUpdated(DomainEvent):
+    workspace_id: UUID
+    environment_id: UUID
+    package_name: str
+
+
+@dataclass(frozen=True)
+class PackageRemoved(DomainEvent):
+    workspace_id: UUID
+    environment_id: UUID
+    package_name: str
+
+
+@dataclass(frozen=True)
+class RobotFrameworkInstalled(DomainEvent):
+    workspace_id: UUID
+    environment_id: UUID
+    version: str | None = None
+
+
+@dataclass(frozen=True)
+class IndexUpdated(DomainEvent):
+    scope: str
+    scope_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ExecutionStarted(DomainEvent):
+    run_id: UUID
+    project_id: UUID
+    workspace_id: UUID | None = None
+
+
+@dataclass(frozen=True)
+class ExecutionOutput(DomainEvent):
+    run_id: UUID
+    line: str
+
+
+@dataclass(frozen=True)
+class ExecutionFinished(DomainEvent):
+    run_id: UUID
+    status: str
+    exit_code: int | None = None
+
+
+@dataclass(frozen=True)
+class ExecutionCancelled(DomainEvent):
+    run_id: UUID
+
+
+@dataclass(frozen=True)
+class ExecutionFailed(DomainEvent):
+    run_id: UUID
+    message: str = ""
+
+
+@dataclass
+class Subscription:
+    event_type: type[DomainEvent]
+    handler: EventHandler
+    unsubscribe: Callable[[], None]
+
+
+class EventBus(ABC):
+    @abstractmethod
+    async def publish(self, event: DomainEvent) -> None: ...
+
+    @abstractmethod
+    def subscribe(
+        self,
+        event_type: type[DomainEvent],
+        handler: EventHandler,
+    ) -> Subscription: ...
+
+
+@dataclass
+class InMemoryEventBus(EventBus):
+    """Simple async pub/sub bus for a single backend process."""
+
+    _subscribers: dict[type[DomainEvent], list[EventHandler]] = field(
+        default_factory=lambda: defaultdict(list),
+    )
+
+    async def publish(self, event: DomainEvent) -> None:
+        handlers = list(self._subscribers.get(type(event), []))
+        for handler in handlers:
+            try:
+                await handler(event)
+            except Exception:
+                logger.exception(
+                    "Event handler failed for %s",
+                    type(event).__name__,
+                )
+
+    def subscribe(
+        self,
+        event_type: type[DomainEvent],
+        handler: EventHandler,
+    ) -> Subscription:
+        self._subscribers[event_type].append(handler)
+
+        def unsubscribe() -> None:
+            handlers = self._subscribers.get(event_type, [])
+            if handler in handlers:
+                handlers.remove(handler)
+
+        return Subscription(
+            event_type=event_type,
+            handler=handler,
+            unsubscribe=unsubscribe,
+        )
+
+    def subscriber_count(self, event_type: type[DomainEvent]) -> int:
+        return len(self._subscribers.get(event_type, []))

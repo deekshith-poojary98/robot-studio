@@ -1,0 +1,293 @@
+"""Package management use cases for the active environment."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from robot_studio.application.services.workspace_context import WorkspaceContext
+from robot_studio.core.events import (
+    EventBus,
+    PackageInstalled,
+    PackageRemoved,
+    PackageUpdated,
+    RobotFrameworkInstalled,
+)
+from robot_studio.domain.interfaces.installer import Installer, PackageRegistry
+from robot_studio.domain.models import Environment, InstalledPackage, PackageSearchResult
+from robot_studio.infrastructure.packages.pip_installer import PackageInstallError
+
+PROTECTED_PACKAGES = frozenset({"pip", "setuptools", "wheel"})
+SortKey = str  # "name" | "version" | "update"
+
+
+class PackageValidationError(Exception):
+    """Raised when package operations fail validation."""
+
+
+@dataclass(frozen=True)
+class PackageListResult:
+    packages: list[InstalledPackage]
+    robot_framework_installed: bool
+    robot_framework_version: str | None
+    environment: Environment
+
+
+@dataclass(frozen=True)
+class PackageOperationResult:
+    package: InstalledPackage | None
+    logs: list[str]
+    robot_framework_installed: bool
+    robot_framework_version: str | None
+
+
+class PackageService:
+    def __init__(
+        self,
+        context: WorkspaceContext,
+        event_bus: EventBus,
+        installer: Installer,
+        registry: PackageRegistry,
+    ) -> None:
+        self._context = context
+        self._event_bus = event_bus
+        self._installer = installer
+        self._registry = registry
+
+    def _require_environment(self) -> Environment:
+        workspace = self._context.workspace
+        if workspace is None:
+            raise PackageValidationError(
+                "Open a workspace before managing packages",
+            )
+        environment = self._context.environment
+        if environment is None:
+            raise PackageValidationError(
+                "Activate a Python environment before managing packages",
+            )
+        if not environment.path.is_dir():
+            raise PackageValidationError(
+                f"Active environment directory is missing: '{environment.path}'",
+            )
+        return environment
+
+    async def list_packages(
+        self,
+        *,
+        query: str | None = None,
+        sort: SortKey = "name",
+    ) -> PackageListResult:
+        environment = self._require_environment()
+        packages = await self._installer.list_installed(environment.path)
+
+        if query:
+            needle = query.strip().lower()
+            packages = [
+                item
+                for item in packages
+                if needle in item.name.lower()
+                or (item.summary and needle in item.summary.lower())
+            ]
+
+        packages = self._sort(packages, sort)
+        robot = self._find_robot(packages)
+        return PackageListResult(
+            packages=packages,
+            robot_framework_installed=robot is not None,
+            robot_framework_version=robot.version if robot else None,
+            environment=environment,
+        )
+
+    async def search_packages(self, query: str) -> list[PackageSearchResult]:
+        cleaned = query.strip()
+        if not cleaned:
+            raise PackageValidationError("Search query is required")
+        # Ensure an active environment exists so installs are meaningful.
+        self._require_environment()
+        results = await self._registry.search(cleaned)
+        return [
+            PackageSearchResult(
+                name=str(item.get("name", "")),
+                latest_version=str(item.get("latest_version") or ""),
+                summary=item.get("summary"),
+            )
+            for item in results
+            if item.get("name")
+        ]
+
+    async def get_package(self, name: str) -> InstalledPackage:
+        environment = self._require_environment()
+        package = await self._installer.show(environment.path, name)
+        if package is None:
+            raise PackageValidationError(
+                f"Package '{name}' is not installed in the active environment",
+            )
+        return await self._merge_pypi_details(package)
+
+    async def install_package(self, name: str) -> PackageOperationResult:
+        environment = self._require_environment()
+        cleaned = name.strip()
+        if not cleaned:
+            raise PackageValidationError("Package name is required")
+
+        try:
+            logs = await self._installer.install(environment.path, cleaned)
+        except PackageInstallError as exc:
+            raise PackageValidationError(str(exc)) from exc
+
+        package = await self._installer.show(environment.path, cleaned)
+        if package is not None:
+            package = await self._merge_pypi_details(package)
+
+        workspace = self._context.workspace
+        assert workspace is not None
+        await self._event_bus.publish(
+            PackageInstalled(
+                workspace_id=workspace.id,
+                environment_id=environment.id,
+                package_name=package.name if package else cleaned,
+            ),
+        )
+
+        robot = await self._robot_status(environment)
+        if cleaned.lower().replace("-", "") == "robotframework" or (
+            package and package.name.lower() == "robotframework"
+        ):
+            await self._event_bus.publish(
+                RobotFrameworkInstalled(
+                    workspace_id=workspace.id,
+                    environment_id=environment.id,
+                    version=robot[1],
+                ),
+            )
+
+        return PackageOperationResult(
+            package=package,
+            logs=logs,
+            robot_framework_installed=robot[0],
+            robot_framework_version=robot[1],
+        )
+
+    async def update_package(self, name: str) -> PackageOperationResult:
+        environment = self._require_environment()
+        cleaned = name.strip()
+        if not cleaned:
+            raise PackageValidationError("Package name is required")
+
+        existing = await self._installer.show(environment.path, cleaned)
+        if existing is None:
+            raise PackageValidationError(
+                f"Package '{cleaned}' is not installed in the active environment",
+            )
+
+        try:
+            logs = await self._installer.upgrade(environment.path, cleaned)
+        except PackageInstallError as exc:
+            raise PackageValidationError(str(exc)) from exc
+
+        package = await self._installer.show(environment.path, cleaned)
+        if package is not None:
+            package = await self._merge_pypi_details(package)
+
+        workspace = self._context.workspace
+        assert workspace is not None
+        await self._event_bus.publish(
+            PackageUpdated(
+                workspace_id=workspace.id,
+                environment_id=environment.id,
+                package_name=package.name if package else cleaned,
+            ),
+        )
+
+        robot = await self._robot_status(environment)
+        return PackageOperationResult(
+            package=package,
+            logs=logs,
+            robot_framework_installed=robot[0],
+            robot_framework_version=robot[1],
+        )
+
+    async def uninstall_package(self, name: str) -> PackageOperationResult:
+        environment = self._require_environment()
+        cleaned = name.strip()
+        if not cleaned:
+            raise PackageValidationError("Package name is required")
+        if cleaned.lower() in PROTECTED_PACKAGES:
+            raise PackageValidationError(
+                f"Cannot uninstall protected package '{cleaned}'",
+            )
+
+        existing = await self._installer.show(environment.path, cleaned)
+        if existing is None:
+            raise PackageValidationError(
+                f"Package '{cleaned}' is not installed in the active environment",
+            )
+
+        try:
+            logs = await self._installer.uninstall(environment.path, cleaned)
+        except PackageInstallError as exc:
+            raise PackageValidationError(str(exc)) from exc
+
+        workspace = self._context.workspace
+        assert workspace is not None
+        await self._event_bus.publish(
+            PackageRemoved(
+                workspace_id=workspace.id,
+                environment_id=environment.id,
+                package_name=existing.name,
+            ),
+        )
+
+        robot = await self._robot_status(environment)
+        return PackageOperationResult(
+            package=None,
+            logs=logs,
+            robot_framework_installed=robot[0],
+            robot_framework_version=robot[1],
+        )
+
+    async def install_robot_framework(self) -> PackageOperationResult:
+        return await self.install_package("robotframework")
+
+    async def _merge_pypi_details(self, package: InstalledPackage) -> InstalledPackage:
+        meta = await self._registry.get_metadata(package.name)
+        if meta is None:
+            return package
+        latest = meta.get("latest_version") or package.latest_version or package.version
+        return package.model_copy(
+            update={
+                "latest_version": latest,
+                "update_available": bool(latest and latest != package.version),
+                "summary": package.summary or meta.get("summary"),
+                "author": package.author or meta.get("author"),
+                "homepage": package.homepage or meta.get("homepage"),
+                "license": package.license or meta.get("license"),
+                "requires": package.requires or list(meta.get("requires") or []),
+            },
+        )
+
+    async def _robot_status(
+        self,
+        environment: Environment,
+    ) -> tuple[bool, str | None]:
+        packages = await self._installer.list_installed(environment.path)
+        robot = self._find_robot(packages)
+        return (robot is not None, robot.version if robot else None)
+
+    @staticmethod
+    def _find_robot(packages: list[InstalledPackage]) -> InstalledPackage | None:
+        for package in packages:
+            if package.name.lower() == "robotframework":
+                return package
+        return None
+
+    @staticmethod
+    def _sort(packages: list[InstalledPackage], sort: SortKey) -> list[InstalledPackage]:
+        key = (sort or "name").lower()
+        if key == "version":
+            return sorted(packages, key=lambda item: item.version.lower())
+        if key in {"update", "update_available"}:
+            return sorted(
+                packages,
+                key=lambda item: (0 if item.update_available else 1, item.name.lower()),
+            )
+        return sorted(packages, key=lambda item: item.name.lower())

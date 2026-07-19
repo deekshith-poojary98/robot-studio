@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+*.db
+
+# Flutter
+frontend/.dart_tool/
+frontend/build/
+frontend/.flutter-plugins-dependencies
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Robot Studio data (local user data)
+.robot-studio/
