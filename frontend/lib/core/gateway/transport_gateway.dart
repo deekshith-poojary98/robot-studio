@@ -47,6 +47,8 @@ abstract class TransportGateway {
     EnvironmentSort sort = EnvironmentSort.active,
   });
 
+  Future<List<PythonInterpreterInfo>> listPythonInterpreters();
+
   Future<EnvironmentInfo> createEnvironment({
     required String name,
     required String pythonInterpreter,

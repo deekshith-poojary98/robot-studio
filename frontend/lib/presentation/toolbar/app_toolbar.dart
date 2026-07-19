@@ -65,41 +65,56 @@ class AppToolbar extends StatelessWidget {
           bottom: BorderSide(color: AppColors.borderSubtle),
         ),
       ),
+      clipBehavior: Clip.hardEdge,
       child: Row(
         children: [
-          Text(
-            panelTitle.toUpperCase(),
-            style: Theme.of(context).textTheme.labelSmall,
+          Flexible(
+            flex: 3,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  Text(
+                    panelTitle.toUpperCase(),
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    backendVersion != null ? 'v$backendVersion' : 'offline',
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 10,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  _SelectorChip(
+                    icon: Icons.folder_outlined,
+                    label: workspaceLabel,
+                    onTap: onOpenWorkspace,
+                  ),
+                  const SizedBox(width: 8),
+                  _EnvironmentSelector(
+                    label: environmentLabel,
+                    names: environmentNames,
+                    selectedName: selectedEnvironmentName,
+                    enabled: backendConnected && environmentNames.isNotEmpty,
+                    onSelected: onEnvironmentSelected,
+                    onManage: onManageEnvironments,
+                  ),
+                  const SizedBox(width: 8),
+                  _RobotFrameworkBadge(
+                    installed: robotFrameworkInstalled,
+                    version: robotFrameworkVersion,
+                    enabled:
+                        backendConnected && selectedEnvironmentName != null,
+                    onInstall: onInstallRobotFramework,
+                    onOpenPackages: onOpenPackageManager,
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            backendVersion != null ? 'v$backendVersion' : 'offline',
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
-          ),
-          const SizedBox(width: 14),
-          _SelectorChip(
-            icon: Icons.folder_outlined,
-            label: workspaceLabel,
-            onTap: onOpenWorkspace,
-          ),
-          const SizedBox(width: 8),
-          _EnvironmentSelector(
-            label: environmentLabel,
-            names: environmentNames,
-            selectedName: selectedEnvironmentName,
-            enabled: backendConnected && environmentNames.isNotEmpty,
-            onSelected: onEnvironmentSelected,
-            onManage: onManageEnvironments,
-          ),
-          const SizedBox(width: 8),
-          _RobotFrameworkBadge(
-            installed: robotFrameworkInstalled,
-            version: robotFrameworkVersion,
-            enabled: backendConnected && selectedEnvironmentName != null,
-            onInstall: onInstallRobotFramework,
-            onOpenPackages: onOpenPackageManager,
-          ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 10),
           ToolbarButton(
             icon: Icons.play_arrow_rounded,
             label: 'Run',
@@ -129,46 +144,70 @@ class AppToolbar extends StatelessWidget {
                   ? '${executionStatusLabel!} · ${executionElapsedLabel ?? '0s'}'
                   : executionStatusLabel!,
               filled: isExecutionRunning,
-              dotColor: isExecutionRunning ? AppColors.accent : AppColors.textMuted,
+              dotColor: isExecutionRunning
+                  ? AppColors.accent
+                  : AppColors.textMuted,
             ),
           ],
-          const SizedBox(width: 14),
-          Expanded(
+          const SizedBox(width: 10),
+          Flexible(
+            flex: 2,
             child: InkWell(
               onTap: onOpenSearch,
               borderRadius: BorderRadius.circular(AppRadii.sm),
               child: Container(
                 height: 30,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceElevated,
                   borderRadius: BorderRadius.circular(AppRadii.sm),
                   border: Border.all(color: AppColors.border),
                 ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.search, size: 14, color: AppColors.textMuted),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Search keywords, files, commands...',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                alignment: Alignment.centerLeft,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth < 24) {
+                      return const SizedBox.shrink();
+                    }
+                    final showHint = constraints.maxWidth >= 72;
+                    final showShortcut = constraints.maxWidth >= 140;
+                    return Row(
+                      children: [
+                        const Icon(
+                          Icons.search,
+                          size: 14,
                           color: AppColors.textMuted,
-                          fontSize: 12,
                         ),
-                      ),
-                    ),
-                    Text(
-                      '⌘K',
-                      style: TextStyle(color: AppColors.textMuted, fontSize: 10),
-                    ),
-                  ],
+                        if (showHint) ...[
+                          const SizedBox(width: 6),
+                          const Expanded(
+                            child: Text(
+                              'Search keywords, files, commands...',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (showShortcut)
+                          const Text(
+                            '⌘K',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 10,
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           ToolbarButton(
             icon: Icons.notifications_none_outlined,
             label: 'Notifications',

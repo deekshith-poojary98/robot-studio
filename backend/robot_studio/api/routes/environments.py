@@ -11,6 +11,8 @@ from robot_studio.api.schemas.environment import (
     EnvironmentListResponse,
     EnvironmentResponse,
     ImportEnvironmentRequest,
+    PythonInterpreterListResponse,
+    PythonInterpreterResponse,
 )
 from robot_studio.domain.models import Environment
 from robot_studio.infrastructure.environment.filesystem import (
@@ -52,6 +54,23 @@ async def list_environments(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return EnvironmentListResponse(
         environments=[_to_response(item) for item in environments],
+    )
+
+
+@router.get("/interpreters", response_model=PythonInterpreterListResponse)
+async def list_python_interpreters(
+    gateway: RestGateway = Depends(get_gateway),
+) -> PythonInterpreterListResponse:
+    interpreters = gateway.list_python_interpreters()
+    return PythonInterpreterListResponse(
+        interpreters=[
+            PythonInterpreterResponse(
+                path=item.path,
+                version=item.version,
+                display_name=item.display_name,
+            )
+            for item in interpreters
+        ],
     )
 
 

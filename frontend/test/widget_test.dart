@@ -254,10 +254,18 @@ void main() {
 
     final future = showCreateEnvironmentDialog(
       tester.element(find.byType(SizedBox)),
+      loadInterpreters: () async => const [
+        PythonInterpreterInfo(
+          path: '/usr/bin/python3',
+          version: '3.12.0',
+          displayName: 'Python 3.12.0 — /usr/bin/python3',
+        ),
+      ],
     );
     await tester.pumpAndSettle();
 
     expect(find.text('Create Environment'), findsOneWidget);
+    expect(find.text('Available interpreters'), findsOneWidget);
     await tester.tap(find.text('Create'));
     await tester.pump();
     expect(find.text('Environment name is required'), findsOneWidget);
@@ -266,14 +274,7 @@ void main() {
       find.widgetWithText(TextField, 'Environment name'),
       'robot-3.12',
     );
-    await tester.tap(find.text('Create'));
-    await tester.pump();
-    expect(find.text('Python interpreter is required'), findsOneWidget);
-
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Python interpreter'),
-      '/usr/bin/python3',
-    );
+    // Interpreter is preselected from the discovered list.
     await tester.tap(find.text('Create'));
     await tester.pumpAndSettle();
 
@@ -281,6 +282,50 @@ void main() {
     expect(result?.name, 'robot-3.12');
     expect(result?.pythonInterpreter, '/usr/bin/python3');
     expect(result?.installRobot, isTrue);
+  });
+
+  testWidgets('Create Environment dialog keeps custom browse path', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: SizedBox())),
+    );
+
+    final future = showCreateEnvironmentDialog(
+      tester.element(find.byType(SizedBox)),
+      loadInterpreters: () async => const [
+        PythonInterpreterInfo(
+          path: '/usr/bin/python3',
+          version: '3.12.0',
+          displayName: 'Python 3.12.0 — /usr/bin/python3',
+        ),
+      ],
+    );
+    await tester.pumpAndSettle();
+
+    // Open dropdown then choose custom path.
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Custom path…').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Environment name'),
+      'custom-env',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Python interpreter'),
+      '/custom/python3',
+    );
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+
+    final result = await future;
+    expect(result?.name, 'custom-env');
+    expect(result?.pythonInterpreter, '/custom/python3');
   });
 
   testWidgets('Environment manager lists environments', (
@@ -1520,6 +1565,17 @@ class _FakeTransportGateway implements TransportGateway {
   }) async {
     if (!withWorkspace) return [];
     return List<EnvironmentInfo>.from(_environments);
+  }
+
+  @override
+  Future<List<PythonInterpreterInfo>> listPythonInterpreters() async {
+    return const [
+      PythonInterpreterInfo(
+        path: '/usr/bin/python3',
+        version: '3.12.0',
+        displayName: 'Python 3.12.0 — /usr/bin/python3',
+      ),
+    ];
   }
 
   @override

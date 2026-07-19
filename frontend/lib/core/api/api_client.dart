@@ -67,6 +67,10 @@ class ApiClient implements TransportGateway {
       _gateway.listEnvironments(sort: sort);
 
   @override
+  Future<List<PythonInterpreterInfo>> listPythonInterpreters() =>
+      _gateway.listPythonInterpreters();
+
+  @override
   Future<EnvironmentInfo> createEnvironment({
     required String name,
     required String pythonInterpreter,

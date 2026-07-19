@@ -1062,7 +1062,10 @@ class _AppShellState extends State<AppShell> {
       );
       return;
     }
-    final result = await showCreateEnvironmentDialog(context);
+    final result = await showCreateEnvironmentDialog(
+      context,
+      loadInterpreters: _gateway.listPythonInterpreters,
+    );
     if (result == null) return;
     await _runEnvironmentAction(
       () => _gateway.createEnvironment(

@@ -1,19 +1,30 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/gateway/models/environment_info.dart';
 import '../../core/theme/app_theme.dart';
 
 Future<({String name, String pythonInterpreter, bool installRobot})?>
-    showCreateEnvironmentDialog(BuildContext context) {
+    showCreateEnvironmentDialog(
+  BuildContext context, {
+  Future<List<PythonInterpreterInfo>> Function()? loadInterpreters,
+}) {
   return showDialog<
       ({String name, String pythonInterpreter, bool installRobot})>(
     context: context,
-    builder: (context) => const CreateEnvironmentDialog(),
+    builder: (context) => CreateEnvironmentDialog(
+      loadInterpreters: loadInterpreters,
+    ),
   );
 }
 
 class CreateEnvironmentDialog extends StatefulWidget {
-  const CreateEnvironmentDialog({super.key});
+  const CreateEnvironmentDialog({
+    super.key,
+    this.loadInterpreters,
+  });
+
+  final Future<List<PythonInterpreterInfo>> Function()? loadInterpreters;
 
   @override
   State<CreateEnvironmentDialog> createState() =>
@@ -21,16 +32,75 @@ class CreateEnvironmentDialog extends StatefulWidget {
 }
 
 class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
+  static const _customValue = '__custom__';
+
   final _nameController = TextEditingController();
   final _pythonController = TextEditingController();
   bool _installRobot = true;
   String? _error;
+  bool _loadingInterpreters = false;
+  List<PythonInterpreterInfo> _interpreters = const [];
+  String? _selectedDropdownValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInterpreters();
+  }
 
   @override
   void dispose() {
     _nameController.dispose();
     _pythonController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadInterpreters() async {
+    final loader = widget.loadInterpreters;
+    if (loader == null) return;
+
+    setState(() {
+      _loadingInterpreters = true;
+      _error = null;
+    });
+    try {
+      final items = await loader();
+      if (!mounted) return;
+      setState(() {
+        _interpreters = items;
+        _loadingInterpreters = false;
+        if (items.isNotEmpty && _pythonController.text.trim().isEmpty) {
+          _selectedDropdownValue = items.first.path;
+          _pythonController.text = items.first.path;
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadingInterpreters = false;
+        _error = 'Could not load interpreters: $error';
+      });
+    }
+  }
+
+  void _onDropdownChanged(String? value) {
+    if (value == null) return;
+    setState(() {
+      _selectedDropdownValue = value;
+      _error = null;
+      if (value != _customValue) {
+        _pythonController.text = value;
+      }
+    });
+  }
+
+  void _syncDropdownToPath(String path) {
+    final match = _interpreters.where((item) => item.path == path);
+    setState(() {
+      _selectedDropdownValue =
+          match.isEmpty ? (_interpreters.isEmpty ? null : _customValue) : path;
+      _error = null;
+    });
   }
 
   Future<void> _browsePython() async {
@@ -43,10 +113,8 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
       if (!mounted) return;
       final path = result?.files.single.path;
       if (path != null) {
-        setState(() {
-          _pythonController.text = path;
-          _error = null;
-        });
+        _pythonController.text = path;
+        _syncDropdownToPath(path);
       }
     } catch (error) {
       if (!mounted) return;
@@ -74,10 +142,14 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final showCustomPath = _selectedDropdownValue == _customValue ||
+        _interpreters.isEmpty ||
+        _selectedDropdownValue == null;
+
     return AlertDialog(
       title: const Text('Create Environment'),
       content: SizedBox(
-        width: 480,
+        width: 520,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -92,22 +164,70 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
               onChanged: (_) => setState(() => _error = null),
             ),
             const SizedBox(height: 16),
+            if (_loadingInterpreters)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              )
+            else if (_interpreters.isNotEmpty) ...[
+              DropdownButtonFormField<String>(
+                // ignore: deprecated_member_use
+                value: _selectedDropdownValue ?? _customValue,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Available interpreters',
+                ),
+                items: [
+                  ..._interpreters.map(
+                    (item) => DropdownMenuItem<String>(
+                      value: item.path,
+                      child: Text(
+                        item.displayName,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  const DropdownMenuItem<String>(
+                    value: _customValue,
+                    child: Text('Custom path…'),
+                  ),
+                ],
+                onChanged: _onDropdownChanged,
+              ),
+              const SizedBox(height: 12),
+            ],
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: TextField(
                     controller: _pythonController,
-                    decoration: const InputDecoration(
+                    enabled: showCustomPath || _interpreters.isEmpty,
+                    decoration: InputDecoration(
                       labelText: 'Python interpreter',
                       hintText: '/usr/bin/python3',
+                      helperText: showCustomPath
+                          ? 'Enter a path or use Browse'
+                          : 'Selected from the list above',
                     ),
-                    onChanged: (_) => setState(() => _error = null),
+                    onChanged: (value) {
+                      _syncDropdownToPath(value.trim());
+                    },
                   ),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: _browsePython,
-                  child: const Text('Browse'),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: OutlinedButton(
+                    onPressed: _browsePython,
+                    child: const Text('Browse'),
+                  ),
                 ),
               ],
             ),

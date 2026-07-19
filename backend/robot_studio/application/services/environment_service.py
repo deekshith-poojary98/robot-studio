@@ -23,6 +23,7 @@ from robot_studio.infrastructure.environment.filesystem import (
     FilesystemEnvironmentProvider,
 )
 from robot_studio.infrastructure.environment.python_provider import (
+    DiscoveredInterpreter,
     PythonEnvironmentProvider,
 )
 
@@ -187,6 +188,10 @@ class EnvironmentService:
         enriched = [await self._enrich(item) for item in environments]
         await self._sync_active_context(enriched)
         return self._sort(enriched, sort)
+
+    def list_python_interpreters(self) -> list[DiscoveredInterpreter]:
+        """Discover host Python interpreters (does not require an open workspace)."""
+        return self._python.discover_interpreters()
 
     async def get_environment(self, environment_id: UUID) -> Environment:
         workspace = self._require_workspace()

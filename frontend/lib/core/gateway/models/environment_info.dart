@@ -51,6 +51,27 @@ class EnvironmentInfo {
   final String? architecture;
 }
 
+class PythonInterpreterInfo {
+  const PythonInterpreterInfo({
+    required this.path,
+    required this.version,
+    required this.displayName,
+  });
+
+  factory PythonInterpreterInfo.fromJson(Map<String, dynamic> json) {
+    return PythonInterpreterInfo(
+      path: json['path'] as String,
+      version: json['version'] as String,
+      displayName: json['display_name'] as String? ??
+          'Python ${json['version']} — ${json['path']}',
+    );
+  }
+
+  final String path;
+  final String version;
+  final String displayName;
+}
+
 enum EnvironmentSort {
   active,
   name,

@@ -119,6 +119,18 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<List<PythonInterpreterInfo>> listPythonInterpreters() async {
+    final response = await _get('/environments/interpreters');
+    final items = response['interpreters'] as List<dynamic>;
+    return items
+        .map(
+          (item) =>
+              PythonInterpreterInfo.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  @override
   Future<EnvironmentInfo> createEnvironment({
     required String name,
     required String pythonInterpreter,

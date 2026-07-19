@@ -41,3 +41,13 @@ class EnvironmentResponse(BaseModel):
 
 class EnvironmentListResponse(BaseModel):
     environments: list[EnvironmentResponse]
+
+
+class PythonInterpreterResponse(BaseModel):
+    path: str
+    version: str
+    display_name: str
+
+
+class PythonInterpreterListResponse(BaseModel):
+    interpreters: list[PythonInterpreterResponse]

@@ -101,6 +101,21 @@ async def test_environment_api_flow(api_client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_list_python_interpreters(api_client) -> None:
+    client, _fresh, _tmp = api_client
+    response = await client.get("/api/v1/environments/interpreters")
+    assert response.status_code == 200
+    body = response.json()
+    assert "interpreters" in body
+    assert isinstance(body["interpreters"], list)
+    assert len(body["interpreters"]) >= 1
+    first = body["interpreters"][0]
+    assert first["path"]
+    assert first["version"]
+    assert first["display_name"]
+
+
+@pytest.mark.asyncio
 async def test_health_still_ok(api_client) -> None:
     client, _fresh, _tmp = api_client
     response = await client.get("/api/v1/health")

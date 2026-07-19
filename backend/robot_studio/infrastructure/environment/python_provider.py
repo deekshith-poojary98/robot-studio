@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import venv
@@ -31,6 +33,13 @@ class RuntimeInfo:
     architecture: str
     robot_version: str | None
     package_count: int
+
+
+@dataclass(frozen=True)
+class DiscoveredInterpreter:
+    path: str
+    version: str
+    display_name: str
 
 
 class PythonEnvironmentProvider:
@@ -223,6 +232,148 @@ class PythonEnvironmentProvider:
                 f"Python interpreter not found: '{path}'",
             )
         return path.resolve()
+
+    def discover_interpreters(self) -> list[DiscoveredInterpreter]:
+        """Find usable host Python interpreters for creating virtualenvs."""
+        candidates: list[Path] = []
+
+        def add(path: Path | str | None) -> None:
+            if path is None:
+                return
+            resolved = Path(path).expanduser()
+            if resolved.is_file():
+                candidates.append(resolved)
+
+        add(sys.executable)
+        for name in (
+            "python3",
+            "python",
+            "python3.13",
+            "python3.12",
+            "python3.11",
+            "python3.10",
+            "python3.9",
+        ):
+            which = shutil.which(name)
+            if which:
+                add(which)
+
+        search_dirs = [
+            Path("/usr/bin"),
+            Path("/usr/local/bin"),
+            Path("/opt/homebrew/bin"),
+            Path("/opt/local/bin"),
+        ]
+        if sys.platform == "win32":
+            search_dirs.extend(
+                [
+                    Path(r"C:\Python310"),
+                    Path(r"C:\Python311"),
+                    Path(r"C:\Python312"),
+                    Path(r"C:\Python313"),
+                    Path.home()
+                    / "AppData"
+                    / "Local"
+                    / "Programs"
+                    / "Python",
+                ],
+            )
+            launcher = shutil.which("py")
+            if launcher:
+                try:
+                    listed = subprocess.run(
+                        [launcher, "-0p"],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=3,
+                    )
+                    if listed.returncode == 0:
+                        for line in (listed.stdout or "").splitlines():
+                            parts = line.strip().split()
+                            if parts:
+                                add(parts[-1])
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+
+        for directory in search_dirs:
+            if not directory.is_dir():
+                continue
+            for match in directory.glob("python3*"):
+                add(match)
+            for match in directory.glob("Python*/python.exe"):
+                add(match)
+            add(directory / "python.exe")
+
+        for base, pattern in (
+            (Path.home() / ".pyenv" / "versions", "*/bin/python"),
+            (
+                Path.home() / ".local" / "share" / "mise" / "installs" / "python",
+                "*/bin/python",
+            ),
+            (Path.home() / ".asdf" / "installs" / "python", "*/bin/python"),
+        ):
+            if base.is_dir():
+                for match in base.glob(pattern):
+                    add(match)
+
+        discovered: dict[str, DiscoveredInterpreter] = {}
+        for candidate in candidates:
+            try:
+                resolved = candidate.resolve()
+            except OSError:
+                continue
+            key = str(resolved)
+            if key in discovered:
+                continue
+            if not os.access(resolved, os.X_OK) and sys.platform != "win32":
+                continue
+            version = self._probe_version(resolved)
+            if version is None:
+                continue
+            display = f"Python {version} — {resolved}"
+            discovered[key] = DiscoveredInterpreter(
+                path=key,
+                version=version,
+                display_name=display,
+            )
+
+        def sort_key(item: DiscoveredInterpreter) -> tuple:
+            parts = []
+            for piece in item.version.split("."):
+                try:
+                    parts.append(int(piece))
+                except ValueError:
+                    parts.append(0)
+            while len(parts) < 3:
+                parts.append(0)
+            return (-parts[0], -parts[1], -parts[2], item.path)
+
+        return sorted(discovered.values(), key=sort_key)
+
+    def _probe_version(self, python_executable: Path) -> str | None:
+        try:
+            result = subprocess.run(
+                [
+                    str(python_executable),
+                    "-c",
+                    "import sys; "
+                    "print(f'{sys.version_info.major}."
+                    "{sys.version_info.minor}.{sys.version_info.micro}')",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=2,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if result.returncode != 0:
+            return None
+        version = (result.stdout or "").strip()
+        if not _VERSION_RE.fullmatch(version):
+            return None
+        return version
 
     def _run(self, command: list[str], *, error_prefix: str) -> str:
         result = subprocess.run(
