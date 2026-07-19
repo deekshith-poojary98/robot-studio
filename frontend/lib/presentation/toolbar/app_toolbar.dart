@@ -28,6 +28,7 @@ class AppToolbar extends StatelessWidget {
     this.isExecutionRunning = false,
     this.onNewWorkspace,
     this.onOpenWorkspace,
+    this.onOpenSearch,
   });
 
   final String panelTitle;
@@ -51,6 +52,7 @@ class AppToolbar extends StatelessWidget {
   final bool isExecutionRunning;
   final VoidCallback? onNewWorkspace;
   final VoidCallback? onOpenWorkspace;
+  final VoidCallback? onOpenSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -132,33 +134,37 @@ class AppToolbar extends StatelessWidget {
           ],
           const SizedBox(width: 14),
           Expanded(
-            child: Container(
-              height: 30,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceElevated,
-                borderRadius: BorderRadius.circular(AppRadii.sm),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.search, size: 14, color: AppColors.textMuted),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Search keywords, files, commands...',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 12,
+            child: InkWell(
+              onTap: onOpenSearch,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              child: Container(
+                height: 30,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.search, size: 14, color: AppColors.textMuted),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Search keywords, files, commands...',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
-                  ),
-                  Text(
-                    '⌘K',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 10),
-                  ),
-                ],
+                    Text(
+                      '⌘K',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

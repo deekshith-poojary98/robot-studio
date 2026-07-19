@@ -113,6 +113,20 @@ class IndexUpdated(DomainEvent):
 
 
 @dataclass(frozen=True)
+class FileIndexed(DomainEvent):
+    path: str
+    workspace_id: UUID | None = None
+    project_id: UUID | None = None
+    symbol_count: int = 0
+
+
+@dataclass(frozen=True)
+class FileRemoved(DomainEvent):
+    path: str
+    workspace_id: UUID | None = None
+
+
+@dataclass(frozen=True)
 class ExecutionStarted(DomainEvent):
     run_id: UUID
     project_id: UUID
@@ -141,6 +155,18 @@ class ExecutionCancelled(DomainEvent):
 class ExecutionFailed(DomainEvent):
     run_id: UUID
     message: str = ""
+
+
+@dataclass(frozen=True)
+class RunIndexed(DomainEvent):
+    run_id: UUID
+    workspace_id: UUID | None = None
+
+
+@dataclass(frozen=True)
+class RunDeleted(DomainEvent):
+    run_id: UUID
+    workspace_id: UUID | None = None
 
 
 @dataclass

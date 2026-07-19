@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/environment_info.dart';
+import '../../core/gateway/models/execution_info.dart';
 import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
 import '../project/project_details_panel.dart';
@@ -22,6 +23,9 @@ class WorkspaceExplorer extends StatelessWidget {
     this.onSelectEnvironment,
     this.onManageEnvironments,
     this.onOpenPackageManager,
+    this.recentRuns = const [],
+    this.onSelectReport,
+    this.onOpenReports,
   });
 
   final WorkspaceInfo workspace;
@@ -37,6 +41,9 @@ class WorkspaceExplorer extends StatelessWidget {
   final ValueChanged<EnvironmentInfo>? onSelectEnvironment;
   final VoidCallback? onManageEnvironments;
   final VoidCallback? onOpenPackageManager;
+  final List<ExecutionInfo> recentRuns;
+  final ValueChanged<ExecutionInfo>? onSelectReport;
+  final VoidCallback? onOpenReports;
 
   @override
   Widget build(BuildContext context) {
@@ -198,15 +205,37 @@ class WorkspaceExplorer extends StatelessWidget {
                   ),
                 ],
               ),
-              const ToolSection(
+              ToolSection(
                 title: 'Reports',
-                initiallyExpanded: false,
+                initiallyExpanded: recentRuns.isNotEmpty,
                 children: [
                   ExplorerTreeItem(
-                    icon: Icons.folder_outlined,
-                    label: 'No reports yet',
+                    icon: Icons.bar_chart_outlined,
+                    label: 'Reports',
                     indent: 1,
+                    onTap: onOpenReports,
                   ),
+                  if (recentRuns.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
+                      child: Text(
+                        'No reports yet',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    )
+                  else
+                    ...recentRuns.take(5).map(
+                          (run) => ExplorerTreeItem(
+                            icon: Icons.play_circle_outline,
+                            label: run.suite.isEmpty
+                                ? run.projectName
+                                : run.suite,
+                            indent: 1,
+                            onTap: onSelectReport == null
+                                ? null
+                                : () => onSelectReport!(run),
+                          ),
+                        ),
                 ],
               ),
             ],

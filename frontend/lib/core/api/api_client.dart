@@ -6,6 +6,8 @@ export '../gateway/models/execution_info.dart';
 export '../gateway/models/health_response.dart';
 export '../gateway/models/package_info.dart';
 export '../gateway/models/project_info.dart';
+export '../gateway/models/report_info.dart';
+export '../gateway/models/index_info.dart';
 export '../gateway/models/workspace_info.dart';
 export '../gateway/rest_transport_gateway.dart';
 export '../gateway/transport_gateway.dart';
@@ -149,6 +151,66 @@ class ApiClient implements TransportGateway {
   @override
   Future<List<ExecutionInfo>> listExecutionHistory() =>
       _gateway.listExecutionHistory();
+
+  @override
+  Future<List<ExecutionInfo>> listReports() => _gateway.listReports();
+
+  @override
+  Future<ExecutionInfo> getReport(String runId) => _gateway.getReport(runId);
+
+  @override
+  Future<void> deleteReport(String runId) => _gateway.deleteReport(runId);
+
+  @override
+  Future<String> openReportLog(String runId) => _gateway.openReportLog(runId);
+
+  @override
+  Future<String> openReportHtml(String runId) => _gateway.openReportHtml(runId);
+
+  @override
+  Future<String> revealReport(String runId) => _gateway.revealReport(runId);
+
+  @override
+  Future<DashboardSummary> getReportsDashboard() =>
+      _gateway.getReportsDashboard();
+
+  @override
+  Future<IndexStatusInfo> rebuildIndex() => _gateway.rebuildIndex();
+
+  @override
+  Future<IndexStatusInfo> getIndexStatus() => _gateway.getIndexStatus();
+
+  @override
+  Future<List<IndexedSymbolInfo>> searchSymbols({
+    String query = '',
+    SymbolKind? kind,
+    int limit = 100,
+  }) =>
+      _gateway.searchSymbols(query: query, kind: kind, limit: limit);
+
+  @override
+  Future<IndexedSymbolInfo?> languageDefinition({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+  }) =>
+      _gateway.languageDefinition(name: name, symbolId: symbolId, kind: kind);
+
+  @override
+  Future<List<SymbolReferenceInfo>> languageReferences({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+  }) =>
+      _gateway.languageReferences(name: name, symbolId: symbolId, kind: kind);
+
+  @override
+  Future<HoverInfo?> languageHover({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+  }) =>
+      _gateway.languageHover(name: name, symbolId: symbolId, kind: kind);
 }
 
 /// Backward-compatible alias for [GatewayException].

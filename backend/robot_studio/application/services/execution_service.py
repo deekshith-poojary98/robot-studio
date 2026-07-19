@@ -72,6 +72,7 @@ class ExecutionService:
             project_name=project.name,
             project_path=project.path,
             environment_id=environment.id,
+            environment_name=environment.name,
             python_executable=environment.python_executable,
             suite=suite,
             workspace_path=workspace.path,
@@ -90,6 +91,7 @@ class ExecutionService:
             project_name=project.name,
             project_path=project.path,
             environment_id=environment.id,
+            environment_name=environment.name,
             python_executable=environment.python_executable,
             suite=str(project.path),
             workspace_path=workspace.path,
@@ -156,6 +158,7 @@ class ExecutionService:
         project_name: str,
         project_path: Path,
         environment_id: UUID,
+        environment_name: str,
         python_executable: Path,
         suite: str,
         workspace_path: Path,
@@ -186,6 +189,7 @@ class ExecutionService:
             started_at=datetime.now(UTC),
             command="",
             output_dir=output_dir,
+            environment_name=environment_name,
         )
         await self.repository.create(run)
         async with self._lock:
@@ -309,6 +313,11 @@ class ExecutionService:
                     "report_html": Path(artifacts["report_html"])
                     if artifacts.get("report_html")
                     else None,
+                    "robot_version": artifacts.get("robot_version"),
+                    "total_tests": artifacts.get("total_tests"),
+                    "passed": artifacts.get("passed"),
+                    "failed": artifacts.get("failed"),
+                    "skipped": artifacts.get("skipped"),
                 },
             )
             await self.repository.update(final)

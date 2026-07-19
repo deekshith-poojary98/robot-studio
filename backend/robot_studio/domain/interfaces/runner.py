@@ -25,6 +25,18 @@ class ResultsStore(ABC):
     @abstractmethod
     async def list_history(self, project_id: UUID) -> list[dict]: ...
 
+    @abstractmethod
+    async def discover_run(self, run_id: UUID, output_dir: Path) -> dict: ...
+
+    @abstractmethod
+    async def load_run(self, run_id: UUID) -> dict | None: ...
+
+    @abstractmethod
+    async def delete_run(self, run_id: UUID, output_dir: Path | None) -> None: ...
+
+    @abstractmethod
+    def dashboard_summary(self, runs: list) -> dict: ...
+
 
 class ReportProvider(ABC):
     @abstractmethod

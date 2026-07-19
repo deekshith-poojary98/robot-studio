@@ -100,6 +100,40 @@ class RobotLibrary(BaseModel):
     keywords: list[Keyword] = Field(default_factory=list)
 
 
+class IndexedSymbol(BaseModel):
+    id: str
+    name: str
+    kind: str
+    file_path: Path
+    line: int = 1
+    project_id: UUID | None = None
+    workspace_id: UUID | None = None
+    documentation: str = ""
+    detail: str = ""
+    last_modified: float | None = None
+
+
+class SymbolReference(BaseModel):
+    symbol_id: str
+    name: str
+    file_path: Path
+    line: int = 1
+    project_id: UUID | None = None
+    context: str = ""
+
+
+class IndexStatus(BaseModel):
+    state: str = "idle"
+    files_indexed: int = 0
+    keywords_indexed: int = 0
+    libraries_indexed: int = 0
+    variables_indexed: int = 0
+    symbols_indexed: int = 0
+    last_indexed_at: datetime | None = None
+    message: str = ""
+    errors: list[str] = Field(default_factory=list)
+
+
 class ExecutionRun(BaseModel):
     id: UUID
     workspace_id: UUID
@@ -117,3 +151,18 @@ class ExecutionRun(BaseModel):
     output_xml: Path | None = None
     log_html: Path | None = None
     report_html: Path | None = None
+    environment_name: str = ""
+    robot_version: str | None = None
+    total_tests: int | None = None
+    passed: int | None = None
+    failed: int | None = None
+    skipped: int | None = None
+
+
+class DashboardSummary(BaseModel):
+    total_runs: int = 0
+    pass_rate: float | None = None
+    average_duration_ms: float | None = None
+    last_run: ExecutionRun | None = None
+    recent_runs: list[ExecutionRun] = Field(default_factory=list)
+    recent_failures: list[ExecutionRun] = Field(default_factory=list)

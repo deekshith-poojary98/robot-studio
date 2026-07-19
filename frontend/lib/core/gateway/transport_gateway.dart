@@ -1,15 +1,18 @@
 import 'models/environment_info.dart';
-import 'models/execution_info.dart';
 import 'models/health_response.dart';
+import 'models/index_info.dart';
 import 'models/package_info.dart';
 import 'models/project_info.dart';
+import 'models/report_info.dart';
 import 'models/workspace_info.dart';
 
 export 'models/environment_info.dart';
 export 'models/execution_info.dart';
 export 'models/health_response.dart';
+export 'models/index_info.dart';
 export 'models/package_info.dart';
 export 'models/project_info.dart';
+export 'models/report_info.dart';
 export 'models/workspace_info.dart';
 
 /// Abstraction over REST, gRPC, or other transport mechanisms.
@@ -88,6 +91,48 @@ abstract class TransportGateway {
   Future<ExecutionStatusInfo> getExecutionStatus();
 
   Future<List<ExecutionInfo>> listExecutionHistory();
+
+  Future<List<ExecutionInfo>> listReports();
+
+  Future<ExecutionInfo> getReport(String runId);
+
+  Future<void> deleteReport(String runId);
+
+  Future<String> openReportLog(String runId);
+
+  Future<String> openReportHtml(String runId);
+
+  Future<String> revealReport(String runId);
+
+  Future<DashboardSummary> getReportsDashboard();
+
+  Future<IndexStatusInfo> rebuildIndex();
+
+  Future<IndexStatusInfo> getIndexStatus();
+
+  Future<List<IndexedSymbolInfo>> searchSymbols({
+    String query = '',
+    SymbolKind? kind,
+    int limit = 100,
+  });
+
+  Future<IndexedSymbolInfo?> languageDefinition({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+  });
+
+  Future<List<SymbolReferenceInfo>> languageReferences({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+  });
+
+  Future<HoverInfo?> languageHover({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+  });
 }
 
 class GatewayException implements Exception {

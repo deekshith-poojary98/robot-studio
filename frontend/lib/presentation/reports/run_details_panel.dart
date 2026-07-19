@@ -1,0 +1,317 @@
+import 'package:flutter/material.dart';
+
+import '../../core/gateway/models/execution_info.dart';
+import '../../core/theme/app_theme.dart';
+import '../widgets/status_badge.dart';
+
+class RunDetailsPanel extends StatelessWidget {
+  const RunDetailsPanel({
+    super.key,
+    required this.run,
+    this.onOpenLog,
+    this.onOpenReport,
+    this.onReveal,
+    this.onDelete,
+  });
+
+  final ExecutionInfo run;
+  final VoidCallback? onOpenLog;
+  final VoidCallback? onOpenReport;
+  final VoidCallback? onReveal;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.background,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  run.projectName.isEmpty ? 'Run Details' : run.projectName,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontSize: 18,
+                      ),
+                ),
+              ),
+              StatusBadge(
+                label: run.resultBadge,
+                filled: run.resultBadge == 'PASS',
+                dotColor: run.resultBadge == 'PASS'
+                    ? AppColors.success
+                    : run.resultBadge == 'FAIL'
+                        ? AppColors.error
+                        : AppColors.warning,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            run.suite,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 18),
+          _Section(
+            title: 'General',
+            child: Column(
+              children: [
+                _DetailRow(label: 'Status', value: run.status.label),
+                _DetailRow(label: 'Started', value: _formatDateTime(run.startedAt)),
+                _DetailRow(
+                  label: 'Finished',
+                  value: run.finishedAt == null
+                      ? '—'
+                      : _formatDateTime(run.finishedAt!),
+                ),
+                _DetailRow(label: 'Duration', value: run.durationLabel),
+                _DetailRow(
+                  label: 'Exit code',
+                  value: run.exitCode?.toString() ?? '—',
+                ),
+                _DetailRow(
+                  label: 'Environment',
+                  value: run.environmentName.isEmpty ? '—' : run.environmentName,
+                ),
+                _DetailRow(
+                  label: 'Robot Version',
+                  value: run.robotVersion ?? '—',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          _Section(
+            title: 'Statistics',
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _StatCard(label: 'Total', value: _n(run.totalTests)),
+                _StatCard(label: 'Passed', value: _n(run.passed), color: AppColors.success),
+                _StatCard(label: 'Failed', value: _n(run.failed), color: AppColors.error),
+                _StatCard(label: 'Skipped', value: _n(run.skipped), color: AppColors.warning),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          _Section(
+            title: 'Artifacts',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _ArtifactRow(
+                  label: 'output.xml',
+                  path: run.outputXml,
+                ),
+                _ArtifactRow(
+                  label: 'log.html',
+                  path: run.logHtml,
+                  actionLabel: 'Open Log',
+                  onAction: run.logHtml == null ? null : onOpenLog,
+                ),
+                _ArtifactRow(
+                  label: 'report.html',
+                  path: run.reportHtml,
+                  actionLabel: 'Open Report',
+                  onAction: run.reportHtml == null ? null : onOpenReport,
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: run.outputDir == null ? null : onReveal,
+                      icon: const Icon(Icons.folder_open, size: 16),
+                      label: const Text('Reveal Folder'),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete_outline, size: 16),
+                      label: const Text('Delete Run'),
+                      style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _n(int? value) => value?.toString() ?? '—';
+
+  String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    final y = local.year.toString().padLeft(4, '0');
+    final m = local.month.toString().padLeft(2, '0');
+    final d = local.day.toString().padLeft(2, '0');
+    final h = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    final s = local.second.toString().padLeft(2, '0');
+    return '$y-$m-$d $h:$min:$s';
+  }
+}
+
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.label,
+    required this.value,
+    this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 100,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              color: color ?? AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ArtifactRow extends StatelessWidget {
+  const _ArtifactRow({
+    required this.label,
+    this.path,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String label;
+  final String? path;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            path == null ? Icons.insert_drive_file_outlined : Icons.description_outlined,
+            size: 16,
+            color: path == null ? AppColors.textMuted : AppColors.textSecondary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  path ?? 'Not available',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          if (actionLabel != null)
+            TextButton(
+              onPressed: onAction,
+              child: Text(actionLabel!),
+            ),
+        ],
+      ),
+    );
+  }
+}

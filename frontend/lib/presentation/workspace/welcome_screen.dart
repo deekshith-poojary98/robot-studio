@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../core/gateway/models/execution_info.dart';
+import '../../core/gateway/models/index_info.dart';
 import '../../core/gateway/models/project_info.dart';
+import '../../core/gateway/models/report_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../project/project_details_panel.dart';
+import '../search/index_status_card.dart';
 import '../widgets/explorer_tree.dart';
 import '../widgets/info_card.dart';
 import '../widgets/status_badge.dart';
@@ -26,6 +28,11 @@ class WelcomeScreen extends StatelessWidget {
     this.recentRuns = const [],
     this.runningStatus,
     this.lastRunLabel,
+    this.dashboard,
+    this.workspaceOpen = false,
+    this.indexStatus,
+    this.isLoadingIndexStatus = false,
+    this.onRebuildIndex,
   });
 
   final List<WorkspaceInfo> recentWorkspaces;
@@ -42,6 +49,15 @@ class WelcomeScreen extends StatelessWidget {
   final List<ExecutionInfo> recentRuns;
   final ExecutionStatus? runningStatus;
   final String? lastRunLabel;
+  final DashboardSummary? dashboard;
+  final bool workspaceOpen;
+  final IndexStatusInfo? indexStatus;
+  final bool isLoadingIndexStatus;
+  final VoidCallback? onRebuildIndex;
+
+  bool get _showDashboardSection => dashboard != null || workspaceOpen;
+  bool get _showIndexStatusSection =>
+      workspaceOpen || indexStatus != null || isLoadingIndexStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -160,7 +176,21 @@ class WelcomeScreen extends StatelessWidget {
               },
             ),
             const SizedBox(height: 12),
-            if (recentRuns.isNotEmpty || runningStatus != null)
+            if (_showIndexStatusSection) ...[
+              IndexStatusCard(
+                status: indexStatus,
+                isLoading: isLoadingIndexStatus,
+                onRebuild: onRebuildIndex,
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (_showDashboardSection) ...[
+              InfoCard(
+                title: 'Run Dashboard',
+                child: _DashboardBody(dashboard: dashboard),
+              ),
+              const SizedBox(height: 12),
+            ] else if (recentRuns.isNotEmpty || runningStatus != null) ...[
               InfoCard(
                 title: 'Recent Runs',
                 child: _RecentRunsBody(
@@ -169,8 +199,8 @@ class WelcomeScreen extends StatelessWidget {
                   lastRunLabel: lastRunLabel,
                 ),
               ),
-            if (recentRuns.isNotEmpty || runningStatus != null)
               const SizedBox(height: 12),
+            ],
             InfoCard(
               title: 'Active Environment',
               child: Row(
@@ -193,6 +223,182 @@ class WelcomeScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DashboardBody extends StatelessWidget {
+  const _DashboardBody({this.dashboard});
+
+  final DashboardSummary? dashboard;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = dashboard;
+    if (data == null) {
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          'Loading run statistics…',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      );
+    }
+
+    if (data.totalRuns == 0) {
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          'No runs indexed yet.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _DashboardMetric(
+                label: 'Total Runs',
+                value: '${data.totalRuns}',
+              ),
+              _DashboardMetric(
+                label: 'Pass Rate',
+                value: data.passRateLabel,
+              ),
+              _DashboardMetric(
+                label: 'Average Duration',
+                value: data.averageDurationLabel,
+              ),
+              _DashboardMetric(
+                label: 'Last Run',
+                value: data.lastRun?.resultBadge ?? '—',
+              ),
+              _DashboardMetric(
+                label: 'Recent Failures',
+                value: '${data.recentFailures.length}',
+              ),
+            ],
+          ),
+          if (data.recentRuns.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Recent Runs',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+            const SizedBox(height: 6),
+            ...data.recentRuns.take(5).map(
+                  (run) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            run.suite.isEmpty ? run.projectName : run.suite,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        StatusBadge(
+                          label: run.resultBadge,
+                          filled: run.resultBadge == 'PASS',
+                          dotColor: run.resultBadge == 'PASS'
+                              ? AppColors.success
+                              : run.resultBadge == 'FAIL'
+                                  ? AppColors.error
+                                  : AppColors.textMuted,
+                        ),
+                        if (run.durationLabel != '—') ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            run.durationLabel,
+                            style: const TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+          ],
+          if (data.recentFailures.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Recent Failures',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+            const SizedBox(height: 6),
+            ...data.recentFailures.take(3).map(
+                  (run) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            run.suite.isEmpty ? run.projectName : run.suite,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        StatusBadge(
+                          label: run.resultBadge,
+                          filled: false,
+                          dotColor: AppColors.error,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardMetric extends StatelessWidget {
+  const _DashboardMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 110),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
+          ),
+        ],
       ),
     );
   }

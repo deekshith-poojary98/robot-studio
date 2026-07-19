@@ -28,6 +28,15 @@ enum ExecutionStatus {
       this == ExecutionStatus.starting ||
       this == ExecutionStatus.running ||
       this == ExecutionStatus.stopping;
+
+  bool get isPass =>
+      this == ExecutionStatus.finished && (this != ExecutionStatus.failed);
+
+  String get passFailLabel {
+    if (this == ExecutionStatus.finished) return 'PASS';
+    if (this == ExecutionStatus.failed) return 'FAIL';
+    return label.toUpperCase();
+  }
 }
 
 class ExecutionInfo {
@@ -48,6 +57,12 @@ class ExecutionInfo {
     this.outputXml,
     this.logHtml,
     this.reportHtml,
+    this.environmentName = '',
+    this.robotVersion,
+    this.totalTests,
+    this.passed,
+    this.failed,
+    this.skipped,
   });
 
   factory ExecutionInfo.fromJson(Map<String, dynamic> json) {
@@ -70,6 +85,12 @@ class ExecutionInfo {
       outputXml: json['output_xml'] as String?,
       logHtml: json['log_html'] as String?,
       reportHtml: json['report_html'] as String?,
+      environmentName: json['environment_name'] as String? ?? '',
+      robotVersion: json['robot_version'] as String?,
+      totalTests: (json['total_tests'] as num?)?.toInt(),
+      passed: (json['passed'] as num?)?.toInt(),
+      failed: (json['failed'] as num?)?.toInt(),
+      skipped: (json['skipped'] as num?)?.toInt(),
     );
   }
 
@@ -89,6 +110,25 @@ class ExecutionInfo {
   final String? outputXml;
   final String? logHtml;
   final String? reportHtml;
+  final String environmentName;
+  final String? robotVersion;
+  final int? totalTests;
+  final int? passed;
+  final int? failed;
+  final int? skipped;
+
+  bool get isPassBadge =>
+      status == ExecutionStatus.finished &&
+      (exitCode == 0 || (failed ?? 0) == 0);
+
+  String get resultBadge {
+    if (status == ExecutionStatus.cancelled) return 'CANCELLED';
+    if (status == ExecutionStatus.failed || (failed ?? 0) > 0 || (exitCode ?? 0) != 0) {
+      return 'FAIL';
+    }
+    if (status == ExecutionStatus.finished) return 'PASS';
+    return status.label.toUpperCase();
+  }
 
   String get durationLabel {
     final ms = durationMs;

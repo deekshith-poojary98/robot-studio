@@ -24,6 +24,9 @@ import '../panels/side_panel.dart';
 import '../project/import_project_dialog.dart';
 import '../project/new_project_dialog.dart';
 import '../project/project_details_panel.dart';
+import '../reports/delete_run_dialog.dart';
+import '../reports/reports_page.dart';
+import '../search/search_page.dart';
 import '../sidebar/app_sidebar.dart';
 import '../sidebar/sidebar_panel.dart';
 import '../toolbar/app_toolbar.dart';
@@ -40,6 +43,8 @@ enum _CenterView {
   packages,
   packageDetail,
   execution,
+  reports,
+  search,
 }
 
 class AppShell extends StatefulWidget {
@@ -90,6 +95,24 @@ class _AppShellState extends State<AppShell> {
   ExecutionInfo? _currentExecution;
   bool _loadingHistory = false;
   bool _showExecutionPage = false;
+  List<ExecutionInfo> _reportRuns = [];
+  ExecutionInfo? _selectedReport;
+  DashboardSummary? _reportsDashboard;
+  bool _loadingReports = false;
+  bool _loadingDashboard = false;
+  bool _showReportsPage = false;
+  String _searchQuery = '';
+  SymbolKind? _searchKind;
+  List<IndexedSymbolInfo> _searchResults = [];
+  bool _isSearching = false;
+  IndexedSymbolInfo? _selectedSymbol;
+  HoverInfo? _hoverInfo;
+  List<SymbolReferenceInfo> _references = [];
+  bool _isLoadingLanguage = false;
+  String? _navigationMessage;
+  IndexStatusInfo? _indexStatus;
+  bool _loadingIndexStatus = false;
+  bool _showSearchPage = false;
   String? _selectedSuitePath;
   Timer? _elapsedTimer;
   Duration _elapsed = Duration.zero;
@@ -423,10 +446,150 @@ class _AppShellState extends State<AppShell> {
         _executionHistory = history;
         _loadingHistory = false;
       });
+      await _loadReports();
     } catch (error) {
       if (!mounted) return;
       setState(() => _loadingHistory = false);
       _appendLog('[warn] Could not load execution history: $error');
+    }
+  }
+
+  Future<void> _loadReports() async {
+    if (_activeWorkspace == null || _backendStatus != 'connected') {
+      setState(() {
+        _reportRuns = [];
+        _reportsDashboard = null;
+        _loadingReports = false;
+        _loadingDashboard = false;
+        _selectedReport = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _loadingReports = true;
+      _loadingDashboard = true;
+    });
+    try {
+      final results = await Future.wait([
+        _gateway.listReports(),
+        _gateway.getReportsDashboard(),
+      ]);
+      if (!mounted) return;
+      final runs = results[0] as List<ExecutionInfo>;
+      final dashboard = results[1] as DashboardSummary;
+      setState(() {
+        _reportRuns = runs;
+        _reportsDashboard = dashboard;
+        _loadingReports = false;
+        _loadingDashboard = false;
+        if (_selectedReport != null) {
+          final match =
+              runs.where((item) => item.id == _selectedReport!.id).toList();
+          _selectedReport = match.isEmpty ? null : match.first;
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadingReports = false;
+        _loadingDashboard = false;
+      });
+      _appendLog('[warn] Could not load reports: $error');
+    }
+  }
+
+  Future<void> _openReports() async {
+    if (_activeWorkspace == null) {
+      await _showError(
+        'Workspace required',
+        'Open a workspace before viewing reports.',
+      );
+      return;
+    }
+    setState(() {
+      _showReportsPage = true;
+      _showEnvironmentManager = false;
+      _showPackageManager = false;
+      _showSearchPage = false;
+      _selectedProject = null;
+      _selectedEnvironment = null;
+      _selectedPackage = null;
+      _activePanel = SidebarPanel.reports;
+      _clearExecutionPageUnlessTests();
+    });
+    await _loadReports();
+  }
+
+  Future<void> _selectReport(ExecutionInfo run) async {
+    setState(() {
+      _selectedReport = run;
+      _showReportsPage = true;
+      _showEnvironmentManager = false;
+      _showPackageManager = false;
+      _showSearchPage = false;
+      _selectedProject = null;
+      _selectedEnvironment = null;
+      _selectedPackage = null;
+      _activePanel = SidebarPanel.reports;
+      _clearExecutionPageUnlessTests();
+    });
+    try {
+      final fresh = await _gateway.getReport(run.id);
+      if (!mounted) return;
+      setState(() => _selectedReport = fresh);
+    } catch (error) {
+      _appendLog('[warn] Could not refresh report details: $error');
+    }
+  }
+
+  Future<void> _openReportLog() async {
+    final run = _selectedReport;
+    if (run == null) return;
+    try {
+      await _gateway.openReportLog(run.id);
+    } catch (error) {
+      if (!mounted) return;
+      await _showError('Open log', error);
+    }
+  }
+
+  Future<void> _openReportHtml() async {
+    final run = _selectedReport;
+    if (run == null) return;
+    try {
+      await _gateway.openReportHtml(run.id);
+    } catch (error) {
+      if (!mounted) return;
+      await _showError('Open report', error);
+    }
+  }
+
+  Future<void> _revealReport() async {
+    final run = _selectedReport;
+    if (run == null) return;
+    try {
+      await _gateway.revealReport(run.id);
+    } catch (error) {
+      if (!mounted) return;
+      await _showError('Reveal report', error);
+    }
+  }
+
+  Future<void> _deleteSelectedReport() async {
+    final run = _selectedReport;
+    if (run == null) return;
+    final confirmed = await showDeleteRunDialog(context, run: run);
+    if (confirmed != true) return;
+    try {
+      await _gateway.deleteReport(run.id);
+      if (!mounted) return;
+      setState(() => _selectedReport = null);
+      _appendLog('[info] Deleted report "${run.projectName}"');
+      await _loadReports();
+    } catch (error) {
+      if (!mounted) return;
+      await _showError('Delete report', error);
     }
   }
 
@@ -583,6 +746,18 @@ class _AppShellState extends State<AppShell> {
         _selectedPackage = null;
         _showEnvironmentManager = false;
         _showPackageManager = false;
+        _showReportsPage = false;
+        _showSearchPage = false;
+        _selectedReport = null;
+        _reportRuns = [];
+        _reportsDashboard = null;
+        _searchQuery = '';
+        _searchKind = null;
+        _searchResults = [];
+        _selectedSymbol = null;
+        _hoverInfo = null;
+        _references = [];
+        _navigationMessage = null;
         _activePanel = SidebarPanel.explorer;
         _busy = false;
       });
@@ -591,6 +766,7 @@ class _AppShellState extends State<AppShell> {
       await _loadProjects();
       await _loadEnvironments();
       await _loadExecutionHistory();
+      await _loadIndexStatus();
     } catch (error) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -690,6 +866,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _showEnvironmentManager = true;
       _showPackageManager = false;
+      _showSearchPage = false;
       _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -709,6 +886,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _showPackageManager = true;
       _showEnvironmentManager = false;
+      _showSearchPage = false;
       _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -963,15 +1141,219 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Future<void> _openSearchPanel({SymbolKind? kind}) async {
+    if (_activeWorkspace == null) {
+      await _showError(
+        'Workspace required',
+        'Open a workspace before searching symbols.',
+      );
+      return;
+    }
+    setState(() {
+      _activePanel =
+          kind == SymbolKind.keyword ? SidebarPanel.keywords : SidebarPanel.search;
+      _showSearchPage = true;
+      _showEnvironmentManager = false;
+      _showPackageManager = false;
+      _showReportsPage = false;
+      _showExecutionPage = false;
+      _selectedProject = null;
+      _selectedEnvironment = null;
+      _selectedPackage = null;
+      _selectedReport = null;
+      if (kind != null) {
+        _searchKind = kind;
+      }
+    });
+    _loadIndexStatus();
+  }
+
+  Future<void> _loadIndexStatus() async {
+    if (_activeWorkspace == null || _backendStatus != 'connected') {
+      setState(() {
+        _indexStatus = null;
+        _loadingIndexStatus = false;
+      });
+      return;
+    }
+
+    setState(() => _loadingIndexStatus = true);
+    try {
+      final status = await _gateway.getIndexStatus();
+      if (!mounted) return;
+      setState(() {
+        _indexStatus = status;
+        _loadingIndexStatus = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingIndexStatus = false);
+      _appendLog('[warn] Could not load index status: $error');
+    }
+  }
+
+  Future<void> _rebuildIndex() async {
+    if (_activeWorkspace == null) return;
+    setState(() => _loadingIndexStatus = true);
+    try {
+      final status = await _gateway.rebuildIndex();
+      if (!mounted) return;
+      setState(() {
+        _indexStatus = status;
+        _loadingIndexStatus = false;
+      });
+      _appendLog('[info] Symbol index rebuilt');
+      if (_searchQuery.trim().isNotEmpty) {
+        await _runSearch();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingIndexStatus = false);
+      _appendLog('[error] Index rebuild failed: $error');
+      await _showError('Index rebuild', error);
+    }
+  }
+
+  Future<void> _runSearch() async {
+    if (_activeWorkspace == null || _backendStatus != 'connected') return;
+
+    setState(() {
+      _isSearching = true;
+      _selectedSymbol = null;
+      _hoverInfo = null;
+      _references = [];
+      _navigationMessage = null;
+    });
+    try {
+      final results = await _gateway.searchSymbols(
+        query: _searchQuery.trim(),
+        kind: _searchKind,
+      );
+      if (!mounted) return;
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSearching = false);
+      _appendLog('[warn] Search failed: $error');
+      await _showError('Search', error);
+    }
+  }
+
+  void _selectSymbol(IndexedSymbolInfo symbol) {
+    setState(() {
+      _selectedSymbol = symbol;
+      _hoverInfo = null;
+      _references = [];
+      _navigationMessage = null;
+    });
+  }
+
+  Future<void> _goToDefinition() async {
+    final symbol = _selectedSymbol;
+    if (symbol == null) return;
+
+    setState(() {
+      _isLoadingLanguage = true;
+      _navigationMessage = null;
+    });
+    try {
+      final definition = await _gateway.languageDefinition(
+        name: symbol.name,
+        symbolId: symbol.id,
+        kind: symbol.kind,
+      );
+      if (!mounted) return;
+      setState(() {
+        _isLoadingLanguage = false;
+        if (definition != null) {
+          _navigationMessage =
+              'Would open ${definition.filePath}:${definition.line} (editor not available yet)';
+        } else {
+          _navigationMessage = 'No definition found for "${symbol.name}".';
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoadingLanguage = false);
+      _appendLog('[warn] Definition lookup failed: $error');
+      await _showError('Go to Definition', error);
+    }
+  }
+
+  Future<void> _findReferences() async {
+    final symbol = _selectedSymbol;
+    if (symbol == null) return;
+
+    setState(() {
+      _isLoadingLanguage = true;
+      _references = [];
+    });
+    try {
+      final refs = await _gateway.languageReferences(
+        name: symbol.name,
+        symbolId: symbol.id,
+        kind: symbol.kind,
+      );
+      if (!mounted) return;
+      setState(() {
+        _references = refs;
+        _isLoadingLanguage = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoadingLanguage = false);
+      _appendLog('[warn] References lookup failed: $error');
+      await _showError('Find References', error);
+    }
+  }
+
+  Future<void> _showHover() async {
+    final symbol = _selectedSymbol;
+    if (symbol == null) return;
+
+    setState(() {
+      _isLoadingLanguage = true;
+      _hoverInfo = null;
+    });
+    try {
+      final hover = await _gateway.languageHover(
+        name: symbol.name,
+        symbolId: symbol.id,
+        kind: symbol.kind,
+      );
+      if (!mounted) return;
+      setState(() {
+        _hoverInfo = hover;
+        _isLoadingLanguage = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoadingLanguage = false);
+      _appendLog('[warn] Hover lookup failed: $error');
+      await _showError('Hover Info', error);
+    }
+  }
+
   _CenterView get _centerView {
     if (_activeWorkspace == null) return _CenterView.welcome;
     if (_showExecutionPage || _activePanel == SidebarPanel.tests) {
       return _CenterView.execution;
     }
+    if (_showSearchPage ||
+        _activePanel == SidebarPanel.search ||
+        _activePanel == SidebarPanel.keywords) {
+      return _CenterView.search;
+    }
     if (_showEnvironmentManager) return _CenterView.manager;
     if (_selectedPackage != null) return _CenterView.packageDetail;
     if (_showPackageManager || _activePanel == SidebarPanel.packages) {
       return _CenterView.packages;
+    }
+    if (_showReportsPage || _activePanel == SidebarPanel.reports) {
+      return _CenterView.reports;
     }
     if (_selectedEnvironment != null) return _CenterView.environment;
     if (_selectedProject != null) return _CenterView.project;
@@ -1014,6 +1396,7 @@ class _AppShellState extends State<AppShell> {
                 executionElapsedLabel: _elapsedLabel,
                 onOpenWorkspace: _handleOpenWorkspace,
                 onNewWorkspace: _handleNewWorkspace,
+                onOpenSearch: () => _openSearchPanel(),
               ),
               Expanded(
                 child: Row(
@@ -1029,11 +1412,32 @@ class _AppShellState extends State<AppShell> {
                           } else {
                             _showExecutionPage = false;
                           }
+                          if (panel == SidebarPanel.search ||
+                              panel == SidebarPanel.keywords) {
+                            _showSearchPage = true;
+                            _showEnvironmentManager = false;
+                            _showPackageManager = false;
+                            _showReportsPage = false;
+                            _selectedProject = null;
+                            _selectedEnvironment = null;
+                            _selectedPackage = null;
+                            _selectedReport = null;
+                            if (panel == SidebarPanel.keywords) {
+                              _searchKind = SymbolKind.keyword;
+                            }
+                          } else {
+                            _showSearchPage = false;
+                          }
                         });
                         if (panel == SidebarPanel.packages) {
                           _handleOpenPackageManager();
+                        } else if (panel == SidebarPanel.reports) {
+                          _openReports();
                         } else if (panel == SidebarPanel.tests) {
                           _loadExecutionHistory();
+                        } else if (panel == SidebarPanel.search ||
+                            panel == SidebarPanel.keywords) {
+                          _loadIndexStatus();
                         }
                       },
                     ),
@@ -1052,6 +1456,9 @@ class _AppShellState extends State<AppShell> {
                       onSelectEnvironment: _handleSelectEnvironment,
                       onManageEnvironments: _handleManageEnvironments,
                       onOpenPackageManager: _handleOpenPackageManager,
+                      recentRuns: _reportRuns.take(5).toList(),
+                      onSelectReport: _selectReport,
+                      onOpenReports: _openReports,
                       backendVersion: _backendVersion,
                     ),
                     Expanded(child: _buildCenter()),
@@ -1102,6 +1509,11 @@ class _AppShellState extends State<AppShell> {
           lastRunLabel: _executionHistory.isNotEmpty
               ? _executionHistory.first.suite
               : null,
+          dashboard: _reportsDashboard,
+          workspaceOpen: _activeWorkspace != null,
+          indexStatus: _indexStatus,
+          isLoadingIndexStatus: _loadingIndexStatus,
+          onRebuildIndex: _activeWorkspace != null ? _rebuildIndex : null,
         ),
       _CenterView.manager => EnvironmentManagerPage(
           environments: _environments,
@@ -1174,6 +1586,48 @@ class _AppShellState extends State<AppShell> {
           onRunFile: _handleRunFile,
           onRunProject: _handleRunProject,
           onStop: _handleStopExecution,
+        ),
+      _CenterView.reports => ReportsPage(
+          runs: _reportRuns,
+          isLoading: _loadingReports,
+          dashboard: _reportsDashboard,
+          isLoadingDashboard: _loadingDashboard,
+          selected: _selectedReport,
+          onRefresh: _loadReports,
+          onSelect: _selectReport,
+          onOpenLog: _openReportLog,
+          onOpenReport: _openReportHtml,
+          onReveal: _revealReport,
+          onDelete: _deleteSelectedReport,
+        ),
+      _CenterView.search => SearchPage(
+          query: _searchQuery,
+          kind: _searchKind,
+          results: _searchResults,
+          isSearching: _isSearching,
+          indexStatus: _indexStatus,
+          isLoadingStatus: _loadingIndexStatus,
+          selected: _selectedSymbol,
+          hover: _hoverInfo,
+          references: _references,
+          isLoadingLanguage: _isLoadingLanguage,
+          navigationMessage: _navigationMessage,
+          onQueryChanged: (value) => setState(() => _searchQuery = value),
+          onKindChanged: (value) => setState(() => _searchKind = value),
+          onSearch: _runSearch,
+          onSelect: _selectSymbol,
+          onGoToDefinition: _goToDefinition,
+          onFindReferences: _findReferences,
+          onShowHover: _showHover,
+          onRebuildIndex: _rebuildIndex,
+          onOpenPlaceholder: _selectedSymbol == null
+              ? null
+              : () {
+                  setState(() {
+                    _navigationMessage =
+                        'Would open ${_selectedSymbol!.filePath}:${_selectedSymbol!.line} (editor not available yet)';
+                  });
+                },
         ),
       _CenterView.placeholder => _WorkspaceOpenPlaceholder(
           workspace: _activeWorkspace!,

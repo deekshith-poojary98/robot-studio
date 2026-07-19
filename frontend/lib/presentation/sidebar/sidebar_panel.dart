@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 enum SidebarPanel {
   explorer('Explorer', Icons.account_tree_outlined),
+  search('Search', Icons.search),
   tests('Tests', Icons.science_outlined),
   keywords('Keywords', Icons.vpn_key_outlined),
   packages('Packages', Icons.inventory_2_outlined),

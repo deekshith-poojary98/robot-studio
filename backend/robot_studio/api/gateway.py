@@ -6,17 +6,23 @@ from robot_studio import __version__
 from robot_studio.api.schemas.health import HealthResponse
 from robot_studio.application.services.environment_service import EnvironmentService
 from robot_studio.application.services.execution_service import ExecutionService
+from robot_studio.application.services.index_service import IndexService
+from robot_studio.application.services.language_service import LanguageFacade
 from robot_studio.application.services.package_service import (
     PackageListResult,
     PackageOperationResult,
     PackageService,
 )
 from robot_studio.application.services.project_service import ProjectService
+from robot_studio.application.services.report_service import ReportService
 from robot_studio.application.services.workspace_service import WorkspaceService
 from robot_studio.core.container import Container
+from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.domain.models import (
+    DashboardSummary,
     Environment,
     ExecutionRun,
+    IndexStatus,
     InstalledPackage,
     PackageSearchResult,
     Project,
@@ -64,6 +70,27 @@ class RestGateway:
         service = self._container.execution_service
         if service is None:
             raise RuntimeError("ExecutionService is not initialized")
+        return service
+
+    @property
+    def _report_service(self) -> ReportService:
+        service = self._container.report_service
+        if service is None:
+            raise RuntimeError("ReportService is not initialized")
+        return service
+
+    @property
+    def _index_service(self) -> IndexService:
+        service = self._container.index_service
+        if service is None:
+            raise RuntimeError("IndexService is not initialized")
+        return service
+
+    @property
+    def _language_service(self) -> LanguageFacade:
+        service = self._container.language_facade
+        if service is None:
+            raise RuntimeError("LanguageFacade is not initialized")
         return service
 
     async def health(self) -> HealthResponse:
@@ -189,3 +216,78 @@ class RestGateway:
 
     async def list_execution_history(self) -> list[ExecutionRun]:
         return await self._execution_service.list_history()
+
+    async def list_reports(self) -> list[ExecutionRun]:
+        return await self._report_service.list_runs()
+
+    async def get_report(self, run_id: UUID) -> ExecutionRun:
+        return await self._report_service.get_run(run_id)
+
+    async def delete_report(self, run_id: UUID) -> None:
+        await self._report_service.delete_run(run_id)
+
+    async def open_report_log(self, run_id: UUID):
+        return await self._report_service.open_log(run_id)
+
+    async def open_report_html(self, run_id: UUID):
+        return await self._report_service.open_report(run_id)
+
+    async def reveal_report(self, run_id: UUID):
+        return await self._report_service.reveal(run_id)
+
+    async def get_reports_dashboard(self) -> DashboardSummary:
+        return await self._report_service.dashboard()
+
+    async def rebuild_index(self) -> IndexStatus:
+        return await self._index_service.rebuild()
+
+    async def get_index_status(self) -> IndexStatus:
+        return await self._index_service.get_status()
+
+    async def search_symbols(
+        self,
+        query: str,
+        *,
+        kind: SymbolKind | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        return await self._index_service.search(query, kind=kind, limit=limit)
+
+    async def language_definition(
+        self,
+        *,
+        name: str | None = None,
+        symbol_id: str | None = None,
+        kind: str | None = None,
+    ) -> dict | None:
+        return await self._language_service.definition(
+            name=name,
+            symbol_id=symbol_id,
+            kind=kind,
+        )
+
+    async def language_references(
+        self,
+        *,
+        name: str | None = None,
+        symbol_id: str | None = None,
+        kind: str | None = None,
+    ) -> list[dict]:
+        return await self._language_service.references(
+            name=name,
+            symbol_id=symbol_id,
+            kind=kind,
+        )
+
+    async def language_hover(
+        self,
+        *,
+        name: str | None = None,
+        symbol_id: str | None = None,
+        kind: str | None = None,
+    ) -> dict | None:
+        return await self._language_service.hover(
+            name=name,
+            symbol_id=symbol_id,
+            kind=kind,
+        )

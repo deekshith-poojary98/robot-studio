@@ -10,6 +10,15 @@ import aiosqlite
 
 from robot_studio.domain.models import ExecutionRun, ExecutionStatus
 
+_EXTRA_COLUMNS = (
+    ("environment_name", "TEXT NOT NULL DEFAULT ''"),
+    ("robot_version", "TEXT"),
+    ("total_tests", "INTEGER"),
+    ("passed", "INTEGER"),
+    ("failed", "INTEGER"),
+    ("skipped", "INTEGER"),
+)
+
 
 class SqliteExecutionRepository:
     def __init__(self, database_path: Path) -> None:
@@ -35,7 +44,13 @@ class SqliteExecutionRepository:
                     output_dir TEXT,
                     output_xml TEXT,
                     log_html TEXT,
-                    report_html TEXT
+                    report_html TEXT,
+                    environment_name TEXT NOT NULL DEFAULT '',
+                    robot_version TEXT,
+                    total_tests INTEGER,
+                    passed INTEGER,
+                    failed INTEGER,
+                    skipped INTEGER
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_execution_workspace
@@ -45,6 +60,14 @@ class SqliteExecutionRepository:
                     ON execution_runs (project_id, started_at DESC);
                 """
             )
+            for column, definition in _EXTRA_COLUMNS:
+                try:
+                    await db.execute(
+                        f"ALTER TABLE execution_runs ADD COLUMN {column} {definition}",
+                    )
+                except aiosqlite.OperationalError:
+                    # Column already exists on upgraded databases.
+                    pass
             await db.commit()
 
     async def create(self, run: ExecutionRun) -> ExecutionRun:
@@ -54,8 +77,9 @@ class SqliteExecutionRepository:
                 INSERT INTO execution_runs (
                     id, workspace_id, project_id, environment_id, project_name,
                     suite, status, started_at, finished_at, duration_ms, exit_code,
-                    command, output_dir, output_xml, log_html, report_html
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    command, output_dir, output_xml, log_html, report_html,
+                    environment_name, robot_version, total_tests, passed, failed, skipped
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 self._to_row(run),
             )
@@ -81,7 +105,13 @@ class SqliteExecutionRepository:
                     output_dir = ?,
                     output_xml = ?,
                     log_html = ?,
-                    report_html = ?
+                    report_html = ?,
+                    environment_name = ?,
+                    robot_version = ?,
+                    total_tests = ?,
+                    passed = ?,
+                    failed = ?,
+                    skipped = ?
                 WHERE id = ?
                 """,
                 (
@@ -100,6 +130,12 @@ class SqliteExecutionRepository:
                     str(run.output_xml) if run.output_xml else None,
                     str(run.log_html) if run.log_html else None,
                     str(run.report_html) if run.report_html else None,
+                    run.environment_name,
+                    run.robot_version,
+                    run.total_tests,
+                    run.passed,
+                    run.failed,
+                    run.skipped,
                     str(run.id),
                 ),
             )
@@ -115,6 +151,14 @@ class SqliteExecutionRepository:
             )
             row = await cursor.fetchone()
         return self._row_to_run(row) if row else None
+
+    async def delete(self, run_id: UUID) -> None:
+        async with aiosqlite.connect(self._database_path) as db:
+            await db.execute(
+                "DELETE FROM execution_runs WHERE id = ?",
+                (str(run_id),),
+            )
+            await db.commit()
 
     async def list_by_workspace(
         self,
@@ -155,6 +199,12 @@ class SqliteExecutionRepository:
             str(run.output_xml) if run.output_xml else None,
             str(run.log_html) if run.log_html else None,
             str(run.report_html) if run.report_html else None,
+            run.environment_name,
+            run.robot_version,
+            run.total_tests,
+            run.passed,
+            run.failed,
+            run.skipped,
         )
 
     @staticmethod
@@ -167,6 +217,7 @@ class SqliteExecutionRepository:
             finished = datetime.fromisoformat(row["finished_at"])
             if finished.tzinfo is None:
                 finished = finished.replace(tzinfo=UTC)
+        keys = set(row.keys())
         return ExecutionRun(
             id=UUID(row["id"]),
             workspace_id=UUID(row["workspace_id"]),
@@ -184,4 +235,10 @@ class SqliteExecutionRepository:
             output_xml=Path(row["output_xml"]) if row["output_xml"] else None,
             log_html=Path(row["log_html"]) if row["log_html"] else None,
             report_html=Path(row["report_html"]) if row["report_html"] else None,
+            environment_name=row["environment_name"] if "environment_name" in keys else "",
+            robot_version=row["robot_version"] if "robot_version" in keys else None,
+            total_tests=row["total_tests"] if "total_tests" in keys else None,
+            passed=row["passed"] if "passed" in keys else None,
+            failed=row["failed"] if "failed" in keys else None,
+            skipped=row["skipped"] if "skipped" in keys else None,
         )

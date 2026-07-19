@@ -7,8 +7,11 @@ from dataclasses import dataclass, field
 
 from robot_studio.application.services.environment_service import EnvironmentService
 from robot_studio.application.services.execution_service import ExecutionService
+from robot_studio.application.services.index_service import IndexService
+from robot_studio.application.services.language_service import LanguageFacade
 from robot_studio.application.services.package_service import PackageService
 from robot_studio.application.services.project_service import ProjectService
+from robot_studio.application.services.report_service import ReportService
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.application.services.workspace_service import WorkspaceService
 from robot_studio.core.config import settings
@@ -23,6 +26,12 @@ from robot_studio.infrastructure.environment.python_provider import (
 )
 from robot_studio.infrastructure.execution.results_store import FilesystemResultsStore
 from robot_studio.infrastructure.execution.subprocess_runner import SubprocessRunner
+from robot_studio.infrastructure.indexing.file_watcher import PollingFileWatcher
+from robot_studio.infrastructure.indexing.filesystem_indexer import FilesystemIndexer
+from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
+from robot_studio.infrastructure.language.robot_language_service import (
+    RobotLanguageService,
+)
 from robot_studio.infrastructure.packages.pip_installer import PipInstaller
 from robot_studio.infrastructure.packages.pypi_provider import PyPIProvider
 from robot_studio.infrastructure.plugins.builtins import register_builtin_capabilities
@@ -40,6 +49,7 @@ from robot_studio.infrastructure.repositories.project_repository import (
 from robot_studio.infrastructure.repositories.workspace_repository import (
     SqliteWorkspaceRepository,
 )
+
 
 @dataclass
 class Container:
@@ -69,6 +79,11 @@ class Container:
         init=False,
     )
     execution_service: ExecutionService | None = field(default=None, init=False)
+    report_service: ReportService | None = field(default=None, init=False)
+    index_store: SqliteIndexStore | None = field(default=None, init=False)
+    index_service: IndexService | None = field(default=None, init=False)
+    language_service: RobotLanguageService | None = field(default=None, init=False)
+    language_facade: LanguageFacade | None = field(default=None, init=False)
     _initialized: bool = field(default=False, init=False)
 
     def initialize(self) -> None:
@@ -146,6 +161,42 @@ class Container:
             results_store=self.plugin_host.get(Capability.RESULTS_STORE),
             repository=self.execution_repository,
         )
+        self.report_service = ReportService(
+            context=self.workspace_context,
+            event_bus=self.event_bus,
+            results_store=self.plugin_host.get(Capability.RESULTS_STORE),
+            repository=self.execution_repository,
+        )
+        self.report_service.start()
+
+        self.index_store = SqliteIndexStore(settings.database_path)
+        indexer = FilesystemIndexer(store=self.index_store)
+        watcher = PollingFileWatcher(interval_seconds=1.5)
+        self.index_service = IndexService(
+            context=self.workspace_context,
+            event_bus=self.event_bus,
+            store=self.index_store,
+            indexer=indexer,
+            watcher=watcher,
+            project_repository=self.project_repository,
+        )
+        self.index_service.start()
+
+        language = RobotLanguageService(
+            store=self.index_store,
+            event_bus=self.event_bus,
+        )
+        self.plugin_host.register(
+            Capability.LANGUAGE_SERVICE,
+            "robot-language-service",
+            factory=lambda: language,
+        )
+        self.language_service = language
+        self.language_service.start()
+        self.language_facade = LanguageFacade(
+            context=self.workspace_context,
+            language=self.plugin_host.get(Capability.LANGUAGE_SERVICE),
+        )
         self._initialized = True
 
     async def initialize_async(self) -> None:
@@ -154,10 +205,12 @@ class Container:
         assert self.project_repository is not None
         assert self.environment_repository is not None
         assert self.execution_repository is not None
+        assert self.index_store is not None
         await self.workspace_repository.initialize()
         await self.project_repository.initialize()
         await self.environment_repository.initialize()
         await self.execution_repository.initialize()
+        await self.index_store.initialize()
 
 
 container = Container()

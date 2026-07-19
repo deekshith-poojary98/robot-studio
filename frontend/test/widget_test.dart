@@ -13,6 +13,11 @@ import 'package:robot_studio/presentation/packages/search_packages_dialog.dart';
 import 'package:robot_studio/presentation/packages/uninstall_package_dialog.dart';
 import 'package:robot_studio/presentation/project/import_project_dialog.dart';
 import 'package:robot_studio/presentation/project/new_project_dialog.dart';
+import 'package:robot_studio/presentation/reports/delete_run_dialog.dart';
+import 'package:robot_studio/presentation/reports/reports_page.dart';
+import 'package:robot_studio/presentation/reports/run_details_panel.dart';
+import 'package:robot_studio/presentation/search/index_status_card.dart';
+import 'package:robot_studio/presentation/search/search_page.dart';
 import 'package:robot_studio/presentation/shell/app_shell.dart';
 import 'package:robot_studio/presentation/toolbar/app_toolbar.dart';
 import 'package:robot_studio/presentation/widgets/toolbar_button.dart';
@@ -777,6 +782,364 @@ void main() {
     expect(find.textContaining('tests/api.robot'), findsOneWidget);
     expect(find.text('Finished'), findsOneWidget);
   });
+
+  testWidgets('Reports page shows runs and empty details', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final run = ExecutionInfo(
+      id: 'run-1',
+      workspaceId: 'ws',
+      projectId: 'p1',
+      environmentId: 'e1',
+      projectName: 'Demo',
+      suite: 'tests/demo.robot',
+      status: ExecutionStatus.finished,
+      startedAt: DateTime.utc(2026, 7, 19, 10, 0, 0),
+      durationMs: 1500,
+      exitCode: 0,
+      environmentName: 'robot-main',
+      robotVersion: '7.0',
+      totalTests: 2,
+      passed: 2,
+      failed: 0,
+      skipped: 0,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ReportsPage(
+            runs: [run],
+            isLoading: false,
+            dashboard: DashboardSummary(
+              totalRuns: 1,
+              passRate: 100,
+              averageDurationMs: 1500,
+              lastRun: run,
+              recentRuns: [run],
+            ),
+            isLoadingDashboard: false,
+            onSelect: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Reports'), findsOneWidget);
+    expect(find.text('Demo'), findsOneWidget);
+    expect(find.text('PASS'), findsWidgets);
+    expect(find.text('Select a run to view details.'), findsOneWidget);
+    expect(find.text('Total Runs'), findsOneWidget);
+    expect(find.text('Pass Rate'), findsOneWidget);
+  });
+
+  testWidgets('Run details panel shows statistics and artifacts', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RunDetailsPanel(
+            run: ExecutionInfo(
+              id: 'run-1',
+              workspaceId: 'ws',
+              projectId: 'p1',
+              environmentId: 'e1',
+              projectName: 'Checkout',
+              suite: 'tests/checkout.robot',
+              status: ExecutionStatus.failed,
+              startedAt: DateTime.utc(2026, 7, 19, 11, 0, 0),
+              finishedAt: DateTime.utc(2026, 7, 19, 11, 0, 3),
+              durationMs: 3000,
+              exitCode: 1,
+              environmentName: 'robot-main',
+              robotVersion: '7.1',
+              totalTests: 3,
+              passed: 2,
+              failed: 1,
+              skipped: 0,
+              outputXml: '/tmp/output.xml',
+              logHtml: '/tmp/log.html',
+              reportHtml: '/tmp/report.html',
+              outputDir: '/tmp/Run-1',
+            ),
+            onOpenLog: () {},
+            onOpenReport: () {},
+            onReveal: () {},
+            onDelete: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('General'), findsOneWidget);
+    expect(find.text('Statistics'), findsOneWidget);
+    expect(find.text('Artifacts'), findsOneWidget);
+    expect(find.text('Open Log'), findsOneWidget);
+    expect(find.text('Open Report'), findsOneWidget);
+    expect(find.text('Reveal Folder'), findsOneWidget);
+    expect(find.text('FAIL'), findsOneWidget);
+  });
+
+  testWidgets('Delete run dialog confirms', (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: SizedBox())),
+    );
+
+    final future = showDeleteRunDialog(
+      tester.element(find.byType(SizedBox)),
+      run: ExecutionInfo(
+        id: 'run-1',
+        workspaceId: 'ws',
+        projectId: 'p1',
+        environmentId: 'e1',
+        projectName: 'Demo',
+        suite: 'tests/demo.robot',
+        status: ExecutionStatus.finished,
+        startedAt: DateTime.utc(2026, 7, 19),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete Run'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+    expect(await future, isTrue);
+  });
+
+  testWidgets('Welcome screen shows run dashboard metrics', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final run = ExecutionInfo(
+      id: 'run-1',
+      workspaceId: 'ws',
+      projectId: 'p1',
+      environmentId: 'e1',
+      projectName: 'API Suite',
+      suite: 'tests/api.robot',
+      status: ExecutionStatus.finished,
+      startedAt: DateTime.utc(2026, 7, 19, 10, 0, 0),
+      durationMs: 900,
+      exitCode: 0,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: WelcomeScreen(
+            recentWorkspaces: const [],
+            recentProjects: const [],
+            isLoadingRecent: false,
+            workspaceOpen: true,
+            dashboard: DashboardSummary(
+              totalRuns: 4,
+              passRate: 75,
+              averageDurationMs: 1200,
+              lastRun: run,
+              recentRuns: [run],
+              recentFailures: const [],
+            ),
+            onNewWorkspace: () {},
+            onOpenWorkspace: () {},
+            onOpenRecentWorkspace: (_) {},
+            onOpenRecentProject: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('Pass Rate'), findsWidgets);
+    expect(find.textContaining('Total Runs'), findsWidgets);
+    expect(find.textContaining('Average'), findsWidgets);
+  });
+
+  testWidgets('Search page shows empty state', (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SearchPage(
+            query: '',
+            kind: null,
+            results: const [],
+            isSearching: false,
+            indexStatus: const IndexStatusInfo(state: 'ready', filesIndexed: 3),
+            isLoadingStatus: false,
+            onQueryChanged: (_) {},
+            onKindChanged: (_) {},
+            onSearch: () {},
+            onSelect: (_) {},
+            onGoToDefinition: () {},
+            onFindReferences: () {},
+            onShowHover: () {},
+            onRebuildIndex: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Search symbols…'), findsOneWidget);
+    expect(find.text('Index Status'), findsOneWidget);
+    expect(
+      find.text('No symbols found. Rebuild the index or refine your query.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Search page shows results and detail actions', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    const symbol = IndexedSymbolInfo(
+      id: 'sym-1',
+      name: 'Login With Credentials',
+      kind: SymbolKind.keyword,
+      filePath: 'resources/login.resource',
+      line: 12,
+      documentation: 'Logs into the application.',
+    );
+
+    var definitionTaps = 0;
+    var hoverTaps = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SearchPage(
+            query: 'login',
+            kind: SymbolKind.keyword,
+            results: const [symbol],
+            isSearching: false,
+            indexStatus: const IndexStatusInfo(
+              state: 'ready',
+              keywordsIndexed: 4,
+            ),
+            isLoadingStatus: false,
+            selected: symbol,
+            navigationMessage:
+                'Would open resources/login.resource:12 (editor not available yet)',
+            hover: const HoverInfo(
+              name: 'Login With Credentials',
+              kind: SymbolKind.keyword,
+              filePath: 'resources/login.resource',
+              line: 12,
+              documentation: 'Logs into the application.',
+            ),
+            onQueryChanged: (_) {},
+            onKindChanged: (_) {},
+            onSearch: () {},
+            onSelect: (_) {},
+            onGoToDefinition: () => definitionTaps++,
+            onFindReferences: () {},
+            onShowHover: () => hoverTaps++,
+            onRebuildIndex: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Login With Credentials'), findsWidgets);
+    expect(find.text('Keyword'), findsWidgets);
+    expect(
+      find.textContaining('editor not available yet'),
+      findsOneWidget,
+    );
+    expect(find.text('Hover'), findsOneWidget);
+
+    await tester.tap(find.text('Go to Definition'));
+    await tester.pump();
+    expect(definitionTaps, 1);
+
+    await tester.tap(find.text('Hover Info'));
+    await tester.pump();
+    expect(hoverTaps, 1);
+  });
+
+  testWidgets('Index status card shows metrics', (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(640, 240));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: IndexStatusCard(
+            status: IndexStatusInfo(
+              state: 'ready',
+              filesIndexed: 12,
+              keywordsIndexed: 45,
+              librariesIndexed: 3,
+              variablesIndexed: 18,
+              lastIndexedAt: DateTime.utc(2026, 7, 19, 14, 30, 0),
+            ),
+            onRebuild: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Index Status'), findsOneWidget);
+    expect(find.text('12'), findsOneWidget);
+    expect(find.text('45'), findsOneWidget);
+    expect(find.text('READY'), findsOneWidget);
+    expect(find.text('Rebuild'), findsOneWidget);
+  });
+
+  testWidgets('Welcome screen shows index status card', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: WelcomeScreen(
+            recentWorkspaces: const [],
+            recentProjects: const [],
+            isLoadingRecent: false,
+            workspaceOpen: true,
+            indexStatus: const IndexStatusInfo(
+              state: 'ready',
+              filesIndexed: 5,
+              keywordsIndexed: 10,
+            ),
+            onNewWorkspace: () {},
+            onOpenWorkspace: () {},
+            onOpenRecentWorkspace: (_) {},
+            onOpenRecentProject: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Index Status'), findsOneWidget);
+    expect(find.text('5'), findsOneWidget);
+    expect(find.text('10'), findsOneWidget);
+    expect(find.text('Run Dashboard'), findsOneWidget);
+  });
 }
 
 class _FakeTransportGateway implements TransportGateway {
@@ -1167,4 +1530,133 @@ class _FakeTransportGateway implements TransportGateway {
 
   @override
   Future<List<ExecutionInfo>> listExecutionHistory() async => [];
+
+  static final _sampleRun = ExecutionInfo(
+    id: 'run-1',
+    workspaceId: '1',
+    projectId: 'p1',
+    environmentId: 'e1',
+    projectName: 'Demo',
+    suite: 'tests/demo.robot',
+    status: ExecutionStatus.finished,
+    startedAt: DateTime.utc(2026, 7, 19, 10, 0, 0),
+    durationMs: 1200,
+    exitCode: 0,
+  );
+
+  @override
+  Future<List<ExecutionInfo>> listReports() async {
+    if (!withWorkspace) return [];
+    return [_sampleRun];
+  }
+
+  @override
+  Future<ExecutionInfo> getReport(String runId) async => _sampleRun;
+
+  @override
+  Future<void> deleteReport(String runId) async {}
+
+  @override
+  Future<String> openReportLog(String runId) async => '/tmp/log.html';
+
+  @override
+  Future<String> openReportHtml(String runId) async => '/tmp/report.html';
+
+  @override
+  Future<String> revealReport(String runId) async => '/tmp/Reports';
+
+  @override
+  Future<DashboardSummary> getReportsDashboard() async {
+    if (!withWorkspace) {
+      return const DashboardSummary(totalRuns: 0);
+    }
+    return DashboardSummary(
+      totalRuns: 1,
+      passRate: 100,
+      averageDurationMs: 1200,
+      lastRun: _sampleRun,
+      recentRuns: [_sampleRun],
+      recentFailures: const [],
+    );
+  }
+
+  static const _sampleSymbol = IndexedSymbolInfo(
+    id: 'sym-login',
+    name: 'Login With Credentials',
+    kind: SymbolKind.keyword,
+    filePath: 'resources/login.resource',
+    line: 12,
+    documentation: 'Logs into the application.',
+  );
+
+  static const _indexStatus = IndexStatusInfo(
+    state: 'ready',
+    filesIndexed: 8,
+    keywordsIndexed: 24,
+    librariesIndexed: 2,
+    variablesIndexed: 11,
+    lastIndexedAt: null,
+  );
+
+  @override
+  Future<IndexStatusInfo> rebuildIndex() async => _indexStatus;
+
+  @override
+  Future<IndexStatusInfo> getIndexStatus() async {
+    if (!withWorkspace) {
+      return const IndexStatusInfo(state: 'idle');
+    }
+    return _indexStatus;
+  }
+
+  @override
+  Future<List<IndexedSymbolInfo>> searchSymbols({
+    String query = '',
+    SymbolKind? kind,
+    int limit = 100,
+  }) async {
+    if (query.isEmpty) return const [];
+    if (kind != null && kind != SymbolKind.keyword) return const [];
+    return const [_sampleSymbol];
+  }
+
+  @override
+  Future<IndexedSymbolInfo?> languageDefinition({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+  }) async {
+    return _sampleSymbol;
+  }
+
+  @override
+  Future<List<SymbolReferenceInfo>> languageReferences({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+  }) async {
+    return [
+      SymbolReferenceInfo(
+        name: 'Login With Credentials',
+        filePath: 'tests/login.robot',
+        line: 8,
+        context: r'Login With Credentials    ${USER}    ${PASS}',
+      ),
+    ];
+  }
+
+  @override
+  Future<HoverInfo?> languageHover({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+  }) async {
+    return const HoverInfo(
+      name: 'Login With Credentials',
+      kind: SymbolKind.keyword,
+      filePath: 'resources/login.resource',
+      line: 12,
+      documentation: 'Logs into the application.',
+    );
+  }
 }

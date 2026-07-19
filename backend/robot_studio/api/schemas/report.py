@@ -3,14 +3,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from robot_studio.domain.models import ExecutionRun, ExecutionStatus
+from robot_studio.domain.models import DashboardSummary, ExecutionRun, ExecutionStatus
 
 
-class RunFileRequest(BaseModel):
-    file: str | None = None
-
-
-class ExecutionResponse(BaseModel):
+class RunResponse(BaseModel):
     id: UUID
     workspace_id: UUID
     project_id: UUID
@@ -35,17 +31,26 @@ class ExecutionResponse(BaseModel):
     skipped: int | None = None
 
 
-class ExecutionHistoryResponse(BaseModel):
-    runs: list[ExecutionResponse] = Field(default_factory=list)
+class RunListResponse(BaseModel):
+    runs: list[RunResponse] = Field(default_factory=list)
 
 
-class ExecutionStatusResponse(BaseModel):
-    status: ExecutionStatus
-    run: ExecutionResponse | None = None
+class OpenArtifactResponse(BaseModel):
+    path: str
+    opened: bool = True
 
 
-def to_execution_response(run: ExecutionRun) -> ExecutionResponse:
-    return ExecutionResponse(
+class DashboardResponse(BaseModel):
+    total_runs: int = 0
+    pass_rate: float | None = None
+    average_duration_ms: float | None = None
+    last_run: RunResponse | None = None
+    recent_runs: list[RunResponse] = Field(default_factory=list)
+    recent_failures: list[RunResponse] = Field(default_factory=list)
+
+
+def to_run_response(run: ExecutionRun) -> RunResponse:
+    return RunResponse(
         id=run.id,
         workspace_id=run.workspace_id,
         project_id=run.project_id,
@@ -68,4 +73,15 @@ def to_execution_response(run: ExecutionRun) -> ExecutionResponse:
         passed=run.passed,
         failed=run.failed,
         skipped=run.skipped,
+    )
+
+
+def to_dashboard_response(summary: DashboardSummary) -> DashboardResponse:
+    return DashboardResponse(
+        total_runs=summary.total_runs,
+        pass_rate=summary.pass_rate,
+        average_duration_ms=summary.average_duration_ms,
+        last_run=to_run_response(summary.last_run) if summary.last_run else None,
+        recent_runs=[to_run_response(run) for run in summary.recent_runs],
+        recent_failures=[to_run_response(run) for run in summary.recent_failures],
     )

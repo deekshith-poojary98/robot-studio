@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/environment_info.dart';
+import '../../core/gateway/models/execution_info.dart';
 import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
 import '../../core/theme/app_theme.dart';
@@ -26,6 +27,9 @@ class SidePanel extends StatelessWidget {
     this.onSelectEnvironment,
     this.onManageEnvironments,
     this.onOpenPackageManager,
+    this.recentRuns = const [],
+    this.onSelectReport,
+    this.onOpenReports,
     this.backendVersion,
   });
 
@@ -43,6 +47,9 @@ class SidePanel extends StatelessWidget {
   final ValueChanged<EnvironmentInfo>? onSelectEnvironment;
   final VoidCallback? onManageEnvironments;
   final VoidCallback? onOpenPackageManager;
+  final List<ExecutionInfo> recentRuns;
+  final ValueChanged<ExecutionInfo>? onSelectReport;
+  final VoidCallback? onOpenReports;
   final String? backendVersion;
 
   @override
@@ -93,6 +100,9 @@ class SidePanel extends StatelessWidget {
         onSelectEnvironment: onSelectEnvironment,
         onManageEnvironments: onManageEnvironments,
         onOpenPackageManager: onOpenPackageManager,
+        recentRuns: recentRuns,
+        onSelectReport: onSelectReport,
+        onOpenReports: onOpenReports,
       );
     }
 
@@ -102,6 +112,17 @@ class SidePanel extends StatelessWidget {
         message: workspace == null
             ? 'Open a workspace to manage packages.'
             : 'Package Manager is open in the main view.',
+      );
+    }
+
+    if (panel == SidebarPanel.search || panel == SidebarPanel.keywords) {
+      return _EmptyToolView(
+        icon: panel.icon,
+        message: workspace == null
+            ? 'Open a workspace to search symbols.'
+            : panel == SidebarPanel.keywords
+                ? 'Keyword search is open in the main view.'
+                : 'Search is open in the main view.',
       );
     }
 
@@ -127,6 +148,7 @@ class _PlaceholderTree extends StatelessWidget {
           ('User Keywords', ['None']),
           ('Global Keywords', ['None']),
         ],
+      SidebarPanel.search => const [],
       SidebarPanel.packages => const [
           ('Installed', ['Open Package Manager to view packages']),
           ('Updates Available', ['None']),

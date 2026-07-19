@@ -7,8 +7,10 @@ import 'transport_gateway.dart';
 export 'models/environment_info.dart';
 export 'models/execution_info.dart';
 export 'models/health_response.dart';
+export 'models/index_info.dart';
 export 'models/package_info.dart';
 export 'models/project_info.dart';
+export 'models/report_info.dart';
 export 'models/workspace_info.dart';
 
 /// REST implementation of [TransportGateway].
@@ -289,6 +291,155 @@ class RestTransportGateway implements TransportGateway {
     return items
         .map((item) => ExecutionInfo.fromJson(item as Map<String, dynamic>))
         .toList();
+  }
+
+  @override
+  Future<List<ExecutionInfo>> listReports() async {
+    final response = await _get('/reports');
+    final items = response['runs'] as List<dynamic>;
+    return items
+        .map((item) => ExecutionInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<ExecutionInfo> getReport(String runId) async {
+    final response = await _get('/reports/$runId');
+    return ExecutionInfo.fromJson(response);
+  }
+
+  @override
+  Future<void> deleteReport(String runId) async {
+    final response = await _client
+        .delete(Uri.parse('$baseUrl/reports/$runId'))
+        .timeout(const Duration(seconds: 30));
+    _decode(response, allowEmpty: true);
+  }
+
+  @override
+  Future<String> openReportLog(String runId) async {
+    final response = await _post('/reports/$runId/open-log', body: {});
+    return response['path'] as String? ?? '';
+  }
+
+  @override
+  Future<String> openReportHtml(String runId) async {
+    final response = await _post('/reports/$runId/open-report', body: {});
+    return response['path'] as String? ?? '';
+  }
+
+  @override
+  Future<String> revealReport(String runId) async {
+    final response = await _post('/reports/$runId/reveal', body: {});
+    return response['path'] as String? ?? '';
+  }
+
+  @override
+  Future<DashboardSummary> getReportsDashboard() async {
+    final response = await _get('/reports/dashboard');
+    return DashboardSummary.fromJson(response);
+  }
+
+  @override
+  Future<IndexStatusInfo> rebuildIndex() async {
+    final response = await _post('/index/rebuild', body: {});
+    return IndexStatusInfo.fromJson(response);
+  }
+
+  @override
+  Future<IndexStatusInfo> getIndexStatus() async {
+    final response = await _get('/index/status');
+    return IndexStatusInfo.fromJson(response);
+  }
+
+  @override
+  Future<List<IndexedSymbolInfo>> searchSymbols({
+    String query = '',
+    SymbolKind? kind,
+    int limit = 100,
+  }) async {
+    final buffer = StringBuffer('/search?q=${Uri.encodeQueryComponent(query)}&limit=$limit');
+    if (kind != null) {
+      buffer.write('&kind=${Uri.encodeQueryComponent(kind.apiValue)}');
+    }
+    final response = await _get(buffer.toString());
+    final items = response['results'] as List<dynamic>;
+    return items
+        .map((item) => IndexedSymbolInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<IndexedSymbolInfo?> languageDefinition({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+  }) async {
+    final params = <String>[];
+    if (name != null) params.add('name=${Uri.encodeQueryComponent(name)}');
+    if (symbolId != null) {
+      params.add('symbol_id=${Uri.encodeQueryComponent(symbolId)}');
+    }
+    if (kind != null) {
+      params.add('kind=${Uri.encodeQueryComponent(kind.apiValue)}');
+    }
+    final response = await _client
+        .get(Uri.parse('$baseUrl/language/definition?${params.join('&')}'))
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode == 200 && response.body.isEmpty) {
+      return null;
+    }
+    if (response.statusCode == 200 && response.body == 'null') {
+      return null;
+    }
+    final decoded = _decode(response);
+    return IndexedSymbolInfo.fromJson(decoded);
+  }
+
+  @override
+  Future<List<SymbolReferenceInfo>> languageReferences({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+  }) async {
+    final params = <String>[];
+    if (name != null) params.add('name=${Uri.encodeQueryComponent(name)}');
+    if (symbolId != null) {
+      params.add('symbol_id=${Uri.encodeQueryComponent(symbolId)}');
+    }
+    if (kind != null) {
+      params.add('kind=${Uri.encodeQueryComponent(kind.apiValue)}');
+    }
+    final response = await _get('/language/references?${params.join('&')}');
+    final items = response['references'] as List<dynamic>;
+    return items
+        .map((item) => SymbolReferenceInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<HoverInfo?> languageHover({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+  }) async {
+    final params = <String>[];
+    if (name != null) params.add('name=${Uri.encodeQueryComponent(name)}');
+    if (symbolId != null) {
+      params.add('symbol_id=${Uri.encodeQueryComponent(symbolId)}');
+    }
+    if (kind != null) {
+      params.add('kind=${Uri.encodeQueryComponent(kind.apiValue)}');
+    }
+    final response = await _client
+        .get(Uri.parse('$baseUrl/language/hover?${params.join('&')}'))
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode == 200 &&
+        (response.body.isEmpty || response.body == 'null')) {
+      return null;
+    }
+    final decoded = _decode(response);
+    return HoverInfo.fromJson(decoded);
   }
 
   Future<Map<String, dynamic>> _get(String path) async {
