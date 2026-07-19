@@ -62,6 +62,9 @@ class FakeRegistry:
             "requires": [],
         }
 
+    async def list_versions(self, name: str) -> list[str]:
+        return ["9.9.9", "9.0.0", "8.0.0"]
+
 
 @pytest.fixture
 async def services(tmp_path: Path):

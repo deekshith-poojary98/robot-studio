@@ -1014,12 +1014,21 @@ class _AppShellState extends State<AppShell> {
     final selected = await showSearchPackagesDialog(
       context,
       onSearch: _gateway.searchPackages,
+      onLoadVersions: _gateway.listPackageVersions,
     );
     if (selected == null) return;
+    AppLogger.info(
+      'Install package selected',
+      tag: 'Shell',
+      data: '${selected.name}==${selected.version}',
+    );
     await _runPackageOperation(
       title: 'Installing Package',
-      packageName: selected.name,
-      operation: () => _gateway.installPackage(selected.name),
+      packageName: '${selected.name} ${selected.version}',
+      operation: () => _gateway.installPackage(
+        selected.name,
+        version: selected.version,
+      ),
       successMessage: 'Installed package',
     );
   }

@@ -538,6 +538,11 @@ void main() {
           summary: 'Hit for $query',
         ),
       ],
+      onLoadVersions: (name) async => PackageVersionList(
+        name: name,
+        latestVersion: '18.0.0',
+        versions: const ['18.0.0', '17.5.0', '16.0.0'],
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -549,11 +554,67 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('robotframework-browser'), findsWidgets);
+    await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Version'), findsOneWidget);
+    expect(find.textContaining('18.0.0'), findsWidgets);
+
     await tester.tap(find.widgetWithText(FilledButton, 'Install'));
     await tester.pumpAndSettle();
 
     final selected = await future;
     expect(selected?.name, 'robotframework-browser');
+    expect(selected?.version, '18.0.0');
+  });
+
+  testWidgets('Search PyPI dialog can pick a non-latest version', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: SizedBox())),
+    );
+
+    final future = showSearchPackagesDialog(
+      tester.element(find.byType(SizedBox)),
+      onSearch: (query) async => const [
+        PackageSearchResult(
+          name: 'six',
+          latestVersion: '1.16.0',
+          summary: 'compat',
+        ),
+      ],
+      onLoadVersions: (name) async => const PackageVersionList(
+        name: 'six',
+        latestVersion: '1.16.0',
+        versions: ['1.16.0', '1.15.0', '1.14.0'],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Package name'),
+      'six',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Search'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1.15.0').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Install'));
+    await tester.pumpAndSettle();
+
+    final selected = await future;
+    expect(selected?.name, 'six');
+    expect(selected?.version, '1.15.0');
   });
 
   testWidgets('Uninstall package dialog confirms', (WidgetTester tester) async {
@@ -1721,22 +1782,37 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<PackageVersionList> listPackageVersions(String name) async {
+    return PackageVersionList(
+      name: name,
+      latestVersion: '18.0.0',
+      versions: const ['18.0.0', '17.0.0'],
+    );
+  }
+
+  @override
   Future<PackageInfo> getPackage(String name) async {
     return _packages.firstWhere((item) => item.name == name);
   }
 
   @override
-  Future<PackageOperationResult> installPackage(String name) async {
+  Future<PackageOperationResult> installPackage(
+    String name, {
+    String? version,
+  }) async {
     final package = PackageInfo(
       name: name,
-      version: '1.0.0',
-      latestVersion: '1.0.0',
+      version: version ?? '1.0.0',
+      latestVersion: version ?? '1.0.0',
       summary: 'Installed $name',
     );
     _packages = [..._packages, package];
     return PackageOperationResult(
       package: package,
-      logs: ['Installing $name', 'Successfully installed $name'],
+      logs: [
+        'Installing $name${version == null ? '' : '==$version'}',
+        'Successfully installed $name',
+      ],
       robotFrameworkInstalled:
           name.toLowerCase() == 'robotframework' ||
           _packages.any((item) => item.name.toLowerCase() == 'robotframework'),

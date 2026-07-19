@@ -114,6 +114,18 @@ class PackageService:
             if item.get("name")
         ]
 
+    async def list_package_versions(self, name: str) -> list[str]:
+        cleaned = name.strip()
+        if not cleaned:
+            raise PackageValidationError("Package name is required")
+        self._require_environment()
+        versions = await self._registry.list_versions(cleaned)
+        if not versions:
+            raise PackageValidationError(
+                f"No versions found for package '{cleaned}'",
+            )
+        return versions
+
     async def get_package(self, name: str) -> InstalledPackage:
         environment = self._require_environment()
         package = await self._installer.show(environment.path, name)
@@ -123,14 +135,26 @@ class PackageService:
             )
         return await self._merge_pypi_details(package)
 
-    async def install_package(self, name: str) -> PackageOperationResult:
+    async def install_package(
+        self,
+        name: str,
+        *,
+        version: str | None = None,
+    ) -> PackageOperationResult:
         environment = self._require_environment()
         cleaned = name.strip()
         if not cleaned:
             raise PackageValidationError("Package name is required")
 
+        requirement = cleaned
+        if version is not None and version.strip():
+            selected = version.strip()
+            if any(ch in selected for ch in " \t\n\"';|&"):
+                raise PackageValidationError("Invalid package version")
+            requirement = f"{cleaned}=={selected}"
+
         try:
-            logs = await self._installer.install(environment.path, cleaned)
+            logs = await self._installer.install(environment.path, requirement)
         except PackageInstallError as exc:
             raise PackageValidationError(str(exc)) from exc
 

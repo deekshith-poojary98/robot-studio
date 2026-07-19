@@ -126,11 +126,18 @@ class ApiClient implements TransportGateway {
       _gateway.searchPackages(query);
 
   @override
+  Future<PackageVersionList> listPackageVersions(String name) =>
+      _gateway.listPackageVersions(name);
+
+  @override
   Future<PackageInfo> getPackage(String name) => _gateway.getPackage(name);
 
   @override
-  Future<PackageOperationResult> installPackage(String name) =>
-      _gateway.installPackage(name);
+  Future<PackageOperationResult> installPackage(
+    String name, {
+    String? version,
+  }) =>
+      _gateway.installPackage(name, version: version);
 
   @override
   Future<PackageOperationResult> updatePackage(String name) =>

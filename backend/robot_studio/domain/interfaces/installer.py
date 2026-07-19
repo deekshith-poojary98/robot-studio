@@ -14,6 +14,9 @@ class PackageRegistry(ABC):
     @abstractmethod
     async def get_metadata(self, name: str) -> dict | None: ...
 
+    @abstractmethod
+    async def list_versions(self, name: str) -> list[str]: ...
+
 
 class Installer(ABC):
     @abstractmethod

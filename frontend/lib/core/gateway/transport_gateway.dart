@@ -78,9 +78,14 @@ abstract class TransportGateway {
 
   Future<List<PackageSearchResult>> searchPackages(String query);
 
+  Future<PackageVersionList> listPackageVersions(String name);
+
   Future<PackageInfo> getPackage(String name);
 
-  Future<PackageOperationResult> installPackage(String name);
+  Future<PackageOperationResult> installPackage(
+    String name, {
+    String? version,
+  });
 
   Future<PackageOperationResult> updatePackage(String name);
 

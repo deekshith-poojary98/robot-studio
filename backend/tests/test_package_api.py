@@ -49,6 +49,9 @@ async def api_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                 "requires": [],
             }
 
+        async def list_versions(self, name: str) -> list[str]:
+            return ["1.16.0", "1.15.0", "1.14.0"]
+
     fake = FakeRegistry()
     fresh.plugin_host.register(
         Capability.PACKAGE_REGISTRY,
@@ -103,9 +106,16 @@ async def test_package_api_flow(api_client) -> None:
     assert searched.status_code == 200
     assert searched.json()["results"][0]["name"] == "six"
 
+    versions = await client.get("/api/v1/packages/six/versions")
+    assert versions.status_code == 200
+    body = versions.json()
+    assert body["latest_version"] == "1.16.0"
+    assert body["versions"][0] == "1.16.0"
+    assert "1.15.0" in body["versions"]
+
     installed = await client.post(
         "/api/v1/packages/install",
-        json={"name": "six"},
+        json={"name": "six", "version": "1.16.0"},
     )
     assert installed.status_code == 200, installed.text
     assert installed.json()["package"]["name"].lower() == "six"

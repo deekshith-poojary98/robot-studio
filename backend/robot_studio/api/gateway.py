@@ -201,11 +201,22 @@ class RestGateway:
     async def search_packages(self, query: str) -> list[PackageSearchResult]:
         return await self._package_service.search_packages(query=query)
 
+    async def list_package_versions(self, name: str) -> list[str]:
+        return await self._package_service.list_package_versions(name=name)
+
     async def get_package(self, name: str) -> InstalledPackage:
         return await self._package_service.get_package(name=name)
 
-    async def install_package(self, name: str) -> PackageOperationResult:
-        return await self._package_service.install_package(name=name)
+    async def install_package(
+        self,
+        name: str,
+        *,
+        version: str | None = None,
+    ) -> PackageOperationResult:
+        return await self._package_service.install_package(
+            name=name,
+            version=version,
+        )
 
     async def update_package(self, name: str) -> PackageOperationResult:
         return await self._package_service.update_package(name=name)

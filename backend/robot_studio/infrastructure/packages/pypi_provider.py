@@ -27,6 +27,17 @@ _SNIPPET_RE = re.compile(
 )
 
 
+def _version_sort_key(version: str) -> tuple:
+    """Best-effort PEP-ish sort without depending on packaging."""
+    parts: list[object] = []
+    for chunk in re.split(r"[.+_-]", version):
+        if chunk.isdigit():
+            parts.append((0, int(chunk)))
+        else:
+            parts.append((1, chunk.lower()))
+    return tuple(parts)
+
+
 class PyPIProvider(PackageRegistry):
     """Fetches package metadata and search results from pypi.org."""
 
@@ -118,6 +129,35 @@ class PyPIProvider(PackageRegistry):
             "license": info.get("license") or None,
             "requires": list(info.get("requires_dist") or []),
         }
+
+    async def list_versions(self, name: str) -> list[str]:
+        """Return available release versions, newest-first, latest first."""
+        cleaned = name.strip()
+        if not cleaned:
+            return []
+        payload = await self._get_json(f"/pypi/{quote(cleaned)}/json")
+        if payload is None:
+            return []
+        info = payload.get("info") or {}
+        latest = str(info.get("version") or "").strip()
+        releases = payload.get("releases") or {}
+        if not isinstance(releases, dict):
+            return [latest] if latest else []
+
+        versions = [
+            str(version)
+            for version, files in releases.items()
+            if version and isinstance(files, list) and files
+        ]
+        if not versions and latest:
+            return [latest]
+
+        versions.sort(key=_version_sort_key, reverse=True)
+        if latest:
+            if latest in versions:
+                versions.remove(latest)
+            versions.insert(0, latest)
+        return versions
 
     async def _client_or_create(self) -> httpx.AsyncClient:
         if self._client is None:

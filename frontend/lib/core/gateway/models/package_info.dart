@@ -61,6 +61,40 @@ class PackageSearchResult {
   final String? summary;
 }
 
+class PackageVersionList {
+  const PackageVersionList({
+    required this.name,
+    required this.versions,
+    this.latestVersion,
+  });
+
+  factory PackageVersionList.fromJson(Map<String, dynamic> json) {
+    return PackageVersionList(
+      name: json['name'] as String,
+      latestVersion: json['latest_version'] as String?,
+      versions: (json['versions'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+    );
+  }
+
+  final String name;
+  final String? latestVersion;
+  final List<String> versions;
+}
+
+class PackageInstallSelection {
+  const PackageInstallSelection({
+    required this.name,
+    required this.version,
+    this.summary,
+  });
+
+  final String name;
+  final String version;
+  final String? summary;
+}
+
 class PackageListResult {
   const PackageListResult({
     required this.packages,

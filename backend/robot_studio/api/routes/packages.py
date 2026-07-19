@@ -8,6 +8,7 @@ from robot_studio.api.schemas.package import (
     PackageOperationResponse,
     PackageResponse,
     PackageSearchResponse,
+    PackageVersionsResponse,
     to_package_response,
 )
 from robot_studio.application.services.package_service import PackageValidationError
@@ -46,13 +47,33 @@ async def search_packages(
     return PackageSearchResponse(results=results)
 
 
+@router.get("/{name}/versions", response_model=PackageVersionsResponse)
+async def list_package_versions(
+    name: str,
+    gateway: RestGateway = Depends(get_gateway),
+) -> PackageVersionsResponse:
+    try:
+        versions = await gateway.list_package_versions(name=name)
+    except PackageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    latest = versions[0] if versions else None
+    return PackageVersionsResponse(
+        name=name,
+        latest_version=latest,
+        versions=versions,
+    )
+
+
 @router.post("/install", response_model=PackageOperationResponse)
 async def install_package(
     request: PackageNameRequest,
     gateway: RestGateway = Depends(get_gateway),
 ) -> PackageOperationResponse:
     try:
-        result = await gateway.install_package(name=request.name)
+        result = await gateway.install_package(
+            name=request.name,
+            version=request.version,
+        )
     except PackageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return PackageOperationResponse(

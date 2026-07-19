@@ -229,6 +229,13 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<PackageVersionList> listPackageVersions(String name) async {
+    final encoded = Uri.encodeComponent(name);
+    final response = await _get('/packages/$encoded/versions');
+    return PackageVersionList.fromJson(response);
+  }
+
+  @override
   Future<PackageInfo> getPackage(String name) async {
     final encoded = Uri.encodeComponent(name);
     final response = await _get('/packages/$encoded');
@@ -236,10 +243,16 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<PackageOperationResult> installPackage(String name) async {
+  Future<PackageOperationResult> installPackage(
+    String name, {
+    String? version,
+  }) async {
     final response = await _post(
       '/packages/install',
-      body: {'name': name},
+      body: {
+        'name': name,
+        if (version != null && version.isNotEmpty) 'version': version,
+      },
       timeout: const Duration(minutes: 10),
     );
     return PackageOperationResult.fromJson(response);
