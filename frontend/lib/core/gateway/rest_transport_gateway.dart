@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../logging/app_logger.dart';
 import 'transport_gateway.dart';
 
 export 'models/environment_info.dart';
@@ -190,13 +191,16 @@ class RestTransportGateway implements TransportGateway {
     required String environmentId,
     bool deleteFiles = false,
   }) async {
-    final uri = Uri.parse(
-      '$baseUrl/environments/$environmentId?delete_files=$deleteFiles',
+    final path =
+        '/environments/$environmentId?delete_files=$deleteFiles';
+    await _send(
+      'DELETE',
+      path,
+      () => _client
+          .delete(Uri.parse('$baseUrl$path'))
+          .timeout(const Duration(seconds: 30)),
+      allowEmpty: true,
     );
-    final response = await _client
-        .delete(uri)
-        .timeout(const Duration(seconds: 30));
-    _decode(response, allowEmpty: true);
   }
 
   @override
@@ -323,10 +327,15 @@ class RestTransportGateway implements TransportGateway {
 
   @override
   Future<void> deleteReport(String runId) async {
-    final response = await _client
-        .delete(Uri.parse('$baseUrl/reports/$runId'))
-        .timeout(const Duration(seconds: 30));
-    _decode(response, allowEmpty: true);
+    final path = '/reports/$runId';
+    await _send(
+      'DELETE',
+      path,
+      () => _client
+          .delete(Uri.parse('$baseUrl$path'))
+          .timeout(const Duration(seconds: 30)),
+      allowEmpty: true,
+    );
   }
 
   @override
@@ -516,41 +525,86 @@ class RestTransportGateway implements TransportGateway {
         .toList();
   }
 
-  Future<Map<String, dynamic>> _get(String path) async {
-    final response = await _client
-        .get(Uri.parse('$baseUrl$path'))
-        .timeout(const Duration(seconds: 30));
-    return _decode(response);
+  Future<Map<String, dynamic>> _get(String path) {
+    return _send(
+      'GET',
+      path,
+      () => _client
+          .get(Uri.parse('$baseUrl$path'))
+          .timeout(const Duration(seconds: 30)),
+    );
   }
 
   Future<Map<String, dynamic>> _post(
     String path, {
     required Map<String, dynamic> body,
     Duration timeout = const Duration(seconds: 15),
-  }) async {
-    final response = await _client
-        .post(
-          Uri.parse('$baseUrl$path'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(body),
-        )
-        .timeout(timeout);
-    return _decode(response);
+  }) {
+    return _send(
+      'POST',
+      path,
+      () => _client
+          .post(
+            Uri.parse('$baseUrl$path'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(timeout),
+      body: body,
+    );
   }
 
   Future<Map<String, dynamic>> _put(
     String path, {
     required Map<String, dynamic> body,
     Duration timeout = const Duration(seconds: 30),
+  }) {
+    return _send(
+      'PUT',
+      path,
+      () => _client
+          .put(
+            Uri.parse('$baseUrl$path'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(timeout),
+      body: body,
+    );
+  }
+
+  Future<Map<String, dynamic>> _send(
+    String method,
+    String path,
+    Future<http.Response> Function() send, {
+    Map<String, dynamic>? body,
+    bool allowEmpty = false,
   }) async {
-    final response = await _client
-        .put(
-          Uri.parse('$baseUrl$path'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(body),
-        )
-        .timeout(timeout);
-    return _decode(response);
+    final stopwatch = Stopwatch()..start();
+    AppLogger.debug(
+      '$method $path',
+      tag: 'Gateway',
+      data: body == null ? null : AppLogger.summarizeBody(body),
+    );
+    try {
+      final response = await send();
+      stopwatch.stop();
+      AppLogger.debug(
+        '$method $path → ${response.statusCode} '
+        '(${stopwatch.elapsedMilliseconds}ms, ${response.bodyBytes.length}b)',
+        tag: 'Gateway',
+      );
+      return _decode(response, allowEmpty: allowEmpty);
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      AppLogger.error(
+        '$method $path failed after ${stopwatch.elapsedMilliseconds}ms',
+        tag: 'Gateway',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   Map<String, dynamic> _decode(
@@ -565,9 +619,12 @@ class RestTransportGateway implements TransportGateway {
       final detail = decoded is Map<String, dynamic>
           ? decoded['detail']?.toString()
           : null;
-      throw GatewayException(
-        detail ?? 'Request failed (${response.statusCode})',
+      final message = detail ?? 'Request failed (${response.statusCode})';
+      AppLogger.warn(
+        'HTTP ${response.statusCode}: $message',
+        tag: 'Gateway',
       );
+      throw GatewayException(message);
     }
 
     if (allowEmpty && response.body.isEmpty) {

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../../core/gateway/execution_stream_client.dart';
 import '../../core/gateway/rest_transport_gateway.dart';
 import '../../core/gateway/transport_gateway.dart';
+import '../../core/logging/app_logger.dart';
 import '../../core/theme/app_theme.dart';
 import '../environment/clone_environment_dialog.dart';
 import '../environment/create_environment_dialog.dart';
@@ -160,11 +161,13 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    AppLogger.info('AppShell init', tag: 'Shell');
     _bootstrap();
   }
 
   @override
   void dispose() {
+    AppLogger.debug('AppShell dispose', tag: 'Shell');
     _streamSub?.cancel();
     _elapsedTimer?.cancel();
     _streamClient?.disconnect();
@@ -183,11 +186,18 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _bootstrap() async {
+    AppLogger.debug('Bootstrap start', tag: 'Shell');
     await _checkBackend();
     await _loadRecent();
+    AppLogger.debug(
+      'Bootstrap done',
+      tag: 'Shell',
+      data: 'backend=$_backendStatus',
+    );
   }
 
   Future<void> _checkBackend() async {
+    AppLogger.debug('Checking backend health', tag: 'Shell');
     try {
       final health = await _gateway.health();
       if (!mounted) return;
@@ -199,9 +209,23 @@ class _AppShellState extends State<AppShell> {
           '[info] ${health.modules.length} modules registered',
         ];
       });
+      for (final line in _logLines) {
+        AppLogger.fromConsoleLine(line, tag: 'Shell');
+      }
+      AppLogger.info(
+        'Backend connected',
+        tag: 'Shell',
+        data: 'v${health.version} modules=${health.modules.join(',')}',
+      );
       _connectExecutionStream();
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
+      AppLogger.error(
+        'Backend unavailable',
+        tag: 'Shell',
+        error: error,
+        stackTrace: stackTrace,
+      );
       setState(() {
         _backendStatus = 'offline';
         _logLines = [
@@ -346,6 +370,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _appendLog(String line) {
+    AppLogger.fromConsoleLine(line, tag: 'Shell');
     setState(() {
       _logLines = [..._logLines, line];
     });
@@ -624,6 +649,15 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleRunFile() async {
+    AppLogger.info(
+      'Run file requested',
+      tag: 'Shell',
+      data: {
+        'project': _selectedProject?.name,
+        'suite': _selectedSuitePath,
+        'env': _activeEnvironment?.name,
+      },
+    );
     if (_selectedProject == null) {
       await _showError(
         'Project required',
@@ -648,6 +682,11 @@ class _AppShellState extends State<AppShell> {
     try {
       final run = await _gateway.runFile(file: _selectedSuitePath);
       if (!mounted) return;
+      AppLogger.info(
+        'Run started',
+        tag: 'Shell',
+        data: 'id=${run.id} status=${run.status.name}',
+      );
       setState(() {
         _executionStatus = run.status;
         _currentExecution = run;
@@ -661,6 +700,14 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleRunProject() async {
+    AppLogger.info(
+      'Run project requested',
+      tag: 'Shell',
+      data: {
+        'project': _selectedProject?.name,
+        'env': _activeEnvironment?.name,
+      },
+    );
     if (_selectedProject == null) {
       await _showError(
         'Project required',
@@ -685,6 +732,11 @@ class _AppShellState extends State<AppShell> {
     try {
       final run = await _gateway.runProject();
       if (!mounted) return;
+      AppLogger.info(
+        'Run project started',
+        tag: 'Shell',
+        data: 'id=${run.id} status=${run.status.name}',
+      );
       setState(() {
         _executionStatus = run.status;
         _currentExecution = run;
@@ -1055,6 +1107,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleCreateEnvironment() async {
+    AppLogger.info('Create environment dialog', tag: 'Shell');
     if (_activeWorkspace == null) {
       await _showError(
         'Workspace required',
@@ -1066,7 +1119,19 @@ class _AppShellState extends State<AppShell> {
       context,
       loadInterpreters: _gateway.listPythonInterpreters,
     );
-    if (result == null) return;
+    if (result == null) {
+      AppLogger.debug('Create environment cancelled', tag: 'Shell');
+      return;
+    }
+    AppLogger.info(
+      'Creating environment',
+      tag: 'Shell',
+      data: {
+        'name': result.name,
+        'python': result.pythonInterpreter,
+        'installRobot': result.installRobot,
+      },
+    );
     await _runEnvironmentAction(
       () => _gateway.createEnvironment(
         name: result.name,
@@ -1212,6 +1277,11 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _openFile(String path, {int? line}) async {
+    AppLogger.info(
+      'Open file',
+      tag: 'Shell',
+      data: 'path=$path line=$line',
+    );
     if (_activeWorkspace == null) {
       await _showError(
         'Workspace required',
@@ -1223,6 +1293,7 @@ class _AppShellState extends State<AppShell> {
     final existingIndex =
         _editorTabs.indexWhere((tab) => tab.path == path);
     if (existingIndex >= 0) {
+      AppLogger.debug('Reusing open tab', tag: 'Shell', data: path);
       setState(() {
         _activeEditorPath = path;
         _showEditorPage = true;
@@ -1424,8 +1495,16 @@ class _AppShellState extends State<AppShell> {
     final tabIndex = _editorTabs.indexWhere((tab) => tab.path == path);
     if (tabIndex < 0) return;
     final tab = _editorTabs[tabIndex];
-    if (!tab.isDirty) return;
+    if (!tab.isDirty) {
+      AppLogger.debug('Save skipped (clean)', tag: 'Shell', data: path);
+      return;
+    }
 
+    AppLogger.info(
+      'Saving file',
+      tag: 'Shell',
+      data: 'path=$path bytes=${tab.content.length}',
+    );
     try {
       final result = await _gateway.writeFile(
         path: path,

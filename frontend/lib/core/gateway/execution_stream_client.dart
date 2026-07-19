@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../logging/app_logger.dart';
 import 'models/execution_info.dart';
 
 /// Live execution log stream over WebSocket.
@@ -27,30 +28,68 @@ class ExecutionStreamClient {
 
   Future<void> connect() async {
     if (_socket != null) return;
+    AppLogger.info('Connecting execution stream', tag: 'Stream', data: url);
     _controller = StreamController<ExecutionStreamEvent>.broadcast();
-    final socket = await WebSocket.connect(url);
-    _socket = socket;
-    _subscription = socket.listen(
-      (message) {
-        if (message is! String) return;
-        try {
-          final decoded = jsonDecode(message) as Map<String, dynamic>;
-          _controller?.add(ExecutionStreamEvent.fromJson(decoded));
-        } catch (_) {
-          // Ignore malformed frames.
-        }
-      },
-      onError: (Object error) {
-        _controller?.addError(error);
-      },
-      onDone: () {
-        _socket = null;
-      },
-      cancelOnError: false,
-    );
+    try {
+      final socket = await WebSocket.connect(url);
+      _socket = socket;
+      _subscription = socket.listen(
+        (message) {
+          if (message is! String) return;
+          try {
+            final decoded = jsonDecode(message) as Map<String, dynamic>;
+            final event = ExecutionStreamEvent.fromJson(decoded);
+            if (event.type != 'output') {
+              AppLogger.debug(
+                'stream event type=${event.type}',
+                tag: 'Stream',
+                data: {
+                  'runId': event.runId,
+                  'status': event.status,
+                  'message': event.message,
+                  'exitCode': event.exitCode,
+                },
+              );
+            }
+            _controller?.add(event);
+          } catch (error) {
+            AppLogger.warn(
+              'Ignoring malformed stream frame',
+              tag: 'Stream',
+              error: error,
+            );
+          }
+        },
+        onError: (Object error) {
+          AppLogger.error(
+            'Execution stream error',
+            tag: 'Stream',
+            error: error,
+          );
+          _controller?.addError(error);
+        },
+        onDone: () {
+          AppLogger.info('Execution stream closed', tag: 'Stream');
+          _socket = null;
+        },
+        cancelOnError: false,
+      );
+      AppLogger.info('Execution stream connected', tag: 'Stream');
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Execution stream connect failed',
+        tag: 'Stream',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      await _controller?.close();
+      _controller = null;
+      rethrow;
+    }
   }
 
   Future<void> disconnect() async {
+    AppLogger.debug('Disconnecting execution stream', tag: 'Stream');
     await _subscription?.cancel();
     _subscription = null;
     await _socket?.close();
