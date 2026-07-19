@@ -6,6 +6,7 @@ from robot_studio.api.schemas.index import (
     HoverResponse,
     ReferenceListResponse,
     ReferenceResponse,
+    SearchResponse,
     SymbolResponse,
     to_symbol_response,
 )
@@ -90,3 +91,29 @@ async def language_hover(
         detail=result.get("detail") or "",
         id=result.get("id") or "",
     )
+
+
+@router.get("/document-symbols", response_model=SearchResponse)
+async def document_symbols(
+    file: str = Query(min_length=1),
+    gateway: RestGateway = Depends(get_gateway),
+) -> SearchResponse:
+    try:
+        results = await gateway.document_symbols(file)
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return SearchResponse(results=[to_symbol_response(item) for item in results])
+
+
+@router.get("/workspace-symbols", response_model=SearchResponse)
+async def workspace_symbols(
+    q: str = Query(default=""),
+    limit: int = Query(default=200, ge=1, le=500),
+    gateway: RestGateway = Depends(get_gateway),
+) -> SearchResponse:
+    try:
+        results = await gateway.workspace_symbols(query=q, limit=limit)
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return SearchResponse(results=[to_symbol_response(item) for item in results])
+

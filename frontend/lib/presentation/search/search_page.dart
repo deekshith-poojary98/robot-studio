@@ -321,7 +321,7 @@ class _DetailPane extends StatelessWidget {
             if (onOpenPlaceholder != null)
               TextButton(
                 onPressed: onOpenPlaceholder,
-                child: const Text('Open File (placeholder)'),
+                child: const Text('Open File'),
               ),
           ],
         ),

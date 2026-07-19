@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/environment_info.dart';
 import '../../core/gateway/models/execution_info.dart';
+import '../../core/gateway/models/file_info.dart';
 import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
 import '../../core/theme/app_theme.dart';
@@ -31,6 +32,8 @@ class SidePanel extends StatelessWidget {
     this.onSelectReport,
     this.onOpenReports,
     this.backendVersion,
+    this.fileTree = const [],
+    this.onOpenFile,
   });
 
   final SidebarPanel panel;
@@ -51,6 +54,8 @@ class SidePanel extends StatelessWidget {
   final ValueChanged<ExecutionInfo>? onSelectReport;
   final VoidCallback? onOpenReports;
   final String? backendVersion;
+  final List<FileTreeNode> fileTree;
+  final ValueChanged<String>? onOpenFile;
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +108,8 @@ class SidePanel extends StatelessWidget {
         recentRuns: recentRuns,
         onSelectReport: onSelectReport,
         onOpenReports: onOpenReports,
+        fileTree: fileTree,
+        onOpenFile: onOpenFile,
       );
     }
 

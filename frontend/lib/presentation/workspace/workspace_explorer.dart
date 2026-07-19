@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/environment_info.dart';
 import '../../core/gateway/models/execution_info.dart';
+import '../../core/gateway/models/file_info.dart';
 import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
 import '../project/project_details_panel.dart';
@@ -26,6 +27,8 @@ class WorkspaceExplorer extends StatelessWidget {
     this.recentRuns = const [],
     this.onSelectReport,
     this.onOpenReports,
+    this.fileTree = const [],
+    this.onOpenFile,
   });
 
   final WorkspaceInfo workspace;
@@ -44,6 +47,8 @@ class WorkspaceExplorer extends StatelessWidget {
   final List<ExecutionInfo> recentRuns;
   final ValueChanged<ExecutionInfo>? onSelectReport;
   final VoidCallback? onOpenReports;
+  final List<FileTreeNode> fileTree;
+  final ValueChanged<String>? onOpenFile;
 
   @override
   Widget build(BuildContext context) {
@@ -133,6 +138,29 @@ class WorkspaceExplorer extends StatelessWidget {
                     ),
                 ],
               ),
+              if (onOpenFile != null)
+                ToolSection(
+                  title: 'Files',
+                  initiallyExpanded: fileTree.isNotEmpty,
+                  children: fileTree.isEmpty
+                      ? [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
+                            child: Text(
+                              'No source files found.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ]
+                      : [
+                          for (final node in fileTree)
+                            _FileTreeNodeTile(
+                              node: node,
+                              indent: 1,
+                              onOpenFile: onOpenFile!,
+                            ),
+                        ],
+                ),
               const ToolSection(
                 title: 'Shared',
                 children: [
@@ -243,5 +271,68 @@ class WorkspaceExplorer extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _FileTreeNodeTile extends StatefulWidget {
+  const _FileTreeNodeTile({
+    required this.node,
+    required this.indent,
+    required this.onOpenFile,
+  });
+
+  final FileTreeNode node;
+  final int indent;
+  final ValueChanged<String> onOpenFile;
+
+  @override
+  State<_FileTreeNodeTile> createState() => _FileTreeNodeTileState();
+}
+
+class _FileTreeNodeTileState extends State<_FileTreeNodeTile> {
+  bool _expanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final node = widget.node;
+    if (node.isDir) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ExplorerTreeItem(
+            icon: _expanded
+                ? Icons.folder_open_outlined
+                : Icons.folder_outlined,
+            label: node.name,
+            indent: widget.indent,
+            onTap: () => setState(() => _expanded = !_expanded),
+          ),
+          if (_expanded)
+            for (final child in node.children)
+              _FileTreeNodeTile(
+                node: child,
+                indent: widget.indent + 1,
+                onOpenFile: widget.onOpenFile,
+              ),
+        ],
+      );
+    }
+
+    if (!node.isRobotSource) return const SizedBox.shrink();
+
+    return ExplorerTreeItem(
+      icon: _iconForSuffix(node.suffix),
+      label: node.name,
+      indent: widget.indent,
+      onTap: () => widget.onOpenFile(node.path),
+    );
+  }
+
+  IconData _iconForSuffix(String suffix) {
+    return switch (suffix) {
+      '.py' => Icons.code_outlined,
+      '.resource' => Icons.library_books_outlined,
+      _ => Icons.description_outlined,
+    };
   }
 }

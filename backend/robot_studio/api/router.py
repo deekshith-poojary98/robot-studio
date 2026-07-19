@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from robot_studio.api.routes import (
     environments,
     execution,
+    files,
     health,
     index,
     language,
@@ -23,3 +24,4 @@ api_router.include_router(reports.router)
 api_router.include_router(index.router)
 api_router.include_router(index.search_router)
 api_router.include_router(language.router)
+api_router.include_router(files.router)

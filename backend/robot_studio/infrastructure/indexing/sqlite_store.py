@@ -394,6 +394,20 @@ class SqliteIndexStore(IndexStore):
             row = await cursor.fetchone()
         return self._row_to_dict(row) if row else None
 
+    async def symbols_for_file(self, file_path: Path) -> list[dict]:
+        async with aiosqlite.connect(self._database_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT * FROM index_symbols
+                WHERE file_path = ?
+                ORDER BY line, name_lower
+                """,
+                (str(file_path),),
+            )
+            rows = await cursor.fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
     async def status(self, workspace_id: UUID | None = None) -> dict:
         where = "WHERE workspace_id = ?" if workspace_id else ""
         params: tuple = (str(workspace_id),) if workspace_id else ()

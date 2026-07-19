@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:robot_studio/core/gateway/transport_gateway.dart';
 import 'package:robot_studio/main.dart';
+import 'package:robot_studio/presentation/editor/editor_page.dart';
+import 'package:robot_studio/presentation/editor/editor_tabs_bar.dart';
 import 'package:robot_studio/presentation/environment/create_environment_dialog.dart';
 import 'package:robot_studio/presentation/environment/delete_environment_dialog.dart';
 import 'package:robot_studio/presentation/environment/environment_manager_page.dart';
@@ -1036,8 +1038,7 @@ void main() {
             ),
             isLoadingStatus: false,
             selected: symbol,
-            navigationMessage:
-                'Would open resources/login.resource:12 (editor not available yet)',
+            navigationMessage: null,
             hover: const HoverInfo(
               name: 'Login With Credentials',
               kind: SymbolKind.keyword,
@@ -1053,6 +1054,7 @@ void main() {
             onFindReferences: () {},
             onShowHover: () => hoverTaps++,
             onRebuildIndex: () {},
+            onOpenPlaceholder: () {},
           ),
         ),
       ),
@@ -1061,10 +1063,7 @@ void main() {
 
     expect(find.text('Login With Credentials'), findsWidgets);
     expect(find.text('Keyword'), findsWidgets);
-    expect(
-      find.textContaining('editor not available yet'),
-      findsOneWidget,
-    );
+    expect(find.text('Open File'), findsOneWidget);
     expect(find.text('Hover'), findsOneWidget);
 
     await tester.tap(find.text('Go to Definition'));
@@ -1139,6 +1138,245 @@ void main() {
     expect(find.text('5'), findsOneWidget);
     expect(find.text('10'), findsOneWidget);
     expect(find.text('Run Dashboard'), findsOneWidget);
+  });
+
+  testWidgets('EditorTabsBar shows dirty indicator and close', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 120));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    var closedPath = '';
+    final tabs = [
+      EditorTabInfo(
+        path: '/tmp/tests/login.robot',
+        content: '*** Test Cases ***',
+        savedContent: '*** Test Cases ***',
+        mtime: 1,
+      ),
+      EditorTabInfo(
+        path: '/tmp/resources/login.resource',
+        content: '*** Keywords ***\nChanged',
+        savedContent: '*** Keywords ***',
+        mtime: 1,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: EditorTabsBar(
+            tabs: tabs,
+            activePath: tabs[1].path,
+            onSelect: (_) {},
+            onClose: (path) => closedPath = path,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('login.robot'), findsOneWidget);
+    expect(find.text('login.resource'), findsOneWidget);
+    expect(find.byIcon(Icons.circle), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.close).last);
+    await tester.pump();
+    expect(closedPath, tabs[1].path);
+  });
+
+  testWidgets('EditorPage shows empty state without active tab', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: EditorPage(
+            tabs: const [],
+            activePath: null,
+            outline: const [],
+            isLoadingOutline: false,
+            wordWrap: true,
+            hover: null,
+            references: const [],
+            statusMessage: null,
+            onSelectTab: (_) {},
+            onCloseTab: (_) {},
+            onContentChanged: (_, _) {},
+            onSave: () {},
+            onSaveAll: () {},
+            onToggleWordWrap: () {},
+            onGoToDefinition: () {},
+            onFindReferences: () {},
+            onHover: () {},
+            onOutlineSelect: (_) {},
+            onFind: () {},
+            onReplace: () {},
+            onReveal: () {},
+            onCursorChanged: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.text('Open a file from Explorer or Search to start editing.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('EditorPage opens file via tabs list', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    var selectedPath = '';
+    final tabs = [
+      EditorTabInfo(
+        path: '/tmp/tests/login.robot',
+        content: '*** Test Cases ***\nLogin',
+        savedContent: '*** Test Cases ***\nLogin',
+        mtime: 1,
+      ),
+      EditorTabInfo(
+        path: '/tmp/tests/checkout.robot',
+        content: '*** Test Cases ***\nCheckout',
+        savedContent: '*** Test Cases ***\nCheckout',
+        mtime: 1,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: EditorPage(
+            tabs: tabs,
+            activePath: tabs[0].path,
+            outline: const [],
+            isLoadingOutline: false,
+            wordWrap: true,
+            hover: null,
+            references: const [],
+            statusMessage: null,
+            onSelectTab: (path) => selectedPath = path,
+            onCloseTab: (_) {},
+            onContentChanged: (_, _) {},
+            onSave: () {},
+            onSaveAll: () {},
+            onToggleWordWrap: () {},
+            onGoToDefinition: () {},
+            onFindReferences: () {},
+            onHover: () {},
+            onOutlineSelect: (_) {},
+            onFind: () {},
+            onReplace: () {},
+            onReveal: () {},
+            onCursorChanged: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('login.robot'), findsOneWidget);
+    expect(find.text('checkout.robot'), findsOneWidget);
+
+    await tester.tap(find.text('checkout.robot'));
+    await tester.pump();
+    expect(selectedPath, tabs[1].path);
+    await tester.pump(const Duration(milliseconds: 200));
+  });
+
+  testWidgets('EditorPage Find Replace Definition and Hover actions', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    var findTaps = 0;
+    var replaceTaps = 0;
+    var definitionTaps = 0;
+    var hoverTaps = 0;
+
+    final tabs = [
+      EditorTabInfo(
+        path: '/tmp/tests/login.robot',
+        content: '*** Keywords ***\nLogin With Credentials\n    Log    hi\n',
+        savedContent:
+            '*** Keywords ***\nLogin With Credentials\n    Log    hi\n',
+        mtime: 1,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: EditorPage(
+            tabs: tabs,
+            activePath: tabs[0].path,
+            outline: const [],
+            isLoadingOutline: false,
+            wordWrap: true,
+            hover: const HoverInfo(
+              name: 'Login With Credentials',
+              kind: SymbolKind.keyword,
+              filePath: '/tmp/tests/login.robot',
+              line: 2,
+              documentation: 'Logs into the application.',
+            ),
+            references: const [
+              SymbolReferenceInfo(
+                name: 'Login With Credentials',
+                filePath: '/tmp/tests/checkout.robot',
+                line: 8,
+                context: 'Login With Credentials',
+              ),
+            ],
+            statusMessage: null,
+            onSelectTab: (_) {},
+            onCloseTab: (_) {},
+            onContentChanged: (_, _) {},
+            onSave: () {},
+            onSaveAll: () {},
+            onToggleWordWrap: () {},
+            onGoToDefinition: () => definitionTaps++,
+            onFindReferences: () {},
+            onHover: () => hoverTaps++,
+            onOutlineSelect: (_) {},
+            onFind: () => findTaps++,
+            onReplace: () => replaceTaps++,
+            onReveal: () {},
+            onCursorChanged: (_, _) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Hover'), findsWidgets);
+    expect(find.textContaining('Login With Credentials'), findsWidgets);
+    expect(find.textContaining('checkout.robot:8'), findsOneWidget);
+    expect(find.byKey(const Key('editor.find')), findsOneWidget);
+    expect(find.byKey(const Key('editor.replace')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('editor.definition')));
+    await tester.pump();
+    expect(definitionTaps, 1);
+
+    await tester.tap(find.byKey(const Key('editor.hover')));
+    await tester.pump();
+    expect(hoverTaps, 1);
+
+    // Exercise Find/Replace toolbar callbacks without opening re_editor find
+    // mode (avoids CodeFindController / cursor blink timer leaks in tests).
+    tester.widget<EditorPage>(find.byType(EditorPage)).onFind();
+    tester.widget<EditorPage>(find.byType(EditorPage)).onReplace();
+    expect(findTaps, 1);
+    expect(replaceTaps, 1);
+
+    await tester.pump(const Duration(milliseconds: 200));
   });
 }
 
@@ -1658,5 +1896,69 @@ class _FakeTransportGateway implements TransportGateway {
       line: 12,
       documentation: 'Logs into the application.',
     );
+  }
+
+  @override
+  Future<List<IndexedSymbolInfo>> documentSymbols(String filePath) async {
+    return const [
+      IndexedSymbolInfo(
+        id: 'doc-1',
+        name: 'Login',
+        kind: SymbolKind.testCase,
+        filePath: 'tests/login.robot',
+        line: 3,
+      ),
+    ];
+  }
+
+  @override
+  Future<List<IndexedSymbolInfo>> workspaceSymbols({
+    String query = '',
+    int limit = 200,
+  }) async {
+    if (query.isEmpty) return const [];
+    return const [_sampleSymbol];
+  }
+
+  @override
+  Future<FileContentInfo> readFile(String path) async {
+    return FileContentInfo(
+      path: path,
+      content: '*** Test Cases ***\nSample Test',
+      mtime: 100,
+    );
+  }
+
+  @override
+  Future<FileWriteResult> writeFile({
+    required String path,
+    required String content,
+  }) async {
+    return FileWriteResult(path: path, mtime: 101);
+  }
+
+  @override
+  Future<List<FileTreeNode>> listFileTree({
+    String? path,
+    int depth = 3,
+  }) async {
+    if (!withWorkspace) return const [];
+    return const [
+      FileTreeNode(
+        name: 'tests',
+        path: '/tmp/WS/tests',
+        relativePath: 'tests',
+        isDir: true,
+        children: [
+          FileTreeNode(
+            name: 'login.robot',
+            path: '/tmp/WS/tests/login.robot',
+            relativePath: 'tests/login.robot',
+            isDir: false,
+            suffix: '.robot',
+          ),
+        ],
+      ),
+    ];
   }
 }

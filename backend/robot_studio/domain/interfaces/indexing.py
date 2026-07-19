@@ -60,6 +60,9 @@ class IndexStore(ABC):
     async def find_definition(self, name: str, *, kind: SymbolKind | None = None) -> dict | None: ...
 
     @abstractmethod
+    async def symbols_for_file(self, file_path: Path) -> list[dict]: ...
+
+    @abstractmethod
     async def status(self, workspace_id: UUID | None = None) -> dict: ...
 
 

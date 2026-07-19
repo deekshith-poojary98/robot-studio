@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/gateway/execution_stream_client.dart';
 import '../../core/gateway/rest_transport_gateway.dart';
@@ -13,6 +14,7 @@ import '../environment/delete_environment_dialog.dart';
 import '../environment/environment_details_panel.dart';
 import '../environment/environment_manager_page.dart';
 import '../environment/import_environment_dialog.dart';
+import '../editor/editor_page.dart';
 import '../execution/execution_page.dart';
 import '../packages/package_details_panel.dart';
 import '../packages/package_manager_page.dart';
@@ -45,6 +47,7 @@ enum _CenterView {
   execution,
   reports,
   search,
+  editor,
 }
 
 class AppShell extends StatefulWidget {
@@ -119,12 +122,37 @@ class _AppShellState extends State<AppShell> {
   ExecutionStreamClient? _streamClient;
   StreamSubscription<ExecutionStreamEvent>? _streamSub;
 
+  List<EditorTabInfo> _editorTabs = [];
+  String? _activeEditorPath;
+  List<IndexedSymbolInfo> _documentOutline = [];
+  bool _loadingOutline = false;
+  bool _wordWrap = true;
+  HoverInfo? _editorHover;
+  List<SymbolReferenceInfo> _editorReferences = [];
+  String? _editorStatusMessage;
+  int? _jumpToLine;
+  int _cursorLine = 1;
+  int _cursorColumn = 1;
+  List<FileTreeNode> _fileTree = [];
+  List<String> _recentFiles = [];
+  bool _showEditorPage = false;
+  IndexedSymbolInfo? _selectedOutlineSymbol;
+
   late final TransportGateway _gateway =
       widget._gateway ?? RestTransportGateway();
 
   EnvironmentInfo? get _activeEnvironment {
     for (final environment in _environments) {
       if (environment.active) return environment;
+    }
+    return null;
+  }
+
+  EditorTabInfo? get _activeEditorTab {
+    final path = _activeEditorPath;
+    if (path == null) return null;
+    for (final tab in _editorTabs) {
+      if (tab.path == path) return tab;
     }
     return null;
   }
@@ -512,6 +540,7 @@ class _AppShellState extends State<AppShell> {
       _showEnvironmentManager = false;
       _showPackageManager = false;
       _showSearchPage = false;
+      _showEditorPage = false;
       _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -528,6 +557,7 @@ class _AppShellState extends State<AppShell> {
       _showEnvironmentManager = false;
       _showPackageManager = false;
       _showSearchPage = false;
+      _showEditorPage = false;
       _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -759,6 +789,17 @@ class _AppShellState extends State<AppShell> {
         _references = [];
         _navigationMessage = null;
         _activePanel = SidebarPanel.explorer;
+        _editorTabs = [];
+        _activeEditorPath = null;
+        _documentOutline = [];
+        _editorHover = null;
+        _editorReferences = [];
+        _editorStatusMessage = null;
+        _jumpToLine = null;
+        _fileTree = [];
+        _recentFiles = [];
+        _showEditorPage = false;
+        _selectedOutlineSymbol = null;
         _busy = false;
       });
       _appendLog('[info] $successMessage "${workspace.name}"');
@@ -767,6 +808,7 @@ class _AppShellState extends State<AppShell> {
       await _loadEnvironments();
       await _loadExecutionHistory();
       await _loadIndexStatus();
+      await _loadFileTree();
     } catch (error) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -841,6 +883,7 @@ class _AppShellState extends State<AppShell> {
         _selectedPackage = null;
         _showEnvironmentManager = false;
         _showPackageManager = false;
+        _showEditorPage = false;
         _clearExecutionPageUnlessTests();
         _busy = false;
       });
@@ -867,6 +910,7 @@ class _AppShellState extends State<AppShell> {
       _showEnvironmentManager = true;
       _showPackageManager = false;
       _showSearchPage = false;
+      _showEditorPage = false;
       _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -887,6 +931,7 @@ class _AppShellState extends State<AppShell> {
       _showPackageManager = true;
       _showEnvironmentManager = false;
       _showSearchPage = false;
+      _showEditorPage = false;
       _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -1141,6 +1186,440 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Future<void> _loadFileTree() async {
+    if (_activeWorkspace == null || _backendStatus != 'connected') {
+      setState(() => _fileTree = []);
+      return;
+    }
+
+    try {
+      final tree = await _gateway.listFileTree();
+      if (!mounted) return;
+      setState(() => _fileTree = tree);
+    } catch (error) {
+      _appendLog('[warn] Could not load file tree: $error');
+    }
+  }
+
+  void _trackRecentFile(String path) {
+    _recentFiles = [
+      path,
+      ..._recentFiles.where((item) => item != path),
+    ].take(10).toList();
+  }
+
+  Future<void> _openFile(String path, {int? line}) async {
+    if (_activeWorkspace == null) {
+      await _showError(
+        'Workspace required',
+        'Open a workspace before editing files.',
+      );
+      return;
+    }
+
+    final existingIndex =
+        _editorTabs.indexWhere((tab) => tab.path == path);
+    if (existingIndex >= 0) {
+      setState(() {
+        _activeEditorPath = path;
+        _showEditorPage = true;
+        _jumpToLine = line;
+        _editorHover = null;
+        _editorReferences = [];
+        _editorStatusMessage = null;
+      });
+      _trackRecentFile(path);
+      await _selectTab(path);
+      return;
+    }
+
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final file = await _gateway.readFile(path);
+      if (!mounted) return;
+      setState(() {
+        _editorTabs = [
+          ..._editorTabs,
+          EditorTabInfo(
+            path: file.path,
+            content: file.content,
+            savedContent: file.content,
+            mtime: file.mtime,
+          ),
+        ];
+        _activeEditorPath = file.path;
+        _showEditorPage = true;
+        _jumpToLine = line;
+        _editorHover = null;
+        _editorReferences = [];
+        _editorStatusMessage = null;
+        _busy = false;
+      });
+      _trackRecentFile(file.path);
+      await _loadOutline(file.path);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _appendLog('[error] Could not open file: $error');
+      await _showError('Open file', error);
+    }
+  }
+
+  Future<bool> _confirmDiscard(String path) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unsaved Changes'),
+        content: Text(
+          'Save changes to "${_fileNameFromPath(path)}" before closing?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  String _fileNameFromPath(String path) {
+    final parts = path.replaceAll('\\', '/').split('/');
+    return parts.isEmpty ? path : parts.last;
+  }
+
+  Future<void> _closeTab(String path) async {
+    final tabIndex = _editorTabs.indexWhere((tab) => tab.path == path);
+    if (tabIndex < 0) return;
+
+    final tab = _editorTabs[tabIndex];
+    if (tab.isDirty) {
+      final discard = await _confirmDiscard(path);
+      if (!discard) return;
+    }
+
+    final updated = [..._editorTabs]..removeAt(tabIndex);
+    String? nextPath;
+    setState(() {
+      _editorTabs = updated;
+      if (_activeEditorPath == path) {
+        if (updated.isEmpty) {
+          _activeEditorPath = null;
+          _documentOutline = [];
+          _selectedOutlineSymbol = null;
+          _showEditorPage = false;
+        } else {
+          nextPath = updated.last.path;
+          _activeEditorPath = nextPath;
+        }
+      }
+      _editorHover = null;
+      _editorReferences = [];
+    });
+    if (nextPath != null) {
+      await _loadOutline(nextPath!);
+    }
+  }
+
+  Future<void> _selectTab(String path) async {
+    if (_activeEditorPath == path) {
+      await _checkExternalChanges(path);
+      return;
+    }
+
+    setState(() {
+      _activeEditorPath = path;
+      _showEditorPage = true;
+      _jumpToLine = null;
+      _editorHover = null;
+      _editorReferences = [];
+      _editorStatusMessage = null;
+    });
+    await _checkExternalChanges(path);
+    await _loadOutline(path);
+  }
+
+  Future<void> _checkExternalChanges(String path) async {
+    final tabIndex = _editorTabs.indexWhere((tab) => tab.path == path);
+    if (tabIndex < 0) return;
+    final tab = _editorTabs[tabIndex];
+
+    try {
+      final fresh = await _gateway.readFile(path);
+      if (!mounted) return;
+      if (fresh.mtime == tab.mtime) return;
+
+      if (!tab.isDirty) {
+        setState(() {
+          tab.content = fresh.content;
+          tab.savedContent = fresh.content;
+          tab.mtime = fresh.mtime;
+        });
+        return;
+      }
+
+      final reload = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('File Changed Externally'),
+          content: Text(
+            '"${_fileNameFromPath(path)}" was modified outside the editor. Reload and lose unsaved changes?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Keep Editing'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Reload'),
+            ),
+          ],
+        ),
+      );
+      if (reload == true && mounted) {
+        setState(() {
+          tab.content = fresh.content;
+          tab.savedContent = fresh.content;
+          tab.mtime = fresh.mtime;
+        });
+      }
+    } catch (error) {
+      _appendLog('[warn] Could not check external changes: $error');
+    }
+  }
+
+  void _onContentChanged(String path, String content) {
+    final tabIndex = _editorTabs.indexWhere((tab) => tab.path == path);
+    if (tabIndex < 0) return;
+    setState(() {
+      _editorTabs[tabIndex].content = content;
+    });
+  }
+
+  Future<void> _saveActive() async {
+    final path = _activeEditorPath;
+    if (path == null) return;
+    await _saveTab(path);
+  }
+
+  Future<void> _saveAll() async {
+    for (final tab in _editorTabs) {
+      if (tab.isDirty) {
+        await _saveTab(tab.path);
+      }
+    }
+  }
+
+  Future<void> _saveTab(String path) async {
+    final tabIndex = _editorTabs.indexWhere((tab) => tab.path == path);
+    if (tabIndex < 0) return;
+    final tab = _editorTabs[tabIndex];
+    if (!tab.isDirty) return;
+
+    try {
+      final result = await _gateway.writeFile(
+        path: path,
+        content: tab.content,
+      );
+      if (!mounted) return;
+      setState(() {
+        tab.savedContent = tab.content;
+        tab.mtime = result.mtime;
+        _editorStatusMessage = 'Saved ${_fileNameFromPath(path)}';
+      });
+      _appendLog('[info] Saved "$path"');
+    } catch (error) {
+      _appendLog('[error] Save failed: $error');
+      await _showError('Save file', error);
+    }
+  }
+
+  Future<void> _loadOutline(String path) async {
+    setState(() {
+      _loadingOutline = true;
+      _selectedOutlineSymbol = null;
+    });
+    try {
+      final symbols = await _gateway.documentSymbols(path);
+      if (!mounted) return;
+      setState(() {
+        _documentOutline = symbols;
+        _loadingOutline = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _documentOutline = [];
+        _loadingOutline = false;
+      });
+      _appendLog('[warn] Could not load outline: $error');
+    }
+  }
+
+  String? _extractWordAtCursor(String content, int line, int column) {
+    final lines = content.split('\n');
+    if (line < 1 || line > lines.length) return null;
+    final text = lines[line - 1];
+    if (text.isEmpty) return null;
+
+    final offset = (column - 1).clamp(0, text.length);
+    final pattern = RegExp(r'\w+|\$\{[^}]+\}');
+    String? matchAt(int index) {
+      for (final match in pattern.allMatches(text)) {
+        if (index >= match.start && index <= match.end) {
+          return match.group(0);
+        }
+      }
+      return null;
+    }
+
+    final direct = matchAt(offset);
+    if (direct != null) return direct;
+
+    for (var delta = 1; delta <= text.length; delta++) {
+      if (offset - delta >= 0) {
+        final left = matchAt(offset - delta);
+        if (left != null) return left;
+      }
+      if (offset + delta <= text.length) {
+        final right = matchAt(offset + delta);
+        if (right != null) return right;
+      }
+    }
+    return null;
+  }
+
+  String? _editorTokenName() {
+    final outline = _selectedOutlineSymbol?.name;
+    if (outline != null && outline.isNotEmpty) return outline;
+
+    final search = _selectedSymbol?.name;
+    if (search != null && search.isNotEmpty) return search;
+
+    final tab = _activeEditorTab;
+    if (tab == null) return null;
+    return _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn);
+  }
+
+  Future<void> _editorGoToDefinition() async {
+    final token = _editorTokenName();
+    if (token == null) {
+      setState(() {
+        _editorStatusMessage = 'Place the cursor on a symbol or select one in the outline.';
+      });
+      return;
+    }
+
+    setState(() {
+      _editorStatusMessage = null;
+      _editorHover = null;
+      _editorReferences = [];
+    });
+
+    try {
+      final definition = await _gateway.languageDefinition(name: token);
+      if (!mounted) return;
+      if (definition != null) {
+        await _openFile(definition.filePath, line: definition.line);
+      } else {
+        setState(() {
+          _editorStatusMessage = 'No definition found for "$token".';
+        });
+      }
+    } catch (error) {
+      _appendLog('[warn] Definition lookup failed: $error');
+      await _showError('Go to Definition', error);
+    }
+  }
+
+  Future<void> _editorFindReferences() async {
+    final token = _editorTokenName();
+    if (token == null) {
+      setState(() {
+        _editorStatusMessage = 'Place the cursor on a symbol or select one in the outline.';
+      });
+      return;
+    }
+
+    setState(() {
+      _editorStatusMessage = null;
+      _editorReferences = [];
+      _editorHover = null;
+    });
+
+    try {
+      final refs = await _gateway.languageReferences(name: token);
+      if (!mounted) return;
+      setState(() {
+        _editorReferences = refs;
+        if (refs.isEmpty) {
+          _editorStatusMessage = 'No references found for "$token".';
+        }
+      });
+    } catch (error) {
+      _appendLog('[warn] References lookup failed: $error');
+      await _showError('Find References', error);
+    }
+  }
+
+  Future<void> _editorHoverLookup() async {
+    final token = _editorTokenName();
+    if (token == null) {
+      setState(() {
+        _editorStatusMessage = 'Place the cursor on a symbol or select one in the outline.';
+      });
+      return;
+    }
+
+    setState(() {
+      _editorStatusMessage = null;
+      _editorHover = null;
+      _editorReferences = [];
+    });
+
+    try {
+      final hover = await _gateway.languageHover(name: token);
+      if (!mounted) return;
+      setState(() {
+        _editorHover = hover;
+        if (hover == null) {
+          _editorStatusMessage = 'No hover info for "$token".';
+        }
+      });
+    } catch (error) {
+      _appendLog('[warn] Hover lookup failed: $error');
+      await _showError('Hover Info', error);
+    }
+  }
+
+  Future<void> _revealCurrentFile() async {
+    final path = _activeEditorPath;
+    if (path == null) return;
+    await Clipboard.setData(ClipboardData(text: path));
+    setState(() {
+      _editorStatusMessage = 'Path: $path (copied to clipboard)';
+    });
+  }
+
+  void _handleContinueWorking() {
+    if (_editorTabs.isNotEmpty) {
+      final path = _activeEditorPath ?? _editorTabs.first.path;
+      setState(() => _showEditorPage = true);
+      _selectTab(path);
+      return;
+    }
+    if (_recentFiles.isNotEmpty) {
+      _openFile(_recentFiles.first);
+    }
+  }
+
   Future<void> _openSearchPanel({SymbolKind? kind}) async {
     if (_activeWorkspace == null) {
       await _showError(
@@ -1153,6 +1632,7 @@ class _AppShellState extends State<AppShell> {
       _activePanel =
           kind == SymbolKind.keyword ? SidebarPanel.keywords : SidebarPanel.search;
       _showSearchPage = true;
+      _showEditorPage = false;
       _showEnvironmentManager = false;
       _showPackageManager = false;
       _showReportsPage = false;
@@ -1266,15 +1746,14 @@ class _AppShellState extends State<AppShell> {
         kind: symbol.kind,
       );
       if (!mounted) return;
-      setState(() {
-        _isLoadingLanguage = false;
-        if (definition != null) {
-          _navigationMessage =
-              'Would open ${definition.filePath}:${definition.line} (editor not available yet)';
-        } else {
+      setState(() => _isLoadingLanguage = false);
+      if (definition != null) {
+        await _openFile(definition.filePath, line: definition.line);
+      } else {
+        setState(() {
           _navigationMessage = 'No definition found for "${symbol.name}".';
-        }
-      });
+        });
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _isLoadingLanguage = false);
@@ -1347,6 +1826,11 @@ class _AppShellState extends State<AppShell> {
         _activePanel == SidebarPanel.keywords) {
       return _CenterView.search;
     }
+    if (_showEditorPage &&
+        _editorTabs.isNotEmpty &&
+        _activeEditorPath != null) {
+      return _CenterView.editor;
+    }
     if (_showEnvironmentManager) return _CenterView.manager;
     if (_selectedPackage != null) return _CenterView.packageDetail;
     if (_showPackageManager || _activePanel == SidebarPanel.packages) {
@@ -1409,12 +1893,14 @@ class _AppShellState extends State<AppShell> {
                           _activePanel = panel;
                           if (panel == SidebarPanel.tests) {
                             _showExecutionPage = true;
+                            _showEditorPage = false;
                           } else {
                             _showExecutionPage = false;
                           }
                           if (panel == SidebarPanel.search ||
                               panel == SidebarPanel.keywords) {
                             _showSearchPage = true;
+                            _showEditorPage = false;
                             _showEnvironmentManager = false;
                             _showPackageManager = false;
                             _showReportsPage = false;
@@ -1427,6 +1913,14 @@ class _AppShellState extends State<AppShell> {
                             }
                           } else {
                             _showSearchPage = false;
+                            if (panel == SidebarPanel.explorer &&
+                                _editorTabs.isNotEmpty &&
+                                _activeEditorPath != null) {
+                              _showEditorPage = true;
+                            } else if (panel == SidebarPanel.packages ||
+                                panel == SidebarPanel.reports) {
+                              _showEditorPage = false;
+                            }
                           }
                         });
                         if (panel == SidebarPanel.packages) {
@@ -1460,6 +1954,8 @@ class _AppShellState extends State<AppShell> {
                       onSelectReport: _selectReport,
                       onOpenReports: _openReports,
                       backendVersion: _backendVersion,
+                      fileTree: _fileTree,
+                      onOpenFile: _openFile,
                     ),
                     Expanded(child: _buildCenter()),
                   ],
@@ -1474,6 +1970,15 @@ class _AppShellState extends State<AppShell> {
                 backendConnected: connected,
                 backendVersion: _backendVersion,
                 workspaceName: _activeWorkspace?.name,
+                fileName: _centerView == _CenterView.editor
+                    ? _activeEditorTab?.fileName
+                    : null,
+                cursorLabel: _centerView == _CenterView.editor
+                    ? 'Ln $_cursorLine, Col $_cursorColumn'
+                    : null,
+                dirty: _centerView == _CenterView.editor
+                    ? (_activeEditorTab?.isDirty ?? false)
+                    : false,
               ),
             ],
           ),
@@ -1514,6 +2019,11 @@ class _AppShellState extends State<AppShell> {
           indexStatus: _indexStatus,
           isLoadingIndexStatus: _loadingIndexStatus,
           onRebuildIndex: _activeWorkspace != null ? _rebuildIndex : null,
+          recentFiles: _recentFiles,
+          openEditors: _editorTabs.map((tab) => tab.path).toList(),
+          onOpenRecentFile: _activeWorkspace == null ? null : _openFile,
+          onContinueWorking:
+              _activeWorkspace == null ? null : _handleContinueWorking,
         ),
       _CenterView.manager => EnvironmentManagerPage(
           environments: _environments,
@@ -1622,12 +2132,49 @@ class _AppShellState extends State<AppShell> {
           onRebuildIndex: _rebuildIndex,
           onOpenPlaceholder: _selectedSymbol == null
               ? null
-              : () {
-                  setState(() {
-                    _navigationMessage =
-                        'Would open ${_selectedSymbol!.filePath}:${_selectedSymbol!.line} (editor not available yet)';
-                  });
-                },
+              : () => _openFile(
+                    _selectedSymbol!.filePath,
+                    line: _selectedSymbol!.line,
+                  ),
+        ),
+      _CenterView.editor => EditorPage(
+          tabs: _editorTabs,
+          activePath: _activeEditorPath,
+          outline: _documentOutline,
+          isLoadingOutline: _loadingOutline,
+          wordWrap: _wordWrap,
+          hover: _editorHover,
+          references: _editorReferences,
+          statusMessage: _editorStatusMessage,
+          jumpToLine: _jumpToLine,
+          onSelectTab: _selectTab,
+          onCloseTab: _closeTab,
+          onContentChanged: _onContentChanged,
+          onSave: _saveActive,
+          onSaveAll: _saveAll,
+          onToggleWordWrap: () => setState(() => _wordWrap = !_wordWrap),
+          onGoToDefinition: _editorGoToDefinition,
+          onFindReferences: _editorFindReferences,
+          onHover: _editorHoverLookup,
+          onOutlineSelect: (symbol) {
+            setState(() {
+              _selectedOutlineSymbol = symbol;
+              _jumpToLine = symbol.line;
+            });
+          },
+          onFind: () {},
+          onReplace: () {},
+          onReveal: _revealCurrentFile,
+          onCursorChanged: (line, column) {
+            setState(() {
+              _cursorLine = line;
+              _cursorColumn = column;
+              if (_activeEditorTab != null) {
+                _activeEditorTab!.cursorLine = line;
+                _activeEditorTab!.cursorColumn = column;
+              }
+            });
+          },
         ),
       _CenterView.placeholder => _WorkspaceOpenPlaceholder(
           workspace: _activeWorkspace!,

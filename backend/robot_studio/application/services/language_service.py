@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.domain.interfaces.language import LanguageService
@@ -44,3 +45,19 @@ class LanguageFacade:
         return await self.language.hover(
             {"name": name, "symbol_id": symbol_id, "kind": kind},
         )
+
+    async def document_symbols(self, file_path: str) -> list[dict]:
+        self._require_workspace()
+        if not file_path:
+            raise LanguageValidationError("Provide file path")
+        store = getattr(self.language, "store", None)
+        if store is None:
+            raise LanguageValidationError("Language service does not expose IndexStore")
+        return await store.symbols_for_file(Path(file_path))
+
+    async def workspace_symbols(self, query: str = "", *, limit: int = 200) -> list[dict]:
+        self._require_workspace()
+        store = getattr(self.language, "store", None)
+        if store is None:
+            raise LanguageValidationError("Language service does not expose IndexStore")
+        return await store.search_symbols(query, limit=limit)

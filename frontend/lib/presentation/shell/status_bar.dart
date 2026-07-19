@@ -8,11 +8,17 @@ class StatusBar extends StatelessWidget {
     required this.backendConnected,
     this.backendVersion,
     this.workspaceName,
+    this.fileName,
+    this.cursorLabel,
+    this.dirty = false,
   });
 
   final bool backendConnected;
   final String? backendVersion;
   final String? workspaceName;
+  final String? fileName;
+  final String? cursorLabel;
+  final bool dirty;
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +35,9 @@ class StatusBar extends StatelessWidget {
         children: [
           _item(backendConnected ? 'READY' : 'OFFLINE'),
           _item(workspaceName?.toUpperCase() ?? 'NO WORKSPACE'),
+          if (fileName != null) _item(fileName!.toUpperCase()),
+          if (cursorLabel != null) _item(cursorLabel!),
+          if (dirty) _item('MODIFIED'),
           _item('UTF-8'),
           _item('LF'),
           const Spacer(),

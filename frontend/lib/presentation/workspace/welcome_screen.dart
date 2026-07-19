@@ -33,6 +33,10 @@ class WelcomeScreen extends StatelessWidget {
     this.indexStatus,
     this.isLoadingIndexStatus = false,
     this.onRebuildIndex,
+    this.recentFiles = const [],
+    this.openEditors = const [],
+    this.onOpenRecentFile,
+    this.onContinueWorking,
   });
 
   final List<WorkspaceInfo> recentWorkspaces;
@@ -54,8 +58,14 @@ class WelcomeScreen extends StatelessWidget {
   final IndexStatusInfo? indexStatus;
   final bool isLoadingIndexStatus;
   final VoidCallback? onRebuildIndex;
+  final List<String> recentFiles;
+  final List<String> openEditors;
+  final ValueChanged<String>? onOpenRecentFile;
+  final VoidCallback? onContinueWorking;
 
   bool get _showDashboardSection => dashboard != null || workspaceOpen;
+  bool get _showEditorSections =>
+      recentFiles.isNotEmpty || openEditors.isNotEmpty;
   bool get _showIndexStatusSection =>
       workspaceOpen || indexStatus != null || isLoadingIndexStatus;
 
@@ -176,6 +186,57 @@ class WelcomeScreen extends StatelessWidget {
               },
             ),
             const SizedBox(height: 12),
+            if (_showEditorSections) ...[
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final sideBySide = constraints.maxWidth > 860;
+                  final recent = InfoCard(
+                    title: 'Recent Files',
+                    child: _RecentFilesBody(
+                      paths: recentFiles,
+                      onOpen: onOpenRecentFile,
+                    ),
+                  );
+                  final editors = InfoCard(
+                    title: 'Open Editors',
+                    child: _OpenEditorsBody(
+                      paths: openEditors,
+                      onOpen: onOpenRecentFile,
+                    ),
+                  );
+
+                  if (sideBySide) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: recent),
+                        const SizedBox(width: 12),
+                        Expanded(child: editors),
+                      ],
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      recent,
+                      const SizedBox(height: 12),
+                      editors,
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              if (onContinueWorking != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    onPressed: onContinueWorking,
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Continue Working'),
+                  ),
+                ),
+              if (onContinueWorking != null) const SizedBox(height: 12),
+            ],
             if (_showIndexStatusSection) ...[
               IndexStatusCard(
                 status: indexStatus,
@@ -544,6 +605,82 @@ class _RecentProjectsBody extends StatelessWidget {
             project.type.label,
             style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
           ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _RecentFilesBody extends StatelessWidget {
+  const _RecentFilesBody({
+    required this.paths,
+    this.onOpen,
+  });
+
+  final List<String> paths;
+  final ValueChanged<String>? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    if (paths.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          'No recent files yet.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      );
+    }
+
+    return Column(
+      children: paths.take(10).map((path) {
+        final parts = path.replaceAll('\\', '/').split('/');
+        final name = parts.isEmpty ? path : parts.last;
+        return ExplorerTreeItem(
+          icon: Icons.description_outlined,
+          label: name,
+          onTap: onOpen == null ? null : () => onOpen!(path),
+          trailing: Text(
+            path,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _OpenEditorsBody extends StatelessWidget {
+  const _OpenEditorsBody({
+    required this.paths,
+    this.onOpen,
+  });
+
+  final List<String> paths;
+  final ValueChanged<String>? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    if (paths.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          'No open editors.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      );
+    }
+
+    return Column(
+      children: paths.map((path) {
+        final parts = path.replaceAll('\\', '/').split('/');
+        final name = parts.isEmpty ? path : parts.last;
+        return ExplorerTreeItem(
+          icon: Icons.edit_outlined,
+          label: name,
+          onTap: onOpen == null ? null : () => onOpen!(path),
         );
       }).toList(),
     );

@@ -6,6 +6,7 @@ import 'transport_gateway.dart';
 
 export 'models/environment_info.dart';
 export 'models/execution_info.dart';
+export 'models/file_info.dart';
 export 'models/health_response.dart';
 export 'models/index_info.dart';
 export 'models/package_info.dart';
@@ -442,6 +443,67 @@ class RestTransportGateway implements TransportGateway {
     return HoverInfo.fromJson(decoded);
   }
 
+  @override
+  Future<List<IndexedSymbolInfo>> documentSymbols(String filePath) async {
+    final response = await _get(
+      '/language/document-symbols?file=${Uri.encodeQueryComponent(filePath)}',
+    );
+    final items = response['results'] as List<dynamic>;
+    return items
+        .map((item) => IndexedSymbolInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<List<IndexedSymbolInfo>> workspaceSymbols({
+    String query = '',
+    int limit = 200,
+  }) async {
+    final response = await _get(
+      '/language/workspace-symbols?q=${Uri.encodeQueryComponent(query)}&limit=$limit',
+    );
+    final items = response['results'] as List<dynamic>;
+    return items
+        .map((item) => IndexedSymbolInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<FileContentInfo> readFile(String path) async {
+    final response = await _get(
+      '/files/content?path=${Uri.encodeQueryComponent(path)}',
+    );
+    return FileContentInfo.fromJson(response);
+  }
+
+  @override
+  Future<FileWriteResult> writeFile({
+    required String path,
+    required String content,
+  }) async {
+    final response = await _put(
+      '/files/content',
+      body: {'path': path, 'content': content},
+    );
+    return FileWriteResult.fromJson(response);
+  }
+
+  @override
+  Future<List<FileTreeNode>> listFileTree({
+    String? path,
+    int depth = 3,
+  }) async {
+    final buffer = StringBuffer('/files/tree?depth=$depth');
+    if (path != null) {
+      buffer.write('&path=${Uri.encodeQueryComponent(path)}');
+    }
+    final response = await _get(buffer.toString());
+    final items = response['entries'] as List<dynamic>;
+    return items
+        .map((item) => FileTreeNode.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<Map<String, dynamic>> _get(String path) async {
     final response = await _client
         .get(Uri.parse('$baseUrl$path'))
@@ -456,6 +518,21 @@ class RestTransportGateway implements TransportGateway {
   }) async {
     final response = await _client
         .post(
+          Uri.parse('$baseUrl$path'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(timeout);
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> _put(
+    String path, {
+    required Map<String, dynamic> body,
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    final response = await _client
+        .put(
           Uri.parse('$baseUrl$path'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode(body),

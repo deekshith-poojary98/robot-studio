@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from robot_studio.application.services.environment_service import EnvironmentService
 from robot_studio.application.services.execution_service import ExecutionService
+from robot_studio.application.services.file_service import FileService
 from robot_studio.application.services.index_service import IndexService
 from robot_studio.application.services.language_service import LanguageFacade
 from robot_studio.application.services.package_service import PackageService
@@ -84,6 +85,7 @@ class Container:
     index_service: IndexService | None = field(default=None, init=False)
     language_service: RobotLanguageService | None = field(default=None, init=False)
     language_facade: LanguageFacade | None = field(default=None, init=False)
+    file_service: FileService | None = field(default=None, init=False)
     _initialized: bool = field(default=False, init=False)
 
     def initialize(self) -> None:
@@ -197,6 +199,7 @@ class Container:
             context=self.workspace_context,
             language=self.plugin_host.get(Capability.LANGUAGE_SERVICE),
         )
+        self.file_service = FileService(context=self.workspace_context)
         self._initialized = True
 
     async def initialize_async(self) -> None:

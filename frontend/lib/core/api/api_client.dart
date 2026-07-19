@@ -8,6 +8,7 @@ export '../gateway/models/package_info.dart';
 export '../gateway/models/project_info.dart';
 export '../gateway/models/report_info.dart';
 export '../gateway/models/index_info.dart';
+export '../gateway/models/file_info.dart';
 export '../gateway/models/workspace_info.dart';
 export '../gateway/rest_transport_gateway.dart';
 export '../gateway/transport_gateway.dart';
@@ -211,6 +212,34 @@ class ApiClient implements TransportGateway {
     SymbolKind? kind,
   }) =>
       _gateway.languageHover(name: name, symbolId: symbolId, kind: kind);
+
+  @override
+  Future<List<IndexedSymbolInfo>> documentSymbols(String filePath) =>
+      _gateway.documentSymbols(filePath);
+
+  @override
+  Future<List<IndexedSymbolInfo>> workspaceSymbols({
+    String query = '',
+    int limit = 200,
+  }) =>
+      _gateway.workspaceSymbols(query: query, limit: limit);
+
+  @override
+  Future<FileContentInfo> readFile(String path) => _gateway.readFile(path);
+
+  @override
+  Future<FileWriteResult> writeFile({
+    required String path,
+    required String content,
+  }) =>
+      _gateway.writeFile(path: path, content: content);
+
+  @override
+  Future<List<FileTreeNode>> listFileTree({
+    String? path,
+    int depth = 3,
+  }) =>
+      _gateway.listFileTree(path: path, depth: depth);
 }
 
 /// Backward-compatible alias for [GatewayException].

@@ -1,4 +1,5 @@
 import 'models/environment_info.dart';
+import 'models/file_info.dart';
 import 'models/health_response.dart';
 import 'models/index_info.dart';
 import 'models/package_info.dart';
@@ -8,6 +9,7 @@ import 'models/workspace_info.dart';
 
 export 'models/environment_info.dart';
 export 'models/execution_info.dart';
+export 'models/file_info.dart';
 export 'models/health_response.dart';
 export 'models/index_info.dart';
 export 'models/package_info.dart';
@@ -132,6 +134,25 @@ abstract class TransportGateway {
     String? name,
     String? symbolId,
     SymbolKind? kind,
+  });
+
+  Future<List<IndexedSymbolInfo>> documentSymbols(String filePath);
+
+  Future<List<IndexedSymbolInfo>> workspaceSymbols({
+    String query = '',
+    int limit = 200,
+  });
+
+  Future<FileContentInfo> readFile(String path);
+
+  Future<FileWriteResult> writeFile({
+    required String path,
+    required String content,
+  });
+
+  Future<List<FileTreeNode>> listFileTree({
+    String? path,
+    int depth = 3,
   });
 }
 
