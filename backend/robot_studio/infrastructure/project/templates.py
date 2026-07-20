@@ -18,7 +18,7 @@ class TemplateService:
     def apply(self, project_root: Path, name: str, project_type: ProjectType) -> None:
         if project_root.exists() and any(project_root.iterdir()):
             raise ProjectValidationError(
-                f"Project directory is not empty: '{project_root}'",
+                f"A project named '{name}' already exists",
             )
 
         project_root.mkdir(parents=True, exist_ok=True)

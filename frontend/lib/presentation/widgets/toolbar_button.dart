@@ -11,6 +11,7 @@ class ToolbarButton extends StatefulWidget {
     this.primary = false,
     this.danger = false,
     this.showLabel = false,
+    this.tooltip,
   });
 
   final IconData icon;
@@ -19,6 +20,7 @@ class ToolbarButton extends StatefulWidget {
   final bool primary;
   final bool danger;
   final bool showLabel;
+  final String? tooltip;
 
   @override
   State<ToolbarButton> createState() => _ToolbarButtonState();
@@ -29,16 +31,21 @@ class _ToolbarButtonState extends State<ToolbarButton> {
 
   @override
   Widget build(BuildContext context) {
-    final bg = widget.primary
-        ? AppColors.accent
-        : _hovered
-            ? AppColors.surfaceHover
-            : Colors.transparent;
-    final fg = widget.primary
-        ? const Color(0xFFE8F2F2)
-        : widget.danger
-            ? AppColors.error
-            : AppColors.textPrimary;
+    final enabled = widget.onTap != null;
+    final bg = !enabled
+        ? (widget.primary ? AppColors.accent.withValues(alpha: 0.35) : Colors.transparent)
+        : widget.primary
+            ? AppColors.accent
+            : _hovered
+                ? AppColors.surfaceHover
+                : Colors.transparent;
+    final fg = !enabled
+        ? AppColors.textMuted
+        : widget.primary
+            ? const Color(0xFFE8F2F2)
+            : widget.danger
+                ? AppColors.error
+                : AppColors.textPrimary;
 
     final child = AnimatedContainer(
       duration: const Duration(milliseconds: 100),
@@ -49,7 +56,7 @@ class _ToolbarButtonState extends State<ToolbarButton> {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(AppRadii.sm),
-        border: widget.primary
+        border: widget.primary || !enabled
             ? null
             : Border.all(color: _hovered ? AppColors.border : Colors.transparent),
       ),
@@ -74,10 +81,10 @@ class _ToolbarButtonState extends State<ToolbarButton> {
     );
 
     return Tooltip(
-      message: widget.label,
+      message: widget.tooltip ?? widget.label,
       child: MouseRegion(
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
+        onEnter: enabled ? (_) => setState(() => _hovered = true) : null,
+        onExit: enabled ? (_) => setState(() => _hovered = false) : null,
         child: InkWell(
           onTap: widget.onTap,
           borderRadius: BorderRadius.circular(AppRadii.sm),

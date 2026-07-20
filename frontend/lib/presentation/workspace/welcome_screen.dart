@@ -169,18 +169,18 @@ class WelcomeScreen extends StatelessWidget {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: projects),
-                      const SizedBox(width: 12),
                       Expanded(child: workspaces),
+                      const SizedBox(width: 12),
+                      Expanded(child: projects),
                     ],
                   );
                 }
 
                 return Column(
                   children: [
-                    projects,
-                    const SizedBox(height: 12),
                     workspaces,
+                    const SizedBox(height: 12),
+                    projects,
                   ],
                 );
               },

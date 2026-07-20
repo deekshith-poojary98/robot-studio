@@ -42,7 +42,7 @@ class BottomPanel extends StatefulWidget {
 
 class _BottomPanelState extends State<BottomPanel> {
   BottomPanelTab _activeTab = BottomPanelTab.console;
-  bool _expanded = true;
+  bool _expanded = false;
   double _height = 180;
 
   @override

@@ -156,19 +156,26 @@ class _PluginRow extends StatelessWidget {
                         Text(
                           '${plugin.id} • v${plugin.version}',
                           style: Theme.of(context).textTheme.bodySmall,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
-                  StatusBadge(
-                    label: plugin.status.toUpperCase(),
-                    filled: plugin.enabled,
-                    dotColor: statusColor,
+                  Flexible(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.end,
+                      children: [
+                        StatusBadge(
+                          label: plugin.status.toUpperCase(),
+                          filled: plugin.enabled,
+                          dotColor: statusColor,
+                        ),
+                        if (plugin.isBuiltin) const StatusBadge(label: 'BUILT-IN'),
+                      ],
+                    ),
                   ),
-                  if (plugin.isBuiltin) ...[
-                    const SizedBox(width: 8),
-                    const StatusBadge(label: 'BUILT-IN'),
-                  ],
                 ],
               ),
               if (plugin.description.isNotEmpty) ...[
@@ -193,14 +200,18 @@ class _PluginRow extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 10),
-              Row(
+              Wrap(
+                spacing: 4,
+                runSpacing: 0,
                 children: [
                   TextButton(
                     onPressed: plugin.enabled ? null : onEnable,
                     child: const Text('Enable'),
                   ),
                   TextButton(
-                    onPressed: plugin.isBuiltin || !plugin.enabled ? null : onDisable,
+                    onPressed: plugin.isBuiltin || !plugin.enabled
+                        ? null
+                        : onDisable,
                     child: const Text('Disable'),
                   ),
                   TextButton(onPressed: onReload, child: const Text('Reload')),

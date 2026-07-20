@@ -83,13 +83,35 @@ class FileService:
             children = sorted(root.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
         except OSError:
             return []
-        skip = {"__pycache__", ".venv", "venv", ".git", "node_modules"}
+        skip_names = {
+            "__pycache__",
+            ".venv",
+            "venv",
+            ".git",
+            "node_modules",
+            "site-packages",
+            "dist-info",
+        }
+        # Venv layout under Environments/<name>/ — keep the env folder visible but
+        # do not expand interpreter internals into the explorer.
+        venv_internal = {"bin", "lib", "include", "share", "scripts", "lib64"}
         for child in children:
-            if child.name in skip or child.name.startswith("."):
+            if child.name in skip_names or child.name.startswith("."):
                 continue
-            # Skip Environments venv internals for clearer explorer.
-            if "Environments" in child.parts and child.suffix in {".so", ".dylib"}:
+            if child.name.endswith(".dist-info"):
                 continue
+            try:
+                rel_parts = child.relative_to(relative_to).parts
+            except ValueError:
+                rel_parts = child.parts
+            if "Environments" in rel_parts:
+                env_index = rel_parts.index("Environments")
+                # Environments/<env>/bin|lib|... → skip
+                if len(rel_parts) >= env_index + 3 and rel_parts[env_index + 2].lower() in venv_internal:
+                    continue
+                # Anything deeper under Environments/<env>/... → skip
+                if len(rel_parts) > env_index + 3:
+                    continue
             item = {
                 "name": child.name,
                 "path": str(child),
@@ -98,6 +120,15 @@ class FileService:
                 "suffix": child.suffix.lower(),
             }
             if child.is_dir() and depth > 0:
-                item["children"] = self._walk(child, depth=depth - 1, relative_to=relative_to)
+                # Stop recursion at Environments/<env> itself.
+                if (
+                    "Environments" in rel_parts
+                    and len(rel_parts) == rel_parts.index("Environments") + 2
+                ):
+                    item["children"] = []
+                else:
+                    item["children"] = self._walk(
+                        child, depth=depth - 1, relative_to=relative_to
+                    )
             entries.append(item)
         return entries

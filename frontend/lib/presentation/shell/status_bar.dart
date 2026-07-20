@@ -13,6 +13,9 @@ class StatusBar extends StatelessWidget {
     this.dirty = false,
     this.errorCount = 0,
     this.warningCount = 0,
+    this.robotVersion,
+    this.pythonVersion,
+    this.venvName,
   });
 
   final bool backendConnected;
@@ -23,6 +26,9 @@ class StatusBar extends StatelessWidget {
   final bool dirty;
   final int errorCount;
   final int warningCount;
+  final String? robotVersion;
+  final String? pythonVersion;
+  final String? venvName;
 
   @override
   Widget build(BuildContext context) {
@@ -48,9 +54,21 @@ class StatusBar extends StatelessWidget {
           _item('LF'),
           const Spacer(),
           if (backendVersion != null) _item('API v$backendVersion'),
-          _item('ROBOT —'),
-          _item('PYTHON —'),
-          _item('VENV —'),
+          _item(
+            robotVersion != null && robotVersion!.isNotEmpty
+                ? 'ROBOT $robotVersion'
+                : 'ROBOT —',
+          ),
+          _item(
+            pythonVersion != null && pythonVersion!.isNotEmpty
+                ? 'PYTHON $pythonVersion'
+                : 'PYTHON —',
+          ),
+          _item(
+            venvName != null && venvName!.isNotEmpty
+                ? 'VENV $venvName'
+                : 'VENV —',
+          ),
         ],
       ),
     );

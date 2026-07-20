@@ -135,6 +135,46 @@ class SidePanel extends StatelessWidget {
       );
     }
 
+    if (panel == SidebarPanel.reports) {
+      if (workspace == null) {
+        return _EmptyToolView(
+          icon: panel.icon,
+          message: 'Open a workspace to view reports.',
+        );
+      }
+      if (recentRuns.isEmpty) {
+        return _EmptyToolView(
+          icon: panel.icon,
+          message: 'No reports yet. Run a suite to generate artifacts.',
+        );
+      }
+      return ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          ToolSection(
+            title: 'Recent',
+            children: [
+              for (final run in recentRuns)
+                ExplorerTreeItem(
+                  icon: Icons.assessment_outlined,
+                  label: '${run.projectName.isEmpty ? run.suite : run.projectName} · ${run.status.passFailLabel}',
+                  indent: 1,
+                  onTap: onSelectReport == null ? null : () => onSelectReport!(run),
+                ),
+            ],
+          ),
+          if (onOpenReports != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: TextButton(
+                onPressed: onOpenReports,
+                child: const Text('Open Reports'),
+              ),
+            ),
+        ],
+      );
+    }
+
     if (panel == SidebarPanel.search || panel == SidebarPanel.keywords) {
       return _EmptyToolView(
         icon: panel.icon,
@@ -182,9 +222,7 @@ class _PlaceholderTree extends StatelessWidget {
       SidebarPanel.sourceControl => const [
           ('Changes', ['Open Source Control in the main view']),
         ],
-      SidebarPanel.reports => const [
-          ('Recent', ['No reports yet']),
-        ],
+      SidebarPanel.reports => const [],
       SidebarPanel.ai => const [
           ('Threads', [
             'Explain last failure',

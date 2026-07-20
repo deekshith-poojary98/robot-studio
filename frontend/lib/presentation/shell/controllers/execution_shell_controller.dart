@@ -70,66 +70,75 @@ class ExecutionShellController {
     }
   }
 
+  bool _isEventForCurrentRun(ExecutionStreamEvent event) {
+    final current = currentExecution;
+    if (current == null) return false;
+    final runId = event.runId;
+    if (runId == null || runId.isEmpty) return true;
+    return runId == current.id;
+  }
+
   void handleStreamEvent(ExecutionStreamEvent event) {
     if (!isMounted()) return;
 
     switch (event.type) {
       case 'output':
+        // Ignore replay/noise until this session has started a run.
+        if (!_isEventForCurrentRun(event)) return;
         final line = event.line;
         if (line == null) return;
         executionLines = [...executionLines, line];
         notify();
         return;
       case 'status':
+        // Do not adopt historical run status on stream connect (cold start).
+        if (!_isEventForCurrentRun(event)) return;
         final status = event.status;
         if (status == null) return;
         executionStatus = ExecutionStatus.fromApi(status);
-        if (currentExecution != null) {
-          currentExecution = ExecutionInfo(
-            id: currentExecution!.id,
-            workspaceId: currentExecution!.workspaceId,
-            projectId: currentExecution!.projectId,
-            environmentId: currentExecution!.environmentId,
-            projectName: currentExecution!.projectName,
-            suite: currentExecution!.suite,
-            status: executionStatus,
-            startedAt: currentExecution!.startedAt,
-            finishedAt: currentExecution!.finishedAt,
-            durationMs: currentExecution!.durationMs,
-            exitCode: event.exitCode ?? currentExecution!.exitCode,
-            command: currentExecution!.command,
-            outputDir: currentExecution!.outputDir,
-            outputXml: currentExecution!.outputXml,
-            logHtml: currentExecution!.logHtml,
-            reportHtml: currentExecution!.reportHtml,
-          );
-        }
+        currentExecution = ExecutionInfo(
+          id: currentExecution!.id,
+          workspaceId: currentExecution!.workspaceId,
+          projectId: currentExecution!.projectId,
+          environmentId: currentExecution!.environmentId,
+          projectName: currentExecution!.projectName,
+          suite: currentExecution!.suite,
+          status: executionStatus,
+          startedAt: currentExecution!.startedAt,
+          finishedAt: currentExecution!.finishedAt,
+          durationMs: currentExecution!.durationMs,
+          exitCode: event.exitCode ?? currentExecution!.exitCode,
+          command: currentExecution!.command,
+          outputDir: currentExecution!.outputDir,
+          outputXml: currentExecution!.outputXml,
+          logHtml: currentExecution!.logHtml,
+          reportHtml: currentExecution!.reportHtml,
+        );
         notify();
         return;
       case 'finished':
       case 'failed':
       case 'cancelled':
+        if (!_isEventForCurrentRun(event)) return;
         executionStatus = ExecutionStatus.fromApi(event.type);
-        if (currentExecution != null) {
-          currentExecution = ExecutionInfo(
-            id: currentExecution!.id,
-            workspaceId: currentExecution!.workspaceId,
-            projectId: currentExecution!.projectId,
-            environmentId: currentExecution!.environmentId,
-            projectName: currentExecution!.projectName,
-            suite: currentExecution!.suite,
-            status: executionStatus,
-            startedAt: currentExecution!.startedAt,
-            finishedAt: currentExecution!.finishedAt,
-            durationMs: currentExecution!.durationMs,
-            exitCode: event.exitCode ?? currentExecution!.exitCode,
-            command: currentExecution!.command,
-            outputDir: currentExecution!.outputDir,
-            outputXml: currentExecution!.outputXml,
-            logHtml: currentExecution!.logHtml,
-            reportHtml: currentExecution!.reportHtml,
-          );
-        }
+        currentExecution = ExecutionInfo(
+          id: currentExecution!.id,
+          workspaceId: currentExecution!.workspaceId,
+          projectId: currentExecution!.projectId,
+          environmentId: currentExecution!.environmentId,
+          projectName: currentExecution!.projectName,
+          suite: currentExecution!.suite,
+          status: executionStatus,
+          startedAt: currentExecution!.startedAt,
+          finishedAt: currentExecution!.finishedAt,
+          durationMs: currentExecution!.durationMs,
+          exitCode: event.exitCode ?? currentExecution!.exitCode,
+          command: currentExecution!.command,
+          outputDir: currentExecution!.outputDir,
+          outputXml: currentExecution!.outputXml,
+          logHtml: currentExecution!.logHtml,
+          reportHtml: currentExecution!.reportHtml,
+        );
         stopElapsedTimer();
         notify();
         unawaited(onRunFinished());

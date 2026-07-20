@@ -100,7 +100,7 @@ class _NewProjectDialogState extends State<NewProjectDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: _submit,
+          onPressed: _nameController.text.trim().isEmpty ? null : _submit,
           child: const Text('Create'),
         ),
       ],

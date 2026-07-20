@@ -39,6 +39,9 @@ class AppToolbar extends StatelessWidget {
     this.onGitFetch,
     this.onGitPull,
     this.onGitPush,
+    this.showGitRemoteActions = false,
+    this.canRun = true,
+    this.canRunProject = true,
   });
 
   final String panelTitle;
@@ -71,6 +74,9 @@ class AppToolbar extends StatelessWidget {
   final VoidCallback? onGitFetch;
   final VoidCallback? onGitPull;
   final VoidCallback? onGitPush;
+  final bool showGitRemoteActions;
+  final bool canRun;
+  final bool canRunProject;
 
   @override
   Widget build(BuildContext context) {
@@ -145,22 +151,24 @@ class AppToolbar extends StatelessWidget {
                       onCreateBranch: onGitCreateBranch ?? (_) {},
                       onDeleteBranch: onGitDeleteBranch ?? (_) {},
                     ),
-                    const SizedBox(width: 6),
-                    ToolbarButton(
-                      icon: Icons.cloud_download_outlined,
-                      label: 'Fetch',
-                      onTap: onGitFetch,
-                    ),
-                    ToolbarButton(
-                      icon: Icons.download_outlined,
-                      label: 'Pull',
-                      onTap: onGitPull,
-                    ),
-                    ToolbarButton(
-                      icon: Icons.upload_outlined,
-                      label: 'Push',
-                      onTap: onGitPush,
-                    ),
+                    if (showGitRemoteActions) ...[
+                      const SizedBox(width: 6),
+                      ToolbarButton(
+                        icon: Icons.cloud_download_outlined,
+                        label: 'Fetch',
+                        onTap: onGitFetch,
+                      ),
+                      ToolbarButton(
+                        icon: Icons.download_outlined,
+                        label: 'Pull',
+                        onTap: onGitPull,
+                      ),
+                      ToolbarButton(
+                        icon: Icons.upload_outlined,
+                        label: 'Push',
+                        onTap: onGitPush,
+                      ),
+                    ],
                   ],
                 ],
               ),
@@ -172,14 +180,24 @@ class AppToolbar extends StatelessWidget {
             label: 'Run',
             primary: true,
             showLabel: true,
-            onTap: isExecutionRunning ? null : onRun,
+            tooltip: !canRun
+                ? 'Open a project to run'
+                : isExecutionRunning
+                    ? 'Stop the current run first'
+                    : 'Run',
+            onTap: isExecutionRunning || !canRun ? null : onRun,
           ),
           const SizedBox(width: 6),
           ToolbarButton(
             icon: Icons.playlist_play_rounded,
             label: 'Run Project',
             showLabel: true,
-            onTap: isExecutionRunning ? null : onRunProject,
+            tooltip: !canRunProject
+                ? 'Open a project to run'
+                : isExecutionRunning
+                    ? 'Stop the current run first'
+                    : 'Run Project',
+            onTap: isExecutionRunning || !canRunProject ? null : onRunProject,
           ),
           const SizedBox(width: 6),
           ToolbarButton(
@@ -263,19 +281,33 @@ class AppToolbar extends StatelessWidget {
           ToolbarButton(
             icon: Icons.notifications_none_outlined,
             label: 'Notifications',
-            onTap: () {},
+            tooltip: 'Notifications — coming soon',
+            onTap: () => _showComingSoon(context, 'Notifications'),
           ),
           ToolbarButton(
             icon: Icons.auto_awesome_outlined,
             label: 'AI',
-            onTap: () {},
+            tooltip: 'AI — coming soon',
+            onTap: () => _showComingSoon(context, 'AI assistant'),
           ),
           ToolbarButton(
             icon: Icons.person_outline,
             label: 'Profile',
-            onTap: () {},
+            tooltip: 'Profile — coming soon',
+            onTap: () => _showComingSoon(context, 'Profile'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showComingSoon(BuildContext context, String feature) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$feature is coming in a later milestone.'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
       ),
     );
   }

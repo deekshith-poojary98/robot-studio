@@ -458,6 +458,8 @@ class _AppShellState extends State<AppShell> {
     }
     setState(() {
       _showPluginManager = true;
+      _showSourceControl = false;
+      _showReportsPage = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
       _showSearchPage = false;
@@ -563,6 +565,7 @@ class _AppShellState extends State<AppShell> {
     }
     setState(() {
       _showSourceControl = true;
+      _showReportsPage = false;
       _showPluginManager = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
@@ -782,8 +785,10 @@ class _AppShellState extends State<AppShell> {
     }
     setState(() {
       _showReportsPage = true;
-      _showEnvironmentManager = false;
+      _showSourceControl = false;
+      _showPluginManager = false;
       _showPackageManager = false;
+      _showEnvironmentManager = false;
       _showSearchPage = false;
       _showEditorPage = false;
       _selectedProject = null;
@@ -799,8 +804,10 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _execution.selectedReport = run;
       _showReportsPage = true;
-      _showEnvironmentManager = false;
+      _showSourceControl = false;
+      _showPluginManager = false;
       _showPackageManager = false;
+      _showEnvironmentManager = false;
       _showSearchPage = false;
       _showEditorPage = false;
       _selectedProject = null;
@@ -1140,13 +1147,28 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleOpenRecentProject(ProjectInfo project) async {
-    if (_workspace.activeWorkspace == null ||
-        _activeWorkspace!.id != project.workspaceId) {
-      await _showError(
-        'Open workspace first',
-        'Open the project\'s workspace, then select the project from the explorer.',
+    final needsWorkspace = _workspace.activeWorkspace == null ||
+        _activeWorkspace!.id != project.workspaceId;
+    if (needsWorkspace) {
+      final matches = _recentWorkspaces
+          .where((item) => item.id == project.workspaceId)
+          .toList();
+      if (matches.isEmpty) {
+        await _showError(
+          'Workspace not found',
+          'Open the project\'s workspace first, then select the project from the explorer.',
+        );
+        return;
+      }
+      await _runWorkspaceAction(
+        () => _gateway.openWorkspace(matches.first.path),
+        successMessage: 'Opened workspace',
       );
-      return;
+      if (!mounted ||
+          _workspace.activeWorkspace == null ||
+          _activeWorkspace!.id != project.workspaceId) {
+        return;
+      }
     }
     await _handleSelectProject(project);
   }
@@ -1212,6 +1234,9 @@ class _AppShellState extends State<AppShell> {
     }
     setState(() {
       _showPackageManager = true;
+      _showSourceControl = false;
+      _showPluginManager = false;
+      _showReportsPage = false;
       _showEnvironmentManager = false;
       _showSearchPage = false;
       _showEditorPage = false;
@@ -2343,6 +2368,8 @@ class _AppShellState extends State<AppShell> {
                 isExecutionRunning: _executionStatus.isActive,
                 executionStatusLabel: _executionStatus.label,
                 executionElapsedLabel: _elapsedLabel,
+                canRun: _selectedProject != null,
+                canRunProject: _selectedProject != null,
                 onOpenWorkspace: _handleOpenWorkspace,
                 onNewWorkspace: _handleNewWorkspace,
                 onOpenSearch: () => _openSearchPanel(),
@@ -2354,6 +2381,8 @@ class _AppShellState extends State<AppShell> {
                 onGitFetch: () => _handleGitRemote('fetch', _gateway.fetchGit),
                 onGitPull: () => _handleGitRemote('pull', _gateway.pullGit),
                 onGitPush: () => _handleGitRemote('push', _gateway.pushGit),
+                showGitRemoteActions:
+                    _gitStatus?.repository.isRepository == true,
               ),
               Expanded(
                 child: Row(
@@ -2361,7 +2390,32 @@ class _AppShellState extends State<AppShell> {
                   children: [
                     AppSidebar(
                       activePanel: _activePanel,
+                      onSettings: () {
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Settings is coming in a later milestone.',
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
                       onPanelSelected: (panel) {
+                        if (panel == SidebarPanel.ai) {
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'AI assistant is coming in a later milestone.',
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                          return;
+                        }
                         setState(() {
                           _activePanel = panel;
                           if (panel == SidebarPanel.tests) {
@@ -2468,6 +2522,9 @@ class _AppShellState extends State<AppShell> {
                 warningCount: _workspaceProblems
                     .where((item) => item.severity == DiagnosticSeverity.warning)
                     .length,
+                robotVersion: _activeEnvironment?.robotVersion,
+                pythonVersion: _activeEnvironment?.pythonVersion,
+                venvName: _activeEnvironment?.name,
               ),
             ],
           ),

@@ -133,12 +133,13 @@ class WorkspaceExplorer extends StatelessWidget {
                     )
                   else
                     ...projects.map(
-                      (project) => ExplorerTreeItem(
-                        icon: iconForProjectType(project.type),
-                        label: project.name,
-                        indent: 1,
+                      (project) => _ProjectExplorerTile(
+                        project: project,
                         selected: selectedProject?.id == project.id,
-                        onTap: () => onSelectProject(project),
+                        onSelectProject: onSelectProject,
+                        onOpenFile: onOpenFile,
+                        projectNode: _findNodeByPath(fileTree, project.path),
+                        gitFileStatuses: gitFileStatuses,
                       ),
                     ),
                 ],
@@ -280,6 +281,71 @@ class WorkspaceExplorer extends StatelessWidget {
   }
 }
 
+FileTreeNode? _findNodeByPath(List<FileTreeNode> nodes, String path) {
+  for (final node in nodes) {
+    if (node.path == path) return node;
+    final nested = _findNodeByPath(node.children, path);
+    if (nested != null) return nested;
+  }
+  return null;
+}
+
+class _ProjectExplorerTile extends StatefulWidget {
+  const _ProjectExplorerTile({
+    required this.project,
+    required this.selected,
+    required this.onSelectProject,
+    required this.projectNode,
+    required this.gitFileStatuses,
+    this.onOpenFile,
+  });
+
+  final ProjectInfo project;
+  final bool selected;
+  final ValueChanged<ProjectInfo> onSelectProject;
+  final ValueChanged<String>? onOpenFile;
+  final FileTreeNode? projectNode;
+  final Map<String, GitFileStatus> gitFileStatuses;
+
+  @override
+  State<_ProjectExplorerTile> createState() => _ProjectExplorerTileState();
+}
+
+class _ProjectExplorerTileState extends State<_ProjectExplorerTile> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final node = widget.projectNode;
+    final canExpand = node != null && node.children.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ExplorerTreeItem(
+          icon: iconForProjectType(widget.project.type),
+          label: widget.project.name,
+          indent: 1,
+          selected: widget.selected,
+          onTap: () {
+            widget.onSelectProject(widget.project);
+            if (canExpand) {
+              setState(() => _expanded = !_expanded);
+            }
+          },
+        ),
+        if (_expanded && canExpand && widget.onOpenFile != null)
+          for (final child in node.children)
+            _FileTreeNodeTile(
+              node: child,
+              indent: 2,
+              onOpenFile: widget.onOpenFile!,
+              gitFileStatuses: widget.gitFileStatuses,
+            ),
+      ],
+    );
+  }
+}
+
 class _FileTreeNodeTile extends StatefulWidget {
   const _FileTreeNodeTile({
     required this.node,
@@ -298,7 +364,7 @@ class _FileTreeNodeTile extends StatefulWidget {
 }
 
 class _FileTreeNodeTileState extends State<_FileTreeNodeTile> {
-  bool _expanded = true;
+  late bool _expanded = widget.indent <= 1;
 
   @override
   Widget build(BuildContext context) {
