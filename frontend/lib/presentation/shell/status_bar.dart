@@ -6,7 +6,6 @@ class StatusBar extends StatelessWidget {
   const StatusBar({
     super.key,
     required this.backendConnected,
-    this.backendVersion,
     this.workspaceName,
     this.fileName,
     this.cursorLabel,
@@ -19,7 +18,6 @@ class StatusBar extends StatelessWidget {
   });
 
   final bool backendConnected;
-  final String? backendVersion;
   final String? workspaceName;
   final String? fileName;
   final String? cursorLabel;
@@ -53,7 +51,6 @@ class StatusBar extends StatelessWidget {
           _item('UTF-8'),
           _item('LF'),
           const Spacer(),
-          if (backendVersion != null) _item('API v$backendVersion'),
           _item(
             robotVersion != null && robotVersion!.isNotEmpty
                 ? 'ROBOT $robotVersion'
@@ -66,8 +63,8 @@ class StatusBar extends StatelessWidget {
           ),
           _item(
             venvName != null && venvName!.isNotEmpty
-                ? 'VENV $venvName'
-                : 'VENV —',
+                ? 'ENV $venvName'
+                : 'ENV —',
           ),
         ],
       ),

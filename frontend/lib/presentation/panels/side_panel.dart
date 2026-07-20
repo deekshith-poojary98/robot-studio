@@ -4,6 +4,7 @@ import '../../core/gateway/models/environment_info.dart';
 import '../../core/gateway/models/execution_info.dart';
 import '../../core/gateway/models/file_info.dart';
 import '../../core/gateway/models/git_info.dart';
+import '../../core/gateway/models/index_info.dart';
 import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
 import '../../core/theme/app_theme.dart';
@@ -32,7 +33,8 @@ class SidePanel extends StatelessWidget {
     this.recentRuns = const [],
     this.onSelectReport,
     this.onOpenReports,
-    this.backendVersion,
+    this.testSuites = const [],
+    this.onSelectTestSuite,
     this.fileTree = const [],
     this.onOpenFile,
     this.gitFileStatuses = const {},
@@ -55,7 +57,8 @@ class SidePanel extends StatelessWidget {
   final List<ExecutionInfo> recentRuns;
   final ValueChanged<ExecutionInfo>? onSelectReport;
   final VoidCallback? onOpenReports;
-  final String? backendVersion;
+  final List<IndexedSymbolInfo> testSuites;
+  final ValueChanged<IndexedSymbolInfo>? onSelectTestSuite;
   final List<FileTreeNode> fileTree;
   final ValueChanged<String>? onOpenFile;
   final Map<String, GitFileStatus> gitFileStatuses;
@@ -75,10 +78,6 @@ class SidePanel extends StatelessWidget {
         children: [
           PanelHeader(
             title: panel.label,
-            trailing: Text(
-              backendVersion != null ? 'v$backendVersion' : '',
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
-            ),
           ),
           Expanded(child: _buildBody(context)),
         ],
@@ -186,6 +185,67 @@ class SidePanel extends StatelessWidget {
       );
     }
 
+    if (panel == SidebarPanel.tests) {
+      if (workspace == null) {
+        return _EmptyToolView(
+          icon: panel.icon,
+          message: 'Open a workspace to browse test suites.',
+        );
+      }
+      return ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          ToolSection(
+            title: 'Test Suites',
+            children: [
+              if (testSuites.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
+                  child: Text(
+                    'No suites indexed yet. Rebuild the index or add .robot files.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                )
+              else
+                for (final suite in testSuites)
+                  ExplorerTreeItem(
+                    icon: Icons.description_outlined,
+                    label: suite.name,
+                    indent: 1,
+                    onTap: onSelectTestSuite == null
+                        ? null
+                        : () => onSelectTestSuite!(suite),
+                  ),
+            ],
+          ),
+          ToolSection(
+            title: 'Recent Runs',
+            children: [
+              if (recentRuns.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
+                  child: Text(
+                    'No runs yet',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                )
+              else
+                for (final run in recentRuns.take(8))
+                  ExplorerTreeItem(
+                    icon: Icons.play_circle_outline,
+                    label:
+                        '${run.projectName.isEmpty ? run.suite : run.projectName} · ${run.status.passFailLabel}',
+                    indent: 1,
+                    onTap: onSelectReport == null
+                        ? null
+                        : () => onSelectReport!(run),
+                  ),
+            ],
+          ),
+        ],
+      );
+    }
+
     return _PlaceholderTree(panel: panel);
   }
 }
@@ -198,11 +258,7 @@ class _PlaceholderTree extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sections = switch (panel) {
-      SidebarPanel.tests => const [
-          ('Test Suites', ['No suites indexed yet']),
-          ('Recent Runs', ['No runs yet']),
-          ('Favorites', ['None']),
-        ],
+      SidebarPanel.tests => const [],
       SidebarPanel.keywords => const [
           ('Libraries', ['Open a workspace to discover keywords']),
           ('User Keywords', ['None']),
@@ -223,13 +279,6 @@ class _PlaceholderTree extends StatelessWidget {
           ('Changes', ['Open Source Control in the main view']),
         ],
       SidebarPanel.reports => const [],
-      SidebarPanel.ai => const [
-          ('Threads', [
-            'Explain last failure',
-            'Generate login keyword',
-            'Refactor smoke suite',
-          ]),
-        ],
       SidebarPanel.explorer => const [],
     };
 

@@ -25,6 +25,7 @@ class BottomPanel extends StatefulWidget {
     this.isLoadingProblems = false,
     this.problemCount = 0,
     this.forceExecutionTab = false,
+    this.revealExecutionLogsToken,
     this.onProblemSelected,
   });
 
@@ -34,6 +35,7 @@ class BottomPanel extends StatefulWidget {
   final bool isLoadingProblems;
   final int problemCount;
   final bool forceExecutionTab;
+  final int? revealExecutionLogsToken;
   final ValueChanged<DiagnosticInfo>? onProblemSelected;
 
   @override
@@ -50,6 +52,12 @@ class _BottomPanelState extends State<BottomPanel> {
     super.didUpdateWidget(oldWidget);
     if (widget.forceExecutionTab &&
         widget.executionLines.length > oldWidget.executionLines.length) {
+      _activeTab = BottomPanelTab.executionLogs;
+      _expanded = true;
+    }
+    if (widget.revealExecutionLogsToken != null &&
+        widget.revealExecutionLogsToken !=
+            oldWidget.revealExecutionLogsToken) {
       _activeTab = BottomPanelTab.executionLogs;
       _expanded = true;
     }

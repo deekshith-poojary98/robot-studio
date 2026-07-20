@@ -13,7 +13,6 @@ class AppToolbar extends StatelessWidget {
     required this.workspaceLabel,
     required this.environmentLabel,
     required this.backendConnected,
-    required this.backendVersion,
     this.environmentNames = const [],
     this.selectedEnvironmentName,
     this.onEnvironmentSelected,
@@ -28,6 +27,7 @@ class AppToolbar extends StatelessWidget {
     this.executionStatusLabel,
     this.executionElapsedLabel,
     this.isExecutionRunning = false,
+    this.onExecutionStatusTap,
     this.onNewWorkspace,
     this.onOpenWorkspace,
     this.onOpenSearch,
@@ -48,7 +48,6 @@ class AppToolbar extends StatelessWidget {
   final String workspaceLabel;
   final String environmentLabel;
   final bool backendConnected;
-  final String? backendVersion;
   final List<String> environmentNames;
   final String? selectedEnvironmentName;
   final ValueChanged<String>? onEnvironmentSelected;
@@ -63,6 +62,7 @@ class AppToolbar extends StatelessWidget {
   final String? executionStatusLabel;
   final String? executionElapsedLabel;
   final bool isExecutionRunning;
+  final VoidCallback? onExecutionStatusTap;
   final VoidCallback? onNewWorkspace;
   final VoidCallback? onOpenWorkspace;
   final VoidCallback? onOpenSearch;
@@ -104,7 +104,7 @@ class AppToolbar extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    backendVersion != null ? 'v$backendVersion' : 'offline',
+                    backendConnected ? 'Connected' : 'Offline',
                     style: const TextStyle(
                       color: AppColors.textMuted,
                       fontSize: 10,
@@ -209,14 +209,23 @@ class AppToolbar extends StatelessWidget {
           ),
           if (executionStatusLabel != null) ...[
             const SizedBox(width: 10),
-            StatusBadge(
-              label: isExecutionRunning
-                  ? '${executionStatusLabel!} · ${executionElapsedLabel ?? '0s'}'
-                  : executionStatusLabel!,
-              filled: isExecutionRunning,
-              dotColor: isExecutionRunning
-                  ? AppColors.accent
-                  : AppColors.textMuted,
+            Tooltip(
+              message: 'Open execution logs',
+              child: InkWell(
+                onTap: onExecutionStatusTap,
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+                child: StatusBadge(
+                  label: isExecutionRunning
+                      ? '${executionStatusLabel!} · ${executionElapsedLabel ?? '0s'}'
+                      : executionStatusLabel!,
+                  filled: isExecutionRunning,
+                  dotColor: isExecutionRunning
+                      ? AppColors.accent
+                      : executionStatusLabel == 'Failed'
+                          ? AppColors.error
+                          : AppColors.textMuted,
+                ),
+              ),
             ),
           ],
           const SizedBox(width: 10),
@@ -283,12 +292,6 @@ class AppToolbar extends StatelessWidget {
             label: 'Notifications',
             tooltip: 'Notifications — coming soon',
             onTap: () => _showComingSoon(context, 'Notifications'),
-          ),
-          ToolbarButton(
-            icon: Icons.auto_awesome_outlined,
-            label: 'AI',
-            tooltip: 'AI — coming soon',
-            onTap: () => _showComingSoon(context, 'AI assistant'),
           ),
           ToolbarButton(
             icon: Icons.person_outline,

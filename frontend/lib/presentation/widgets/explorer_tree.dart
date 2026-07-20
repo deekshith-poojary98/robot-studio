@@ -80,6 +80,7 @@ class ExplorerTreeItem extends StatefulWidget {
     this.selected = false,
     this.onTap,
     this.trailing,
+    this.tooltip,
   });
 
   final String label;
@@ -88,6 +89,7 @@ class ExplorerTreeItem extends StatefulWidget {
   final bool selected;
   final VoidCallback? onTap;
   final Widget? trailing;
+  final String? tooltip;
 
   @override
   State<ExplorerTreeItem> createState() => _ExplorerTreeItemState();
@@ -99,7 +101,7 @@ class _ExplorerTreeItemState extends State<ExplorerTreeItem> {
   @override
   Widget build(BuildContext context) {
     final selected = widget.selected;
-    return MouseRegion(
+    final row = MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: InkWell(
@@ -135,6 +137,7 @@ class _ExplorerTreeItemState extends State<ExplorerTreeItem> {
               Expanded(
                 child: Text(
                   widget.label,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: selected ? AppColors.accent : AppColors.textPrimary,
@@ -148,6 +151,14 @@ class _ExplorerTreeItemState extends State<ExplorerTreeItem> {
           ),
         ),
       ),
+    );
+
+    final tip = widget.tooltip;
+    if (tip == null || tip.isEmpty) return row;
+    return Tooltip(
+      message: tip,
+      waitDuration: const Duration(milliseconds: 400),
+      child: row,
     );
   }
 }

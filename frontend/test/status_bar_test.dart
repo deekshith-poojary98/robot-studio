@@ -9,7 +9,6 @@ void main() {
         home: Scaffold(
           body: StatusBar(
             backendConnected: true,
-            backendVersion: '0.1.0',
             workspaceName: 'robot-files',
             robotVersion: '7.4.2',
             pythonVersion: '3.13',
@@ -21,7 +20,7 @@ void main() {
 
     expect(find.text('ROBOT 7.4.2'), findsOneWidget);
     expect(find.text('PYTHON 3.13'), findsOneWidget);
-    expect(find.text('VENV myenv'), findsOneWidget);
+    expect(find.text('ENV myenv'), findsOneWidget);
   });
 
   testWidgets('status bar shows dashes when environment is missing',
@@ -36,6 +35,6 @@ void main() {
 
     expect(find.text('ROBOT —'), findsOneWidget);
     expect(find.text('PYTHON —'), findsOneWidget);
-    expect(find.text('VENV —'), findsOneWidget);
+    expect(find.text('ENV —'), findsOneWidget);
   });
 }

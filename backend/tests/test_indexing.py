@@ -19,6 +19,7 @@ from robot_studio.infrastructure.indexing.file_watcher import NativeFileWatcher
 from robot_studio.infrastructure.indexing.filesystem_indexer import FilesystemIndexer
 from robot_studio.infrastructure.indexing.robot_indexer import RobotIndexer
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
+from robot_studio.infrastructure.language.builtin_keywords import BUILTIN_KEYWORDS
 from robot_studio.infrastructure.language.robot_language_service import RobotLanguageService
 from robot_studio.infrastructure.repositories.project_repository import (
     SqliteProjectRepository,
@@ -175,7 +176,7 @@ async def test_rebuild_search_definition_references(index_stack) -> None:
     status = await service.rebuild()
     assert status.state == "ready"
     assert status.files_indexed >= 2
-    assert status.keywords_indexed >= 1
+    assert status.keywords_indexed >= len(BUILTIN_KEYWORDS)
     assert any(isinstance(e, IndexUpdated) for e in events)
 
     results = await service.search("Login")
@@ -183,6 +184,13 @@ async def test_rebuild_search_definition_references(index_stack) -> None:
 
     keywords = await service.search("", kind=SymbolKind.KEYWORD)
     assert any(item["name"] == "Login User" for item in keywords)
+    assert any(item["name"] == "Log" and item.get("file_path") == "BuiltIn" for item in keywords)
+
+    builtin_hits = await service.search("Log", kind=SymbolKind.KEYWORD)
+    assert any(item["name"] == "Log" for item in builtin_hits)
+
+    suites = await service.search("", kind=SymbolKind.TEST_SUITE)
+    assert suites, "expected at least one indexed test suite"
 
     definition = await facade.definition(name="Login User")
     assert definition is not None

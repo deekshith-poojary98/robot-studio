@@ -72,6 +72,15 @@ async def test_index_search_language_api(api_client) -> None:
     names = [item["name"] for item in search.json()["results"]]
     assert "Hello World" in names
 
+    builtin = await client.get("/api/v1/search", params={"q": "Log", "kind": "keyword"})
+    assert builtin.status_code == 200
+    builtin_names = [item["name"] for item in builtin.json()["results"]]
+    assert "Log" in builtin_names
+
+    suites = await client.get("/api/v1/search", params={"q": "", "kind": "test_suite"})
+    assert suites.status_code == 200
+    assert len(suites.json()["results"]) >= 1
+
     definition = await client.get(
         "/api/v1/language/definition",
         params={"name": "Hello World"},

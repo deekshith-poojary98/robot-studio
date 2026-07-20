@@ -112,13 +112,19 @@ class WelcomeScreen extends StatelessWidget {
                   QuickActionTile(
                     icon: Icons.note_add_outlined,
                     label: 'Create Robot Project',
-                    subtitle: 'Requires an open workspace',
+                    subtitle: workspaceOpen
+                        ? 'Add a Robot Framework project'
+                        : 'Requires an open workspace',
+                    enabled: workspaceOpen && onNewProject != null,
+                    disabledTooltip: 'Open a workspace first',
                     onTap: onNewProject ?? () {},
                   ),
                   QuickActionTile(
                     icon: Icons.memory_outlined,
                     label: 'Manage Environments',
                     subtitle: 'Create and activate Python environments',
+                    enabled: workspaceOpen && onManageEnvironments != null,
+                    disabledTooltip: 'Open a workspace first',
                     onTap: onManageEnvironments ?? () {},
                   ),
                 ];
@@ -600,6 +606,7 @@ class _RecentProjectsBody extends StatelessWidget {
         return ExplorerTreeItem(
           icon: iconForProjectType(project.type),
           label: project.name,
+          tooltip: '${project.name}\n${project.path}',
           onTap: () => onOpen(project),
           trailing: Text(
             project.type.label,
@@ -639,6 +646,7 @@ class _RecentFilesBody extends StatelessWidget {
         return ExplorerTreeItem(
           icon: Icons.description_outlined,
           label: name,
+          tooltip: path,
           onTap: onOpen == null ? null : () => onOpen!(path),
           trailing: Text(
             path,
@@ -680,6 +688,7 @@ class _OpenEditorsBody extends StatelessWidget {
         return ExplorerTreeItem(
           icon: Icons.edit_outlined,
           label: name,
+          tooltip: path,
           onTap: onOpen == null ? null : () => onOpen!(path),
         );
       }).toList(),
@@ -727,6 +736,7 @@ class _RecentWorkspacesBody extends StatelessWidget {
         return ExplorerTreeItem(
           icon: Icons.work_outline,
           label: workspace.name,
+          tooltip: '${workspace.name}\n${workspace.path}',
           onTap: () => onOpen(workspace),
         );
       }).toList(),

@@ -1,6 +1,10 @@
-# Robot Studio Integration Tests
+# Robot Studio — Integration Tests
 
-End-to-end Flutter integration tests for Milestones 2–12. These tests launch the real desktop UI against a live Python backend.
+End-to-end Flutter **desktop** tests for Robot Studio. Suites launch the real UI against a **live Python backend** with an isolated data directory.
+
+Parent docs: [../../README.md](../../README.md) · [../README.md](../README.md)
+
+---
 
 ## Prerequisites
 
@@ -8,33 +12,22 @@ End-to-end Flutter integration tests for Milestones 2–12. These tests launch t
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 ```
 
-2. Flutter SDK with desktop support enabled.
+2. Flutter SDK with **desktop** support (`macos` / `linux` / `windows`).
 
-3. Optional environment variables:
+3. Optional environment variables (see below).
 
-- `ROBOT_STUDIO_PYTHON` — Python executable for backend and venv creation
-- `INTEGRATION_PYTHON` — Python interpreter used when creating environments
+---
 
 ## Running
 
-From the `frontend/` directory:
+### Recommended (repo script)
 
-```bash
-flutter pub get
-
-# Run a single suite
-flutter test integration_test/startup_test.dart
-
-# Run all integration suites
-flutter test integration_test/
-```
-
-Or use the helper script from the repository root:
+From the **repository root**. Starts an isolated backend on a free port (required on macOS — the app sandbox cannot spawn Python), passes `--dart-define` values, and tears down after each suite:
 
 ```bash
 ./scripts/run_integration_tests.sh
@@ -43,28 +36,96 @@ Or use the helper script from the repository root:
 ./scripts/run_integration_tests.sh startup_test.dart
 ```
 
-The script starts an isolated backend on a free port (macOS app sandbox cannot spawn Python), passes `--dart-define` values to Flutter, and tears down after each suite.
+Requires `backend/.venv` (or set `ROBOT_STUDIO_PYTHON` to another interpreter that can run the backend).
+
+### Direct Flutter (advanced)
+
+Only if the backend is already reachable at the URL you pass:
+
+```bash
+cd frontend
+flutter pub get
+
+flutter test -d macos integration_test/startup_test.dart \
+  --dart-define=INTEGRATION_BACKEND_URL=http://127.0.0.1:8765
+
+# All suites (each must share a running backend or use the script instead)
+flutter test -d macos integration_test/
+```
+
+Prefer the script for CI and local full runs.
+
+---
 
 ## Environment variables
 
-- `ROBOT_STUDIO_PYTHON` — Python executable for backend and venv creation
-- `INTEGRATION_PYTHON` — Python interpreter used when creating environments
-- `ROBOT_STUDIO_PORT` — Fixed backend port (optional; default picks a free port)
-- `ROBOT_STUDIO_REPO_ROOT` — Repository root (set automatically by the script)
+| Variable | Purpose |
+|----------|---------|
+| `ROBOT_STUDIO_PYTHON` | Python executable for backend process and venv creation |
+| `INTEGRATION_PYTHON` | Interpreter used when tests create environments (defaults with `ROBOT_STUDIO_PYTHON`) |
+| `ROBOT_STUDIO_PORT` | Fixed backend port for the script (optional; default picks a free port) |
+| `ROBOT_STUDIO_REPO_ROOT` | Repository root (set automatically by the script) |
+
+Dart defines injected by the script:
+
+| Define | Purpose |
+|--------|---------|
+| `INTEGRATION_BACKEND_URL` | e.g. `http://127.0.0.1:<port>` |
+| `ROBOT_STUDIO_BACKEND_PORT` | Same port |
+| `ROBOT_STUDIO_REPO_ROOT` | Absolute repo root |
+
+---
+
+## Suites
+
+| File | Focus |
+|------|--------|
+| `startup_test.dart` | App launch, backend connection, welcome shell |
+| `workspace_flow_test.dart` | Create / open workspace |
+| `project_flow_test.dart` | Create / import / select projects |
+| `environment_flow_test.dart` | Create / activate environments |
+| `package_manager_test.dart` | Package list / install flows |
+| `editor_test.dart` | Open files, editor basics |
+| `intelligent_editor_test.dart` | Language features / navigation |
+| `execution_test.dart` | Run / stop / log streaming |
+| `reports_test.dart` | Reports list and details |
+| `git_test.dart` | Source control (requires local `git`) |
+| `plugin_system_test.dart` | Plugin manager / fixtures |
+| `regression_test.dart` | Cross-cutting smoke / regressions |
+
+Some suites (environment creation, package install, execution) may take several minutes on first run.
+
+---
+
+## Harness & fixtures
 
 | Path | Purpose |
 |------|---------|
 | `helpers/backend_process.dart` | Starts/stops backend with isolated `ROBOT_STUDIO_DATA_DIR` |
-| `helpers/integration_api_client.dart` | REST setup, verification, and async polling |
+| `helpers/integration_api_client.dart` | REST setup, verification, async polling |
 | `helpers/integration_harness.dart` | Shared lifecycle, app launch, seed helpers |
+| `helpers/integration_fixtures.dart` | Shared fixture paths / seed data |
 | `helpers/ui_helpers.dart` | UI interaction and condition-based waits |
 | `helpers/performance_tracker.dart` | Timing logs (no pass/fail thresholds) |
-| `fixtures/` | Sample robot suite and fake test plugin |
+| `fixtures/sample.robot` | Sample suite |
+| `fixtures/test_plugin/` | Fake plugin (`plugin.json` + `plugin.py`) |
 
-Tests avoid arbitrary `sleep()` calls and wait for visible UI states instead.
+Tests avoid arbitrary `sleep()` and wait for visible UI states instead.
+
+---
 
 ## Notes
 
-- Widget tests in `test/` remain unchanged and run separately via `flutter test test/`.
-- Some suites (environment creation, package install, execution) may take several minutes on first run.
-- Git commits require local `git` CLI availability (same as production).
+- Widget / unit tests live in `frontend/test/` and run separately: `flutter test` (see [../README.md](../README.md)).
+- Git suites need the system `git` CLI (same as production Source Control).
+- After adding or renaming suites, update **this README** and the suite table in the root / frontend READMEs if they mention coverage.
+
+---
+
+## Keeping docs in sync
+
+When you change E2E harness behavior, suite list, or how tests are launched, update:
+
+1. [../../README.md](../../README.md)
+2. [../README.md](../README.md)
+3. This file (`frontend/integration_test/README.md`)

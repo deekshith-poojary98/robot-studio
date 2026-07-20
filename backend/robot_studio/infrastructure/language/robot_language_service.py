@@ -17,16 +17,9 @@ from robot_studio.infrastructure.language.robot_parsing_bridge import (
     RobotParsingError,
 )
 
-_BUILTIN_KEYWORDS = [
-    "Log",
-    "Should Be Equal",
-    "Should Contain",
-    "Fail",
-    "Pass Execution",
-    "Run Keyword",
-    "Run Keywords",
-    "Wait Until Keyword Succeeds",
-]
+from robot_studio.infrastructure.language.builtin_keywords import BUILTIN_KEYWORDS
+
+_BUILTIN_KEYWORDS = BUILTIN_KEYWORDS
 _SETTING_NAMES = [
     "Library",
     "Resource",

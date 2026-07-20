@@ -36,6 +36,7 @@ import '../search/search_page.dart';
 import '../sidebar/app_sidebar.dart';
 import '../sidebar/sidebar_panel.dart';
 import '../toolbar/app_toolbar.dart';
+import '../widgets/guidance_dialog.dart';
 import '../workspace/new_workspace_dialog.dart';
 import '../workspace/welcome_screen.dart';
 import 'controllers/editor_shell_controller.dart';
@@ -119,10 +120,12 @@ class _AppShellState extends State<AppShell> {
   ProjectInfo? _selectedProject;
   EnvironmentInfo? _selectedEnvironment;
   bool _showExecutionPage = false;
+  int _revealExecutionLogsToken = 0;
   bool _showReportsPage = false;
   String _searchQuery = '';
   SymbolKind? _searchKind;
   List<IndexedSymbolInfo> _searchResults = [];
+  List<IndexedSymbolInfo> _testSuites = [];
   bool _isSearching = false;
   IndexedSymbolInfo? _selectedSymbol;
   HoverInfo? _hoverInfo;
@@ -138,7 +141,6 @@ class _AppShellState extends State<AppShell> {
   List<SymbolReferenceInfo> _editorReferences = [];
 
   String get _backendStatus => _workspace.backendStatus;
-  String? get _backendVersion => _workspace.backendVersion;
   List<String> get _logLines => _workspace.logLines;
   WorkspaceInfo? get _activeWorkspace => _workspace.activeWorkspace;
   List<ProjectInfo> get _projects => _workspace.projects;
@@ -203,7 +205,7 @@ class _AppShellState extends State<AppShell> {
       notify: _notify,
       isMounted: () => mounted,
       appendLog: _appendLog,
-      onRunFinished: _loadExecutionHistory,
+      onRunFinished: _handleRunFinished,
       workspace: () => _workspace.activeWorkspace,
       backendConnected: () => _workspace.backendConnected,
     );
@@ -449,13 +451,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleOpenPluginManager() async {
-    if (_workspace.activeWorkspace == null) {
-      await _showError(
-        'Workspace required',
-        'Open a workspace before managing plugins.',
-      );
-      return;
-    }
+    if (!await _ensureWorkspace(message: 'Open a workspace before managing plugins.')) return;
     setState(() {
       _showPluginManager = true;
       _showSourceControl = false;
@@ -556,13 +552,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleOpenSourceControl() async {
-    if (_workspace.activeWorkspace == null) {
-      await _showError(
-        'Workspace required',
-        'Open a workspace before using source control.',
-      );
-      return;
-    }
+    if (!await _ensureWorkspace(message: 'Open a workspace before using source control.')) return;
     setState(() {
       _showSourceControl = true;
       _showReportsPage = false;
@@ -776,13 +766,7 @@ class _AppShellState extends State<AppShell> {
   Future<void> _loadReports() => _execution.loadReports();
 
   Future<void> _openReports() async {
-    if (_workspace.activeWorkspace == null) {
-      await _showError(
-        'Workspace required',
-        'Open a workspace before viewing reports.',
-      );
-      return;
-    }
+    if (!await _ensureWorkspace(message: 'Open a workspace before viewing reports.')) return;
     setState(() {
       _showReportsPage = true;
       _showSourceControl = false;
@@ -885,20 +869,8 @@ class _AppShellState extends State<AppShell> {
         'env': _activeEnvironment?.name,
       },
     );
-    if (_selectedProject == null) {
-      await _showError(
-        'Project required',
-        'Open a project before running tests.',
-      );
-      return;
-    }
-    if (_activeEnvironment == null) {
-      await _showError(
-        'Environment required',
-        'Activate an environment before running tests.',
-      );
-      return;
-    }
+    if (!await _ensureProject(message: 'Open a project before running tests.')) return;
+    if (!await _ensureEnvironment(message: 'Activate an environment before running tests.')) return;
 
     setState(() {
       _execution.executionLines = [];
@@ -935,20 +907,8 @@ class _AppShellState extends State<AppShell> {
         'env': _activeEnvironment?.name,
       },
     );
-    if (_selectedProject == null) {
-      await _showError(
-        'Project required',
-        'Open a project before running tests.',
-      );
-      return;
-    }
-    if (_activeEnvironment == null) {
-      await _showError(
-        'Environment required',
-        'Activate an environment before running tests.',
-      );
-      return;
-    }
+    if (!await _ensureProject(message: 'Open a project before running tests.')) return;
+    if (!await _ensureEnvironment(message: 'Activate an environment before running tests.')) return;
 
     setState(() {
       _execution.executionLines = [];
@@ -1007,6 +967,69 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
     );
+  }
+
+  Future<bool> _ensureWorkspace({
+    String message = 'Open a workspace to continue.',
+  }) async {
+    if (_workspace.activeWorkspace != null) return true;
+    if (!mounted) return false;
+    await showGuidanceDialog(
+      context: context,
+      title: 'Workspace needed',
+      message: message,
+      primaryLabel: 'Open Workspace…',
+      onPrimary: () => unawaited(_handleOpenWorkspace()),
+      secondaryLabel: 'New Workspace…',
+      onSecondary: () => unawaited(_handleNewWorkspace()),
+    );
+    return false;
+  }
+
+  Future<bool> _ensureProject({
+    String message =
+        'Select a project in the Explorer, or create one, before continuing.',
+  }) async {
+    if (_selectedProject != null) return true;
+    if (_workspace.activeWorkspace == null) {
+      return _ensureWorkspace(
+        message: 'Open a workspace, then select a project to continue.',
+      );
+    }
+    if (!mounted) return false;
+    await showGuidanceDialog(
+      context: context,
+      title: 'Project needed',
+      message: message,
+      primaryLabel: 'Open Explorer',
+      onPrimary: () {
+        setState(() => _activePanel = SidebarPanel.explorer);
+      },
+      secondaryLabel: 'New Project…',
+      onSecondary: () => unawaited(_handleNewProject()),
+    );
+    return false;
+  }
+
+  Future<bool> _ensureEnvironment({
+    String message =
+        'Activate a Python environment before running tests.',
+  }) async {
+    if (_activeEnvironment != null) return true;
+    if (_workspace.activeWorkspace == null) {
+      return _ensureWorkspace(
+        message: 'Open a workspace, then activate an environment to continue.',
+      );
+    }
+    if (!mounted) return false;
+    await showGuidanceDialog(
+      context: context,
+      title: 'Environment needed',
+      message: message,
+      primaryLabel: 'Manage Environments…',
+      onPrimary: () => unawaited(_handleManageEnvironments()),
+    );
+    return false;
   }
 
   Future<void> _handleNewWorkspace() async {
@@ -1094,10 +1117,11 @@ class _AppShellState extends State<AppShell> {
       _appendLog('[info] $successMessage "${workspace.name}"');
       await _loadRecent();
       await _loadProjects();
+      await _maybeAutoSelectProject();
       await _loadEnvironments();
       await _loadExecutionHistory();
       await _loadIndexStatus();
-      await _loadFileTree();
+      await _editor.loadFileTree();
       await _loadGitStatus();
     } catch (error) {
       if (!mounted) return;
@@ -1108,13 +1132,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleNewProject() async {
-    if (_workspace.activeWorkspace == null) {
-      await _showError(
-        'Workspace required',
-        'Open a workspace before creating a project.',
-      );
-      return;
-    }
+    if (!await _ensureWorkspace(message: 'Open a workspace before creating a project.')) return;
     final result = await showNewProjectDialog(context);
     if (result == null) return;
     await _runProjectAction(
@@ -1124,13 +1142,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleImportProject() async {
-    if (_workspace.activeWorkspace == null) {
-      await _showError(
-        'Workspace required',
-        'Open a workspace before importing a project.',
-      );
-      return;
-    }
+    if (!await _ensureWorkspace(message: 'Open a workspace before importing a project.')) return;
     final path = await showImportProjectDialog(context);
     if (path == null) return;
     await _runProjectAction(
@@ -1146,6 +1158,24 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  Future<void> _maybeAutoSelectProject() async {
+    if (_selectedProject != null || _projects.isEmpty) return;
+    final workspaceId = _activeWorkspace?.id;
+    if (workspaceId == null) return;
+    final recentMatch = _recentProjects
+        .where((item) => item.workspaceId == workspaceId)
+        .toList();
+    final pick = recentMatch.isNotEmpty ? recentMatch.first : _projects.first;
+    await _handleSelectProject(pick);
+  }
+
+  Future<void> _revealExecutionLogs() async {
+    setState(() {
+      _showExecutionPage = true;
+      _revealExecutionLogsToken++;
+    });
+  }
+
   Future<void> _handleOpenRecentProject(ProjectInfo project) async {
     final needsWorkspace = _workspace.activeWorkspace == null ||
         _activeWorkspace!.id != project.workspaceId;
@@ -1154,9 +1184,14 @@ class _AppShellState extends State<AppShell> {
           .where((item) => item.id == project.workspaceId)
           .toList();
       if (matches.isEmpty) {
-        await _showError(
-          'Workspace not found',
-          'Open the project\'s workspace first, then select the project from the explorer.',
+        if (!mounted) return;
+        await showGuidanceDialog(
+          context: context,
+          title: 'Workspace needed',
+          message:
+              'This project belongs to a workspace that is not in Recent Workspaces. Open the workspace folder, then try again.',
+          primaryLabel: 'Open Workspace…',
+          onPrimary: () => unawaited(_handleOpenWorkspace()),
         );
         return;
       }
@@ -1204,13 +1239,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleManageEnvironments() async {
-    if (_workspace.activeWorkspace == null) {
-      await _showError(
-        'Workspace required',
-        'Open a workspace before managing environments.',
-      );
-      return;
-    }
+    if (!await _ensureWorkspace(message: 'Open a workspace before managing environments.')) return;
     setState(() {
       _showEnvironmentManager = true;
       _showPackageManager = false;
@@ -1225,13 +1254,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleOpenPackageManager() async {
-    if (_workspace.activeWorkspace == null) {
-      await _showError(
-        'Workspace required',
-        'Open a workspace before managing packages.',
-      );
-      return;
-    }
+    if (!await _ensureWorkspace(message: 'Open a workspace before managing packages.')) return;
     setState(() {
       _showPackageManager = true;
       _showSourceControl = false;
@@ -1373,13 +1396,7 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _handleCreateEnvironment() async {
     AppLogger.info('Create environment dialog', tag: 'Shell');
-    if (_workspace.activeWorkspace == null) {
-      await _showError(
-        'Workspace required',
-        'Open a workspace before creating an environment.',
-      );
-      return;
-    }
+    if (!await _ensureWorkspace(message: 'Open a workspace before creating an environment.')) return;
     final result = await showCreateEnvironmentDialog(
       context,
       loadInterpreters: _gateway.listPythonInterpreters,
@@ -1409,13 +1426,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleImportEnvironment() async {
-    if (_workspace.activeWorkspace == null) {
-      await _showError(
-        'Workspace required',
-        'Open a workspace before importing an environment.',
-      );
-      return;
-    }
+    if (!await _ensureWorkspace(message: 'Open a workspace before importing an environment.')) return;
     final path = await showImportEnvironmentDialog(context);
     if (path == null) return;
     await _runEnvironmentAction(
@@ -1519,7 +1530,96 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Future<void> _loadFileTree() => _editor.loadFileTree();
+  Future<void> _handleRunFinished() async {
+    await _loadExecutionHistory();
+    if (!mounted) return;
+    await _suggestMissingLibraryInstall();
+  }
+
+  Future<void> _suggestMissingLibraryInstall() async {
+    final suggestion = _missingLibrarySuggestion(_executionLines);
+    if (suggestion == null || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Missing library "${suggestion.library}". Install ${suggestion.package}?',
+        ),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(
+          label: 'Install',
+          onPressed: () {
+            unawaited(_installSuggestedPackage(suggestion.package));
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _installSuggestedPackage(String packageName) async {
+    try {
+      await _handleOpenPackageManager();
+      if (!mounted) return;
+      setState(() => _busy = true);
+      await _gateway.installPackage(packageName);
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _appendLog('[info] Installed $packageName');
+      await _loadPackages();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Installed $packageName'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _appendLog('[error] Install failed: $error');
+      await _showError('Install package', error);
+    }
+  }
+
+  static ({String library, String package})? _missingLibrarySuggestion(
+    List<String> lines,
+  ) {
+    const packagesByLibrary = {
+      'Browser': 'robotframework-browser',
+      'SeleniumLibrary': 'robotframework-seleniumlibrary',
+      'RequestsLibrary': 'robotframework-requests',
+      'AppiumLibrary': 'robotframework-appiumlibrary',
+    };
+    final joined = lines.join('\n');
+    final match = RegExp(
+      "(?:No module named|Importing library) ['\"](\\w+)['\"]",
+    ).firstMatch(joined);
+    if (match == null) return null;
+    final library = match.group(1)!;
+    final package = packagesByLibrary[library];
+    if (package == null) return null;
+    return (library: library, package: package);
+  }
+
+  Future<void> _loadTestSuites() async {
+    if (_workspace.activeWorkspace == null || !_workspace.backendConnected) {
+      if (!mounted) return;
+      setState(() => _testSuites = []);
+      return;
+    }
+    try {
+      final suites = await _gateway.searchSymbols(
+        query: '',
+        kind: SymbolKind.testSuite,
+      );
+      if (!mounted) return;
+      setState(() => _testSuites = suites);
+    } catch (error) {
+      _appendLog('[warn] Could not load test suites: $error');
+    }
+  }
 
   void _trackRecentFile(String path) => _editor.trackRecentFile(path);
 
@@ -1529,13 +1629,7 @@ class _AppShellState extends State<AppShell> {
       tag: 'Shell',
       data: 'path=$path line=$line',
     );
-    if (_workspace.activeWorkspace == null) {
-      await _showError(
-        'Workspace required',
-        'Open a workspace before editing files.',
-      );
-      return;
-    }
+    if (!await _ensureWorkspace(message: 'Open a workspace before editing files.')) return;
 
     final existingIndex =
         _editorTabs.indexWhere((tab) => tab.path == path);
@@ -2105,13 +2199,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _openSearchPanel({SymbolKind? kind}) async {
-    if (_workspace.activeWorkspace == null) {
-      await _showError(
-        'Workspace required',
-        'Open a workspace before searching symbols.',
-      );
-      return;
-    }
+    if (!await _ensureWorkspace(message: 'Open a workspace before searching symbols.')) return;
     setState(() {
       _activePanel =
           kind == SymbolKind.keyword ? SidebarPanel.keywords : SidebarPanel.search;
@@ -2361,13 +2449,13 @@ class _AppShellState extends State<AppShell> {
                 onInstallRobotFramework: _handleInstallRobot,
                 onOpenPackageManager: _handleOpenPackageManager,
                 backendConnected: connected,
-                backendVersion: _backendVersion,
                 onRun: _handleRunFile,
                 onRunProject: _handleRunProject,
                 onStop: _handleStopExecution,
                 isExecutionRunning: _executionStatus.isActive,
                 executionStatusLabel: _executionStatus.label,
                 executionElapsedLabel: _elapsedLabel,
+                onExecutionStatusTap: _revealExecutionLogs,
                 canRun: _selectedProject != null,
                 canRunProject: _selectedProject != null,
                 onOpenWorkspace: _handleOpenWorkspace,
@@ -2403,19 +2491,6 @@ class _AppShellState extends State<AppShell> {
                         );
                       },
                       onPanelSelected: (panel) {
-                        if (panel == SidebarPanel.ai) {
-                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'AI assistant is coming in a later milestone.',
-                              ),
-                              behavior: SnackBarBehavior.floating,
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                          return;
-                        }
                         setState(() {
                           _activePanel = panel;
                           if (panel == SidebarPanel.tests) {
@@ -2461,6 +2536,7 @@ class _AppShellState extends State<AppShell> {
                           _openReports();
                         } else if (panel == SidebarPanel.tests) {
                           _loadExecutionHistory();
+                          _loadTestSuites();
                         } else if (panel == SidebarPanel.search ||
                             panel == SidebarPanel.keywords) {
                           _loadIndexStatus();
@@ -2482,10 +2558,13 @@ class _AppShellState extends State<AppShell> {
                       onSelectEnvironment: _handleSelectEnvironment,
                       onManageEnvironments: _handleManageEnvironments,
                       onOpenPackageManager: _handleOpenPackageManager,
-                      recentRuns: _reportRuns.take(5).toList(),
+                      recentRuns: _reportRuns.take(8).toList(),
                       onSelectReport: _selectReport,
                       onOpenReports: _openReports,
-                      backendVersion: _backendVersion,
+                      testSuites: _testSuites,
+                      onSelectTestSuite: (suite) {
+                        unawaited(_openFile(suite.filePath, line: suite.line));
+                      },
                       fileTree: _fileTree,
                       onOpenFile: _openFile,
                       gitFileStatuses: _gitFileStatuses,
@@ -2501,11 +2580,11 @@ class _AppShellState extends State<AppShell> {
                 isLoadingProblems: _loadingLanguageFeatures,
                 problemCount: _workspaceProblems.length,
                 forceExecutionTab: _executionStatus.isActive,
+                revealExecutionLogsToken: _revealExecutionLogsToken,
                 onProblemSelected: _handleProblemSelected,
               ),
               StatusBar(
                 backendConnected: connected,
-                backendVersion: _backendVersion,
                 workspaceName: _activeWorkspace?.name,
                 fileName: _centerView == _CenterView.editor
                     ? _activeEditorTab?.fileName
@@ -2550,9 +2629,9 @@ class _AppShellState extends State<AppShell> {
           onOpenWorkspace: _handleOpenWorkspace,
           onOpenRecentWorkspace: _handleOpenRecentWorkspace,
           onOpenRecentProject: _handleOpenRecentProject,
-          onNewProject: _handleNewProject,
-          onImportProject: _handleImportProject,
-          onManageEnvironments: _handleManageEnvironments,
+          onNewProject: null,
+          onImportProject: null,
+          onManageEnvironments: null,
           activeEnvironmentLabel: _activeEnvironment?.name,
           recentRuns: _executionHistory.take(3).toList(),
           runningStatus:
@@ -2786,6 +2865,8 @@ class _AppShellState extends State<AppShell> {
         ),
       _CenterView.placeholder => _WorkspaceOpenPlaceholder(
           workspace: _activeWorkspace!,
+          projects: _projects,
+          onSelectProject: _handleSelectProject,
           onNewProject: _handleNewProject,
           onImportProject: _handleImportProject,
           onManageEnvironments: _handleManageEnvironments,
@@ -2797,12 +2878,16 @@ class _AppShellState extends State<AppShell> {
 class _WorkspaceOpenPlaceholder extends StatelessWidget {
   const _WorkspaceOpenPlaceholder({
     required this.workspace,
+    required this.projects,
+    required this.onSelectProject,
     required this.onNewProject,
     required this.onImportProject,
     required this.onManageEnvironments,
   });
 
   final WorkspaceInfo workspace;
+  final List<ProjectInfo> projects;
+  final ValueChanged<ProjectInfo> onSelectProject;
   final VoidCallback onNewProject;
   final VoidCallback onImportProject;
   final VoidCallback onManageEnvironments;
@@ -2812,48 +2897,69 @@ class _WorkspaceOpenPlaceholder extends StatelessWidget {
     return Container(
       color: AppColors.background,
       alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.folder_open,
-            size: 40,
-            color: AppColors.textMuted,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            workspace.name,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Select a project or environment, or create one to get started.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FilledButton.icon(
-                onPressed: onNewProject,
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('New Project'),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                onPressed: onImportProject,
-                icon: const Icon(Icons.file_download_outlined, size: 16),
-                label: const Text('Import Project'),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                onPressed: onManageEnvironments,
-                icon: const Icon(Icons.memory_outlined, size: 16),
-                label: const Text('Environments'),
-              ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.folder_open,
+              size: 40,
+              color: AppColors.textMuted,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              workspace.name,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              projects.isEmpty
+                  ? 'Create a project to get started.'
+                  : 'Continue with a project from this workspace.',
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+            if (projects.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              for (final project in projects.take(6))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => onSelectProject(project),
+                      icon: const Icon(Icons.play_arrow_outlined, size: 16),
+                      label: Text('Continue with ${project.name}'),
+                    ),
+                  ),
+                ),
             ],
-          ),
-        ],
+            const SizedBox(height: 12),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilledButton.icon(
+                  onPressed: onNewProject,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('New Project'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: onImportProject,
+                  icon: const Icon(Icons.file_download_outlined, size: 16),
+                  label: const Text('Import Project'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: onManageEnvironments,
+                  icon: const Icon(Icons.memory_outlined, size: 16),
+                  label: const Text('Environments'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

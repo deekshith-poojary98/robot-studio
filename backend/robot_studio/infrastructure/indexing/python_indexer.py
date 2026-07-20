@@ -112,6 +112,10 @@ class PythonLibraryIndexer:
 
     @staticmethod
     def _looks_like_keyword(node: ast.FunctionDef) -> bool:
+        # Robot Framework treats public methods as keywords by default.
+        # Decorators are optional; only skip private/dunder helpers.
+        if node.name.startswith("_"):
+            return False
         for decorator in node.decorator_list:
             name = ""
             if isinstance(decorator, ast.Name):
@@ -125,4 +129,4 @@ class PythonLibraryIndexer:
                     name = decorator.func.attr
             if name.lower() in {"keyword", "robotkeyword"}:
                 return True
-        return False
+        return True

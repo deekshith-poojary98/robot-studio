@@ -115,14 +115,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('New Project'), findsOneWidget);
-    await tester.tap(find.text('Create'));
-    await tester.pump();
-    expect(find.text('Project name is required'), findsOneWidget);
+    final createButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Create'),
+    );
+    expect(createButton.onPressed, isNull);
 
     await tester.enterText(
       find.widgetWithText(TextField, 'Project name'),
       'My Project',
     );
+    await tester.pump();
     await tester.tap(find.text('Create'));
     await tester.pumpAndSettle();
 
@@ -655,7 +657,6 @@ void main() {
             selectedEnvironmentName: 'robot-main',
             robotFrameworkInstalled: false,
             backendConnected: true,
-            backendVersion: '0.1.0',
             onInstallRobotFramework: () {},
           ),
         ),
@@ -717,7 +718,6 @@ void main() {
             environmentNames: const ['robot-main'],
             selectedEnvironmentName: 'robot-main',
             backendConnected: true,
-            backendVersion: '0.1.0',
             isExecutionRunning: false,
             executionStatusLabel: 'Idle',
             onRun: () => runTapped = true,
@@ -764,7 +764,6 @@ void main() {
             environmentNames: const ['robot-main'],
             selectedEnvironmentName: 'robot-main',
             backendConnected: true,
-            backendVersion: '0.1.0',
             isExecutionRunning: true,
             executionStatusLabel: 'Running',
             executionElapsedLabel: '1.2s',

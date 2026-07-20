@@ -1,82 +1,312 @@
 # Robot Studio
 
-A modern cross-platform desktop IDE for [Robot Framework](https://robotframework.org/) development.
+A cross-platform desktop IDE for [Robot Framework](https://robotframework.org/) development.
 
-## Architecture
+Robot Studio pairs a **Flutter desktop** UI with a local **Python FastAPI** backend. Workspaces, projects, environments, packages, indexing, language intelligence, test execution, reports, Git, and plugins are coordinated through clean-architecture services, an in-process event bus, and a transport gateway (REST + WebSocket today).
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full design: modules, Event Bus, Plugin System, Indexing, Language Service, transport layer (REST → gRPC), and milestone plan.
+```
+┌─────────────────────────────────────────────────────────┐
+│  Flutter Desktop                                        │
+│  Shell · Explorer · Editor · Git · Reports · Console    │
+└──────────────────────────┬──────────────────────────────┘
+                           │  REST + WebSocket (localhost)
+┌──────────────────────────▼──────────────────────────────┐
+│  Python FastAPI · SQLite · Index Store · Plugin Host    │
+│  Runner · PipInstaller · Language Service · Git CLI     │
+└─────────────────────────────────────────────────────────┘
+```
 
-**Stack:** Flutter Desktop · Python FastAPI · SQLite · Event Bus · Plugin Host · Index Store
+For the full design (modules, Event Bus, Plugin Host, Indexing, Language Service, transport roadmap), see [ARCHITECTURE.md](./ARCHITECTURE.md).
+
+Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integration tests: [frontend/integration_test/README.md](./frontend/integration_test/README.md)
+
+---
+
+## Features
+
+| Area | What you get |
+|------|----------------|
+| **Workspaces** | Create / open / recent workspaces; welcome screen; explorer |
+| **Projects** | Create from templates, import existing trees, project details |
+| **Environments** | Create / import / clone / activate Python environments per workspace |
+| **Packages** | List installed packages, search PyPI, install / update / uninstall |
+| **Editor** | Multi-tab Robot editor, outline, find/replace, diagnostics |
+| **Language intelligence** | Completions, hover, go-to-definition, references, document symbols |
+| **Indexing** | Keyword / suite / variable / library symbols; BuiltIn keyword search |
+| **Execution** | Run file or project; live WebSocket logs; stop; history |
+| **Reports** | Recent runs, pass/fail stats, HTML report artifacts |
+| **Git** | Status, stage, commit, branches, history, diff; remote actions when a repo exists |
+| **Plugins** | Builtin capabilities + plugin manager UI (load / enable / details) |
+| **Status** | Connection state, workspace, environment (`ROBOT` / `PYTHON` / `ENV`) |
+| **UX guidance** | Actionable dialogs for missing workspace/project/env; gated CTAs; clickable run status → Execution Logs |
+
+---
 
 ## Prerequisites
 
-- Flutter 3.x with desktop support (`macos`, `linux`, or `windows`)
-- Python 3.11+
+- **Flutter** 3.x with desktop enabled (`macos`, `linux`, or `windows`)
+- **Python** 3.11+
+- **Git** (for Source Control features)
+- Optional: [uv](https://github.com/astral-sh/uv) for faster backend installs
+
+---
 
 ## Getting Started
+
+Run the backend and frontend in two terminals. The app connects to `http://127.0.0.1:8765` on launch.
 
 ### 1. Backend
 
 ```bash
 cd backend
 python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-pip install -e .
+pip install -e ".[dev]"
 python -m robot_studio.main
 ```
 
-The API starts at `http://127.0.0.1:8765`. Verify with:
+Or with uv:
+
+```bash
+cd backend
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+python -m robot_studio.main
+```
+
+You can also use the console script after install:
+
+```bash
+robot-studio-backend
+```
+
+**Health check**
 
 ```bash
 curl http://127.0.0.1:8765/api/v1/health
 ```
 
-### 2. Frontend
+Expected shape (fields may grow):
 
-In a separate terminal:
+```json
+{
+  "status": "ok",
+  "version": "0.1.0",
+  "modules": ["workspace", "project", "environment", "..."]
+}
+```
+
+### 2. Frontend
 
 ```bash
 cd frontend
 flutter pub get
-flutter run -d macos    # or linux / windows
+flutter run -d macos    # or: linux / windows
 ```
 
-The app shell connects to the backend on launch and shows connection status in the toolbar.
+The toolbar shows **Connected** / **Offline**. Open or create a **workspace** first — projects, environments, and runs are scoped to it. Create Project / Manage Environments are disabled on the welcome screen until a workspace is open.
 
-## Project Structure
+More frontend detail: [frontend/README.md](./frontend/README.md).
+
+---
+
+## Configuration
+
+Backend settings use the `ROBOT_STUDIO_` environment prefix (`backend/robot_studio/core/config.py`):
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `ROBOT_STUDIO_HOST` | `127.0.0.1` | Bind address |
+| `ROBOT_STUDIO_PORT` | `8765` | HTTP / WebSocket port |
+| `ROBOT_STUDIO_DATA_DIR` | `~/.robot-studio` | SQLite DB, plugins, local data |
+| `ROBOT_STUDIO_DEBUG` | `false` | Debug mode |
+
+Database path: `{data_dir}/robot-studio.db`.
+
+Integration tests may also set `ROBOT_STUDIO_PYTHON` / `INTEGRATION_PYTHON` so environment creation uses a known interpreter. See [frontend/integration_test/README.md](./frontend/integration_test/README.md).
+
+---
+
+## Typical workflow
+
+1. **New Workspace** or **Open Workspace**.
+2. Create or import a **Robot Project** (Browser / API / Empty templates). Opening a workspace auto-selects a recent/first project when possible.
+3. Create or activate a **Python environment**; install Robot Framework and libraries via the package manager.
+4. Open `.robot` files in the editor; rebuild the **index** if keyword search looks empty (BuiltIn keywords such as `Log` are always searchable).
+5. **Run** the current file or project (disabled until a project is selected); watch **Execution Logs** in the bottom panel (click the run status badge to jump there).
+6. Open **Reports** for history and HTML output; use **Source Control** if the workspace is a Git repo.
+7. If a run fails on a missing known library (Browser, SeleniumLibrary, …), use the Install snackbar or Package Manager.
+
+---
+
+## Project structure
 
 ```
 robot-studio/
-├── ARCHITECTURE.md      # Design document
-├── backend/             # Python FastAPI backend
+├── ARCHITECTURE.md              # Design: layers, modules, milestones
+├── README.md                    # This file (repo overview)
+├── scripts/
+│   └── run_integration_tests.sh # Live backend + Flutter integration suites
+├── backend/
+│   ├── pyproject.toml
+│   ├── requirements.txt
+│   ├── tests/                   # pytest (API + unit)
 │   └── robot_studio/
-│       ├── api/         # HTTP routes & schemas
-│       ├── application/ # Use-case services
-│       ├── core/        # Config, DB, DI
-│       ├── domain/      # Entities & interfaces
-│       └── infrastructure/
-└── frontend/            # Flutter desktop app
-    └── lib/
-        ├── core/        # Theme, API client
-        └── presentation/ # UI shell
+│       ├── main.py
+│       ├── api/                 # Routes, schemas, REST gateway
+│       ├── application/         # Use-case services
+│       ├── core/                # Config, DI container, events, plugins
+│       ├── domain/              # Models + port interfaces
+│       └── infrastructure/      # SQLite, indexers, runner, git, plugins…
+└── frontend/
+    ├── README.md                # Flutter app overview & tests
+    ├── lib/
+    │   ├── core/                # Gateway, models, theme, logging
+    │   ├── main.dart
+    │   └── presentation/        # Shell, editor, git, packages, reports…
+    ├── test/                    # Widget / unit tests
+    └── integration_test/        # End-to-end desktop suites (+ README)
 ```
 
-## Current Milestone
+### Backend layers
 
-- [x] **M1** — Architecture design, app shell, backend skeleton, health API
-- [x] **M1.5** — Architecture v2 (Language Service, Event Bus, Plugin System, Indexing, execution split, transport review)
-- [x] **M2** — Workspace management (create/open/recent, welcome screen, explorer)
-- [x] **M3** — Project management (create/import/templates, explorer, recent projects)
+| Layer | Role |
+|-------|------|
+| **api** | FastAPI routers, Pydantic schemas, `RestGateway` |
+| **application** | Orchestration (workspace, project, execution, index, git, plugins…) |
+| **domain** | Entities and abstract ports (`Runner`, `IndexStore`, `Installer`, …) |
+| **infrastructure** | SQLite repos, subprocess runner, robot/python indexers, Git CLI, plugin loader |
+| **core** | Settings, container, event bus, plugin host |
 
-## Next Milestones
+### Frontend layers
 
-- **M4** — Python environment manager
-- **M5** — Package manager (PackageRegistry + PipInstaller)
-- **M6** — Indexing pipeline, Keyword Explorer, Language Service (completion + hover)
-- **M7** — Test execution (Runner + ResultsStore), WebSocket logs, gRPC Language Service
-- **M8** — Report viewer (ReportProvider), plugin manifest
-- **M9** — AI plugin interface, settings, packaging
+| Area | Role |
+|------|------|
+| **TransportGateway** | UI depends on this contract, not raw HTTP |
+| **RestTransportGateway** | Current REST + WebSocket implementation |
+| **presentation/** | Shell, panels, editor, managers (mostly props-driven widgets) |
+| **controllers/** | Shell state helpers (workspace, editor, execution) |
+
+### Main API surface (`/api/v1`)
+
+| Prefix | Purpose |
+|--------|---------|
+| `/health` | Liveness + registered modules |
+| `/workspaces` | Create, open, recent, close |
+| `/projects` | CRUD, templates, import, recent |
+| `/environments` | Create, activate, clone, delete |
+| `/packages` | List, search, install, uninstall |
+| `/execution` | Run, stop, history; `/execution/stream` WebSocket |
+| `/reports` | Runs, dashboard, artifacts |
+| `/index`, `/search` | Rebuild, status, symbol search |
+| `/language` | Definition, hover, references, completion, diagnostics |
+| `/files` | Read/write, tree listing (workspace-scoped) |
+| `/git` | Status, stage, commit, branches, history, remotes |
+| `/plugins` | List, enable/disable, details |
+
+---
+
+## Development
+
+### Backend tests
+
+```bash
+cd backend
+source .venv/bin/activate
+pip install -e ".[dev]"          # if needed
+pytest -q
+# or: uv run pytest -q
+```
+
+Focused examples:
+
+```bash
+pytest tests/test_workspace_api.py tests/test_indexing.py -q
+pytest tests/test_execution_api.py tests/test_git_api.py -q
+```
+
+### Frontend unit / widget tests
+
+```bash
+cd frontend
+flutter pub get
+flutter test
+flutter analyze
+```
+
+See [frontend/README.md](./frontend/README.md) for module map and notable widget tests.
+
+### Integration tests
+
+These launch the real desktop UI against a live backend. Prefer the helper script (starts an isolated backend on a free port — important on macOS sandbox):
+
+```bash
+# From repo root; requires backend/.venv
+./scripts/run_integration_tests.sh
+
+# Single suite
+./scripts/run_integration_tests.sh startup_test.dart
+```
+
+Details and suite list: [frontend/integration_test/README.md](./frontend/integration_test/README.md).
+
+---
+
+## Current status
+
+Core IDE milestones through execution, reports, indexing, language features, Git, and plugins are in place. The product is in **active usability hardening** against the public-beta review backlog (critical/functional/UX items such as cold-start status, reports panel, keyword index BuiltIns, guidance dialogs, AI chrome removal).
+
+| Milestone | Scope | Status |
+|-----------|--------|--------|
+| **M1** | Architecture, app shell, health API | Done |
+| **M1.5** | Architecture v2 (Event Bus, Plugin Host, Indexing, transport) | Done |
+| **M2** | Workspace management | Done |
+| **M3** | Project management | Done |
+| **M4** | Environment manager | Done |
+| **M5** | Package manager | Done |
+| **M6** | Indexing + language service (completion, hover, …) | Done |
+| **M7** | Test execution + WebSocket logs | Done |
+| **M8** | Reports | Done |
+| **M9+** | Settings / AI / packaging polish | Partial (Settings stubbed; AI entry points removed until shipped) |
+| **M10** | Intelligent editor (parsing bridge, diagnostics, navigation) | In progress / shipping |
+| **M11** | Plugin framework + manager UI | In progress / shipping |
+| **M12** | Git source control | In progress / shipping |
+
+`ARCHITECTURE.md` (v2.1) is the **design north star** and now tracks **implemented vs planned** status. Treat [README.md](./README.md) as the **product/runbook snapshot**.
+
+### Related docs
+
+| Document | Contents |
+|----------|----------|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Layers, modules, APIs, risks, roadmap |
+| [frontend/README.md](./frontend/README.md) | Flutter app structure, run, widget tests |
+| [frontend/integration_test/README.md](./frontend/integration_test/README.md) | E2E suites and harness |
+
+### Keeping docs in sync
+
+After feature or UX implementations, update **all three** READMEs when behavior, setup, or tests change:
+
+1. [README.md](./README.md) (this file)
+2. [frontend/README.md](./frontend/README.md)
+3. [frontend/integration_test/README.md](./frontend/integration_test/README.md)
+
+---
+
+## Troubleshooting
+
+| Symptom | What to try |
+|---------|-------------|
+| Toolbar shows **Offline** | Start the backend; confirm `curl http://127.0.0.1:8765/api/v1/health` |
+| Port already in use | `ROBOT_STUDIO_PORT=8766 python -m robot_studio.main` (and point the client at that port if configured) |
+| Empty keyword index | Open a workspace, ensure `.robot` files exist, run **Rebuild index**; BuiltIn keywords should still appear in search |
+| Run disabled / guidance dialog | Select a project (and activate an environment) — Run stays gated until prerequisites exist |
+| Run fails on missing library | Install via Package Manager (or use the post-run Install snackbar for known libraries) |
+| Git Fetch/Pull/Push hidden | Workspace is not a Git repository (remote actions are gated) |
+| Integration tests can’t start Python (macOS) | Use `./scripts/run_integration_tests.sh` so the backend is started outside the app sandbox |
+
+---
 
 ## License
 

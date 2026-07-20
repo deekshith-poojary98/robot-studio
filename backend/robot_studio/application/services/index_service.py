@@ -23,6 +23,7 @@ from robot_studio.domain.interfaces.indexing import FileWatcher, IndexScope, Sym
 from robot_studio.domain.models import IndexStatus, Project
 from robot_studio.infrastructure.indexing.filesystem_indexer import FilesystemIndexer
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
+from robot_studio.infrastructure.language.builtin_keywords import BUILTIN_KEYWORDS
 from robot_studio.infrastructure.repositories.project_repository import (
     SqliteProjectRepository,
 )
@@ -247,10 +248,14 @@ class IndexService:
     async def get_status(self) -> IndexStatus:
         workspace = self.context.workspace
         stats = await self.store.status(workspace.id if workspace else None)
+        keywords = int(stats.get("keywords_indexed") or 0)
+        # BuiltIn keywords are always searchable even when not on disk.
+        if workspace is not None:
+            keywords += len(BUILTIN_KEYWORDS)
         return IndexStatus(
             state=self._state if workspace else "idle",
             files_indexed=int(stats.get("files_indexed") or 0),
-            keywords_indexed=int(stats.get("keywords_indexed") or 0),
+            keywords_indexed=keywords,
             libraries_indexed=int(stats.get("libraries_indexed") or 0),
             variables_indexed=int(stats.get("variables_indexed") or 0),
             symbols_indexed=int(stats.get("symbols_indexed") or 0),
@@ -267,7 +272,51 @@ class IndexService:
         limit: int = 100,
     ) -> list[dict]:
         self._require_workspace()
-        return await self.store.search_symbols(query, kind=kind, limit=limit)
+        results = await self.store.search_symbols(query, kind=kind, limit=limit)
+        if kind in {None, SymbolKind.KEYWORD}:
+            results = self._merge_builtin_keywords(results, query=query, limit=limit)
+        return results
+
+    def _merge_builtin_keywords(
+        self,
+        results: list[dict],
+        *,
+        query: str,
+        limit: int,
+    ) -> list[dict]:
+        needle = (query or "").strip().lower()
+        seen = {str(item.get("name", "")).lower() for item in results}
+        extras: list[dict] = []
+        for name in BUILTIN_KEYWORDS:
+            if needle and needle not in name.lower():
+                continue
+            if name.lower() in seen:
+                continue
+            extras.append(
+                {
+                    "id": f"builtin:{name.lower().replace(' ', '-')}",
+                    "name": name,
+                    "kind": SymbolKind.KEYWORD.value,
+                    "file_path": "BuiltIn",
+                    "line": 1,
+                    "project_id": None,
+                    "workspace_id": None,
+                    "documentation": "Robot Framework BuiltIn keyword",
+                    "detail": "BuiltIn",
+                    "last_modified": None,
+                }
+            )
+            seen.add(name.lower())
+        merged = [*extras, *results]
+        if needle:
+            merged.sort(
+                key=lambda item: (
+                    0 if str(item.get("name", "")).lower() == needle else 1,
+                    0 if str(item.get("name", "")).lower().startswith(needle) else 1,
+                    str(item.get("name", "")).lower(),
+                )
+            )
+        return merged[:limit]
 
     async def _resolve_project_id(self, path: Path) -> UUID | None:
         workspace = self.context.workspace

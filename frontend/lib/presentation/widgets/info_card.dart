@@ -9,12 +9,16 @@ class QuickActionTile extends StatefulWidget {
     required this.label,
     required this.subtitle,
     required this.onTap,
+    this.enabled = true,
+    this.disabledTooltip,
   });
 
   final IconData icon;
   final String label;
   final String subtitle;
   final VoidCallback onTap;
+  final bool enabled;
+  final String? disabledTooltip;
 
   @override
   State<QuickActionTile> createState() => _QuickActionTileState();
@@ -25,62 +29,77 @@ class _QuickActionTileState extends State<QuickActionTile> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+    final enabled = widget.enabled;
+    final tile = MouseRegion(
+      onEnter: enabled ? (_) => setState(() => _hovered = true) : null,
+      onExit: enabled ? (_) => setState(() => _hovered = false) : null,
       child: InkWell(
-        onTap: widget.onTap,
+        onTap: enabled ? widget.onTap : null,
         borderRadius: BorderRadius.circular(AppRadii.md),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: _hovered ? AppColors.surfaceHover : AppColors.surface,
+            color: !enabled
+                ? AppColors.surface
+                : _hovered
+                    ? AppColors.surfaceHover
+                    : AppColors.surface,
             borderRadius: BorderRadius.circular(AppRadii.md),
             border: Border.all(
-              color: _hovered ? AppColors.accent.withValues(alpha: 0.2) : AppColors.border,
+              color: enabled && _hovered
+                  ? AppColors.accent.withValues(alpha: 0.2)
+                  : AppColors.border,
             ),
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: AppColors.accentSoft,
-                  borderRadius: BorderRadius.circular(AppRadii.sm),
+          child: Opacity(
+            opacity: enabled ? 1 : 0.45,
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.accentSoft,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                  ),
+                  child: Icon(widget.icon, size: 16, color: AppColors.accent),
                 ),
-                child: Icon(widget.icon, size: 16, color: AppColors.accent),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.label,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.label,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.subtitle,
-                      style: const TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 11,
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.subtitle,
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
+
+    if (!enabled && widget.disabledTooltip != null) {
+      return Tooltip(message: widget.disabledTooltip!, child: tile);
+    }
+    return tile;
   }
 }
 
