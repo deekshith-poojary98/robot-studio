@@ -6,6 +6,8 @@ enum SidebarPanel {
   tests('Tests', Icons.science_outlined),
   keywords('Keywords', Icons.vpn_key_outlined),
   packages('Packages', Icons.inventory_2_outlined),
+  plugins('Plugins', Icons.extension_outlined),
+  sourceControl('Source Control', Icons.source_outlined),
   reports('Reports', Icons.bar_chart_outlined),
   ai('AI', Icons.auto_awesome_outlined);
 

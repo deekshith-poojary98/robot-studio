@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
+from robot_studio.core.events import EventBus, FileWritten
 
 
 class FileValidationError(Exception):
@@ -16,6 +17,7 @@ class FileValidationError(Exception):
 @dataclass
 class FileService:
     context: WorkspaceContext
+    event_bus: EventBus | None = None
 
     def _require_workspace(self):
         workspace = self.context.workspace
@@ -57,6 +59,8 @@ class FileService:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
         stat = target.stat()
+        if self.event_bus is not None:
+            await self.event_bus.publish(FileWritten(path=str(target)))
         return {
             "path": str(target),
             "mtime": stat.st_mtime,

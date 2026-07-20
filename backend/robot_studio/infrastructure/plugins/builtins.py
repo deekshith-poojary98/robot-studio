@@ -12,3 +12,4 @@ def register_builtin_capabilities(plugin_host: PluginHost) -> None:
     plugin_host.register(Capability.INSTALLER, "pip-installer")
     plugin_host.register(Capability.PACKAGE_REGISTRY, "pypi-registry")
     plugin_host.register(Capability.LANGUAGE_SERVICE, "robot-language-service")
+    plugin_host.register(Capability.GIT_PROVIDER, "git-cli-provider")

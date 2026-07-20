@@ -14,6 +14,7 @@ from robot_studio.application.services.package_service import (
     PackageOperationResult,
     PackageService,
 )
+from robot_studio.application.services.plugin_service import PluginService
 from robot_studio.application.services.project_service import ProjectService
 from robot_studio.application.services.report_service import ReportService
 from robot_studio.application.services.workspace_service import WorkspaceService
@@ -26,6 +27,7 @@ from robot_studio.domain.models import (
     IndexStatus,
     InstalledPackage,
     PackageSearchResult,
+    PluginInfo,
     Project,
     ProjectType,
     Workspace,
@@ -281,11 +283,19 @@ class RestGateway:
         name: str | None = None,
         symbol_id: str | None = None,
         kind: str | None = None,
+        file_path: str | None = None,
+        line: int | None = None,
+        column: int | None = None,
+        content: str | None = None,
     ) -> dict | None:
         return await self._language_service.definition(
             name=name,
             symbol_id=symbol_id,
             kind=kind,
+            file_path=file_path,
+            line=line,
+            column=column,
+            content=content,
         )
 
     async def language_references(
@@ -294,11 +304,19 @@ class RestGateway:
         name: str | None = None,
         symbol_id: str | None = None,
         kind: str | None = None,
+        file_path: str | None = None,
+        line: int | None = None,
+        column: int | None = None,
+        content: str | None = None,
     ) -> list[dict]:
         return await self._language_service.references(
             name=name,
             symbol_id=symbol_id,
             kind=kind,
+            file_path=file_path,
+            line=line,
+            column=column,
+            content=content,
         )
 
     async def language_hover(
@@ -307,11 +325,77 @@ class RestGateway:
         name: str | None = None,
         symbol_id: str | None = None,
         kind: str | None = None,
+        file_path: str | None = None,
+        line: int | None = None,
+        column: int | None = None,
+        content: str | None = None,
     ) -> dict | None:
         return await self._language_service.hover(
             name=name,
             symbol_id=symbol_id,
             kind=kind,
+            file_path=file_path,
+            line=line,
+            column=column,
+            content=content,
+        )
+
+    async def language_completion(
+        self,
+        *,
+        file_path: str,
+        line: int,
+        column: int,
+        content: str,
+        query: str = "",
+    ) -> list[dict]:
+        return await self._language_service.completion(
+            file_path=file_path,
+            line=line,
+            column=column,
+            content=content,
+            query=query,
+        )
+
+    async def language_diagnostics(
+        self,
+        *,
+        file_path: str,
+        content: str,
+    ) -> list[dict]:
+        return await self._language_service.diagnostics(
+            file_path=file_path,
+            content=content,
+        )
+
+    async def language_format(
+        self,
+        *,
+        file_path: str,
+        content: str,
+        start_line: int | None = None,
+        end_line: int | None = None,
+    ) -> str:
+        return await self._language_service.format_document(
+            file_path=file_path,
+            content=content,
+            start_line=start_line,
+            end_line=end_line,
+        )
+
+    async def language_signature_help(
+        self,
+        *,
+        file_path: str,
+        line: int,
+        column: int,
+        content: str,
+    ) -> dict | None:
+        return await self._language_service.signature_help(
+            file_path=file_path,
+            line=line,
+            column=column,
+            content=content,
         )
 
     async def document_symbols(self, file_path: str) -> list[dict]:
@@ -319,6 +403,31 @@ class RestGateway:
 
     async def workspace_symbols(self, query: str = "", *, limit: int = 200) -> list[dict]:
         return await self._language_service.workspace_symbols(query, limit=limit)
+
+    @property
+    def _plugin_service(self) -> PluginService:
+        service = self._container.plugin_service
+        if service is None:
+            raise RuntimeError("PluginService is not initialized")
+        return service
+
+    async def list_plugins(self) -> list[PluginInfo]:
+        return await self._plugin_service.list_plugins()
+
+    async def get_plugin(self, plugin_id: str) -> PluginInfo | None:
+        return await self._plugin_service.get_plugin(plugin_id)
+
+    async def enable_plugin(self, plugin_id: str) -> PluginInfo:
+        return await self._plugin_service.enable_plugin(plugin_id)
+
+    async def disable_plugin(self, plugin_id: str) -> PluginInfo:
+        return await self._plugin_service.disable_plugin(plugin_id)
+
+    async def reload_plugin(self, plugin_id: str) -> PluginInfo:
+        return await self._plugin_service.reload_plugin(plugin_id)
+
+    async def refresh_plugins(self) -> list[PluginInfo]:
+        return await self._plugin_service.refresh()
 
     async def read_file(self, path: str) -> dict:
         return await self._file_service.read_file(path)
@@ -328,3 +437,61 @@ class RestGateway:
 
     async def list_file_tree(self, path: str | None = None, *, depth: int = 3) -> list[dict]:
         return await self._file_service.list_tree(path, depth=depth)
+
+    @property
+    def _git_service(self):
+        from robot_studio.application.services.git_service import GitService
+
+        service = self._container.git_service
+        if service is None:
+            raise RuntimeError("GitService is not initialized")
+        return service
+
+    async def git_refresh(self):
+        from robot_studio.domain.models.git import GitRepositoryInfo
+
+        return await self._git_service.refresh()
+
+    async def git_status(self):
+        from robot_studio.domain.models.git import GitStatus
+
+        repository = await self._git_service.get_repository()
+        if repository is None:
+            return None
+        return await self._git_service.status()
+
+    async def git_init(self):
+        return await self._git_service.init()
+
+    async def git_history(self, *, limit: int = 50):
+        return await self._git_service.history(limit=limit)
+
+    async def git_commit_detail(self, commit_hash: str):
+        return await self._git_service.commit_detail(commit_hash)
+
+    async def git_branches(self):
+        return await self._git_service.branches()
+
+    async def git_checkout(self, branch: str):
+        return await self._git_service.checkout(branch)
+
+    async def git_create_branch(self, name: str, *, start_point: str | None = None):
+        return await self._git_service.create_branch(name, start_point=start_point)
+
+    async def git_delete_branch(self, name: str) -> None:
+        await self._git_service.delete_branch(name)
+
+    async def git_commit(self, message: str, *, files: list[str] | None = None):
+        return await self._git_service.commit(message, files=files)
+
+    async def git_fetch(self):
+        return await self._git_service.fetch()
+
+    async def git_pull(self):
+        return await self._git_service.pull()
+
+    async def git_push(self):
+        return await self._git_service.push()
+
+    async def git_diff(self, *, file_path: str | None = None, commit: str | None = None):
+        return await self._git_service.diff(file_path=file_path, commit=commit)

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/gateway/models/git_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../git/branch_selector.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/toolbar_button.dart';
 
@@ -29,6 +31,14 @@ class AppToolbar extends StatelessWidget {
     this.onNewWorkspace,
     this.onOpenWorkspace,
     this.onOpenSearch,
+    this.gitBranchLabel,
+    this.gitBranches = const [],
+    this.onGitBranchSelected,
+    this.onGitCreateBranch,
+    this.onGitDeleteBranch,
+    this.onGitFetch,
+    this.onGitPull,
+    this.onGitPush,
   });
 
   final String panelTitle;
@@ -53,6 +63,14 @@ class AppToolbar extends StatelessWidget {
   final VoidCallback? onNewWorkspace;
   final VoidCallback? onOpenWorkspace;
   final VoidCallback? onOpenSearch;
+  final String? gitBranchLabel;
+  final List<String> gitBranches;
+  final ValueChanged<String>? onGitBranchSelected;
+  final ValueChanged<String>? onGitCreateBranch;
+  final ValueChanged<String>? onGitDeleteBranch;
+  final VoidCallback? onGitFetch;
+  final VoidCallback? onGitPull;
+  final VoidCallback? onGitPush;
 
   @override
   Widget build(BuildContext context) {
@@ -110,6 +128,40 @@ class AppToolbar extends StatelessWidget {
                     onInstall: onInstallRobotFramework,
                     onOpenPackages: onOpenPackageManager,
                   ),
+                  if (backendConnected) ...[
+                    const SizedBox(width: 8),
+                    BranchSelector(
+                      branches: gitBranches
+                          .map(
+                            (name) => GitBranchInfo(
+                              name: name,
+                              current: name == gitBranchLabel,
+                            ),
+                          )
+                          .toList(),
+                      currentBranch: gitBranchLabel,
+                      enabled: gitBranches.isNotEmpty || gitBranchLabel != null,
+                      onCheckout: onGitBranchSelected ?? (_) {},
+                      onCreateBranch: onGitCreateBranch ?? (_) {},
+                      onDeleteBranch: onGitDeleteBranch ?? (_) {},
+                    ),
+                    const SizedBox(width: 6),
+                    ToolbarButton(
+                      icon: Icons.cloud_download_outlined,
+                      label: 'Fetch',
+                      onTap: onGitFetch,
+                    ),
+                    ToolbarButton(
+                      icon: Icons.download_outlined,
+                      label: 'Pull',
+                      onTap: onGitPull,
+                    ),
+                    ToolbarButton(
+                      icon: Icons.upload_outlined,
+                      label: 'Push',
+                      onTap: onGitPush,
+                    ),
+                  ],
                 ],
               ),
             ),

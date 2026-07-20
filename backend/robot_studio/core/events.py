@@ -169,6 +169,64 @@ class RunDeleted(DomainEvent):
     workspace_id: UUID | None = None
 
 
+@dataclass(frozen=True)
+class RepositoryOpened(DomainEvent):
+    root: str
+
+
+@dataclass(frozen=True)
+class RepositoryInitialized(DomainEvent):
+    root: str
+
+
+@dataclass(frozen=True)
+class BranchChanged(DomainEvent):
+    root: str
+    branch: str
+
+
+@dataclass(frozen=True)
+class CommitCreated(DomainEvent):
+    root: str
+    commit_hash: str
+
+
+@dataclass(frozen=True)
+class RepositoryUpdated(DomainEvent):
+    root: str
+
+
+@dataclass(frozen=True)
+class FileWritten(DomainEvent):
+    path: str
+
+
+@dataclass(frozen=True)
+class PluginLoaded(DomainEvent):
+    plugin_id: str
+
+
+@dataclass(frozen=True)
+class PluginEnabled(DomainEvent):
+    plugin_id: str
+
+
+@dataclass(frozen=True)
+class PluginDisabled(DomainEvent):
+    plugin_id: str
+
+
+@dataclass(frozen=True)
+class PluginFailed(DomainEvent):
+    plugin_id: str
+    message: str
+
+
+@dataclass(frozen=True)
+class PluginReloaded(DomainEvent):
+    plugin_id: str
+
+
 @dataclass
 class Subscription:
     event_type: type[DomainEvent]

@@ -72,8 +72,7 @@ class PythonLibraryIndexer:
             elif isinstance(node, ast.ClassDef):
                 for item in node.body:
                     if isinstance(item, ast.FunctionDef) and not item.name.startswith("_"):
-                        if self._looks_like_keyword(item) or True:
-                            # Robot libraries expose public methods as keywords.
+                        if self._looks_like_keyword(item):
                             symbols.append(
                                 self._keyword_symbol(
                                     path,
@@ -126,4 +125,4 @@ class PythonLibraryIndexer:
                     name = decorator.func.attr
             if name.lower() in {"keyword", "robotkeyword"}:
                 return True
-        return not node.name.startswith("_")
+        return False

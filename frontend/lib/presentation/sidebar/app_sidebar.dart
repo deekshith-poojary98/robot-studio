@@ -53,15 +53,20 @@ class AppSidebar extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          ...SidebarPanel.values.map((panel) {
-            return SidebarButton(
-              icon: panel.icon,
-              label: panel.label,
-              isActive: panel == activePanel,
-              onTap: () => onPanelSelected(panel),
-            );
-          }),
-          const Spacer(),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                for (final panel in SidebarPanel.values)
+                  SidebarButton(
+                    icon: panel.icon,
+                    label: panel.label,
+                    isActive: panel == activePanel,
+                    onTap: () => onPanelSelected(panel),
+                  ),
+              ],
+            ),
+          ),
           SidebarButton(
             icon: Icons.settings_outlined,
             label: 'Settings',

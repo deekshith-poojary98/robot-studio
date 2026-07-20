@@ -2,14 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../config/backend_config.dart';
 import '../logging/app_logger.dart';
 import 'models/execution_info.dart';
 
 /// Live execution log stream over WebSocket.
 class ExecutionStreamClient {
-  ExecutionStreamClient({
-    this.url = 'ws://127.0.0.1:8765/api/v1/execution/stream',
-  });
+  ExecutionStreamClient({String? url})
+      : url = url ?? BackendConfig.wsExecutionUrl;
 
   final String url;
   WebSocket? _socket;

@@ -8,7 +8,9 @@ from robot_studio.api.routes import (
     index,
     language,
     packages,
+    plugins,
     projects,
+    git,
     reports,
     workspaces,
 )
@@ -25,3 +27,5 @@ api_router.include_router(index.router)
 api_router.include_router(index.search_router)
 api_router.include_router(language.router)
 api_router.include_router(files.router)
+api_router.include_router(plugins.router)
+api_router.include_router(git.router)

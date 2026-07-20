@@ -24,6 +24,14 @@ class _ToolSectionState extends State<ToolSection> {
   late bool _expanded = widget.initiallyExpanded;
 
   @override
+  void didUpdateWidget(covariant ToolSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initiallyExpanded && !oldWidget.initiallyExpanded) {
+      _expanded = true;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

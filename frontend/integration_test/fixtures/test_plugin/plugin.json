@@ -1,0 +1,9 @@
+{
+  "id": "integration-test-plugin",
+  "name": "Integration Test Plugin",
+  "version": "0.0.1",
+  "author": "Robot Studio Tests",
+  "description": "Fake plugin used by integration tests",
+  "entry": "plugin.py",
+  "capabilities": ["toolbar-action"]
+}

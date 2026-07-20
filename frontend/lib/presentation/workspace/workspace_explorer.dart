@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/environment_info.dart';
 import '../../core/gateway/models/execution_info.dart';
 import '../../core/gateway/models/file_info.dart';
+import '../../core/gateway/models/git_info.dart';
 import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
+import '../git/history_panel.dart';
 import '../project/project_details_panel.dart';
 import '../widgets/explorer_tree.dart';
 
@@ -29,6 +31,7 @@ class WorkspaceExplorer extends StatelessWidget {
     this.onOpenReports,
     this.fileTree = const [],
     this.onOpenFile,
+    this.gitFileStatuses = const {},
   });
 
   final WorkspaceInfo workspace;
@@ -49,6 +52,7 @@ class WorkspaceExplorer extends StatelessWidget {
   final VoidCallback? onOpenReports;
   final List<FileTreeNode> fileTree;
   final ValueChanged<String>? onOpenFile;
+  final Map<String, GitFileStatus> gitFileStatuses;
 
   @override
   Widget build(BuildContext context) {
@@ -102,6 +106,7 @@ class WorkspaceExplorer extends StatelessWidget {
         ),
         Expanded(
           child: ListView(
+            key: const Key('workspace-explorer-list'),
             padding: const EdgeInsets.only(bottom: 12),
             children: [
               ToolSection(
@@ -158,6 +163,7 @@ class WorkspaceExplorer extends StatelessWidget {
                               node: node,
                               indent: 1,
                               onOpenFile: onOpenFile!,
+                              gitFileStatuses: gitFileStatuses,
                             ),
                         ],
                 ),
@@ -279,11 +285,13 @@ class _FileTreeNodeTile extends StatefulWidget {
     required this.node,
     required this.indent,
     required this.onOpenFile,
+    required this.gitFileStatuses,
   });
 
   final FileTreeNode node;
   final int indent;
   final ValueChanged<String> onOpenFile;
+  final Map<String, GitFileStatus> gitFileStatuses;
 
   @override
   State<_FileTreeNodeTile> createState() => _FileTreeNodeTileState();
@@ -313,6 +321,7 @@ class _FileTreeNodeTileState extends State<_FileTreeNodeTile> {
                 node: child,
                 indent: widget.indent + 1,
                 onOpenFile: widget.onOpenFile,
+                gitFileStatuses: widget.gitFileStatuses,
               ),
         ],
       );
@@ -320,12 +329,26 @@ class _FileTreeNodeTileState extends State<_FileTreeNodeTile> {
 
     if (!node.isRobotSource) return const SizedBox.shrink();
 
+    final gitStatus = _gitStatusForNode(node);
+
     return ExplorerTreeItem(
       icon: _iconForSuffix(node.suffix),
       label: node.name,
       indent: widget.indent,
+      trailing: gitStatus == null ? null : GitStatusBadge(status: gitStatus),
       onTap: () => widget.onOpenFile(node.path),
     );
+  }
+
+  GitFileStatus? _gitStatusForNode(FileTreeNode node) {
+    for (final entry in widget.gitFileStatuses.entries) {
+      if (node.path.endsWith(entry.key) ||
+          node.relativePath == entry.key ||
+          node.path.endsWith('/${entry.key}')) {
+        return entry.value;
+      }
+    }
+    return null;
   }
 
   IconData _iconForSuffix(String suffix) {

@@ -1,0 +1,225 @@
+import 'dart:async';
+
+import '../../../core/gateway/transport_gateway.dart';
+import '../../../core/logging/app_logger.dart';
+import 'shell_controller.dart';
+
+class EditorShellController {
+  EditorShellController({
+    required this.gateway,
+    required this.notify,
+    required this.isMounted,
+    required this.workspace,
+  });
+
+  final TransportGateway gateway;
+  final ShellNotify notify;
+  final ShellMounted isMounted;
+  final WorkspaceInfo? Function() workspace;
+
+  List<EditorTabInfo> tabs = [];
+  String? activePath;
+  List<IndexedSymbolInfo> documentOutline = [];
+  bool loadingOutline = false;
+  bool wordWrap = true;
+  String? statusMessage;
+  int? jumpToLine;
+  int cursorLine = 1;
+  int cursorColumn = 1;
+  List<FileTreeNode> fileTree = [];
+  List<String> recentFiles = [];
+  IndexedSymbolInfo? selectedOutlineSymbol;
+  List<CompletionItemInfo> completionItems = [];
+  List<DiagnosticInfo> diagnostics = [];
+  List<DiagnosticInfo> workspaceProblems = [];
+  SignatureHelpInfo? signatureHelp;
+  IndexedSymbolInfo? peekDefinition;
+  bool loadingLanguageFeatures = false;
+
+  Timer? languageDebounce;
+
+  EditorTabInfo? get activeTab {
+    final path = activePath;
+    if (path == null) return null;
+    for (final tab in tabs) {
+      if (tab.path == path) return tab;
+    }
+    return null;
+  }
+
+  void dispose() {
+    languageDebounce?.cancel();
+  }
+
+  void reset() {
+    tabs = [];
+    activePath = null;
+    documentOutline = [];
+    selectedOutlineSymbol = null;
+    completionItems = [];
+    diagnostics = [];
+    workspaceProblems = [];
+    signatureHelp = null;
+    peekDefinition = null;
+    statusMessage = null;
+    jumpToLine = null;
+    fileTree = [];
+    recentFiles = [];
+    languageDebounce?.cancel();
+  }
+
+  void trackRecentFile(String path) {
+    recentFiles = [
+      path,
+      ...recentFiles.where((item) => item != path),
+    ].take(10).toList();
+  }
+
+  void onContentChanged(String path, String content) {
+    final tabIndex = tabs.indexWhere((tab) => tab.path == path);
+    if (tabIndex < 0) return;
+    tabs[tabIndex].content = content;
+    notify();
+    scheduleLanguageRefresh();
+  }
+
+  void onCursorChanged(int line, int column) {
+    cursorLine = line;
+    cursorColumn = column;
+    final tab = activeTab;
+    if (tab != null) {
+      tab.cursorLine = line;
+      tab.cursorColumn = column;
+    }
+    notify();
+    scheduleLanguageRefresh();
+  }
+
+  void scheduleLanguageRefresh() {
+    languageDebounce?.cancel();
+    languageDebounce = Timer(const Duration(milliseconds: 350), () {
+      unawaited(refreshLanguageFeatures());
+    });
+  }
+
+  Future<void> refreshLanguageFeatures() async {
+    final tab = activeTab;
+    if (tab == null || workspace() == null) return;
+    final isRobot =
+        tab.path.endsWith('.robot') || tab.path.endsWith('.resource');
+    if (!isRobot) {
+      if (!isMounted()) return;
+      completionItems = [];
+      diagnostics = [];
+      signatureHelp = null;
+      notify();
+      return;
+    }
+
+    loadingLanguageFeatures = true;
+    notify();
+    try {
+      final token =
+          extractWordAtCursor(tab.content, cursorLine, cursorColumn) ?? '';
+      final results = await Future.wait([
+        gateway.languageCompletion(
+          filePath: tab.path,
+          line: cursorLine,
+          column: cursorColumn,
+          content: tab.content,
+          query: token,
+        ),
+        gateway.languageDiagnostics(
+          filePath: tab.path,
+          content: tab.content,
+        ),
+        gateway.languageSignatureHelp(
+          filePath: tab.path,
+          line: cursorLine,
+          column: cursorColumn,
+          content: tab.content,
+        ),
+      ]);
+      if (!isMounted()) return;
+      completionItems = results[0] as List<CompletionItemInfo>;
+      diagnostics = results[1] as List<DiagnosticInfo>;
+      signatureHelp = results[2] as SignatureHelpInfo?;
+      loadingLanguageFeatures = false;
+      notify();
+      await refreshWorkspaceProblems();
+    } catch (error) {
+      if (!isMounted()) return;
+      loadingLanguageFeatures = false;
+      notify();
+      AppLogger.debug('Language refresh failed', tag: 'Shell', data: '$error');
+    }
+  }
+
+  Future<void> refreshWorkspaceProblems() async {
+    final problems = <DiagnosticInfo>[];
+    for (final tab in tabs) {
+      if (!tab.path.endsWith('.robot') && !tab.path.endsWith('.resource')) {
+        continue;
+      }
+      try {
+        final tabDiagnostics = await gateway.languageDiagnostics(
+          filePath: tab.path,
+          content: tab.content,
+        );
+        problems.addAll(tabDiagnostics);
+      } catch (_) {
+        continue;
+      }
+    }
+    if (!isMounted()) return;
+    workspaceProblems = problems;
+    notify();
+  }
+
+  Future<void> loadOutline(String path) async {
+    loadingOutline = true;
+    selectedOutlineSymbol = null;
+    notify();
+    try {
+      documentOutline = await gateway.documentSymbols(path);
+      if (!isMounted()) return;
+      loadingOutline = false;
+      notify();
+    } catch (_) {
+      if (!isMounted()) return;
+      documentOutline = [];
+      loadingOutline = false;
+      notify();
+    }
+  }
+
+  Future<void> loadFileTree() async {
+    if (workspace() == null) {
+      fileTree = [];
+      notify();
+      return;
+    }
+    try {
+      fileTree = await gateway.listFileTree(depth: 5);
+      if (!isMounted()) return;
+      notify();
+    } catch (_) {
+      fileTree = [];
+      notify();
+    }
+  }
+
+  static String? extractWordAtCursor(String content, int line, int column) {
+    final lines = content.split('\n');
+    if (line < 1 || line > lines.length) return null;
+    final row = lines[line - 1];
+    if (column < 1 || column > row.length + 1) return null;
+    final index = column - 1;
+    final before = row.substring(0, index.clamp(0, row.length));
+    final after = row.substring(index.clamp(0, row.length));
+    final left = RegExp(r'[\w${}@&.]+$').firstMatch(before)?.group(0) ?? '';
+    final right = RegExp(r'^[\w${}@&.]+').firstMatch(after)?.group(0) ?? '';
+    final token = '$left$right'.trim();
+    return token.isEmpty ? null : token;
+  }
+}

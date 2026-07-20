@@ -1,4 +1,4 @@
-"""Polling file watcher for Robot/Python sources."""
+"""Filesystem watchers for Robot/Python sources."""
 
 from __future__ import annotations
 
@@ -6,11 +6,132 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from threading import Thread
 
 from robot_studio.domain.interfaces.indexing import FileWatcher
 from robot_studio.infrastructure.indexing.filesystem_indexer import INDEXABLE_SUFFIXES
 
 ChangeHandler = Callable[[str, Path], Awaitable[None]]
+
+_SKIP_PARTS = {"__pycache__", ".venv", "venv", "node_modules", ".git"}
+
+
+def _is_indexable(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    if path.suffix.lower() not in INDEXABLE_SUFFIXES:
+        return False
+    parts = {part.lower() for part in path.parts}
+    if parts & _SKIP_PARTS:
+        return False
+    if "Environments" in path.parts:
+        return False
+    return True
+
+
+@dataclass
+class NativeFileWatcher(FileWatcher):
+    """Watchdog-backed filesystem watcher with debounced async callbacks."""
+
+    debounce_seconds: float = 0.35
+    on_change: ChangeHandler | None = None
+    _roots: set[Path] = field(default_factory=set)
+    _loop: asyncio.AbstractEventLoop | None = field(default=None, init=False)
+    _observer: object | None = field(default=None, init=False)
+    _handler: object | None = field(default=None, init=False)
+    _pending: dict[str, tuple[str, Path]] = field(default_factory=dict, init=False)
+    _debounce_task: asyncio.Task | None = field(default=None, init=False)
+    _running: bool = field(default=False, init=False)
+
+    async def start(self) -> None:
+        if self._running:
+            return
+        from watchdog.events import FileSystemEventHandler
+        from watchdog.observers import Observer
+
+        self._loop = asyncio.get_running_loop()
+        self._running = True
+
+        class _Handler(FileSystemEventHandler):
+            def __init__(self, watcher: NativeFileWatcher) -> None:
+                self._watcher = watcher
+
+            def on_created(self, event) -> None:  # noqa: ANN001
+                self._watcher._schedule("created", Path(event.src_path))
+
+            def on_modified(self, event) -> None:  # noqa: ANN001
+                self._watcher._schedule("modified", Path(event.src_path))
+
+            def on_deleted(self, event) -> None:  # noqa: ANN001
+                self._watcher._schedule("deleted", Path(event.src_path))
+
+            def on_moved(self, event) -> None:  # noqa: ANN001
+                self._watcher._schedule("deleted", Path(event.src_path))
+                if getattr(event, "dest_path", None):
+                    self._watcher._schedule("created", Path(event.dest_path))
+
+        observer = Observer()
+        handler = _Handler(self)
+        self._handler = handler
+        for root in list(self._roots):
+            if root.exists():
+                observer.schedule(handler, str(root), recursive=True)
+        thread = Thread(target=observer.start, daemon=True)
+        thread.start()
+        self._observer = observer
+
+    async def stop(self) -> None:
+        self._running = False
+        if self._debounce_task is not None:
+            self._debounce_task.cancel()
+            try:
+                await self._debounce_task
+            except asyncio.CancelledError:
+                pass
+            self._debounce_task = None
+        if self._observer is not None:
+            self._observer.stop()  # type: ignore[union-attr]
+            self._observer.join(timeout=2)  # type: ignore[union-attr]
+            self._observer = None
+        self._pending.clear()
+
+    def watch_path(self, path: Path) -> None:
+        root = Path(path)
+        if root in self._roots:
+            return
+        self._roots.add(root)
+        if self._running and self._observer is not None and self._handler is not None:
+            if root.exists():
+                self._observer.schedule(self._handler, str(root), recursive=True)  # type: ignore[union-attr]
+
+    def unwatch_path(self, path: Path) -> None:
+        self._roots.discard(Path(path))
+
+    @property
+    def is_running(self) -> bool:
+        return self._running
+
+    def _schedule(self, event: str, path: Path) -> None:
+        if not self._running or self._loop is None:
+            return
+        if event != "deleted" and not _is_indexable(path):
+            return
+        self._pending[str(path)] = (event, path)
+        self._loop.call_soon_threadsafe(self._arm_debounce)
+
+    def _arm_debounce(self) -> None:
+        if self._debounce_task is not None and not self._debounce_task.done():
+            self._debounce_task.cancel()
+        self._debounce_task = asyncio.create_task(self._flush_pending())
+
+    async def _flush_pending(self) -> None:
+        await asyncio.sleep(self.debounce_seconds)
+        pending = list(self._pending.values())
+        self._pending.clear()
+        if self.on_change is None:
+            return
+        for event, path in pending:
+            await self.on_change(event, path)
 
 
 @dataclass
@@ -89,7 +210,7 @@ class PollingFileWatcher(FileWatcher):
                 if path.suffix.lower() not in INDEXABLE_SUFFIXES:
                     continue
                 parts = {part.lower() for part in path.parts}
-                if parts & {"__pycache__", ".venv", "venv", "node_modules", ".git"}:
+                if parts & _SKIP_PARTS:
                     continue
                 if "Environments" in path.parts:
                     continue

@@ -19,3 +19,6 @@ class LanguageService(ABC):
 
     @abstractmethod
     async def format_document(self, request: dict) -> str: ...
+
+    @abstractmethod
+    async def signature_help(self, request: dict) -> dict | None: ...

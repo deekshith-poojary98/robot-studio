@@ -1,8 +1,11 @@
 import 'models/environment_info.dart';
 import 'models/file_info.dart';
+import 'models/git_info.dart';
 import 'models/health_response.dart';
 import 'models/index_info.dart';
+import 'models/language_info.dart';
 import 'models/package_info.dart';
+import 'models/plugin_info.dart';
 import 'models/project_info.dart';
 import 'models/report_info.dart';
 import 'models/workspace_info.dart';
@@ -10,9 +13,12 @@ import 'models/workspace_info.dart';
 export 'models/environment_info.dart';
 export 'models/execution_info.dart';
 export 'models/file_info.dart';
+export 'models/git_info.dart';
 export 'models/health_response.dart';
 export 'models/index_info.dart';
+export 'models/language_info.dart';
 export 'models/package_info.dart';
+export 'models/plugin_info.dart';
 export 'models/project_info.dart';
 export 'models/report_info.dart';
 export 'models/workspace_info.dart';
@@ -129,18 +135,30 @@ abstract class TransportGateway {
     String? name,
     String? symbolId,
     SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
   });
 
   Future<List<SymbolReferenceInfo>> languageReferences({
     String? name,
     String? symbolId,
     SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
   });
 
   Future<HoverInfo?> languageHover({
     String? name,
     String? symbolId,
     SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
   });
 
   Future<List<IndexedSymbolInfo>> documentSymbols(String filePath);
@@ -148,6 +166,33 @@ abstract class TransportGateway {
   Future<List<IndexedSymbolInfo>> workspaceSymbols({
     String query = '',
     int limit = 200,
+  });
+
+  Future<List<CompletionItemInfo>> languageCompletion({
+    required String filePath,
+    required int line,
+    required int column,
+    required String content,
+    String query = '',
+  });
+
+  Future<List<DiagnosticInfo>> languageDiagnostics({
+    required String filePath,
+    required String content,
+  });
+
+  Future<String> languageFormat({
+    required String filePath,
+    required String content,
+    int? startLine,
+    int? endLine,
+  });
+
+  Future<SignatureHelpInfo?> languageSignatureHelp({
+    required String filePath,
+    required int line,
+    required int column,
+    required String content,
   });
 
   Future<FileContentInfo> readFile(String path);
@@ -160,6 +205,55 @@ abstract class TransportGateway {
   Future<List<FileTreeNode>> listFileTree({
     String? path,
     int depth = 3,
+  });
+
+  Future<List<PluginInfo>> listPlugins();
+
+  Future<List<PluginInfo>> refreshPlugins();
+
+  Future<PluginInfo?> getPlugin(String id);
+
+  Future<PluginInfo> enablePlugin(String id);
+
+  Future<PluginInfo> disablePlugin(String id);
+
+  Future<PluginInfo> reloadPlugin(String id);
+
+  Future<GitStatusInfo> getGitStatus();
+
+  Future<GitRepositoryInfo> initGitRepository();
+
+  Future<GitRepositoryInfo?> refreshGitRepository();
+
+  Future<List<GitCommitInfo>> getGitHistory({int limit = 50});
+
+  Future<GitCommitDetailInfo> getGitCommitDetail(String commitHash);
+
+  Future<List<GitBranchInfo>> getGitBranches();
+
+  Future<GitRepositoryInfo> checkoutGitBranch(String branch);
+
+  Future<GitBranchInfo> createGitBranch(
+    String name, {
+    String? startPoint,
+  });
+
+  Future<void> deleteGitBranch(String name);
+
+  Future<GitCommitInfo> commitGitChanges({
+    required String message,
+    List<String>? files,
+  });
+
+  Future<GitRemoteResultInfo> fetchGit();
+
+  Future<GitRemoteResultInfo> pullGit();
+
+  Future<GitRemoteResultInfo> pushGit();
+
+  Future<GitDiffInfo> getGitDiff({
+    String? filePath,
+    String? commit,
   });
 }
 

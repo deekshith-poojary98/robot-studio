@@ -214,6 +214,14 @@ async def test_history_persistence(services) -> None:
 
 
 @pytest.mark.asyncio
+async def test_rejects_suite_outside_project(services, tmp_path: Path) -> None:
+    outside = tmp_path / "outside.robot"
+    outside.write_text("*** Test Cases ***\nOutside\n    Log    x\n", encoding="utf-8")
+    with pytest.raises(ExecutionValidationError, match="inside the active project"):
+        await services["execution_service"].run_file(str(outside))
+
+
+@pytest.mark.asyncio
 async def test_requires_active_session(tmp_path: Path) -> None:
     bus = InMemoryEventBus()
     context = WorkspaceContext(bus)

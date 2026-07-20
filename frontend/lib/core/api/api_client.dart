@@ -205,24 +205,60 @@ class ApiClient implements TransportGateway {
     String? name,
     String? symbolId,
     SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
   }) =>
-      _gateway.languageDefinition(name: name, symbolId: symbolId, kind: kind);
+      _gateway.languageDefinition(
+        name: name,
+        symbolId: symbolId,
+        kind: kind,
+        filePath: filePath,
+        line: line,
+        column: column,
+        content: content,
+      );
 
   @override
   Future<List<SymbolReferenceInfo>> languageReferences({
     String? name,
     String? symbolId,
     SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
   }) =>
-      _gateway.languageReferences(name: name, symbolId: symbolId, kind: kind);
+      _gateway.languageReferences(
+        name: name,
+        symbolId: symbolId,
+        kind: kind,
+        filePath: filePath,
+        line: line,
+        column: column,
+        content: content,
+      );
 
   @override
   Future<HoverInfo?> languageHover({
     String? name,
     String? symbolId,
     SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
   }) =>
-      _gateway.languageHover(name: name, symbolId: symbolId, kind: kind);
+      _gateway.languageHover(
+        name: name,
+        symbolId: symbolId,
+        kind: kind,
+        filePath: filePath,
+        line: line,
+        column: column,
+        content: content,
+      );
 
   @override
   Future<List<IndexedSymbolInfo>> documentSymbols(String filePath) =>
@@ -234,6 +270,133 @@ class ApiClient implements TransportGateway {
     int limit = 200,
   }) =>
       _gateway.workspaceSymbols(query: query, limit: limit);
+
+  @override
+  Future<List<CompletionItemInfo>> languageCompletion({
+    required String filePath,
+    required int line,
+    required int column,
+    required String content,
+    String query = '',
+  }) =>
+      _gateway.languageCompletion(
+        filePath: filePath,
+        line: line,
+        column: column,
+        content: content,
+        query: query,
+      );
+
+  @override
+  Future<List<DiagnosticInfo>> languageDiagnostics({
+    required String filePath,
+    required String content,
+  }) =>
+      _gateway.languageDiagnostics(filePath: filePath, content: content);
+
+  @override
+  Future<String> languageFormat({
+    required String filePath,
+    required String content,
+    int? startLine,
+    int? endLine,
+  }) =>
+      _gateway.languageFormat(
+        filePath: filePath,
+        content: content,
+        startLine: startLine,
+        endLine: endLine,
+      );
+
+  @override
+  Future<SignatureHelpInfo?> languageSignatureHelp({
+    required String filePath,
+    required int line,
+    required int column,
+    required String content,
+  }) =>
+      _gateway.languageSignatureHelp(
+        filePath: filePath,
+        line: line,
+        column: column,
+        content: content,
+      );
+
+  @override
+  Future<List<PluginInfo>> listPlugins() => _gateway.listPlugins();
+
+  @override
+  Future<List<PluginInfo>> refreshPlugins() => _gateway.refreshPlugins();
+
+  @override
+  Future<PluginInfo?> getPlugin(String id) => _gateway.getPlugin(id);
+
+  @override
+  Future<PluginInfo> enablePlugin(String id) => _gateway.enablePlugin(id);
+
+  @override
+  Future<PluginInfo> disablePlugin(String id) => _gateway.disablePlugin(id);
+
+  @override
+  Future<PluginInfo> reloadPlugin(String id) => _gateway.reloadPlugin(id);
+
+  @override
+  Future<GitStatusInfo> getGitStatus() => _gateway.getGitStatus();
+
+  @override
+  Future<GitRepositoryInfo> initGitRepository() => _gateway.initGitRepository();
+
+  @override
+  Future<GitRepositoryInfo?> refreshGitRepository() =>
+      _gateway.refreshGitRepository();
+
+  @override
+  Future<List<GitCommitInfo>> getGitHistory({int limit = 50}) =>
+      _gateway.getGitHistory(limit: limit);
+
+  @override
+  Future<GitCommitDetailInfo> getGitCommitDetail(String commitHash) =>
+      _gateway.getGitCommitDetail(commitHash);
+
+  @override
+  Future<List<GitBranchInfo>> getGitBranches() => _gateway.getGitBranches();
+
+  @override
+  Future<GitRepositoryInfo> checkoutGitBranch(String branch) =>
+      _gateway.checkoutGitBranch(branch);
+
+  @override
+  Future<GitBranchInfo> createGitBranch(
+    String name, {
+    String? startPoint,
+  }) =>
+      _gateway.createGitBranch(name, startPoint: startPoint);
+
+  @override
+  Future<void> deleteGitBranch(String name) => _gateway.deleteGitBranch(name);
+
+  @override
+  Future<GitCommitInfo> commitGitChanges({
+    required String message,
+    List<String>? files,
+  }) =>
+      _gateway.commitGitChanges(message: message, files: files);
+
+  @override
+  Future<GitRemoteResultInfo> fetchGit() => _gateway.fetchGit();
+
+  @override
+  Future<GitRemoteResultInfo> pullGit() => _gateway.pullGit();
+
+  @override
+  Future<GitRemoteResultInfo> pushGit() => _gateway.pushGit();
+
+  @override
+  Future<GitDiffInfo> getGitDiff({
+    String? filePath,
+    String? commit,
+  }) =>
+      _gateway.getGitDiff(filePath: filePath, commit: commit);
 
   @override
   Future<FileContentInfo> readFile(String path) => _gateway.readFile(path);

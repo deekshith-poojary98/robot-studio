@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/environment_info.dart';
 import '../../core/gateway/models/execution_info.dart';
 import '../../core/gateway/models/file_info.dart';
+import '../../core/gateway/models/git_info.dart';
 import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
 import '../../core/theme/app_theme.dart';
@@ -34,6 +35,7 @@ class SidePanel extends StatelessWidget {
     this.backendVersion,
     this.fileTree = const [],
     this.onOpenFile,
+    this.gitFileStatuses = const {},
   });
 
   final SidebarPanel panel;
@@ -56,6 +58,7 @@ class SidePanel extends StatelessWidget {
   final String? backendVersion;
   final List<FileTreeNode> fileTree;
   final ValueChanged<String>? onOpenFile;
+  final Map<String, GitFileStatus> gitFileStatuses;
 
   @override
   Widget build(BuildContext context) {
@@ -110,6 +113,16 @@ class SidePanel extends StatelessWidget {
         onOpenReports: onOpenReports,
         fileTree: fileTree,
         onOpenFile: onOpenFile,
+        gitFileStatuses: gitFileStatuses,
+      );
+    }
+
+    if (panel == SidebarPanel.sourceControl) {
+      return _EmptyToolView(
+        icon: panel.icon,
+        message: workspace == null
+            ? 'Open a workspace to use source control.'
+            : 'Source Control is open in the main view.',
       );
     }
 
@@ -160,6 +173,14 @@ class _PlaceholderTree extends StatelessWidget {
           ('Installed', ['Open Package Manager to view packages']),
           ('Updates Available', ['None']),
           ('Search Packages', ['Browse PyPI...']),
+        ],
+      SidebarPanel.plugins => const [
+          ('Workspace Plugins', ['Workspace/Plugins']),
+          ('User Plugins', ['~/.robotstudio/plugins']),
+          ('Built-in', ['Core capabilities']),
+        ],
+      SidebarPanel.sourceControl => const [
+          ('Changes', ['Open Source Control in the main view']),
         ],
       SidebarPanel.reports => const [
           ('Recent', ['No reports yet']),

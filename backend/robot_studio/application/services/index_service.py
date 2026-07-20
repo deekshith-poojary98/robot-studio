@@ -19,11 +19,10 @@ from robot_studio.core.events import (
     ProjectOpened,
     WorkspaceOpened,
 )
-from robot_studio.domain.interfaces.indexing import IndexScope, SymbolKind
-from robot_studio.domain.models import IndexStatus
+from robot_studio.domain.interfaces.indexing import FileWatcher, IndexScope, SymbolKind
+from robot_studio.domain.models import IndexStatus, Project
 from robot_studio.infrastructure.indexing.filesystem_indexer import FilesystemIndexer
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
-from robot_studio.infrastructure.indexing.file_watcher import PollingFileWatcher
 from robot_studio.infrastructure.repositories.project_repository import (
     SqliteProjectRepository,
 )
@@ -39,7 +38,7 @@ class IndexService:
     event_bus: EventBus
     store: SqliteIndexStore
     indexer: FilesystemIndexer
-    watcher: PollingFileWatcher
+    watcher: FileWatcher
     project_repository: SqliteProjectRepository
     _subscribed: bool = field(default=False, init=False)
     _state: str = field(default="idle", init=False)
@@ -63,11 +62,10 @@ class IndexService:
         _ = event
         await self.rebuild()
 
-    async def _on_project_changed(self, event) -> None:
-        _ = event
+    async def _on_project_changed(self, event: ProjectOpened | ProjectCreated | ProjectImported) -> None:
         if self.context.workspace is None:
             return
-        await self.rebuild()
+        await self.reindex_project(event.project_id)
 
     async def _on_file_change(self, event: str, path: Path) -> None:
         workspace = self.context.workspace
@@ -116,7 +114,23 @@ class IndexService:
         async with self._lock:
             if self._rebuild_task and not self._rebuild_task.done():
                 return await self.get_status()
-            self._rebuild_task = asyncio.create_task(self._rebuild_workspace(workspace.id, workspace.path))
+            self._rebuild_task = asyncio.create_task(
+                self._rebuild_workspace(workspace.id, workspace.path),
+            )
+            return await self._rebuild_task
+
+    async def reindex_project(self, project_id: UUID) -> IndexStatus:
+        workspace = self._require_workspace()
+        project = await self.project_repository.get(project_id)
+        if project is None or project.workspace_id != workspace.id:
+            return await self.get_status()
+
+        async with self._lock:
+            if self._rebuild_task and not self._rebuild_task.done():
+                return await self.get_status()
+            self._rebuild_task = asyncio.create_task(
+                self._reindex_project_root(workspace.id, project),
+            )
             return await self._rebuild_task
 
     async def _rebuild_workspace(self, workspace_id: UUID, workspace_path: Path) -> IndexStatus:
@@ -128,7 +142,6 @@ class IndexService:
             roots: list[tuple[Path, UUID | None]] = []
             for project in projects:
                 roots.append((Path(project.path), project.id))
-            # Also scan Shared resources under the workspace.
             shared = workspace_path / "Shared"
             if shared.exists():
                 roots.append((shared, None))
@@ -137,28 +150,14 @@ class IndexService:
             indexed_paths: set[str] = set()
 
             for root, project_id in roots:
-                self.watcher.watch_path(root)
-                for path in self.indexer.discover_files(root):
-                    try:
-                        count, _changed = await self.indexer.index_file(
-                            path,
-                            workspace_id=workspace_id,
-                            project_id=project_id,
-                            force=True,
-                        )
-                        indexed_paths.add(str(path))
-                        await self.event_bus.publish(
-                            FileIndexed(
-                                path=str(path),
-                                workspace_id=workspace_id,
-                                project_id=project_id,
-                                symbol_count=count,
-                            ),
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        self._errors.append(f"{path}: {exc}")
+                indexed_paths.update(
+                    await self._index_root(
+                        workspace_id=workspace_id,
+                        root=root,
+                        project_id=project_id,
+                    ),
+                )
 
-            # Remove stale files for this workspace.
             for existing in await self.store.list_indexed_files(workspace_id):
                 if existing not in indexed_paths and not Path(existing).exists():
                     await self.store.remove_file(Path(existing))
@@ -179,6 +178,71 @@ class IndexService:
             self._message = str(exc)
             self._errors.append(str(exc))
         return await self.get_status()
+
+    async def _reindex_project_root(self, workspace_id: UUID, project: Project) -> IndexStatus:
+        self._state = "indexing"
+        self._message = f"Indexing project '{project.name}'…"
+        self._errors = []
+        try:
+            await self.store.invalidate(IndexScope.PROJECT, str(project.id))
+            indexed_paths = await self._index_root(
+                workspace_id=workspace_id,
+                root=Path(project.path),
+                project_id=project.id,
+            )
+            for existing in await self.store.list_indexed_files(
+                workspace_id,
+                project_id=project.id,
+            ):
+                if existing not in indexed_paths and not Path(existing).exists():
+                    await self.store.remove_file(Path(existing))
+                    await self.event_bus.publish(
+                        FileRemoved(path=existing, workspace_id=workspace_id),
+                    )
+
+            self._last_indexed_at = datetime.now(UTC)
+            self._state = "ready"
+            self._message = "Index up to date"
+            await self.event_bus.publish(
+                IndexUpdated(scope=IndexScope.PROJECT.value, scope_id=str(project.id)),
+            )
+            if not self.watcher.is_running:
+                await self.watcher.start()
+        except Exception as exc:  # noqa: BLE001
+            self._state = "error"
+            self._message = str(exc)
+            self._errors.append(str(exc))
+        return await self.get_status()
+
+    async def _index_root(
+        self,
+        *,
+        workspace_id: UUID,
+        root: Path,
+        project_id: UUID | None,
+    ) -> set[str]:
+        indexed_paths: set[str] = set()
+        self.watcher.watch_path(root)
+        for path in self.indexer.discover_files(root):
+            try:
+                count, _changed = await self.indexer.index_file(
+                    path,
+                    workspace_id=workspace_id,
+                    project_id=project_id,
+                    force=True,
+                )
+                indexed_paths.add(str(path))
+                await self.event_bus.publish(
+                    FileIndexed(
+                        path=str(path),
+                        workspace_id=workspace_id,
+                        project_id=project_id,
+                        symbol_count=count,
+                    ),
+                )
+            except Exception as exc:  # noqa: BLE001
+                self._errors.append(f"{path}: {exc}")
+        return indexed_paths
 
     async def get_status(self) -> IndexStatus:
         workspace = self.context.workspace

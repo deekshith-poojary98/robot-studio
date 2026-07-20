@@ -15,7 +15,7 @@ from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.events import FileIndexed, FileRemoved, InMemoryEventBus, IndexUpdated
 from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.domain.models import Project, ProjectType, Workspace, WorkspaceSettings
-from robot_studio.infrastructure.indexing.file_watcher import PollingFileWatcher
+from robot_studio.infrastructure.indexing.file_watcher import NativeFileWatcher
 from robot_studio.infrastructure.indexing.filesystem_indexer import FilesystemIndexer
 from robot_studio.infrastructure.indexing.robot_indexer import RobotIndexer
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
@@ -71,7 +71,12 @@ async def index_stack(tmp_path: Path):
     suite.write_text(SAMPLE_ROBOT, encoding="utf-8")
     lib = project_path / "CustomLib.py"
     lib.write_text(
-        'class CustomLib:\n    def greet_user(self, name):\n        """Say hi"""\n        return name\n',
+        'from robot.api.deco import keyword\n\n'
+        'class CustomLib:\n'
+        '    @keyword\n'
+        '    def greet_user(self, name):\n'
+        '        """Say hi"""\n'
+        '        return name\n',
         encoding="utf-8",
     )
 
@@ -91,7 +96,7 @@ async def index_stack(tmp_path: Path):
     await projects.create(project)
 
     indexer = FilesystemIndexer(store=store)
-    watcher = PollingFileWatcher(interval_seconds=0.2)
+    watcher = NativeFileWatcher(debounce_seconds=0.2)
     service = IndexService(
         context=context,
         event_bus=bus,
@@ -101,7 +106,7 @@ async def index_stack(tmp_path: Path):
         project_repository=projects,
     )
     service.start()
-    language = RobotLanguageService(store=store, event_bus=bus)
+    language = RobotLanguageService(store=store, context=context, event_bus=bus)
     language.start()
     facade = LanguageFacade(context=context, language=language)
     return service, store, facade, suite, lib, bus, workspace, project
@@ -232,12 +237,9 @@ async def test_watcher_detects_new_file(index_stack, tmp_path: Path) -> None:
         project_id=project.id,
         force=True,
     )
-    # Reset snapshot after initial index.
-    service.watcher._snapshot = service.watcher._scan()  # noqa: SLF001
 
     new_file = root / "extra.robot"
     new_file.write_text("*** Test Cases ***\nExtra\n    Log    x\n", encoding="utf-8")
-    await asyncio.sleep(0.5)
-    await service.watcher._poll()  # noqa: SLF001
+    await asyncio.sleep(0.6)
     assert await store.get_file_mtime(new_file) is not None
     await service.watcher.stop()

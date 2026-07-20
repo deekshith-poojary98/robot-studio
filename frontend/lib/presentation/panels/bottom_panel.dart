@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../execution/execution_console.dart';
+import '../panels/problems_panel.dart';
 
 enum BottomPanelTab {
   console('Console'),
@@ -19,14 +21,20 @@ class BottomPanel extends StatefulWidget {
     super.key,
     this.logLines = const [],
     this.executionLines = const [],
+    this.problems = const [],
+    this.isLoadingProblems = false,
     this.problemCount = 0,
     this.forceExecutionTab = false,
+    this.onProblemSelected,
   });
 
   final List<String> logLines;
   final List<String> executionLines;
+  final List<DiagnosticInfo> problems;
+  final bool isLoadingProblems;
   final int problemCount;
   final bool forceExecutionTab;
+  final ValueChanged<DiagnosticInfo>? onProblemSelected;
 
   @override
   State<BottomPanel> createState() => _BottomPanelState();
@@ -121,6 +129,14 @@ class _BottomPanelState extends State<BottomPanel> {
       return ColoredBox(
         color: AppColors.rail,
         child: ExecutionConsole(lines: widget.executionLines),
+      );
+    }
+
+    if (_activeTab == BottomPanelTab.problems) {
+      return ProblemsPanel(
+        diagnostics: widget.problems,
+        isLoading: widget.isLoadingProblems,
+        onSelect: widget.onProblemSelected ?? (_) {},
       );
     }
 

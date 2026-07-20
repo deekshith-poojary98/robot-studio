@@ -1,0 +1,414 @@
+"""Git CLI provider — invokes native git via subprocess."""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import UTC, datetime
+from pathlib import Path
+
+from robot_studio.domain.interfaces.git import GitProvider
+from robot_studio.domain.models.git import (
+    GitBranch,
+    GitCommit,
+    GitCommitDetail,
+    GitDiff,
+    GitDiffLine,
+    GitFileChange,
+    GitFileStatus,
+    GitRemoteResult,
+    GitRepositoryInfo,
+    GitStatus,
+)
+
+
+class GitCommandError(Exception):
+    """Raised when a git command fails."""
+
+
+class CliGitProvider(GitProvider):
+    def __init__(self, *, timeout: float = 120.0) -> None:
+        self._timeout = timeout
+
+    async def detect(self, path: Path) -> GitRepositoryInfo | None:
+        target = path.resolve()
+        if not target.exists():
+            return None
+        try:
+            root = await self._run_text(["rev-parse", "--show-toplevel"], cwd=target)
+        except GitCommandError:
+            return None
+        root_path = Path(root.strip())
+        return await self._repository_info(root_path)
+
+    async def init(self, path: Path) -> GitRepositoryInfo:
+        target = path.resolve()
+        await self._run(["init"], cwd=target)
+        return await self._repository_info(target)
+
+    async def status(self, repo_root: Path) -> GitStatus:
+        repository = await self._repository_info(repo_root)
+        raw = await self._run_text(["status", "--porcelain=v1"], cwd=repo_root)
+        changes = _parse_porcelain(raw)
+        repository.clean = len(changes) == 0
+        return GitStatus(repository=repository, changes=changes)
+
+    async def history(self, repo_root: Path, *, limit: int = 50) -> list[GitCommit]:
+        try:
+            output = await self._run_text(
+                [
+                    "log",
+                    f"-{limit}",
+                    "--format=%H%x00%an%x00%ae%x00%at%x00%s",
+                ],
+                cwd=repo_root,
+            )
+        except GitCommandError as exc:
+            if "does not have any commits yet" in str(exc):
+                return []
+            raise
+        commits: list[GitCommit] = []
+        for line in output.splitlines():
+            if not line.strip():
+                continue
+            parts = line.split("\0")
+            if len(parts) < 5:
+                continue
+            commit_hash, author, email, ts_raw, message = parts[:5]
+            commits.append(
+                GitCommit(
+                    hash=commit_hash,
+                    short_hash=commit_hash[:7],
+                    author=author,
+                    email=email,
+                    date=datetime.fromtimestamp(int(ts_raw), tz=UTC),
+                    message=message,
+                ),
+            )
+        return commits
+
+    async def commit_detail(self, repo_root: Path, commit_hash: str) -> GitCommitDetail:
+        output = await self._run_text(
+            [
+                "show",
+                "--name-status",
+                "--format=%H%x00%an%x00%ae%x00%at%x00%s",
+                commit_hash,
+            ],
+            cwd=repo_root,
+        )
+        lines = output.splitlines()
+        if not lines:
+            raise GitCommandError(f"Commit not found: {commit_hash}")
+        header = lines[0].split("\0")
+        if len(header) < 5:
+            raise GitCommandError(f"Invalid commit header for {commit_hash}")
+        commit = GitCommit(
+            hash=header[0],
+            short_hash=header[0][:7],
+            author=header[1],
+            email=header[2],
+            date=datetime.fromtimestamp(int(header[3]), tz=UTC),
+            message=header[4],
+        )
+        files: list[GitFileChange] = []
+        for row in lines[1:]:
+            row = row.strip()
+            if not row:
+                continue
+            parts = row.split("\t")
+            if len(parts) == 2:
+                code, file_path = parts
+                files.append(_name_status_to_change(code, file_path))
+            elif len(parts) == 3:
+                code, old_path, new_path = parts
+                files.append(
+                    GitFileChange(
+                        path=new_path,
+                        old_path=old_path,
+                        status=_code_to_status(code),
+                    ),
+                )
+        return GitCommitDetail(**commit.model_dump(), files=files)
+
+    async def branches(self, repo_root: Path) -> list[GitBranch]:
+        output = await self._run_text(
+            ["branch", "-a", "--format=%(refname:short)|%(HEAD)|%(upstream:short)"],
+            cwd=repo_root,
+        )
+        branches: list[GitBranch] = []
+        for line in output.splitlines():
+            if not line.strip():
+                continue
+            name, head, _upstream = (line.split("|") + ["", ""])[:3]
+            branches.append(
+                GitBranch(
+                    name=name,
+                    current=head == "*",
+                    remote=name.startswith("origin/") or "/" in name,
+                ),
+            )
+        if not branches:
+            try:
+                current = (
+                    await self._run_text(["symbolic-ref", "--short", "HEAD"], cwd=repo_root)
+                ).strip()
+                if current and current != "HEAD":
+                    branches.append(GitBranch(name=current, current=True, remote=False))
+            except GitCommandError:
+                pass
+        return branches
+
+    async def checkout(self, repo_root: Path, branch: str) -> GitRepositoryInfo:
+        try:
+            current = (
+                await self._run_text(["symbolic-ref", "--short", "HEAD"], cwd=repo_root)
+            ).strip()
+            if current == branch:
+                return await self._repository_info(repo_root)
+        except GitCommandError:
+            pass
+        await self._run(["checkout", branch], cwd=repo_root)
+        return await self._repository_info(repo_root)
+
+    async def create_branch(
+        self,
+        repo_root: Path,
+        name: str,
+        *,
+        start_point: str | None = None,
+    ) -> GitBranch:
+        if start_point is None and not await self._has_head(repo_root):
+            await self._run(["checkout", "-b", name], cwd=repo_root)
+            return GitBranch(name=name, current=True, remote=False)
+        args = ["branch", name]
+        if start_point:
+            args.append(start_point)
+        await self._run(args, cwd=repo_root)
+        return GitBranch(name=name, current=False, remote=False)
+
+    async def delete_branch(self, repo_root: Path, name: str) -> None:
+        await self._run(["branch", "-d", name], cwd=repo_root)
+
+    async def commit(
+        self,
+        repo_root: Path,
+        message: str,
+        *,
+        files: list[str] | None = None,
+    ) -> GitCommit:
+        if files:
+            await self._run(["add", "--", *files], cwd=repo_root)
+        else:
+            await self._run(["add", "-A"], cwd=repo_root)
+        await self._run(["commit", "-m", message], cwd=repo_root)
+        history = await self.history(repo_root, limit=1)
+        if not history:
+            raise GitCommandError("Commit succeeded but history is empty")
+        return history[0]
+
+    async def fetch(self, repo_root: Path) -> GitRemoteResult:
+        try:
+            output = await self._run_text(["fetch", "--all", "--prune"], cwd=repo_root)
+            return GitRemoteResult(success=True, message="Fetch completed", output=output)
+        except GitCommandError as exc:
+            return GitRemoteResult(success=False, message=str(exc), output=str(exc))
+
+    async def pull(self, repo_root: Path) -> GitRemoteResult:
+        try:
+            output = await self._run_text(["pull"], cwd=repo_root)
+            return GitRemoteResult(success=True, message="Pull completed", output=output)
+        except GitCommandError as exc:
+            return GitRemoteResult(success=False, message=str(exc), output=str(exc))
+
+    async def push(self, repo_root: Path) -> GitRemoteResult:
+        try:
+            output = await self._run_text(["push"], cwd=repo_root)
+            return GitRemoteResult(success=True, message="Push completed", output=output)
+        except GitCommandError as exc:
+            return GitRemoteResult(success=False, message=str(exc), output=str(exc))
+
+    async def diff(
+        self,
+        repo_root: Path,
+        *,
+        file_path: str | None = None,
+        commit: str | None = None,
+    ) -> GitDiff:
+        args = ["diff", "--no-color"]
+        if commit:
+            args.append(commit)
+        if file_path:
+            args.extend(["--", file_path])
+        output = await self._run_text(args, cwd=repo_root)
+        return _parse_unified_diff(output, file_path)
+
+    async def _has_head(self, repo_root: Path) -> bool:
+        try:
+            await self._run_text(["rev-parse", "HEAD"], cwd=repo_root)
+            return True
+        except GitCommandError:
+            return False
+
+    async def _repository_info(self, repo_root: Path) -> GitRepositoryInfo:
+        head: str | None = None
+        try:
+            head = (await self._run_text(["rev-parse", "HEAD"], cwd=repo_root)).strip()
+        except GitCommandError:
+            head = None
+        detached = False
+        branch: str | None
+        try:
+            branch = (
+                await self._run_text(["rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root)
+            ).strip()
+            if branch == "HEAD":
+                detached = True
+                branch = None
+        except GitCommandError:
+            detached = head is None
+            branch = None
+            try:
+                branch = (
+                    await self._run_text(["symbolic-ref", "--short", "HEAD"], cwd=repo_root)
+                ).strip()
+            except GitCommandError:
+                pass
+        status_raw = await self._run_text(["status", "--porcelain=v1"], cwd=repo_root)
+        changes = _parse_porcelain(status_raw)
+        return GitRepositoryInfo(
+            is_repository=True,
+            root=repo_root,
+            branch=branch,
+            head=head if head else None,
+            detached=detached,
+            clean=len(changes) == 0,
+        )
+
+    async def _run(self, args: list[str], *, cwd: Path) -> None:
+        await self._run_text(args, cwd=cwd)
+
+    async def _run_text(self, args: list[str], *, cwd: Path) -> str:
+        command = ["git", *args]
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                cwd=str(cwd),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except OSError as exc:
+            raise GitCommandError(f"Failed to start git: {exc}") from exc
+
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=self._timeout,
+            )
+        except TimeoutError as exc:
+            process.kill()
+            await process.wait()
+            raise GitCommandError("Git command timed out") from exc
+
+        if process.returncode != 0:
+            detail = (stderr or stdout or b"").decode("utf-8", errors="replace").strip()
+            raise GitCommandError(detail or f"git {' '.join(args)} failed")
+
+        return (stdout or b"").decode("utf-8", errors="replace")
+
+
+def _parse_porcelain(raw: str) -> list[GitFileChange]:
+    changes: list[GitFileChange] = []
+    for line in raw.splitlines():
+        if len(line) < 4:
+            continue
+        code = line[:2]
+        path_part = line[3:].strip()
+        if " -> " in path_part:
+            old_path, new_path = path_part.split(" -> ", 1)
+            changes.append(
+                GitFileChange(
+                    path=new_path,
+                    old_path=old_path,
+                    status=GitFileStatus.RENAMED,
+                ),
+            )
+            continue
+        changes.append(_name_status_to_change(code.strip(), path_part))
+    return changes
+
+
+def _name_status_to_change(code: str, path: str) -> GitFileChange:
+    return GitFileChange(path=path, status=_code_to_status(code))
+
+
+def _code_to_status(code: str) -> GitFileStatus:
+    normalized = code.strip().upper()
+    if normalized.startswith("R"):
+        return GitFileStatus.RENAMED
+    if normalized.startswith("A") or normalized.endswith("A"):
+        return GitFileStatus.ADDED
+    if normalized.startswith("D") or normalized.endswith("D"):
+        return GitFileStatus.DELETED
+    if normalized.startswith("?"):
+        return GitFileStatus.UNTRACKED
+    if normalized.startswith("C"):
+        return GitFileStatus.COPIED
+    return GitFileStatus.MODIFIED
+
+
+def _parse_unified_diff(raw: str, file_path: str | None) -> GitDiff:
+    lines: list[GitDiffLine] = []
+    left_line = 0
+    right_line = 0
+    old_path = file_path
+    current_path = file_path
+
+    for row in raw.splitlines():
+        if row.startswith("--- "):
+            old_path = row[4:].strip()
+            if old_path.startswith("a/"):
+                old_path = old_path[2:]
+            continue
+        if row.startswith("+++ "):
+            current_path = row[4:].strip()
+            if current_path.startswith("b/"):
+                current_path = current_path[2:]
+            continue
+        if row.startswith("@@"):
+            continue
+        if not row:
+            lines.append(GitDiffLine(kind="context", left="", right=""))
+            continue
+        marker = row[0]
+        content = row[1:] if len(row) > 1 else ""
+        if marker == "+":
+            right_line += 1
+            lines.append(
+                GitDiffLine(
+                    kind="added",
+                    right=content,
+                    right_line=right_line,
+                ),
+            )
+        elif marker == "-":
+            left_line += 1
+            lines.append(
+                GitDiffLine(
+                    kind="removed",
+                    left=content,
+                    left_line=left_line,
+                ),
+            )
+        elif marker == " ":
+            left_line += 1
+            right_line += 1
+            lines.append(
+                GitDiffLine(
+                    kind="context",
+                    left=content,
+                    right=content,
+                    left_line=left_line,
+                    right_line=right_line,
+                ),
+            )
+    return GitDiff(file_path=current_path or file_path, old_path=old_path, lines=lines)

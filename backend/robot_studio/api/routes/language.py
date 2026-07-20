@@ -10,6 +10,16 @@ from robot_studio.api.schemas.index import (
     SymbolResponse,
     to_symbol_response,
 )
+from robot_studio.api.schemas.language import (
+    CompletionListResponse,
+    CompletionRequest,
+    DiagnosticListResponse,
+    DiagnosticsRequest,
+    FormatRequest,
+    FormatResponse,
+    SignatureHelpRequest,
+    SignatureHelpResponse,
+)
 from robot_studio.application.services.language_service import LanguageValidationError
 
 router = APIRouter(prefix="/language", tags=["language"])
@@ -20,6 +30,10 @@ async def language_definition(
     name: str | None = Query(default=None),
     symbol_id: str | None = Query(default=None),
     kind: str | None = Query(default=None),
+    file: str | None = Query(default=None),
+    line: int | None = Query(default=None),
+    column: int | None = Query(default=None),
+    content: str | None = Query(default=None),
     gateway: RestGateway = Depends(get_gateway),
 ) -> SymbolResponse | None:
     try:
@@ -27,6 +41,10 @@ async def language_definition(
             name=name,
             symbol_id=symbol_id,
             kind=kind,
+            file_path=file,
+            line=line,
+            column=column,
+            content=content,
         )
     except LanguageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -40,6 +58,10 @@ async def language_references(
     name: str | None = Query(default=None),
     symbol_id: str | None = Query(default=None),
     kind: str | None = Query(default=None),
+    file: str | None = Query(default=None),
+    line: int | None = Query(default=None),
+    column: int | None = Query(default=None),
+    content: str | None = Query(default=None),
     gateway: RestGateway = Depends(get_gateway),
 ) -> ReferenceListResponse:
     try:
@@ -47,6 +69,10 @@ async def language_references(
             name=name,
             symbol_id=symbol_id,
             kind=kind,
+            file_path=file,
+            line=line,
+            column=column,
+            content=content,
         )
     except LanguageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -70,6 +96,10 @@ async def language_hover(
     name: str | None = Query(default=None),
     symbol_id: str | None = Query(default=None),
     kind: str | None = Query(default=None),
+    file: str | None = Query(default=None),
+    line: int | None = Query(default=None),
+    column: int | None = Query(default=None),
+    content: str | None = Query(default=None),
     gateway: RestGateway = Depends(get_gateway),
 ) -> HoverResponse | None:
     try:
@@ -77,6 +107,10 @@ async def language_hover(
             name=name,
             symbol_id=symbol_id,
             kind=kind,
+            file_path=file,
+            line=line,
+            column=column,
+            content=content,
         )
     except LanguageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -90,6 +124,110 @@ async def language_hover(
         documentation=result.get("documentation") or "",
         detail=result.get("detail") or "",
         id=result.get("id") or "",
+    )
+
+
+@router.post("/completion", response_model=CompletionListResponse)
+async def language_completion(
+    body: CompletionRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> CompletionListResponse:
+    try:
+        items = await gateway.language_completion(
+            file_path=body.file_path,
+            line=body.line,
+            column=body.column,
+            content=body.content,
+            query=body.query,
+        )
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return CompletionListResponse(
+        items=[
+            {
+                "label": item["label"],
+                "kind": item["kind"],
+                "detail": item.get("detail") or "",
+                "documentation": item.get("documentation") or "",
+                "insert_text": item.get("insert_text") or item["label"],
+            }
+            for item in items
+        ],
+    )
+
+
+@router.post("/diagnostics", response_model=DiagnosticListResponse)
+async def language_diagnostics(
+    body: DiagnosticsRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> DiagnosticListResponse:
+    try:
+        diagnostics = await gateway.language_diagnostics(
+            file_path=body.file_path,
+            content=body.content,
+        )
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return DiagnosticListResponse(
+        diagnostics=[
+            {
+                "severity": item.get("severity") or "error",
+                "file_path": item.get("file_path") or body.file_path,
+                "line": int(item.get("line") or 1),
+                "column": int(item.get("column") or 1),
+                "message": str(item.get("message") or ""),
+                "source": item.get("source") or "robot",
+            }
+            for item in diagnostics
+        ],
+    )
+
+
+@router.post("/format", response_model=FormatResponse)
+async def language_format(
+    body: FormatRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> FormatResponse:
+    try:
+        formatted = await gateway.language_format(
+            file_path=body.file_path,
+            content=body.content,
+            start_line=body.start_line,
+            end_line=body.end_line,
+        )
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return FormatResponse(content=formatted)
+
+
+@router.post("/signature-help", response_model=SignatureHelpResponse | None)
+async def language_signature_help(
+    body: SignatureHelpRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> SignatureHelpResponse | None:
+    try:
+        result = await gateway.language_signature_help(
+            file_path=body.file_path,
+            line=body.line,
+            column=body.column,
+            content=body.content,
+        )
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if result is None:
+        return None
+    return SignatureHelpResponse(
+        keyword=result["keyword"],
+        documentation=result.get("documentation") or "",
+        detail=result.get("detail") or "",
+        active_parameter=int(result.get("active_parameter") or 0),
+        parameters=[
+            {
+                "label": param.get("label") or "",
+                "documentation": param.get("documentation") or "",
+            }
+            for param in result.get("parameters") or []
+        ],
     )
 
 
@@ -116,4 +254,3 @@ async def workspace_symbols(
     except LanguageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return SearchResponse(results=[to_symbol_response(item) for item in results])
-

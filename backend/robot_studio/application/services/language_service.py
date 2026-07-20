@@ -22,28 +22,152 @@ class LanguageFacade:
         if self.context.workspace is None:
             raise LanguageValidationError("Open a workspace before using language features")
 
-    async def definition(self, *, name: str | None = None, symbol_id: str | None = None, kind: str | None = None) -> dict | None:
+    async def definition(
+        self,
+        *,
+        name: str | None = None,
+        symbol_id: str | None = None,
+        kind: str | None = None,
+        file_path: str | None = None,
+        line: int | None = None,
+        column: int | None = None,
+        content: str | None = None,
+    ) -> dict | None:
         self._require_workspace()
-        if not name and not symbol_id:
-            raise LanguageValidationError("Provide name or symbol_id")
+        if not name and not symbol_id and not (content and file_path and line):
+            raise LanguageValidationError("Provide name, symbol_id, or cursor context")
         return await self.language.definition(
-            {"name": name, "symbol_id": symbol_id, "kind": kind},
+            {
+                "name": name,
+                "symbol_id": symbol_id,
+                "kind": kind,
+                "file_path": file_path,
+                "line": line,
+                "column": column,
+                "content": content,
+            },
         )
 
-    async def references(self, *, name: str | None = None, symbol_id: str | None = None, kind: str | None = None) -> list[dict]:
+    async def references(
+        self,
+        *,
+        name: str | None = None,
+        symbol_id: str | None = None,
+        kind: str | None = None,
+        file_path: str | None = None,
+        line: int | None = None,
+        column: int | None = None,
+        content: str | None = None,
+    ) -> list[dict]:
         self._require_workspace()
-        if not name and not symbol_id:
-            raise LanguageValidationError("Provide name or symbol_id")
+        if not name and not symbol_id and not (content and file_path and line):
+            raise LanguageValidationError("Provide name, symbol_id, or cursor context")
         return await self.language.references(
-            {"name": name, "symbol_id": symbol_id, "kind": kind},
+            {
+                "name": name,
+                "symbol_id": symbol_id,
+                "kind": kind,
+                "file_path": file_path,
+                "line": line,
+                "column": column,
+                "content": content,
+            },
         )
 
-    async def hover(self, *, name: str | None = None, symbol_id: str | None = None, kind: str | None = None) -> dict | None:
+    async def hover(
+        self,
+        *,
+        name: str | None = None,
+        symbol_id: str | None = None,
+        kind: str | None = None,
+        file_path: str | None = None,
+        line: int | None = None,
+        column: int | None = None,
+        content: str | None = None,
+    ) -> dict | None:
         self._require_workspace()
-        if not name and not symbol_id:
-            raise LanguageValidationError("Provide name or symbol_id")
+        if not name and not symbol_id and not (content and file_path and line):
+            raise LanguageValidationError("Provide name, symbol_id, or cursor context")
         return await self.language.hover(
-            {"name": name, "symbol_id": symbol_id, "kind": kind},
+            {
+                "name": name,
+                "symbol_id": symbol_id,
+                "kind": kind,
+                "file_path": file_path,
+                "line": line,
+                "column": column,
+                "content": content,
+            },
+        )
+
+    async def completion(
+        self,
+        *,
+        file_path: str,
+        line: int,
+        column: int,
+        content: str,
+        query: str = "",
+    ) -> list[dict]:
+        self._require_workspace()
+        if not file_path:
+            raise LanguageValidationError("Provide file path")
+        return await self.language.completion(
+            {
+                "file_path": file_path,
+                "line": line,
+                "column": column,
+                "content": content,
+                "query": query,
+            },
+        )
+
+    async def diagnostics(self, *, file_path: str, content: str) -> list[dict]:
+        self._require_workspace()
+        if not file_path:
+            raise LanguageValidationError("Provide file path")
+        return await self.language.diagnostics(
+            {"file_path": file_path, "content": content},
+        )
+
+    async def format_document(
+        self,
+        *,
+        file_path: str,
+        content: str,
+        start_line: int | None = None,
+        end_line: int | None = None,
+    ) -> str:
+        self._require_workspace()
+        if not file_path:
+            raise LanguageValidationError("Provide file path")
+        return await self.language.format_document(
+            {
+                "file_path": file_path,
+                "content": content,
+                "start_line": start_line,
+                "end_line": end_line,
+            },
+        )
+
+    async def signature_help(
+        self,
+        *,
+        file_path: str,
+        line: int,
+        column: int,
+        content: str,
+    ) -> dict | None:
+        self._require_workspace()
+        if not file_path:
+            raise LanguageValidationError("Provide file path")
+        return await self.language.signature_help(
+            {
+                "file_path": file_path,
+                "line": line,
+                "column": column,
+                "content": content,
+            },
         )
 
     async def document_symbols(self, file_path: str) -> list[dict]:

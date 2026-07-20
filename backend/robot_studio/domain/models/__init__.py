@@ -166,3 +166,7 @@ class DashboardSummary(BaseModel):
     last_run: ExecutionRun | None = None
     recent_runs: list[ExecutionRun] = Field(default_factory=list)
     recent_failures: list[ExecutionRun] = Field(default_factory=list)
+
+
+from robot_studio.domain.models.plugin import PluginInfo, PluginManifest, PluginState
+

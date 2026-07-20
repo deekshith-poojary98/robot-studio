@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:robot_studio/core/gateway/models/language_info.dart';
 import 'package:robot_studio/core/gateway/transport_gateway.dart';
 import 'package:robot_studio/main.dart';
 import 'package:robot_studio/presentation/editor/editor_page.dart';
@@ -1308,6 +1309,11 @@ void main() {
             hover: null,
             references: const [],
             statusMessage: null,
+            breadcrumb: const EditorBreadcrumbInfo(),
+            completionItems: const [],
+            diagnostics: const [],
+            signatureHelp: null,
+            peekDefinition: null,
             onSelectTab: (_) {},
             onCloseTab: (_) {},
             onContentChanged: (_, _) {},
@@ -1315,8 +1321,15 @@ void main() {
             onSaveAll: () {},
             onToggleWordWrap: () {},
             onGoToDefinition: () {},
+            onPeekDefinition: () {},
             onFindReferences: () {},
             onHover: () {},
+            onFormatDocument: () {},
+            onFormatSelection: () {},
+            onOpenSymbol: () {},
+            onWorkspaceSymbol: () {},
+            onCtrlClick: () {},
+            onClosePeek: () {},
             onOutlineSelect: (_) {},
             onFind: () {},
             onReplace: () {},
@@ -1367,6 +1380,11 @@ void main() {
             hover: null,
             references: const [],
             statusMessage: null,
+            breadcrumb: const EditorBreadcrumbInfo(),
+            completionItems: const [],
+            diagnostics: const [],
+            signatureHelp: null,
+            peekDefinition: null,
             onSelectTab: (path) => selectedPath = path,
             onCloseTab: (_) {},
             onContentChanged: (_, _) {},
@@ -1374,8 +1392,15 @@ void main() {
             onSaveAll: () {},
             onToggleWordWrap: () {},
             onGoToDefinition: () {},
+            onPeekDefinition: () {},
             onFindReferences: () {},
             onHover: () {},
+            onFormatDocument: () {},
+            onFormatSelection: () {},
+            onOpenSymbol: () {},
+            onWorkspaceSymbol: () {},
+            onCtrlClick: () {},
+            onClosePeek: () {},
             onOutlineSelect: (_) {},
             onFind: () {},
             onReplace: () {},
@@ -1441,6 +1466,11 @@ void main() {
               ),
             ],
             statusMessage: null,
+            breadcrumb: const EditorBreadcrumbInfo(),
+            completionItems: const [],
+            diagnostics: const [],
+            signatureHelp: null,
+            peekDefinition: null,
             onSelectTab: (_) {},
             onCloseTab: (_) {},
             onContentChanged: (_, _) {},
@@ -1448,8 +1478,15 @@ void main() {
             onSaveAll: () {},
             onToggleWordWrap: () {},
             onGoToDefinition: () => definitionTaps++,
+            onPeekDefinition: () {},
             onFindReferences: () {},
             onHover: () => hoverTaps++,
+            onFormatDocument: () {},
+            onFormatSelection: () {},
+            onOpenSymbol: () {},
+            onWorkspaceSymbol: () {},
+            onCtrlClick: () {},
+            onClosePeek: () {},
             onOutlineSelect: (_) {},
             onFind: () => findTaps++,
             onReplace: () => replaceTaps++,
@@ -1471,8 +1508,7 @@ void main() {
     await tester.pump();
     expect(definitionTaps, 1);
 
-    await tester.tap(find.byKey(const Key('editor.hover')));
-    await tester.pump();
+    tester.widget<EditorPage>(find.byType(EditorPage)).onHover();
     expect(hoverTaps, 1);
 
     // Exercise Find/Replace toolbar callbacks without opening re_editor find
@@ -1995,6 +2031,10 @@ class _FakeTransportGateway implements TransportGateway {
     String? name,
     String? symbolId,
     SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
   }) async {
     return _sampleSymbol;
   }
@@ -2004,6 +2044,10 @@ class _FakeTransportGateway implements TransportGateway {
     String? name,
     String? symbolId,
     SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
   }) async {
     return [
       SymbolReferenceInfo(
@@ -2020,6 +2064,10 @@ class _FakeTransportGateway implements TransportGateway {
     String? name,
     String? symbolId,
     SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
   }) async {
     return const HoverInfo(
       name: 'Login With Credentials',
@@ -2050,6 +2098,226 @@ class _FakeTransportGateway implements TransportGateway {
   }) async {
     if (query.isEmpty) return const [];
     return const [_sampleSymbol];
+  }
+
+  @override
+  Future<List<CompletionItemInfo>> languageCompletion({
+    required String filePath,
+    required int line,
+    required int column,
+    required String content,
+    String query = '',
+  }) async {
+    return const [
+      CompletionItemInfo(label: 'Log', kind: 'keyword'),
+    ];
+  }
+
+  @override
+  Future<List<DiagnosticInfo>> languageDiagnostics({
+    required String filePath,
+    required String content,
+  }) async {
+    return const [];
+  }
+
+  @override
+  Future<String> languageFormat({
+    required String filePath,
+    required String content,
+    int? startLine,
+    int? endLine,
+  }) async {
+    return content.trimRight();
+  }
+
+  @override
+  Future<SignatureHelpInfo?> languageSignatureHelp({
+    required String filePath,
+    required int line,
+    required int column,
+    required String content,
+  }) async {
+    return null;
+  }
+
+  @override
+  Future<List<PluginInfo>> listPlugins() async {
+    return const [
+      PluginInfo(
+        id: 'pip-installer',
+        name: 'Pip Installer',
+        version: '1.0.0',
+        status: 'enabled',
+        enabled: true,
+        isBuiltin: true,
+        capabilities: ['installer'],
+      ),
+    ];
+  }
+
+  @override
+  Future<List<PluginInfo>> refreshPlugins() => listPlugins();
+
+  @override
+  Future<PluginInfo?> getPlugin(String id) async {
+    final plugins = await listPlugins();
+    return plugins.where((item) => item.id == id).firstOrNull;
+  }
+
+  @override
+  Future<PluginInfo> enablePlugin(String id) async {
+    return (await getPlugin(id))!;
+  }
+
+  @override
+  Future<PluginInfo> disablePlugin(String id) async {
+    return (await getPlugin(id))!;
+  }
+
+  @override
+  Future<PluginInfo> reloadPlugin(String id) async {
+    return (await getPlugin(id))!;
+  }
+
+  @override
+  Future<GitStatusInfo> getGitStatus() async {
+    if (!withWorkspace) {
+      return const GitStatusInfo(
+        repository: GitRepositoryInfo(isRepository: false),
+      );
+    }
+    return const GitStatusInfo(
+      repository: GitRepositoryInfo(
+        isRepository: true,
+        root: '/tmp/WS',
+        branch: 'main',
+        head: 'abc1234567890',
+        clean: false,
+      ),
+      changes: [
+        GitFileChangeInfo(path: 'tests/login.robot', status: GitFileStatus.modified),
+        GitFileChangeInfo(path: 'README.md', status: GitFileStatus.untracked),
+      ],
+    );
+  }
+
+  @override
+  Future<GitRepositoryInfo> initGitRepository() async {
+    return const GitRepositoryInfo(
+      isRepository: true,
+      root: '/tmp/WS',
+      branch: 'main',
+    );
+  }
+
+  @override
+  Future<GitRepositoryInfo?> refreshGitRepository() async {
+    return (await getGitStatus()).repository;
+  }
+
+  @override
+  Future<List<GitCommitInfo>> getGitHistory({int limit = 50}) async {
+    if (!withWorkspace) return const [];
+    return [
+      GitCommitInfo(
+        hash: 'abc1234567890',
+        shortHash: 'abc1234',
+        author: 'Dev',
+        email: 'dev@example.com',
+        date: DateTime.utc(2026, 1, 1),
+        message: 'Initial commit',
+      ),
+    ];
+  }
+
+  @override
+  Future<GitCommitDetailInfo> getGitCommitDetail(String commitHash) async {
+    return GitCommitDetailInfo(
+      hash: commitHash,
+      shortHash: commitHash.substring(0, 7),
+      author: 'Dev',
+      email: 'dev@example.com',
+      date: DateTime.utc(2026, 1, 1),
+      message: 'Initial commit',
+      files: const [
+        GitFileChangeInfo(path: 'tests/login.robot', status: GitFileStatus.added),
+      ],
+    );
+  }
+
+  @override
+  Future<List<GitBranchInfo>> getGitBranches() async {
+    if (!withWorkspace) return const [];
+    return const [
+      GitBranchInfo(name: 'main', current: true),
+      GitBranchInfo(name: 'feature/login'),
+    ];
+  }
+
+  @override
+  Future<GitRepositoryInfo> checkoutGitBranch(String branch) async {
+    return GitRepositoryInfo(
+      isRepository: true,
+      root: '/tmp/WS',
+      branch: branch,
+      head: 'abc1234567890',
+    );
+  }
+
+  @override
+  Future<GitBranchInfo> createGitBranch(
+    String name, {
+    String? startPoint,
+  }) async {
+    return GitBranchInfo(name: name);
+  }
+
+  @override
+  Future<void> deleteGitBranch(String name) async {}
+
+  @override
+  Future<GitCommitInfo> commitGitChanges({
+    required String message,
+    List<String>? files,
+  }) async {
+    return GitCommitInfo(
+      hash: 'def1234567890',
+      shortHash: 'def1234',
+      author: 'Dev',
+      email: 'dev@example.com',
+      date: DateTime.utc(2026, 1, 2),
+      message: message,
+    );
+  }
+
+  @override
+  Future<GitRemoteResultInfo> fetchGit() async {
+    return const GitRemoteResultInfo(success: true, message: 'Fetch completed');
+  }
+
+  @override
+  Future<GitRemoteResultInfo> pullGit() async {
+    return const GitRemoteResultInfo(success: true, message: 'Pull completed');
+  }
+
+  @override
+  Future<GitRemoteResultInfo> pushGit() async {
+    return const GitRemoteResultInfo(success: true, message: 'Push completed');
+  }
+
+  @override
+  Future<GitDiffInfo> getGitDiff({
+    String? filePath,
+    String? commit,
+  }) async {
+    return GitDiffInfo(
+      filePath: filePath,
+      lines: const [
+        GitDiffLineInfo(kind: 'removed', left: 'old line', leftLine: 1),
+        GitDiffLineInfo(kind: 'added', right: 'new line', rightLine: 1),
+      ],
+    );
   }
 
   @override

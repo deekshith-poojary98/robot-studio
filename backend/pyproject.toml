@@ -9,6 +9,8 @@ dependencies = [
     "pydantic>=2.10.0",
     "pydantic-settings>=2.6.0",
     "aiosqlite>=0.20.0",
+    "watchdog>=6.0.0",
+    "robotframework>=7.0.0",
 ]
 
 [project.optional-dependencies]

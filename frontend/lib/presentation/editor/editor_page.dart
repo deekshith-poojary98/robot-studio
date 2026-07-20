@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/file_info.dart';
 import '../../core/gateway/models/index_info.dart';
+import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
 import 'document_outline.dart';
+import 'editor_navigation_widgets.dart';
 import 'editor_tabs_bar.dart';
 import 'robot_code_editor.dart';
 
@@ -18,6 +20,11 @@ class EditorPage extends StatefulWidget {
     required this.hover,
     required this.references,
     required this.statusMessage,
+    required this.breadcrumb,
+    required this.completionItems,
+    required this.diagnostics,
+    required this.signatureHelp,
+    required this.peekDefinition,
     required this.onSelectTab,
     required this.onCloseTab,
     required this.onContentChanged,
@@ -25,12 +32,19 @@ class EditorPage extends StatefulWidget {
     required this.onSaveAll,
     required this.onToggleWordWrap,
     required this.onGoToDefinition,
+    required this.onPeekDefinition,
     required this.onFindReferences,
     required this.onHover,
     required this.onOutlineSelect,
     required this.onFind,
     required this.onReplace,
     required this.onReveal,
+    required this.onFormatDocument,
+    required this.onFormatSelection,
+    required this.onOpenSymbol,
+    required this.onWorkspaceSymbol,
+    required this.onCtrlClick,
+    required this.onClosePeek,
     required this.onCursorChanged,
     this.jumpToLine,
   });
@@ -43,6 +57,11 @@ class EditorPage extends StatefulWidget {
   final HoverInfo? hover;
   final List<SymbolReferenceInfo> references;
   final String? statusMessage;
+  final EditorBreadcrumbInfo breadcrumb;
+  final List<CompletionItemInfo> completionItems;
+  final List<DiagnosticInfo> diagnostics;
+  final SignatureHelpInfo? signatureHelp;
+  final IndexedSymbolInfo? peekDefinition;
   final ValueChanged<String> onSelectTab;
   final ValueChanged<String> onCloseTab;
   final void Function(String path, String content) onContentChanged;
@@ -50,12 +69,19 @@ class EditorPage extends StatefulWidget {
   final VoidCallback onSaveAll;
   final VoidCallback onToggleWordWrap;
   final VoidCallback onGoToDefinition;
+  final VoidCallback onPeekDefinition;
   final VoidCallback onFindReferences;
   final VoidCallback onHover;
   final ValueChanged<IndexedSymbolInfo> onOutlineSelect;
   final VoidCallback onFind;
   final VoidCallback onReplace;
   final VoidCallback onReveal;
+  final VoidCallback onFormatDocument;
+  final VoidCallback onFormatSelection;
+  final VoidCallback onOpenSymbol;
+  final VoidCallback onWorkspaceSymbol;
+  final VoidCallback onCtrlClick;
+  final VoidCallback onClosePeek;
   final void Function(int line, int column) onCursorChanged;
   final int? jumpToLine;
 
@@ -85,6 +111,10 @@ class _EditorPageState extends State<EditorPage> {
     widget.onReplace();
   }
 
+  void _handleFormatSelection() {
+    widget.onFormatSelection();
+  }
+
   @override
   Widget build(BuildContext context) {
     final active = _active;
@@ -98,6 +128,7 @@ class _EditorPageState extends State<EditorPage> {
             onSelect: widget.onSelectTab,
             onClose: widget.onCloseTab,
           ),
+          EditorBreadcrumbBar(breadcrumb: widget.breadcrumb),
           Container(
             height: 36,
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -122,6 +153,18 @@ class _EditorPageState extends State<EditorPage> {
                     label: const Text('Save All'),
                   ),
                   TextButton.icon(
+                    key: const Key('editor.format'),
+                    onPressed: active == null ? null : widget.onFormatDocument,
+                    icon: const Icon(Icons.format_align_left, size: 16),
+                    label: const Text('Format'),
+                  ),
+                  TextButton.icon(
+                    key: const Key('editor.format-selection'),
+                    onPressed: active == null ? null : _handleFormatSelection,
+                    icon: const Icon(Icons.format_indent_increase, size: 16),
+                    label: const Text('Format Selection'),
+                  ),
+                  TextButton.icon(
                     key: const Key('editor.find'),
                     onPressed: active == null ? null : _handleFind,
                     icon: const Icon(Icons.search, size: 16),
@@ -140,6 +183,12 @@ class _EditorPageState extends State<EditorPage> {
                     label: const Text('Definition'),
                   ),
                   TextButton.icon(
+                    key: const Key('editor.peek'),
+                    onPressed: active == null ? null : widget.onPeekDefinition,
+                    icon: const Icon(Icons.visibility_outlined, size: 16),
+                    label: const Text('Peek'),
+                  ),
+                  TextButton.icon(
                     key: const Key('editor.references'),
                     onPressed: active == null ? null : widget.onFindReferences,
                     icon: const Icon(Icons.link, size: 16),
@@ -150,6 +199,18 @@ class _EditorPageState extends State<EditorPage> {
                     onPressed: active == null ? null : widget.onHover,
                     icon: const Icon(Icons.info_outline, size: 16),
                     label: const Text('Hover'),
+                  ),
+                  TextButton.icon(
+                    key: const Key('editor.open-symbol'),
+                    onPressed: active == null ? null : widget.onOpenSymbol,
+                    icon: const Icon(Icons.list_alt, size: 16),
+                    label: const Text('Open Symbol'),
+                  ),
+                  TextButton.icon(
+                    key: const Key('editor.workspace-symbol'),
+                    onPressed: widget.onWorkspaceSymbol,
+                    icon: const Icon(Icons.travel_explore, size: 16),
+                    label: const Text('Workspace Symbol'),
                   ),
                   TextButton.icon(
                     onPressed: active == null ? null : widget.onReveal,
@@ -193,6 +254,12 @@ class _EditorPageState extends State<EditorPage> {
                           initialContent: active.content,
                           wordWrap: widget.wordWrap,
                           jumpToLine: widget.jumpToLine,
+                          completionItems: widget.completionItems,
+                          diagnostics: widget.diagnostics,
+                          signatureHelp: widget.signatureHelp,
+                          peekDefinition: widget.peekDefinition,
+                          onClosePeek: widget.onClosePeek,
+                          onCtrlClick: widget.onCtrlClick,
                           onContentChanged: (content) =>
                               widget.onContentChanged(active.path, content),
                           onCursorChanged: widget.onCursorChanged,

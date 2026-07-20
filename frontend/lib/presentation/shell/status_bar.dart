@@ -11,6 +11,8 @@ class StatusBar extends StatelessWidget {
     this.fileName,
     this.cursorLabel,
     this.dirty = false,
+    this.errorCount = 0,
+    this.warningCount = 0,
   });
 
   final bool backendConnected;
@@ -19,6 +21,8 @@ class StatusBar extends StatelessWidget {
   final String? fileName;
   final String? cursorLabel;
   final bool dirty;
+  final int errorCount;
+  final int warningCount;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +42,8 @@ class StatusBar extends StatelessWidget {
           if (fileName != null) _item(fileName!.toUpperCase()),
           if (cursorLabel != null) _item(cursorLabel!),
           if (dirty) _item('MODIFIED'),
+          if (errorCount > 0) _item('ERRORS $errorCount'),
+          if (warningCount > 0) _item('WARNINGS $warningCount'),
           _item('UTF-8'),
           _item('LF'),
           const Spacer(),

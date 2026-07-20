@@ -155,6 +155,10 @@ class SubprocessRunner(Runner):
         await run.finished.wait()
         return run.exit_code
 
+    def release(self, run_id: UUID) -> None:
+        """Drop finished run state after the monitor has read the final status."""
+        self._runs.pop(run_id, None)
+
     async def _read_output(self, run: _RunProcess) -> None:
         assert run.process.stdout is not None
         try:

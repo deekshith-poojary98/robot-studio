@@ -2,15 +2,19 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../config/backend_config.dart';
 import '../logging/app_logger.dart';
 import 'transport_gateway.dart';
 
 export 'models/environment_info.dart';
 export 'models/execution_info.dart';
 export 'models/file_info.dart';
+export 'models/git_info.dart';
 export 'models/health_response.dart';
 export 'models/index_info.dart';
+export 'models/language_info.dart';
 export 'models/package_info.dart';
+export 'models/plugin_info.dart';
 export 'models/project_info.dart';
 export 'models/report_info.dart';
 export 'models/workspace_info.dart';
@@ -18,7 +22,7 @@ export 'models/workspace_info.dart';
 /// REST implementation of [TransportGateway].
 class RestTransportGateway implements TransportGateway {
   RestTransportGateway({String? baseUrl, http.Client? client})
-      : baseUrl = baseUrl ?? 'http://127.0.0.1:8765/api/v1',
+      : baseUrl = baseUrl ?? BackendConfig.httpBaseUrl,
         _client = client ?? http.Client();
 
   final String baseUrl;
@@ -409,6 +413,10 @@ class RestTransportGateway implements TransportGateway {
     String? name,
     String? symbolId,
     SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
   }) async {
     final params = <String>[];
     if (name != null) params.add('name=${Uri.encodeQueryComponent(name)}');
@@ -417,6 +425,14 @@ class RestTransportGateway implements TransportGateway {
     }
     if (kind != null) {
       params.add('kind=${Uri.encodeQueryComponent(kind.apiValue)}');
+    }
+    if (filePath != null) {
+      params.add('file=${Uri.encodeQueryComponent(filePath)}');
+    }
+    if (line != null) params.add('line=$line');
+    if (column != null) params.add('column=$column');
+    if (content != null) {
+      params.add('content=${Uri.encodeQueryComponent(content)}');
     }
     final response = await _client
         .get(Uri.parse('$baseUrl/language/definition?${params.join('&')}'))
@@ -436,6 +452,10 @@ class RestTransportGateway implements TransportGateway {
     String? name,
     String? symbolId,
     SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
   }) async {
     final params = <String>[];
     if (name != null) params.add('name=${Uri.encodeQueryComponent(name)}');
@@ -444,6 +464,14 @@ class RestTransportGateway implements TransportGateway {
     }
     if (kind != null) {
       params.add('kind=${Uri.encodeQueryComponent(kind.apiValue)}');
+    }
+    if (filePath != null) {
+      params.add('file=${Uri.encodeQueryComponent(filePath)}');
+    }
+    if (line != null) params.add('line=$line');
+    if (column != null) params.add('column=$column');
+    if (content != null) {
+      params.add('content=${Uri.encodeQueryComponent(content)}');
     }
     final response = await _get('/language/references?${params.join('&')}');
     final items = response['references'] as List<dynamic>;
@@ -457,6 +485,10 @@ class RestTransportGateway implements TransportGateway {
     String? name,
     String? symbolId,
     SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
   }) async {
     final params = <String>[];
     if (name != null) params.add('name=${Uri.encodeQueryComponent(name)}');
@@ -465,6 +497,14 @@ class RestTransportGateway implements TransportGateway {
     }
     if (kind != null) {
       params.add('kind=${Uri.encodeQueryComponent(kind.apiValue)}');
+    }
+    if (filePath != null) {
+      params.add('file=${Uri.encodeQueryComponent(filePath)}');
+    }
+    if (line != null) params.add('line=$line');
+    if (column != null) params.add('column=$column');
+    if (content != null) {
+      params.add('content=${Uri.encodeQueryComponent(content)}');
     }
     final response = await _client
         .get(Uri.parse('$baseUrl/language/hover?${params.join('&')}'))
@@ -503,6 +543,89 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<List<CompletionItemInfo>> languageCompletion({
+    required String filePath,
+    required int line,
+    required int column,
+    required String content,
+    String query = '',
+  }) async {
+    final response = await _post(
+      '/language/completion',
+      body: {
+        'file_path': filePath,
+        'line': line,
+        'column': column,
+        'content': content,
+        'query': query,
+      },
+    );
+    final items = response['items'] as List<dynamic>;
+    return items
+        .map((item) => CompletionItemInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<List<DiagnosticInfo>> languageDiagnostics({
+    required String filePath,
+    required String content,
+  }) async {
+    final response = await _post(
+      '/language/diagnostics',
+      body: {'file_path': filePath, 'content': content},
+    );
+    final items = response['diagnostics'] as List<dynamic>;
+    return items
+        .map((item) => DiagnosticInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<String> languageFormat({
+    required String filePath,
+    required String content,
+    int? startLine,
+    int? endLine,
+  }) async {
+    final body = <String, dynamic>{
+      'file_path': filePath,
+      'content': content,
+    };
+    if (startLine != null) body['start_line'] = startLine;
+    if (endLine != null) body['end_line'] = endLine;
+    final response = await _post('/language/format', body: body);
+    return response['content'] as String;
+  }
+
+  @override
+  Future<SignatureHelpInfo?> languageSignatureHelp({
+    required String filePath,
+    required int line,
+    required int column,
+    required String content,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse('$baseUrl/language/signature-help'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'file_path': filePath,
+            'line': line,
+            'column': column,
+            'content': content,
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode == 200 &&
+        (response.body.isEmpty || response.body == 'null')) {
+      return null;
+    }
+    final decoded = _decode(response);
+    return SignatureHelpInfo.fromJson(decoded);
+  }
+
+  @override
   Future<FileContentInfo> readFile(String path) async {
     final response = await _get(
       '/files/content?path=${Uri.encodeQueryComponent(path)}',
@@ -538,6 +661,176 @@ class RestTransportGateway implements TransportGateway {
         .toList();
   }
 
+  @override
+  Future<List<PluginInfo>> listPlugins() async {
+    final response = await _get('/plugins');
+    final items = response['plugins'] as List<dynamic>;
+    return items
+        .map((item) => PluginInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<List<PluginInfo>> refreshPlugins() async {
+    final response = await _post('/plugins/refresh', body: {});
+    final items = response['plugins'] as List<dynamic>;
+    return items
+        .map((item) => PluginInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<PluginInfo?> getPlugin(String id) async {
+    final response = await _client
+        .get(Uri.parse('$baseUrl/plugins/${Uri.encodeComponent(id)}'))
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode == 404) return null;
+    return PluginInfo.fromJson(_decode(response));
+  }
+
+  @override
+  Future<PluginInfo> enablePlugin(String id) async {
+    final response = await _post('/plugins/enable', body: {'id': id});
+    return PluginInfo.fromJson(response);
+  }
+
+  @override
+  Future<PluginInfo> disablePlugin(String id) async {
+    final response = await _post('/plugins/disable', body: {'id': id});
+    return PluginInfo.fromJson(response);
+  }
+
+  @override
+  Future<PluginInfo> reloadPlugin(String id) async {
+    final response = await _post('/plugins/reload', body: {'id': id});
+    return PluginInfo.fromJson(response);
+  }
+
+  @override
+  Future<GitStatusInfo> getGitStatus() async {
+    final response = await _get('/git/status');
+    return GitStatusInfo.fromJson(response);
+  }
+
+  @override
+  Future<GitRepositoryInfo> initGitRepository() async {
+    final response = await _post('/git/init', body: {});
+    return GitRepositoryInfo.fromJson(response);
+  }
+
+  @override
+  Future<GitRepositoryInfo?> refreshGitRepository() async {
+    final response = await _client
+        .post(
+          Uri.parse('$baseUrl/git/refresh'),
+          headers: {'Content-Type': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final decoded = response.body.isEmpty ? null : jsonDecode(response.body);
+      final detail = decoded is Map<String, dynamic>
+          ? decoded['detail']?.toString()
+          : null;
+      throw GatewayException(detail ?? 'Request failed (${response.statusCode})');
+    }
+    if (response.body.isEmpty || response.body == 'null') return null;
+    return GitRepositoryInfo.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  @override
+  Future<List<GitCommitInfo>> getGitHistory({int limit = 50}) async {
+    final items = await _getArray('/git/history?limit=$limit');
+    return items
+        .map((item) => GitCommitInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<GitCommitDetailInfo> getGitCommitDetail(String commitHash) async {
+    final response = await _get(
+      '/git/history/${Uri.encodeComponent(commitHash)}',
+    );
+    return GitCommitDetailInfo.fromJson(response);
+  }
+
+  @override
+  Future<List<GitBranchInfo>> getGitBranches() async {
+    final items = await _getArray('/git/branches');
+    return items
+        .map((item) => GitBranchInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<GitRepositoryInfo> checkoutGitBranch(String branch) async {
+    final response = await _post('/git/checkout', body: {'branch': branch});
+    return GitRepositoryInfo.fromJson(response);
+  }
+
+  @override
+  Future<GitBranchInfo> createGitBranch(
+    String name, {
+    String? startPoint,
+  }) async {
+    final body = <String, dynamic>{'name': name};
+    if (startPoint != null) body['start_point'] = startPoint;
+    final response = await _post('/git/create-branch', body: body);
+    return GitBranchInfo.fromJson(response);
+  }
+
+  @override
+  Future<void> deleteGitBranch(String name) async {
+    await _post('/git/delete-branch', body: {'name': name});
+  }
+
+  @override
+  Future<GitCommitInfo> commitGitChanges({
+    required String message,
+    List<String>? files,
+  }) async {
+    final body = <String, dynamic>{'message': message};
+    if (files != null) body['files'] = files;
+    final response = await _post('/git/commit', body: body);
+    return GitCommitInfo.fromJson(response);
+  }
+
+  @override
+  Future<GitRemoteResultInfo> fetchGit() async {
+    final response = await _post('/git/fetch', body: {});
+    return GitRemoteResultInfo.fromJson(response);
+  }
+
+  @override
+  Future<GitRemoteResultInfo> pullGit() async {
+    final response = await _post('/git/pull', body: {});
+    return GitRemoteResultInfo.fromJson(response);
+  }
+
+  @override
+  Future<GitRemoteResultInfo> pushGit() async {
+    final response = await _post('/git/push', body: {});
+    return GitRemoteResultInfo.fromJson(response);
+  }
+
+  @override
+  Future<GitDiffInfo> getGitDiff({
+    String? filePath,
+    String? commit,
+  }) async {
+    final buffer = StringBuffer('/git/diff?');
+    if (filePath != null) {
+      buffer.write('file=${Uri.encodeQueryComponent(filePath)}');
+    }
+    if (commit != null) {
+      if (filePath != null) buffer.write('&');
+      buffer.write('commit=${Uri.encodeQueryComponent(commit)}');
+    }
+    final response = await _get(buffer.toString());
+    return GitDiffInfo.fromJson(response);
+  }
+
   Future<Map<String, dynamic>> _get(String path) {
     return _send(
       'GET',
@@ -546,6 +839,23 @@ class RestTransportGateway implements TransportGateway {
           .get(Uri.parse('$baseUrl$path'))
           .timeout(const Duration(seconds: 30)),
     );
+  }
+
+  Future<List<dynamic>> _getArray(String path) async {
+    final response = await _client
+        .get(Uri.parse('$baseUrl$path'))
+        .timeout(const Duration(seconds: 30));
+    final decoded = response.body.isEmpty
+        ? <dynamic>[]
+        : jsonDecode(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final detail = decoded is Map<String, dynamic>
+          ? decoded['detail']?.toString()
+          : null;
+      throw GatewayException(detail ?? 'Request failed (${response.statusCode})');
+    }
+    if (decoded is List<dynamic>) return decoded;
+    throw GatewayException('Expected JSON array from $path');
   }
 
   Future<Map<String, dynamic>> _post(

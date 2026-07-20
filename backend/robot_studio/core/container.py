@@ -8,9 +8,11 @@ from dataclasses import dataclass, field
 from robot_studio.application.services.environment_service import EnvironmentService
 from robot_studio.application.services.execution_service import ExecutionService
 from robot_studio.application.services.file_service import FileService
+from robot_studio.application.services.git_service import GitService
 from robot_studio.application.services.index_service import IndexService
 from robot_studio.application.services.language_service import LanguageFacade
 from robot_studio.application.services.package_service import PackageService
+from robot_studio.application.services.plugin_service import PluginService
 from robot_studio.application.services.project_service import ProjectService
 from robot_studio.application.services.report_service import ReportService
 from robot_studio.application.services.workspace_context import WorkspaceContext
@@ -26,8 +28,9 @@ from robot_studio.infrastructure.environment.python_provider import (
     PythonEnvironmentProvider,
 )
 from robot_studio.infrastructure.execution.results_store import FilesystemResultsStore
+from robot_studio.infrastructure.git.cli_provider import CliGitProvider
 from robot_studio.infrastructure.execution.subprocess_runner import SubprocessRunner
-from robot_studio.infrastructure.indexing.file_watcher import PollingFileWatcher
+from robot_studio.infrastructure.indexing.file_watcher import NativeFileWatcher, PollingFileWatcher
 from robot_studio.infrastructure.indexing.filesystem_indexer import FilesystemIndexer
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
 from robot_studio.infrastructure.language.robot_language_service import (
@@ -36,6 +39,8 @@ from robot_studio.infrastructure.language.robot_language_service import (
 from robot_studio.infrastructure.packages.pip_installer import PipInstaller
 from robot_studio.infrastructure.packages.pypi_provider import PyPIProvider
 from robot_studio.infrastructure.plugins.builtins import register_builtin_capabilities
+from robot_studio.infrastructure.plugins.html_report_provider import HtmlReportProvider
+from robot_studio.infrastructure.plugins.plugin_manager import PluginManager
 from robot_studio.infrastructure.project.filesystem import FilesystemProjectProvider
 from robot_studio.infrastructure.project.templates import TemplateService
 from robot_studio.infrastructure.repositories.environment_repository import (
@@ -86,6 +91,9 @@ class Container:
     language_service: RobotLanguageService | None = field(default=None, init=False)
     language_facade: LanguageFacade | None = field(default=None, init=False)
     file_service: FileService | None = field(default=None, init=False)
+    git_service: GitService | None = field(default=None, init=False)
+    plugin_manager: PluginManager | None = field(default=None, init=False)
+    plugin_service: PluginService | None = field(default=None, init=False)
     _initialized: bool = field(default=False, init=False)
 
     def initialize(self) -> None:
@@ -100,11 +108,13 @@ class Container:
             Capability.INSTALLER,
             "pip-installer",
             factory=lambda: installer,
+            plugin_id="pip-installer",
         )
         self.plugin_host.register(
             Capability.PACKAGE_REGISTRY,
             "pypi-registry",
             factory=lambda: registry,
+            plugin_id="pypi-registry",
         )
 
         self.workspace_context = WorkspaceContext(self.event_bus)
@@ -145,15 +155,24 @@ class Container:
 
         runner = SubprocessRunner()
         results_store = FilesystemResultsStore()
+        report_provider = HtmlReportProvider()
         self.plugin_host.register(
             Capability.RUNNER,
             "robot-cli-runner",
             factory=lambda: runner,
+            plugin_id="robot-cli-runner",
         )
         self.plugin_host.register(
             Capability.RESULTS_STORE,
             "output-xml-results-store",
             factory=lambda: results_store,
+            plugin_id="output-xml-results-store",
+        )
+        self.plugin_host.register(
+            Capability.REPORT_PROVIDER,
+            "builtin-html-report-provider",
+            factory=lambda: report_provider,
+            plugin_id="builtin-html-report-provider",
         )
         self.execution_repository = SqliteExecutionRepository(settings.database_path)
         self.execution_service = ExecutionService(
@@ -173,7 +192,7 @@ class Container:
 
         self.index_store = SqliteIndexStore(settings.database_path)
         indexer = FilesystemIndexer(store=self.index_store)
-        watcher = PollingFileWatcher(interval_seconds=1.5)
+        watcher = NativeFileWatcher()
         self.index_service = IndexService(
             context=self.workspace_context,
             event_bus=self.event_bus,
@@ -186,12 +205,20 @@ class Container:
 
         language = RobotLanguageService(
             store=self.index_store,
+            context=self.workspace_context,
             event_bus=self.event_bus,
         )
         self.plugin_host.register(
             Capability.LANGUAGE_SERVICE,
             "robot-language-service",
             factory=lambda: language,
+            plugin_id="robot-language-service",
+        )
+        self.plugin_host.register(
+            Capability.LANGUAGE_PROVIDER,
+            "robot-language-service",
+            factory=lambda: language,
+            plugin_id="robot-language-service",
         )
         self.language_service = language
         self.language_service.start()
@@ -199,7 +226,37 @@ class Container:
             context=self.workspace_context,
             language=self.plugin_host.get(Capability.LANGUAGE_SERVICE),
         )
-        self.file_service = FileService(context=self.workspace_context)
+        git_provider = CliGitProvider()
+        self.plugin_host.register(
+            Capability.GIT_PROVIDER,
+            "git-cli-provider",
+            factory=lambda: git_provider,
+            plugin_id="git-cli-provider",
+        )
+        self.git_service = GitService(
+            context=self.workspace_context,
+            event_bus=self.event_bus,
+            provider=self.plugin_host.get(Capability.GIT_PROVIDER),
+        )
+        self.git_service.start()
+        self.file_service = FileService(
+            context=self.workspace_context,
+            event_bus=self.event_bus,
+        )
+
+        self.plugin_manager = PluginManager(
+            plugin_host=self.plugin_host,
+            event_bus=self.event_bus,
+            workspace_context=self.workspace_context,
+            settings=settings,
+            project_service=self.project_service,
+            environment_service=self.environment_service,
+            execution_service=self.execution_service,
+            language_facade=self.language_facade,
+            storage_root=settings.data_dir / "plugin-storage",
+        )
+        self.plugin_manager.configure_state_path(settings.data_dir / "plugins" / "state.json")
+        self.plugin_service = PluginService(manager=self.plugin_manager)
         self._initialized = True
 
     async def initialize_async(self) -> None:
@@ -209,11 +266,13 @@ class Container:
         assert self.environment_repository is not None
         assert self.execution_repository is not None
         assert self.index_store is not None
+        assert self.plugin_manager is not None
         await self.workspace_repository.initialize()
         await self.project_repository.initialize()
         await self.environment_repository.initialize()
         await self.execution_repository.initialize()
         await self.index_store.initialize()
+        await self.plugin_manager.initialize()
 
 
 container = Container()

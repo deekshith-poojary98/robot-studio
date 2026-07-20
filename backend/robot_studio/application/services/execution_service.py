@@ -287,6 +287,7 @@ class ExecutionService:
             if isinstance(self.runner, SubprocessRunner):
                 exit_code = await self.runner.wait(run.id)
                 status = self.runner.get_status(run.id) or ExecutionStatus.FAILED
+                self.runner.release(run.id)
             else:
                 exit_code = 0
                 status = ExecutionStatus.FINISHED
@@ -408,12 +409,19 @@ class ExecutionService:
 
     @staticmethod
     def _resolve_suite(project_path: Path, file_path: str | None) -> str:
+        project_root = project_path.resolve()
         if file_path:
             candidate = Path(file_path).expanduser()
             if not candidate.is_absolute():
-                candidate = (project_path / candidate).resolve()
+                candidate = (project_root / candidate).resolve()
             else:
                 candidate = candidate.resolve()
+            try:
+                candidate.relative_to(project_root)
+            except ValueError as exc:
+                raise ExecutionValidationError(
+                    f"Robot file must be inside the active project: '{candidate}'",
+                ) from exc
             if not candidate.is_file() or candidate.suffix != ".robot":
                 raise ExecutionValidationError(
                     f"Robot file not found: '{candidate}'",

@@ -1,10 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/gateway/execution_stream_client.dart';
 import '../../core/gateway/rest_transport_gateway.dart';
 import '../../core/gateway/transport_gateway.dart';
 import '../../core/logging/app_logger.dart';
@@ -17,6 +17,7 @@ import '../environment/environment_manager_page.dart';
 import '../environment/import_environment_dialog.dart';
 import '../editor/editor_page.dart';
 import '../execution/execution_page.dart';
+import '../git/source_control_page.dart';
 import '../packages/package_details_panel.dart';
 import '../packages/package_manager_page.dart';
 import '../packages/package_progress_dialog.dart';
@@ -24,6 +25,8 @@ import '../packages/search_packages_dialog.dart';
 import '../packages/uninstall_package_dialog.dart';
 import '../panels/bottom_panel.dart';
 import '../panels/side_panel.dart';
+import '../plugins/plugin_details_panel.dart';
+import '../plugins/plugin_manager_page.dart';
 import '../project/import_project_dialog.dart';
 import '../project/new_project_dialog.dart';
 import '../project/project_details_panel.dart';
@@ -35,6 +38,9 @@ import '../sidebar/sidebar_panel.dart';
 import '../toolbar/app_toolbar.dart';
 import '../workspace/new_workspace_dialog.dart';
 import '../workspace/welcome_screen.dart';
+import 'controllers/editor_shell_controller.dart';
+import 'controllers/execution_shell_controller.dart';
+import 'controllers/workspace_shell_controller.dart';
 import 'status_bar.dart';
 
 enum _CenterView {
@@ -44,6 +50,8 @@ enum _CenterView {
   environment,
   manager,
   packages,
+  plugins,
+  sourceControl,
   packageDetail,
   execution,
   reports,
@@ -67,43 +75,50 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   SidebarPanel _activePanel = SidebarPanel.explorer;
-  String _backendStatus = 'connecting';
-  String? _backendVersion;
-  List<String> _logLines = [];
 
-  WorkspaceInfo? _activeWorkspace;
-  ProjectInfo? _selectedProject;
-  EnvironmentInfo? _selectedEnvironment;
-  List<ProjectInfo> _projects = [];
-  List<EnvironmentInfo> _environments = [];
-  List<WorkspaceInfo> _recentWorkspaces = [];
-  List<ProjectInfo> _recentProjects = [];
-  EnvironmentSort _environmentSort = EnvironmentSort.active;
+  late final TransportGateway _gateway;
+  late final WorkspaceShellController _workspace;
+  late final ExecutionShellController _execution;
+  late final EditorShellController _editor;
+
+  void _notify() {
+    if (mounted) setState(() {});
+  }
+
+  void _appendLog(String line) => _workspace.append(line);
   bool _showEnvironmentManager = false;
+  EnvironmentSort _environmentSort = EnvironmentSort.active;
   bool _showPackageManager = false;
+  bool _showPluginManager = false;
+  PluginInfo? _selectedPlugin;
+  List<PluginInfo> _plugins = [];
+  bool _loadingPlugins = false;
+  bool _showSourceControl = false;
+  GitStatusInfo? _gitStatus;
+  List<GitBranchInfo> _gitBranches = [];
+  List<GitCommitInfo> _gitHistory = [];
+  GitCommitInfo? _selectedGitCommit;
+  GitCommitDetailInfo? _selectedGitCommitDetail;
+  GitDiffInfo? _gitDiff;
+  String? _selectedGitDiffFile;
+  final Set<String> _selectedGitFiles = {};
+  bool _loadingGit = false;
+  bool _gitBusy = false;
+  bool _loadingGitHistory = false;
+  bool _loadingGitDiff = false;
+  late final TextEditingController _gitCommitController;
   PackageInfo? _selectedPackage;
   List<PackageInfo> _packages = [];
   PackageSort _packageSort = PackageSort.name;
   String _packageQuery = '';
   bool _robotFrameworkInstalled = false;
   String? _robotFrameworkVersion;
-  bool _loadingRecent = true;
-  bool _loadingProjects = false;
-  bool _loadingEnvironments = false;
   bool _loadingPackages = false;
   bool _busy = false;
 
-  List<String> _executionLines = [];
-  List<ExecutionInfo> _executionHistory = [];
-  ExecutionStatus _executionStatus = ExecutionStatus.idle;
-  ExecutionInfo? _currentExecution;
-  bool _loadingHistory = false;
+  ProjectInfo? _selectedProject;
+  EnvironmentInfo? _selectedEnvironment;
   bool _showExecutionPage = false;
-  List<ExecutionInfo> _reportRuns = [];
-  ExecutionInfo? _selectedReport;
-  DashboardSummary? _reportsDashboard;
-  bool _loadingReports = false;
-  bool _loadingDashboard = false;
   bool _showReportsPage = false;
   String _searchQuery = '';
   SymbolKind? _searchKind;
@@ -118,49 +133,86 @@ class _AppShellState extends State<AppShell> {
   bool _loadingIndexStatus = false;
   bool _showSearchPage = false;
   String? _selectedSuitePath;
-  Timer? _elapsedTimer;
-  Duration _elapsed = Duration.zero;
-  ExecutionStreamClient? _streamClient;
-  StreamSubscription<ExecutionStreamEvent>? _streamSub;
-
-  List<EditorTabInfo> _editorTabs = [];
-  String? _activeEditorPath;
-  List<IndexedSymbolInfo> _documentOutline = [];
-  bool _loadingOutline = false;
-  bool _wordWrap = true;
+  bool _showEditorPage = false;
   HoverInfo? _editorHover;
   List<SymbolReferenceInfo> _editorReferences = [];
-  String? _editorStatusMessage;
-  int? _jumpToLine;
-  int _cursorLine = 1;
-  int _cursorColumn = 1;
-  List<FileTreeNode> _fileTree = [];
-  List<String> _recentFiles = [];
-  bool _showEditorPage = false;
-  IndexedSymbolInfo? _selectedOutlineSymbol;
 
-  late final TransportGateway _gateway =
-      widget._gateway ?? RestTransportGateway();
+  String get _backendStatus => _workspace.backendStatus;
+  String? get _backendVersion => _workspace.backendVersion;
+  List<String> get _logLines => _workspace.logLines;
+  WorkspaceInfo? get _activeWorkspace => _workspace.activeWorkspace;
+  List<ProjectInfo> get _projects => _workspace.projects;
+  List<EnvironmentInfo> get _environments => _workspace.environments;
+  List<WorkspaceInfo> get _recentWorkspaces => _workspace.recentWorkspaces;
+  List<ProjectInfo> get _recentProjects => _workspace.recentProjects;
+  bool get _loadingRecent => _workspace.loadingRecent;
+  bool get _loadingProjects => _workspace.loadingProjects;
+  bool get _loadingEnvironments => _workspace.loadingEnvironments;
 
-  EnvironmentInfo? get _activeEnvironment {
-    for (final environment in _environments) {
-      if (environment.active) return environment;
-    }
-    return null;
-  }
+  List<String> get _executionLines => _execution.executionLines;
+  List<ExecutionInfo> get _executionHistory => _execution.executionHistory;
+  ExecutionStatus get _executionStatus => _execution.executionStatus;
+  ExecutionInfo? get _currentExecution => _execution.currentExecution;
+  bool get _loadingHistory => _execution.loadingHistory;
+  List<ExecutionInfo> get _reportRuns => _execution.reportRuns;
+  ExecutionInfo? get _selectedReport => _execution.selectedReport;
+  DashboardSummary? get _reportsDashboard => _execution.reportsDashboard;
+  bool get _loadingReports => _execution.loadingReports;
+  bool get _loadingDashboard => _execution.loadingDashboard;
 
-  EditorTabInfo? get _activeEditorTab {
-    final path = _activeEditorPath;
-    if (path == null) return null;
-    for (final tab in _editorTabs) {
-      if (tab.path == path) return tab;
-    }
-    return null;
-  }
+  List<EditorTabInfo> get _editorTabs => _editor.tabs;
+  String? get _activeEditorPath => _editor.activePath;
+  List<IndexedSymbolInfo> get _documentOutline => _editor.documentOutline;
+  bool get _loadingOutline => _editor.loadingOutline;
+  bool get _wordWrap => _editor.wordWrap;
+  String? get _editorStatusMessage => _editor.statusMessage;
+  int? get _jumpToLine => _editor.jumpToLine;
+  int get _cursorLine => _editor.cursorLine;
+  int get _cursorColumn => _editor.cursorColumn;
+  List<FileTreeNode> get _fileTree => _editor.fileTree;
+  List<String> get _recentFiles => _editor.recentFiles;
+  IndexedSymbolInfo? get _selectedOutlineSymbol => _editor.selectedOutlineSymbol;
+  List<CompletionItemInfo> get _completionItems => _editor.completionItems;
+  List<DiagnosticInfo> get _editorDiagnostics => _editor.diagnostics;
+  List<DiagnosticInfo> get _workspaceProblems => _editor.workspaceProblems;
+  SignatureHelpInfo? get _signatureHelp => _editor.signatureHelp;
+  IndexedSymbolInfo? get _peekDefinition => _editor.peekDefinition;
+  bool get _loadingLanguageFeatures => _editor.loadingLanguageFeatures;
+
+  EnvironmentInfo? get _activeEnvironment => _workspace.activeEnvironment;
+  EditorTabInfo? get _activeEditorTab => _editor.activeTab;
+
+  String get _elapsedLabel => _execution.elapsedLabel;
 
   @override
   void initState() {
     super.initState();
+    _gitCommitController = TextEditingController();
+    _gitCommitController.addListener(() {
+      if (mounted) setState(() {});
+    });
+    _gateway = widget._gateway ?? RestTransportGateway();
+    _workspace = WorkspaceShellController(
+      gateway: _gateway,
+      notify: _notify,
+      isMounted: () => mounted,
+      appendLog: _appendLog,
+    );
+    _execution = ExecutionShellController(
+      gateway: _gateway,
+      notify: _notify,
+      isMounted: () => mounted,
+      appendLog: _appendLog,
+      onRunFinished: _loadExecutionHistory,
+      workspace: () => _workspace.activeWorkspace,
+      backendConnected: () => _workspace.backendConnected,
+    );
+    _editor = EditorShellController(
+      gateway: _gateway,
+      notify: _notify,
+      isMounted: () => mounted,
+      workspace: () => _workspace.activeWorkspace,
+    );
     AppLogger.info('AppShell init', tag: 'Shell');
     _bootstrap();
   }
@@ -168,15 +220,10 @@ class _AppShellState extends State<AppShell> {
   @override
   void dispose() {
     AppLogger.debug('AppShell dispose', tag: 'Shell');
-    _streamSub?.cancel();
-    _elapsedTimer?.cancel();
-    _streamClient?.disconnect();
+    _gitCommitController.dispose();
+    _execution.dispose();
+    _editor.dispose();
     super.dispose();
-  }
-
-  String get _elapsedLabel {
-    final seconds = _elapsed.inMilliseconds / 1000;
-    return '${seconds.toStringAsFixed(1)}s';
   }
 
   void _clearExecutionPageUnlessTests() {
@@ -202,9 +249,9 @@ class _AppShellState extends State<AppShell> {
       final health = await _gateway.health();
       if (!mounted) return;
       setState(() {
-        _backendStatus = 'connected';
-        _backendVersion = health.version;
-        _logLines = [
+        _workspace.backendStatus = 'connected';
+        _workspace.backendVersion = health.version;
+        _workspace.logLines = [
           '[info] Connected to backend v${health.version}',
           '[info] ${health.modules.length} modules registered',
         ];
@@ -227,8 +274,8 @@ class _AppShellState extends State<AppShell> {
         stackTrace: stackTrace,
       );
       setState(() {
-        _backendStatus = 'offline';
-        _logLines = [
+        _workspace.backendStatus = 'offline';
+        _workspace.logLines = [
           '[error] Backend unavailable: $error',
           '[info] Start the backend with: python -m robot_studio.main',
         ];
@@ -239,77 +286,77 @@ class _AppShellState extends State<AppShell> {
   Future<void> _loadRecent() async {
     if (_backendStatus != 'connected') {
       setState(() {
-        _loadingRecent = false;
-        _recentWorkspaces = [];
-        _recentProjects = [];
+        _workspace.loadingRecent = false;
+        _workspace.recentWorkspaces = [];
+        _workspace.recentProjects = [];
       });
       return;
     }
 
-    setState(() => _loadingRecent = true);
+    setState(() => _workspace.loadingRecent = true);
     try {
       final workspaces = await _gateway.listRecentWorkspaces();
       final projects = await _gateway.listRecentProjects();
       if (!mounted) return;
       setState(() {
-        _recentWorkspaces = workspaces;
-        _recentProjects = projects;
-        _loadingRecent = false;
+        _workspace.recentWorkspaces = workspaces;
+        _workspace.recentProjects = projects;
+        _workspace.loadingRecent = false;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _loadingRecent = false;
+        _workspace.loadingRecent = false;
         _appendLog('[warn] Could not load recent items: $error');
       });
     }
   }
 
   Future<void> _loadProjects() async {
-    if (_activeWorkspace == null || _backendStatus != 'connected') {
+    if (_workspace.activeWorkspace == null || _backendStatus != 'connected') {
       setState(() {
-        _projects = [];
-        _loadingProjects = false;
+        _workspace.projects = [];
+        _workspace.loadingProjects = false;
       });
       return;
     }
 
-    setState(() => _loadingProjects = true);
+    setState(() => _workspace.loadingProjects = true);
     try {
       final projects = await _gateway.listProjects();
       if (!mounted) return;
       setState(() {
-        _projects = projects;
-        _loadingProjects = false;
+        _workspace.projects = projects;
+        _workspace.loadingProjects = false;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _loadingProjects = false;
+        _workspace.loadingProjects = false;
         _appendLog('[warn] Could not load projects: $error');
       });
     }
   }
 
   Future<void> _loadEnvironments() async {
-    if (_activeWorkspace == null || _backendStatus != 'connected') {
+    if (_workspace.activeWorkspace == null || _backendStatus != 'connected') {
       setState(() {
-        _environments = [];
-        _loadingEnvironments = false;
+        _workspace.environments = [];
+        _workspace.loadingEnvironments = false;
         _selectedEnvironment = null;
       });
       return;
     }
 
-    setState(() => _loadingEnvironments = true);
+    setState(() => _workspace.loadingEnvironments = true);
     try {
       final environments = await _gateway.listEnvironments(
         sort: _environmentSort,
       );
       if (!mounted) return;
       setState(() {
-        _environments = environments;
-        _loadingEnvironments = false;
+        _workspace.environments = environments;
+        _workspace.loadingEnvironments = false;
         if (_selectedEnvironment != null) {
           final match = environments
               .where((item) => item.id == _selectedEnvironment!.id)
@@ -321,14 +368,14 @@ class _AppShellState extends State<AppShell> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _loadingEnvironments = false;
+        _workspace.loadingEnvironments = false;
         _appendLog('[warn] Could not load environments: $error');
       });
     }
   }
 
   Future<void> _loadPackages() async {
-    if (_activeWorkspace == null ||
+    if (_workspace.activeWorkspace == null ||
         _backendStatus != 'connected' ||
         _activeEnvironment == null) {
       setState(() {
@@ -369,191 +416,364 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  void _appendLog(String line) {
-    AppLogger.fromConsoleLine(line, tag: 'Shell');
-    setState(() {
-      _logLines = [..._logLines, line];
-    });
-  }
-
-  Future<void> _connectExecutionStream() async {
-    await _streamSub?.cancel();
-    _streamSub = null;
-    await _streamClient?.disconnect();
-
-    final client = ExecutionStreamClient();
-    _streamClient = client;
-    try {
-      await client.connect();
-      _streamSub = client.events.listen(
-        _handleStreamEvent,
-        onError: (Object error) {
-          _appendLog('[warn] Execution stream error: $error');
-        },
-      );
-    } catch (error) {
-      _appendLog('[warn] Execution stream unavailable: $error');
-    }
-  }
-
-  void _handleStreamEvent(ExecutionStreamEvent event) {
-    if (!mounted) return;
-
-    switch (event.type) {
-      case 'output':
-        final line = event.line;
-        if (line == null) return;
-        setState(() {
-          _executionLines = [..._executionLines, line];
-        });
-        return;
-      case 'status':
-        final status = event.status;
-        if (status == null) return;
-        setState(() {
-          _executionStatus = ExecutionStatus.fromApi(status);
-          if (_currentExecution != null) {
-            _currentExecution = ExecutionInfo(
-              id: _currentExecution!.id,
-              workspaceId: _currentExecution!.workspaceId,
-              projectId: _currentExecution!.projectId,
-              environmentId: _currentExecution!.environmentId,
-              projectName: _currentExecution!.projectName,
-              suite: _currentExecution!.suite,
-              status: _executionStatus,
-              startedAt: _currentExecution!.startedAt,
-              finishedAt: _currentExecution!.finishedAt,
-              durationMs: _currentExecution!.durationMs,
-              exitCode: event.exitCode ?? _currentExecution!.exitCode,
-              command: _currentExecution!.command,
-              outputDir: _currentExecution!.outputDir,
-              outputXml: _currentExecution!.outputXml,
-              logHtml: _currentExecution!.logHtml,
-              reportHtml: _currentExecution!.reportHtml,
-            );
-          }
-        });
-        return;
-      case 'finished':
-      case 'failed':
-      case 'cancelled':
-        setState(() {
-          _executionStatus = ExecutionStatus.fromApi(event.type);
-          if (_currentExecution != null) {
-            _currentExecution = ExecutionInfo(
-              id: _currentExecution!.id,
-              workspaceId: _currentExecution!.workspaceId,
-              projectId: _currentExecution!.projectId,
-              environmentId: _currentExecution!.environmentId,
-              projectName: _currentExecution!.projectName,
-              suite: _currentExecution!.suite,
-              status: _executionStatus,
-              startedAt: _currentExecution!.startedAt,
-              finishedAt: _currentExecution!.finishedAt,
-              durationMs: _currentExecution!.durationMs,
-              exitCode: event.exitCode ?? _currentExecution!.exitCode,
-              command: _currentExecution!.command,
-              outputDir: _currentExecution!.outputDir,
-              outputXml: _currentExecution!.outputXml,
-              logHtml: _currentExecution!.logHtml,
-              reportHtml: _currentExecution!.reportHtml,
-            );
-          }
-        });
-        _stopElapsedTimer();
-        _loadExecutionHistory();
-        return;
-    }
-  }
-
-  void _startElapsedTimer() {
-    _elapsedTimer?.cancel();
-    _elapsed = Duration.zero;
-    _elapsedTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (!mounted) return;
+  Future<void> _loadPlugins({bool refresh = false}) async {
+    if (_workspace.activeWorkspace == null || _backendStatus != 'connected') {
       setState(() {
-        _elapsed += const Duration(milliseconds: 100);
-      });
-    });
-  }
-
-  void _stopElapsedTimer() {
-    _elapsedTimer?.cancel();
-    _elapsedTimer = null;
-  }
-
-  Future<void> _loadExecutionHistory() async {
-    if (_activeWorkspace == null || _backendStatus != 'connected') {
-      setState(() {
-        _executionHistory = [];
-        _loadingHistory = false;
+        _plugins = [];
+        _loadingPlugins = false;
+        _selectedPlugin = null;
       });
       return;
     }
 
-    setState(() => _loadingHistory = true);
+    setState(() => _loadingPlugins = true);
     try {
-      final history = await _gateway.listExecutionHistory();
+      final plugins = refresh
+          ? await _gateway.refreshPlugins()
+          : await _gateway.listPlugins();
       if (!mounted) return;
       setState(() {
-        _executionHistory = history;
-        _loadingHistory = false;
-      });
-      await _loadReports();
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _loadingHistory = false);
-      _appendLog('[warn] Could not load execution history: $error');
-    }
-  }
-
-  Future<void> _loadReports() async {
-    if (_activeWorkspace == null || _backendStatus != 'connected') {
-      setState(() {
-        _reportRuns = [];
-        _reportsDashboard = null;
-        _loadingReports = false;
-        _loadingDashboard = false;
-        _selectedReport = null;
-      });
-      return;
-    }
-
-    setState(() {
-      _loadingReports = true;
-      _loadingDashboard = true;
-    });
-    try {
-      final results = await Future.wait([
-        _gateway.listReports(),
-        _gateway.getReportsDashboard(),
-      ]);
-      if (!mounted) return;
-      final runs = results[0] as List<ExecutionInfo>;
-      final dashboard = results[1] as DashboardSummary;
-      setState(() {
-        _reportRuns = runs;
-        _reportsDashboard = dashboard;
-        _loadingReports = false;
-        _loadingDashboard = false;
-        if (_selectedReport != null) {
+        _plugins = plugins;
+        _loadingPlugins = false;
+        if (_selectedPlugin != null) {
           final match =
-              runs.where((item) => item.id == _selectedReport!.id).toList();
-          _selectedReport = match.isEmpty ? null : match.first;
+              plugins.where((item) => item.id == _selectedPlugin!.id).toList();
+          _selectedPlugin = match.isEmpty ? null : match.first;
         }
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _loadingReports = false;
-        _loadingDashboard = false;
-      });
-      _appendLog('[warn] Could not load reports: $error');
+      setState(() => _loadingPlugins = false);
+      _appendLog('[warn] Could not load plugins: $error');
     }
   }
 
+  Future<void> _handleOpenPluginManager() async {
+    if (_workspace.activeWorkspace == null) {
+      await _showError(
+        'Workspace required',
+        'Open a workspace before managing plugins.',
+      );
+      return;
+    }
+    setState(() {
+      _showPluginManager = true;
+      _showPackageManager = false;
+      _showEnvironmentManager = false;
+      _showSearchPage = false;
+      _showEditorPage = false;
+      _selectedProject = null;
+      _selectedEnvironment = null;
+      _selectedPackage = null;
+      _activePanel = SidebarPanel.plugins;
+      _clearExecutionPageUnlessTests();
+    });
+    await _loadPlugins();
+  }
+
+  Map<String, GitFileStatus> get _gitFileStatuses {
+    final statuses = <String, GitFileStatus>{};
+    for (final change in _gitStatus?.changes ?? const []) {
+      statuses[change.path] = change.status;
+    }
+    return statuses;
+  }
+
+  List<String> get _gitBranchNames =>
+      _gitBranches.where((branch) => !branch.remote).map((b) => b.name).toList();
+
+  Future<void> _loadGitStatus() async {
+    if (_workspace.activeWorkspace == null || _backendStatus != 'connected') {
+      setState(() {
+        _gitStatus = null;
+        _gitBranches = [];
+        _loadingGit = false;
+      });
+      return;
+    }
+
+    setState(() => _loadingGit = true);
+    try {
+      final status = await _gateway.getGitStatus();
+      final branches = status.repository.isRepository
+          ? await _gateway.getGitBranches()
+          : <GitBranchInfo>[];
+      if (!mounted) return;
+      setState(() {
+        _gitStatus = status;
+        _gitBranches = branches;
+        _loadingGit = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingGit = false);
+      _appendLog('[warn] Could not load git status: $error');
+    }
+  }
+
+  Future<void> _loadGitHistory() async {
+    if (_gitStatus?.repository.isRepository != true) return;
+    setState(() => _loadingGitHistory = true);
+    try {
+      final history = await _gateway.getGitHistory(limit: 50);
+      if (!mounted) return;
+      setState(() {
+        _gitHistory = history;
+        _loadingGitHistory = false;
+        if (_selectedGitCommit != null) {
+          final match = history
+              .where((item) => item.hash == _selectedGitCommit!.hash)
+              .toList();
+          _selectedGitCommit = match.isEmpty ? null : match.first;
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingGitHistory = false);
+      _appendLog('[warn] Could not load git history: $error');
+    }
+  }
+
+  Future<void> _loadGitDiff(String filePath) async {
+    setState(() {
+      _loadingGitDiff = true;
+      _selectedGitDiffFile = filePath;
+    });
+    try {
+      final diff = await _gateway.getGitDiff(filePath: filePath);
+      if (!mounted) return;
+      setState(() {
+        _gitDiff = diff;
+        _loadingGitDiff = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingGitDiff = false);
+      await _showError('Git diff', error);
+    }
+  }
+
+  Future<void> _handleOpenSourceControl() async {
+    if (_workspace.activeWorkspace == null) {
+      await _showError(
+        'Workspace required',
+        'Open a workspace before using source control.',
+      );
+      return;
+    }
+    setState(() {
+      _showSourceControl = true;
+      _showPluginManager = false;
+      _showPackageManager = false;
+      _showEnvironmentManager = false;
+      _showSearchPage = false;
+      _showEditorPage = false;
+      _selectedProject = null;
+      _selectedEnvironment = null;
+      _selectedPackage = null;
+      _activePanel = SidebarPanel.sourceControl;
+      _clearExecutionPageUnlessTests();
+    });
+    await _refreshGit();
+  }
+
+  Future<void> _refreshGit() async {
+    await _loadGitStatus();
+    if (_gitStatus?.repository.isRepository == true) {
+      await _loadGitHistory();
+    }
+  }
+
+  Future<void> _handleGitInit() async {
+    setState(() => _gitBusy = true);
+    try {
+      await _gateway.initGitRepository();
+      await _refreshGit();
+      _appendLog('[info] Git repository initialized');
+    } catch (error) {
+      await _showError('Initialize Git repository', error);
+    } finally {
+      if (mounted) setState(() => _gitBusy = false);
+    }
+  }
+
+  Future<void> _handleGitCommit({List<String>? files}) async {
+    final message = _gitCommitController.text.trim();
+    if (message.isEmpty) {
+      await _showError('Commit', 'Commit message is required.');
+      return;
+    }
+    if (_gitStatus?.repository.isRepository != true) {
+      await _showError('Commit', 'Not a Git repository.');
+      return;
+    }
+    setState(() => _gitBusy = true);
+    try {
+      await _gateway.commitGitChanges(message: message, files: files);
+      _gitCommitController.clear();
+      _selectedGitFiles.clear();
+      _selectedGitDiffFile = null;
+      _gitDiff = null;
+      await _refreshGit();
+      _appendLog('[info] Git commit created');
+    } catch (error) {
+      await _showError('Commit', error);
+    } finally {
+      if (mounted) setState(() => _gitBusy = false);
+    }
+  }
+
+  Future<void> _handleGitCheckout(String branch) async {
+    setState(() => _gitBusy = true);
+    try {
+      await _gateway.checkoutGitBranch(branch);
+      await _refreshGit();
+      _appendLog('[info] Checked out branch "$branch"');
+    } catch (error) {
+      await _showError('Checkout branch', error);
+    } finally {
+      if (mounted) setState(() => _gitBusy = false);
+    }
+  }
+
+  Future<void> _handleGitCreateBranch(String name) async {
+    setState(() => _gitBusy = true);
+    try {
+      await _gateway.createGitBranch(name);
+      await _refreshGit();
+      _appendLog('[info] Created branch "$name"');
+    } catch (error) {
+      await _showError('Create branch', error);
+    } finally {
+      if (mounted) setState(() => _gitBusy = false);
+    }
+  }
+
+  Future<void> _handleGitDeleteBranch(String name) async {
+    setState(() => _gitBusy = true);
+    try {
+      await _gateway.deleteGitBranch(name);
+      await _refreshGit();
+      _appendLog('[info] Deleted branch "$name"');
+    } catch (error) {
+      await _showError('Delete branch', error);
+    } finally {
+      if (mounted) setState(() => _gitBusy = false);
+    }
+  }
+
+  Future<void> _handleGitRemote(String action, Future<GitRemoteResultInfo> Function() call) async {
+    setState(() => _gitBusy = true);
+    try {
+      final result = await call();
+      if (!mounted) return;
+      if (result.success) {
+        await _refreshGit();
+        _appendLog('[info] Git $action completed');
+      } else {
+        await _showError('Git $action', result.message);
+      }
+    } catch (error) {
+      await _showError('Git $action', error);
+    } finally {
+      if (mounted) setState(() => _gitBusy = false);
+    }
+  }
+
+  Future<void> _handleGitSelectCommit(GitCommitInfo commit) async {
+    setState(() {
+      _selectedGitCommit = commit;
+      _selectedGitDiffFile = null;
+      _gitDiff = null;
+    });
+    try {
+      final detail = await _gateway.getGitCommitDetail(commit.hash);
+      if (!mounted) return;
+      setState(() => _selectedGitCommitDetail = detail);
+    } catch (error) {
+      await _showError('Commit details', error);
+    }
+  }
+
+  void _handleGitToggleFile(String path) {
+    setState(() {
+      if (_selectedGitFiles.contains(path)) {
+        _selectedGitFiles.remove(path);
+      } else {
+        _selectedGitFiles.add(path);
+      }
+    });
+  }
+
+  Future<void> _handleEnablePlugin(PluginInfo plugin) async {
+    try {
+      final updated = await _gateway.enablePlugin(plugin.id);
+      if (!mounted) return;
+      setState(() => _selectedPlugin = updated);
+      await _loadPlugins();
+    } catch (error) {
+      await showPluginErrorDialog(
+        context,
+        title: 'Enable Plugin',
+        message: '$error',
+      );
+    }
+  }
+
+  Future<void> _handleDisablePlugin(PluginInfo plugin) async {
+    try {
+      final updated = await _gateway.disablePlugin(plugin.id);
+      if (!mounted) return;
+      setState(() => _selectedPlugin = updated);
+      await _loadPlugins();
+    } catch (error) {
+      await showPluginErrorDialog(
+        context,
+        title: 'Disable Plugin',
+        message: '$error',
+      );
+    }
+  }
+
+  Future<void> _handleReloadPlugin(PluginInfo plugin) async {
+    try {
+      final updated = await _gateway.reloadPlugin(plugin.id);
+      if (!mounted) return;
+      setState(() => _selectedPlugin = updated);
+      await _loadPlugins();
+    } catch (error) {
+      await showPluginErrorDialog(
+        context,
+        title: 'Reload Plugin',
+        message: '$error',
+      );
+    }
+  }
+
+  Future<void> _handleOpenPluginFolder(PluginInfo plugin) async {
+    final path = plugin.path;
+    if (path == null) return;
+    if (Theme.of(context).platform == TargetPlatform.macOS) {
+      await Process.run('open', [path]);
+    } else if (Theme.of(context).platform == TargetPlatform.windows) {
+      await Process.run('cmd', ['/c', 'start', '', path]);
+    } else {
+      await Process.run('xdg-open', [path]);
+    }
+  }
+
+  Future<void> _connectExecutionStream() => _execution.connectStream();
+
+  void _startElapsedTimer() => _execution.startElapsedTimer();
+
+  void _stopElapsedTimer() => _execution.stopElapsedTimer();
+
+  Future<void> _loadExecutionHistory() => _execution.loadExecutionHistory();
+
+  Future<void> _loadReports() => _execution.loadReports();
+
   Future<void> _openReports() async {
-    if (_activeWorkspace == null) {
+    if (_workspace.activeWorkspace == null) {
       await _showError(
         'Workspace required',
         'Open a workspace before viewing reports.',
@@ -577,7 +797,7 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _selectReport(ExecutionInfo run) async {
     setState(() {
-      _selectedReport = run;
+      _execution.selectedReport = run;
       _showReportsPage = true;
       _showEnvironmentManager = false;
       _showPackageManager = false;
@@ -592,7 +812,7 @@ class _AppShellState extends State<AppShell> {
     try {
       final fresh = await _gateway.getReport(run.id);
       if (!mounted) return;
-      setState(() => _selectedReport = fresh);
+      setState(() => _execution.selectedReport = fresh);
     } catch (error) {
       _appendLog('[warn] Could not refresh report details: $error');
     }
@@ -639,7 +859,7 @@ class _AppShellState extends State<AppShell> {
     try {
       await _gateway.deleteReport(run.id);
       if (!mounted) return;
-      setState(() => _selectedReport = null);
+      setState(() => _execution.selectedReport = null);
       _appendLog('[info] Deleted report "${run.projectName}"');
       await _loadReports();
     } catch (error) {
@@ -674,7 +894,7 @@ class _AppShellState extends State<AppShell> {
     }
 
     setState(() {
-      _executionLines = [];
+      _execution.executionLines = [];
       _showExecutionPage = true;
     });
     await _connectExecutionStream();
@@ -688,8 +908,8 @@ class _AppShellState extends State<AppShell> {
         data: 'id=${run.id} status=${run.status.name}',
       );
       setState(() {
-        _executionStatus = run.status;
-        _currentExecution = run;
+        _execution.executionStatus = run.status;
+        _execution.currentExecution = run;
       });
       _startElapsedTimer();
     } catch (error) {
@@ -724,7 +944,7 @@ class _AppShellState extends State<AppShell> {
     }
 
     setState(() {
-      _executionLines = [];
+      _execution.executionLines = [];
       _showExecutionPage = true;
     });
     await _connectExecutionStream();
@@ -738,8 +958,8 @@ class _AppShellState extends State<AppShell> {
         data: 'id=${run.id} status=${run.status.name}',
       );
       setState(() {
-        _executionStatus = run.status;
-        _currentExecution = run;
+        _execution.executionStatus = run.status;
+        _execution.currentExecution = run;
       });
       _startElapsedTimer();
     } catch (error) {
@@ -754,8 +974,8 @@ class _AppShellState extends State<AppShell> {
       final run = await _gateway.stopExecution();
       if (!mounted) return;
       setState(() {
-        _executionStatus = run.status;
-        _currentExecution = run;
+        _execution.executionStatus = run.status;
+        _execution.currentExecution = run;
       });
       _stopElapsedTimer();
     } catch (error) {
@@ -822,7 +1042,7 @@ class _AppShellState extends State<AppShell> {
       final workspace = await action();
       if (!mounted) return;
       setState(() {
-        _activeWorkspace = workspace;
+        _workspace.activeWorkspace = workspace;
         _selectedProject = null;
         _selectedEnvironment = null;
         _selectedPackage = null;
@@ -830,9 +1050,9 @@ class _AppShellState extends State<AppShell> {
         _showPackageManager = false;
         _showReportsPage = false;
         _showSearchPage = false;
-        _selectedReport = null;
-        _reportRuns = [];
-        _reportsDashboard = null;
+        _execution.selectedReport = null;
+        _execution.reportRuns = [];
+        _execution.reportsDashboard = null;
         _searchQuery = '';
         _searchKind = null;
         _searchResults = [];
@@ -841,17 +1061,27 @@ class _AppShellState extends State<AppShell> {
         _references = [];
         _navigationMessage = null;
         _activePanel = SidebarPanel.explorer;
-        _editorTabs = [];
-        _activeEditorPath = null;
-        _documentOutline = [];
+        _editor.tabs = [];
+        _editor.activePath = null;
+        _editor.documentOutline = [];
         _editorHover = null;
         _editorReferences = [];
-        _editorStatusMessage = null;
-        _jumpToLine = null;
-        _fileTree = [];
-        _recentFiles = [];
+        _editor.statusMessage = null;
+        _editor.jumpToLine = null;
+        _editor.fileTree = [];
+        _editor.recentFiles = [];
         _showEditorPage = false;
-        _selectedOutlineSymbol = null;
+        _showSourceControl = false;
+        _gitStatus = null;
+        _gitBranches = [];
+        _gitHistory = [];
+        _selectedGitCommit = null;
+        _selectedGitCommitDetail = null;
+        _gitDiff = null;
+        _selectedGitDiffFile = null;
+        _selectedGitFiles.clear();
+        _gitCommitController.clear();
+        _editor.selectedOutlineSymbol = null;
         _busy = false;
       });
       _appendLog('[info] $successMessage "${workspace.name}"');
@@ -861,6 +1091,7 @@ class _AppShellState extends State<AppShell> {
       await _loadExecutionHistory();
       await _loadIndexStatus();
       await _loadFileTree();
+      await _loadGitStatus();
     } catch (error) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -870,7 +1101,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleNewProject() async {
-    if (_activeWorkspace == null) {
+    if (_workspace.activeWorkspace == null) {
       await _showError(
         'Workspace required',
         'Open a workspace before creating a project.',
@@ -886,7 +1117,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleImportProject() async {
-    if (_activeWorkspace == null) {
+    if (_workspace.activeWorkspace == null) {
       await _showError(
         'Workspace required',
         'Open a workspace before importing a project.',
@@ -909,7 +1140,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleOpenRecentProject(ProjectInfo project) async {
-    if (_activeWorkspace == null ||
+    if (_workspace.activeWorkspace == null ||
         _activeWorkspace!.id != project.workspaceId) {
       await _showError(
         'Open workspace first',
@@ -951,7 +1182,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleManageEnvironments() async {
-    if (_activeWorkspace == null) {
+    if (_workspace.activeWorkspace == null) {
       await _showError(
         'Workspace required',
         'Open a workspace before managing environments.',
@@ -972,7 +1203,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleOpenPackageManager() async {
-    if (_activeWorkspace == null) {
+    if (_workspace.activeWorkspace == null) {
       await _showError(
         'Workspace required',
         'Open a workspace before managing packages.',
@@ -1117,7 +1348,7 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _handleCreateEnvironment() async {
     AppLogger.info('Create environment dialog', tag: 'Shell');
-    if (_activeWorkspace == null) {
+    if (_workspace.activeWorkspace == null) {
       await _showError(
         'Workspace required',
         'Open a workspace before creating an environment.',
@@ -1153,7 +1384,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleImportEnvironment() async {
-    if (_activeWorkspace == null) {
+    if (_workspace.activeWorkspace == null) {
       await _showError(
         'Workspace required',
         'Open a workspace before importing an environment.',
@@ -1263,27 +1494,9 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Future<void> _loadFileTree() async {
-    if (_activeWorkspace == null || _backendStatus != 'connected') {
-      setState(() => _fileTree = []);
-      return;
-    }
+  Future<void> _loadFileTree() => _editor.loadFileTree();
 
-    try {
-      final tree = await _gateway.listFileTree();
-      if (!mounted) return;
-      setState(() => _fileTree = tree);
-    } catch (error) {
-      _appendLog('[warn] Could not load file tree: $error');
-    }
-  }
-
-  void _trackRecentFile(String path) {
-    _recentFiles = [
-      path,
-      ..._recentFiles.where((item) => item != path),
-    ].take(10).toList();
-  }
+  void _trackRecentFile(String path) => _editor.trackRecentFile(path);
 
   Future<void> _openFile(String path, {int? line}) async {
     AppLogger.info(
@@ -1291,7 +1504,7 @@ class _AppShellState extends State<AppShell> {
       tag: 'Shell',
       data: 'path=$path line=$line',
     );
-    if (_activeWorkspace == null) {
+    if (_workspace.activeWorkspace == null) {
       await _showError(
         'Workspace required',
         'Open a workspace before editing files.',
@@ -1304,12 +1517,12 @@ class _AppShellState extends State<AppShell> {
     if (existingIndex >= 0) {
       AppLogger.debug('Reusing open tab', tag: 'Shell', data: path);
       setState(() {
-        _activeEditorPath = path;
+        _editor.activePath = path;
         _showEditorPage = true;
-        _jumpToLine = line;
+        _editor.jumpToLine = line;
         _editorHover = null;
         _editorReferences = [];
-        _editorStatusMessage = null;
+        _editor.statusMessage = null;
       });
       _trackRecentFile(path);
       await _selectTab(path);
@@ -1322,7 +1535,7 @@ class _AppShellState extends State<AppShell> {
       final file = await _gateway.readFile(path);
       if (!mounted) return;
       setState(() {
-        _editorTabs = [
+        _editor.tabs = [
           ..._editorTabs,
           EditorTabInfo(
             path: file.path,
@@ -1331,16 +1544,17 @@ class _AppShellState extends State<AppShell> {
             mtime: file.mtime,
           ),
         ];
-        _activeEditorPath = file.path;
+        _editor.activePath = file.path;
         _showEditorPage = true;
-        _jumpToLine = line;
+        _editor.jumpToLine = line;
         _editorHover = null;
         _editorReferences = [];
-        _editorStatusMessage = null;
+        _editor.statusMessage = null;
         _busy = false;
       });
       _trackRecentFile(file.path);
       await _loadOutline(file.path);
+      unawaited(_refreshLanguageFeatures());
     } catch (error) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -1390,16 +1604,16 @@ class _AppShellState extends State<AppShell> {
     final updated = [..._editorTabs]..removeAt(tabIndex);
     String? nextPath;
     setState(() {
-      _editorTabs = updated;
-      if (_activeEditorPath == path) {
+      _editor.tabs = updated;
+      if (_editor.activePath == path) {
         if (updated.isEmpty) {
-          _activeEditorPath = null;
-          _documentOutline = [];
-          _selectedOutlineSymbol = null;
+          _editor.activePath = null;
+          _editor.documentOutline = [];
+          _editor.selectedOutlineSymbol = null;
           _showEditorPage = false;
         } else {
           nextPath = updated.last.path;
-          _activeEditorPath = nextPath;
+          _editor.activePath = nextPath;
         }
       }
       _editorHover = null;
@@ -1411,18 +1625,18 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _selectTab(String path) async {
-    if (_activeEditorPath == path) {
+    if (_editor.activePath == path) {
       await _checkExternalChanges(path);
       return;
     }
 
     setState(() {
-      _activeEditorPath = path;
+      _editor.activePath = path;
       _showEditorPage = true;
-      _jumpToLine = null;
+      _editor.jumpToLine = null;
       _editorHover = null;
       _editorReferences = [];
-      _editorStatusMessage = null;
+      _editor.statusMessage = null;
     });
     await _checkExternalChanges(path);
     await _loadOutline(path);
@@ -1478,12 +1692,213 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  void _onContentChanged(String path, String content) {
-    final tabIndex = _editorTabs.indexWhere((tab) => tab.path == path);
-    if (tabIndex < 0) return;
-    setState(() {
-      _editorTabs[tabIndex].content = content;
-    });
+  void _onContentChanged(String path, String content) =>
+      _editor.onContentChanged(path, content);
+
+  void _scheduleLanguageRefresh() => _editor.scheduleLanguageRefresh();
+
+  Future<void> _refreshLanguageFeatures() => _editor.refreshLanguageFeatures();
+
+  Future<void> _refreshWorkspaceProblems() => _editor.refreshWorkspaceProblems();
+
+  EditorBreadcrumbInfo _buildBreadcrumb() {
+    final tab = _activeEditorTab;
+    if (tab == null) {
+      return const EditorBreadcrumbInfo();
+    }
+    final normalized = tab.path.replaceAll('\\', '/');
+    final parts = normalized.split('/');
+    final fileName = parts.isNotEmpty ? parts.last : tab.path;
+    String? folder;
+    String? project;
+    if (parts.length >= 2) {
+      folder = parts[parts.length - 2];
+    }
+    final projectsIndex = parts.indexOf('Projects');
+    if (projectsIndex >= 0 && projectsIndex + 1 < parts.length) {
+      project = parts[projectsIndex + 1];
+    }
+    IndexedSymbolInfo? symbol;
+    for (final item in _documentOutline.reversed) {
+      if (item.line <= _cursorLine &&
+          (item.kind == SymbolKind.keyword ||
+              item.kind == SymbolKind.testCase)) {
+        symbol = item;
+        break;
+      }
+    }
+    return EditorBreadcrumbInfo(
+      workspace: _activeWorkspace?.name,
+      project: project,
+      folder: folder,
+      fileName: fileName,
+      symbol: symbol,
+    );
+  }
+
+  Future<void> _editorFormatDocument() async {
+    final tab = _activeEditorTab;
+    if (tab == null) return;
+    try {
+      final formatted = await _gateway.languageFormat(
+        filePath: tab.path,
+        content: tab.content,
+      );
+      if (!mounted) return;
+      setState(() {
+        tab.content = formatted;
+        _editor.statusMessage = 'Formatted document';
+      });
+      _scheduleLanguageRefresh();
+    } catch (error) {
+      await _showError('Format Document', error);
+    }
+  }
+
+  Future<void> _editorFormatSelection() async {
+    final tab = _activeEditorTab;
+    if (tab == null) return;
+    final start = tab.cursorLine ?? _cursorLine;
+    final end = tab.cursorLine ?? _cursorLine;
+    try {
+      final formatted = await _gateway.languageFormat(
+        filePath: tab.path,
+        content: tab.content,
+        startLine: start,
+        endLine: end,
+      );
+      if (!mounted) return;
+      setState(() {
+        tab.content = formatted;
+        _editor.statusMessage = 'Formatted selection';
+      });
+      _scheduleLanguageRefresh();
+    } catch (error) {
+      await _showError('Format Selection', error);
+    }
+  }
+
+  Future<void> _editorPeekDefinition() async {
+    final token = _editorTokenName();
+    if (token == null) return;
+    try {
+      final definition = await _gateway.languageDefinition(name: token);
+      if (!mounted) return;
+      setState(() => _editor.peekDefinition = definition);
+    } catch (error) {
+      await _showError('Peek Definition', error);
+    }
+  }
+
+  Future<void> _editorCtrlClickDefinition() async {
+    final tab = _activeEditorTab;
+    if (tab == null) return;
+    final token = _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn);
+    if (token == null) return;
+    try {
+      final definition = await _gateway.languageDefinition(
+        name: token,
+        filePath: tab.path,
+        line: _cursorLine,
+        column: _cursorColumn,
+        content: tab.content,
+      );
+      if (!mounted) return;
+      if (definition != null) {
+        await _openFile(definition.filePath, line: definition.line);
+      }
+    } catch (error) {
+      await _showError('Go to Definition', error);
+    }
+  }
+
+  Future<void> _editorOpenSymbol() async {
+    final tab = _activeEditorTab;
+    if (tab == null) return;
+    final queryController = TextEditingController();
+    final selected = await showDialog<IndexedSymbolInfo>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Open Symbol'),
+          content: SizedBox(
+            width: 420,
+            child: TextField(
+              controller: queryController,
+              autofocus: true,
+              decoration: const InputDecoration(hintText: 'Filter symbols in file'),
+              onSubmitted: (_) {},
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final symbols = await _gateway.documentSymbols(tab.path);
+                if (!context.mounted) return;
+                final query = queryController.text.trim().toLowerCase();
+                final filtered = symbols
+                    .where((item) =>
+                        query.isEmpty ||
+                        item.name.toLowerCase().contains(query))
+                    .toList();
+                if (filtered.isEmpty) return;
+                Navigator.of(context).pop(filtered.first);
+              },
+              child: const Text('Open'),
+            ),
+          ],
+        );
+      },
+    );
+    if (selected == null) return;
+    setState(() => _editor.jumpToLine = selected.line);
+  }
+
+  Future<void> _editorWorkspaceSymbol() async {
+    final queryController = TextEditingController();
+    final selected = await showDialog<IndexedSymbolInfo>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Workspace Symbol'),
+          content: SizedBox(
+            width: 420,
+            child: TextField(
+              controller: queryController,
+              autofocus: true,
+              decoration: const InputDecoration(hintText: 'Search workspace symbols'),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final symbols = await _gateway.workspaceSymbols(
+                  query: queryController.text.trim(),
+                );
+                if (!context.mounted) return;
+                if (symbols.isEmpty) return;
+                Navigator.of(context).pop(symbols.first);
+              },
+              child: const Text('Open'),
+            ),
+          ],
+        );
+      },
+    );
+    if (selected == null) return;
+    await _openFile(selected.filePath, line: selected.line);
+  }
+
+  void _handleProblemSelected(DiagnosticInfo diagnostic) {
+    unawaited(_openFile(diagnostic.filePath, line: diagnostic.line));
   }
 
   Future<void> _saveActive() async {
@@ -1523,9 +1938,10 @@ class _AppShellState extends State<AppShell> {
       setState(() {
         tab.savedContent = tab.content;
         tab.mtime = result.mtime;
-        _editorStatusMessage = 'Saved ${_fileNameFromPath(path)}';
+        _editor.statusMessage = 'Saved ${_fileNameFromPath(path)}';
       });
       _appendLog('[info] Saved "$path"');
+      await _loadGitStatus();
     } catch (error) {
       _appendLog('[error] Save failed: $error');
       await _showError('Save file', error);
@@ -1533,59 +1949,11 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _loadOutline(String path) async {
-    setState(() {
-      _loadingOutline = true;
-      _selectedOutlineSymbol = null;
-    });
-    try {
-      final symbols = await _gateway.documentSymbols(path);
-      if (!mounted) return;
-      setState(() {
-        _documentOutline = symbols;
-        _loadingOutline = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _documentOutline = [];
-        _loadingOutline = false;
-      });
-      _appendLog('[warn] Could not load outline: $error');
-    }
+    await _editor.loadOutline(path);
   }
 
-  String? _extractWordAtCursor(String content, int line, int column) {
-    final lines = content.split('\n');
-    if (line < 1 || line > lines.length) return null;
-    final text = lines[line - 1];
-    if (text.isEmpty) return null;
-
-    final offset = (column - 1).clamp(0, text.length);
-    final pattern = RegExp(r'\w+|\$\{[^}]+\}');
-    String? matchAt(int index) {
-      for (final match in pattern.allMatches(text)) {
-        if (index >= match.start && index <= match.end) {
-          return match.group(0);
-        }
-      }
-      return null;
-    }
-
-    final direct = matchAt(offset);
-    if (direct != null) return direct;
-
-    for (var delta = 1; delta <= text.length; delta++) {
-      if (offset - delta >= 0) {
-        final left = matchAt(offset - delta);
-        if (left != null) return left;
-      }
-      if (offset + delta <= text.length) {
-        final right = matchAt(offset + delta);
-        if (right != null) return right;
-      }
-    }
-    return null;
-  }
+  String? _extractWordAtCursor(String content, int line, int column) =>
+      EditorShellController.extractWordAtCursor(content, line, column);
 
   String? _editorTokenName() {
     final outline = _selectedOutlineSymbol?.name;
@@ -1603,13 +1971,13 @@ class _AppShellState extends State<AppShell> {
     final token = _editorTokenName();
     if (token == null) {
       setState(() {
-        _editorStatusMessage = 'Place the cursor on a symbol or select one in the outline.';
+        _editor.statusMessage = 'Place the cursor on a symbol or select one in the outline.';
       });
       return;
     }
 
     setState(() {
-      _editorStatusMessage = null;
+      _editor.statusMessage = null;
       _editorHover = null;
       _editorReferences = [];
     });
@@ -1621,7 +1989,7 @@ class _AppShellState extends State<AppShell> {
         await _openFile(definition.filePath, line: definition.line);
       } else {
         setState(() {
-          _editorStatusMessage = 'No definition found for "$token".';
+          _editor.statusMessage = 'No definition found for "$token".';
         });
       }
     } catch (error) {
@@ -1634,13 +2002,13 @@ class _AppShellState extends State<AppShell> {
     final token = _editorTokenName();
     if (token == null) {
       setState(() {
-        _editorStatusMessage = 'Place the cursor on a symbol or select one in the outline.';
+        _editor.statusMessage = 'Place the cursor on a symbol or select one in the outline.';
       });
       return;
     }
 
     setState(() {
-      _editorStatusMessage = null;
+      _editor.statusMessage = null;
       _editorReferences = [];
       _editorHover = null;
     });
@@ -1651,7 +2019,7 @@ class _AppShellState extends State<AppShell> {
       setState(() {
         _editorReferences = refs;
         if (refs.isEmpty) {
-          _editorStatusMessage = 'No references found for "$token".';
+          _editor.statusMessage = 'No references found for "$token".';
         }
       });
     } catch (error) {
@@ -1664,13 +2032,13 @@ class _AppShellState extends State<AppShell> {
     final token = _editorTokenName();
     if (token == null) {
       setState(() {
-        _editorStatusMessage = 'Place the cursor on a symbol or select one in the outline.';
+        _editor.statusMessage = 'Place the cursor on a symbol or select one in the outline.';
       });
       return;
     }
 
     setState(() {
-      _editorStatusMessage = null;
+      _editor.statusMessage = null;
       _editorHover = null;
       _editorReferences = [];
     });
@@ -1681,7 +2049,7 @@ class _AppShellState extends State<AppShell> {
       setState(() {
         _editorHover = hover;
         if (hover == null) {
-          _editorStatusMessage = 'No hover info for "$token".';
+          _editor.statusMessage = 'No hover info for "$token".';
         }
       });
     } catch (error) {
@@ -1695,7 +2063,7 @@ class _AppShellState extends State<AppShell> {
     if (path == null) return;
     await Clipboard.setData(ClipboardData(text: path));
     setState(() {
-      _editorStatusMessage = 'Path: $path (copied to clipboard)';
+      _editor.statusMessage = 'Path: $path (copied to clipboard)';
     });
   }
 
@@ -1712,7 +2080,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _openSearchPanel({SymbolKind? kind}) async {
-    if (_activeWorkspace == null) {
+    if (_workspace.activeWorkspace == null) {
       await _showError(
         'Workspace required',
         'Open a workspace before searching symbols.',
@@ -1731,7 +2099,7 @@ class _AppShellState extends State<AppShell> {
       _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
-      _selectedReport = null;
+      _execution.selectedReport = null;
       if (kind != null) {
         _searchKind = kind;
       }
@@ -1740,7 +2108,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _loadIndexStatus() async {
-    if (_activeWorkspace == null || _backendStatus != 'connected') {
+    if (_workspace.activeWorkspace == null || _backendStatus != 'connected') {
       setState(() {
         _indexStatus = null;
         _loadingIndexStatus = false;
@@ -1764,7 +2132,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _rebuildIndex() async {
-    if (_activeWorkspace == null) return;
+    if (_workspace.activeWorkspace == null) return;
     setState(() => _loadingIndexStatus = true);
     try {
       final status = await _gateway.rebuildIndex();
@@ -1786,7 +2154,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _runSearch() async {
-    if (_activeWorkspace == null || _backendStatus != 'connected') return;
+    if (_workspace.activeWorkspace == null || _backendStatus != 'connected') return;
 
     setState(() {
       _isSearching = true;
@@ -1908,7 +2276,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   _CenterView get _centerView {
-    if (_activeWorkspace == null) return _CenterView.welcome;
+    if (_workspace.activeWorkspace == null) return _CenterView.welcome;
     if (_showExecutionPage || _activePanel == SidebarPanel.tests) {
       return _CenterView.execution;
     }
@@ -1924,6 +2292,12 @@ class _AppShellState extends State<AppShell> {
     }
     if (_showEnvironmentManager) return _CenterView.manager;
     if (_selectedPackage != null) return _CenterView.packageDetail;
+    if (_showPluginManager || _activePanel == SidebarPanel.plugins) {
+      return _CenterView.plugins;
+    }
+    if (_showSourceControl || _activePanel == SidebarPanel.sourceControl) {
+      return _CenterView.sourceControl;
+    }
     if (_showPackageManager || _activePanel == SidebarPanel.packages) {
       return _CenterView.packages;
     }
@@ -1937,7 +2311,7 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final connected = _backendStatus == 'connected';
+    final connected = _workspace.backendStatus == 'connected';
     final activeEnvironment = _activeEnvironment;
 
     return Scaffold(
@@ -1972,6 +2346,14 @@ class _AppShellState extends State<AppShell> {
                 onOpenWorkspace: _handleOpenWorkspace,
                 onNewWorkspace: _handleNewWorkspace,
                 onOpenSearch: () => _openSearchPanel(),
+                gitBranchLabel: _gitStatus?.repository.branch,
+                gitBranches: _gitBranchNames,
+                onGitBranchSelected: _handleGitCheckout,
+                onGitCreateBranch: _handleGitCreateBranch,
+                onGitDeleteBranch: _handleGitDeleteBranch,
+                onGitFetch: () => _handleGitRemote('fetch', _gateway.fetchGit),
+                onGitPull: () => _handleGitRemote('pull', _gateway.pullGit),
+                onGitPush: () => _handleGitRemote('push', _gateway.pushGit),
               ),
               Expanded(
                 child: Row(
@@ -1998,7 +2380,7 @@ class _AppShellState extends State<AppShell> {
                             _selectedProject = null;
                             _selectedEnvironment = null;
                             _selectedPackage = null;
-                            _selectedReport = null;
+                            _execution.selectedReport = null;
                             if (panel == SidebarPanel.keywords) {
                               _searchKind = SymbolKind.keyword;
                             }
@@ -2009,6 +2391,7 @@ class _AppShellState extends State<AppShell> {
                                 _activeEditorPath != null) {
                               _showEditorPage = true;
                             } else if (panel == SidebarPanel.packages ||
+                                panel == SidebarPanel.plugins ||
                                 panel == SidebarPanel.reports) {
                               _showEditorPage = false;
                             }
@@ -2016,6 +2399,10 @@ class _AppShellState extends State<AppShell> {
                         });
                         if (panel == SidebarPanel.packages) {
                           _handleOpenPackageManager();
+                        } else if (panel == SidebarPanel.plugins) {
+                          _handleOpenPluginManager();
+                        } else if (panel == SidebarPanel.sourceControl) {
+                          _handleOpenSourceControl();
                         } else if (panel == SidebarPanel.reports) {
                           _openReports();
                         } else if (panel == SidebarPanel.tests) {
@@ -2047,6 +2434,7 @@ class _AppShellState extends State<AppShell> {
                       backendVersion: _backendVersion,
                       fileTree: _fileTree,
                       onOpenFile: _openFile,
+                      gitFileStatuses: _gitFileStatuses,
                     ),
                     Expanded(child: _buildCenter()),
                   ],
@@ -2055,7 +2443,11 @@ class _AppShellState extends State<AppShell> {
               BottomPanel(
                 logLines: _logLines,
                 executionLines: _executionLines,
+                problems: _workspaceProblems,
+                isLoadingProblems: _loadingLanguageFeatures,
+                problemCount: _workspaceProblems.length,
                 forceExecutionTab: _executionStatus.isActive,
+                onProblemSelected: _handleProblemSelected,
               ),
               StatusBar(
                 backendConnected: connected,
@@ -2070,6 +2462,12 @@ class _AppShellState extends State<AppShell> {
                 dirty: _centerView == _CenterView.editor
                     ? (_activeEditorTab?.isDirty ?? false)
                     : false,
+                errorCount: _workspaceProblems
+                    .where((item) => item.severity == DiagnosticSeverity.error)
+                    .length,
+                warningCount: _workspaceProblems
+                    .where((item) => item.severity == DiagnosticSeverity.warning)
+                    .length,
               ),
             ],
           ),
@@ -2112,9 +2510,9 @@ class _AppShellState extends State<AppShell> {
           onRebuildIndex: _activeWorkspace != null ? _rebuildIndex : null,
           recentFiles: _recentFiles,
           openEditors: _editorTabs.map((tab) => tab.path).toList(),
-          onOpenRecentFile: _activeWorkspace == null ? null : _openFile,
+          onOpenRecentFile: _workspace.activeWorkspace == null ? null : _openFile,
           onContinueWorking:
-              _activeWorkspace == null ? null : _handleContinueWorking,
+              _workspace.activeWorkspace == null ? null : _handleContinueWorking,
         ),
       _CenterView.manager => EnvironmentManagerPage(
           environments: _environments,
@@ -2152,6 +2550,63 @@ class _AppShellState extends State<AppShell> {
           onUpdate: _handleUpdatePackage,
           onUninstall: _handleUninstallPackage,
           onInstallRobot: _handleInstallRobot,
+        ),
+      _CenterView.plugins => Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: PluginManagerPage(
+                plugins: _plugins,
+                isLoading: _loadingPlugins,
+                selected: _selectedPlugin,
+                onRefresh: () => _loadPlugins(refresh: true),
+                onSelect: (plugin) => setState(() => _selectedPlugin = plugin),
+                onEnable: _handleEnablePlugin,
+                onDisable: _handleDisablePlugin,
+                onReload: _handleReloadPlugin,
+                onOpenFolder: _handleOpenPluginFolder,
+              ),
+            ),
+            PluginDetailsPanel(
+              plugin: _selectedPlugin,
+              onEnable: _selectedPlugin == null
+                  ? () {}
+                  : () => _handleEnablePlugin(_selectedPlugin!),
+              onDisable: _selectedPlugin == null
+                  ? () {}
+                  : () => _handleDisablePlugin(_selectedPlugin!),
+              onReload: _selectedPlugin == null
+                  ? () {}
+                  : () => _handleReloadPlugin(_selectedPlugin!),
+            ),
+          ],
+        ),
+      _CenterView.sourceControl => SourceControlPage(
+          status: _gitStatus,
+          branches: _gitBranches,
+          history: _gitHistory,
+          selectedCommit: _selectedGitCommit,
+          commitDetail: _selectedGitCommitDetail,
+          diff: _gitDiff,
+          selectedFiles: _selectedGitFiles,
+          selectedDiffFile: _selectedGitDiffFile,
+          commitController: _gitCommitController,
+          isLoading: _loadingGit,
+          isBusy: _gitBusy,
+          isLoadingHistory: _loadingGitHistory,
+          isLoadingDiff: _loadingGitDiff,
+          onRefresh: _refreshGit,
+          onInit: _handleGitInit,
+          onToggleFile: _handleGitToggleFile,
+          onSelectDiffFile: _loadGitDiff,
+          onCommitAll: () => _handleGitCommit(),
+          onCommitSelected: () =>
+              _handleGitCommit(files: _selectedGitFiles.toList()),
+          onSelectCommit: _handleGitSelectCommit,
+          onRefreshHistory: _loadGitHistory,
+          onFetch: () => _handleGitRemote('fetch', _gateway.fetchGit),
+          onPull: () => _handleGitRemote('pull', _gateway.pullGit),
+          onPush: () => _handleGitRemote('push', _gateway.pushGit),
         ),
       _CenterView.packageDetail => PackageDetailsPanel(
           package: _selectedPackage!,
@@ -2237,35 +2692,40 @@ class _AppShellState extends State<AppShell> {
           hover: _editorHover,
           references: _editorReferences,
           statusMessage: _editorStatusMessage,
+          breadcrumb: _buildBreadcrumb(),
+          completionItems: _completionItems,
+          diagnostics: _editorDiagnostics,
+          signatureHelp: _signatureHelp,
+          peekDefinition: _peekDefinition,
           jumpToLine: _jumpToLine,
           onSelectTab: _selectTab,
           onCloseTab: _closeTab,
           onContentChanged: _onContentChanged,
           onSave: _saveActive,
           onSaveAll: _saveAll,
-          onToggleWordWrap: () => setState(() => _wordWrap = !_wordWrap),
+          onToggleWordWrap: () => setState(
+            () => _editor.wordWrap = !_editor.wordWrap,
+          ),
           onGoToDefinition: _editorGoToDefinition,
+          onPeekDefinition: _editorPeekDefinition,
           onFindReferences: _editorFindReferences,
           onHover: _editorHoverLookup,
+          onFormatDocument: _editorFormatDocument,
+          onFormatSelection: _editorFormatSelection,
+          onOpenSymbol: _editorOpenSymbol,
+          onWorkspaceSymbol: _editorWorkspaceSymbol,
+          onCtrlClick: _editorCtrlClickDefinition,
+          onClosePeek: () => setState(() => _editor.peekDefinition = null),
           onOutlineSelect: (symbol) {
             setState(() {
-              _selectedOutlineSymbol = symbol;
-              _jumpToLine = symbol.line;
+              _editor.selectedOutlineSymbol = symbol;
+              _editor.jumpToLine = symbol.line;
             });
           },
           onFind: () {},
           onReplace: () {},
           onReveal: _revealCurrentFile,
-          onCursorChanged: (line, column) {
-            setState(() {
-              _cursorLine = line;
-              _cursorColumn = column;
-              if (_activeEditorTab != null) {
-                _activeEditorTab!.cursorLine = line;
-                _activeEditorTab!.cursorColumn = column;
-              }
-            });
-          },
+          onCursorChanged: _editor.onCursorChanged,
         ),
       _CenterView.placeholder => _WorkspaceOpenPlaceholder(
           workspace: _activeWorkspace!,

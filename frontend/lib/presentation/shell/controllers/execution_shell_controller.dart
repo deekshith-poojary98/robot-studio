@@ -1,0 +1,230 @@
+import 'dart:async';
+
+import '../../../core/gateway/execution_stream_client.dart';
+import '../../../core/gateway/transport_gateway.dart';
+import 'shell_controller.dart';
+
+class ExecutionShellController {
+  ExecutionShellController({
+    required this.gateway,
+    required this.notify,
+    required this.isMounted,
+    required this.appendLog,
+    required this.onRunFinished,
+    required this.workspace,
+    required this.backendConnected,
+  });
+
+  final TransportGateway gateway;
+  final ShellNotify notify;
+  final ShellMounted isMounted;
+  final void Function(String line) appendLog;
+  final Future<void> Function() onRunFinished;
+  final WorkspaceInfo? Function() workspace;
+  final bool Function() backendConnected;
+
+  List<String> executionLines = [];
+  List<ExecutionInfo> executionHistory = [];
+  ExecutionStatus executionStatus = ExecutionStatus.idle;
+  ExecutionInfo? currentExecution;
+  bool loadingHistory = false;
+  List<ExecutionInfo> reportRuns = [];
+  ExecutionInfo? selectedReport;
+  DashboardSummary? reportsDashboard;
+  bool loadingReports = false;
+  bool loadingDashboard = false;
+
+  Timer? elapsedTimer;
+  Duration elapsed = Duration.zero;
+  ExecutionStreamClient? streamClient;
+  StreamSubscription<ExecutionStreamEvent>? streamSub;
+
+  String get elapsedLabel {
+    final seconds = elapsed.inMilliseconds / 1000;
+    return '${seconds.toStringAsFixed(1)}s';
+  }
+
+  void dispose() {
+    streamSub?.cancel();
+    elapsedTimer?.cancel();
+    streamClient?.disconnect();
+  }
+
+  Future<void> connectStream() async {
+    await streamSub?.cancel();
+    streamSub = null;
+    await streamClient?.disconnect();
+
+    final client = ExecutionStreamClient();
+    streamClient = client;
+    try {
+      await client.connect();
+      streamSub = client.events.listen(
+        handleStreamEvent,
+        onError: (Object error) {
+          appendLog('[warn] Execution stream error: $error');
+        },
+      );
+    } catch (error) {
+      appendLog('[warn] Execution stream unavailable: $error');
+    }
+  }
+
+  void handleStreamEvent(ExecutionStreamEvent event) {
+    if (!isMounted()) return;
+
+    switch (event.type) {
+      case 'output':
+        final line = event.line;
+        if (line == null) return;
+        executionLines = [...executionLines, line];
+        notify();
+        return;
+      case 'status':
+        final status = event.status;
+        if (status == null) return;
+        executionStatus = ExecutionStatus.fromApi(status);
+        if (currentExecution != null) {
+          currentExecution = ExecutionInfo(
+            id: currentExecution!.id,
+            workspaceId: currentExecution!.workspaceId,
+            projectId: currentExecution!.projectId,
+            environmentId: currentExecution!.environmentId,
+            projectName: currentExecution!.projectName,
+            suite: currentExecution!.suite,
+            status: executionStatus,
+            startedAt: currentExecution!.startedAt,
+            finishedAt: currentExecution!.finishedAt,
+            durationMs: currentExecution!.durationMs,
+            exitCode: event.exitCode ?? currentExecution!.exitCode,
+            command: currentExecution!.command,
+            outputDir: currentExecution!.outputDir,
+            outputXml: currentExecution!.outputXml,
+            logHtml: currentExecution!.logHtml,
+            reportHtml: currentExecution!.reportHtml,
+          );
+        }
+        notify();
+        return;
+      case 'finished':
+      case 'failed':
+      case 'cancelled':
+        executionStatus = ExecutionStatus.fromApi(event.type);
+        if (currentExecution != null) {
+          currentExecution = ExecutionInfo(
+            id: currentExecution!.id,
+            workspaceId: currentExecution!.workspaceId,
+            projectId: currentExecution!.projectId,
+            environmentId: currentExecution!.environmentId,
+            projectName: currentExecution!.projectName,
+            suite: currentExecution!.suite,
+            status: executionStatus,
+            startedAt: currentExecution!.startedAt,
+            finishedAt: currentExecution!.finishedAt,
+            durationMs: currentExecution!.durationMs,
+            exitCode: event.exitCode ?? currentExecution!.exitCode,
+            command: currentExecution!.command,
+            outputDir: currentExecution!.outputDir,
+            outputXml: currentExecution!.outputXml,
+            logHtml: currentExecution!.logHtml,
+            reportHtml: currentExecution!.reportHtml,
+          );
+        }
+        stopElapsedTimer();
+        notify();
+        unawaited(onRunFinished());
+        return;
+    }
+  }
+
+  void startElapsedTimer() {
+    elapsedTimer?.cancel();
+    elapsed = Duration.zero;
+    elapsedTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (!isMounted()) return;
+      elapsed += const Duration(milliseconds: 100);
+      notify();
+    });
+  }
+
+  void stopElapsedTimer() {
+    elapsedTimer?.cancel();
+    elapsedTimer = null;
+  }
+
+  Future<void> loadExecutionHistory() async {
+    if (workspace() == null || !backendConnected()) {
+      executionHistory = [];
+      loadingHistory = false;
+      notify();
+      return;
+    }
+
+    loadingHistory = true;
+    notify();
+    try {
+      executionHistory = await gateway.listExecutionHistory();
+      if (!isMounted()) return;
+      loadingHistory = false;
+      notify();
+      await loadReports();
+    } catch (error) {
+      if (!isMounted()) return;
+      loadingHistory = false;
+      notify();
+      appendLog('[warn] Could not load execution history: $error');
+    }
+  }
+
+  Future<void> loadReports() async {
+    if (workspace() == null || !backendConnected()) {
+      reportRuns = [];
+      reportsDashboard = null;
+      loadingReports = false;
+      loadingDashboard = false;
+      selectedReport = null;
+      notify();
+      return;
+    }
+
+    loadingReports = true;
+    loadingDashboard = true;
+    notify();
+    try {
+      final results = await Future.wait([
+        gateway.listReports(),
+        gateway.getReportsDashboard(),
+      ]);
+      if (!isMounted()) return;
+      final runs = results[0] as List<ExecutionInfo>;
+      final dashboard = results[1] as DashboardSummary;
+      reportRuns = runs;
+      reportsDashboard = dashboard;
+      loadingReports = false;
+      loadingDashboard = false;
+      if (selectedReport != null) {
+        final match =
+            runs.where((item) => item.id == selectedReport!.id).toList();
+        selectedReport = match.isEmpty ? null : match.first;
+      }
+      notify();
+    } catch (error) {
+      if (!isMounted()) return;
+      loadingReports = false;
+      loadingDashboard = false;
+      notify();
+      appendLog('[warn] Could not load reports: $error');
+    }
+  }
+
+  void resetForWorkspaceChange() {
+    executionLines = [];
+    executionHistory = [];
+    executionStatus = ExecutionStatus.idle;
+    currentExecution = null;
+    reportRuns = [];
+    selectedReport = null;
+    reportsDashboard = null;
+    stopElapsedTimer();
+  }
+}

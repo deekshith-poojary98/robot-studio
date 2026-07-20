@@ -263,9 +263,19 @@ class SqliteIndexStore(IndexStore):
             row = await cursor.fetchone()
         return float(row[0]) if row else None
 
-    async def list_indexed_files(self, workspace_id: UUID | None = None) -> list[str]:
+    async def list_indexed_files(
+        self,
+        workspace_id: UUID | None = None,
+        *,
+        project_id: UUID | None = None,
+    ) -> list[str]:
         async with aiosqlite.connect(self._database_path) as db:
-            if workspace_id:
+            if project_id is not None:
+                cursor = await db.execute(
+                    "SELECT file_path FROM index_files WHERE project_id = ?",
+                    (str(project_id),),
+                )
+            elif workspace_id:
                 cursor = await db.execute(
                     "SELECT file_path FROM index_files WHERE workspace_id = ?",
                     (str(workspace_id),),
