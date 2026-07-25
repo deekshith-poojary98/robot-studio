@@ -14,8 +14,7 @@ from robot_studio.infrastructure.project.filesystem import (
     FilesystemProjectProvider,
     ProjectValidationError,
 )
-from robot_studio.infrastructure.project.templates import TemplateService
-from robot_studio.infrastructure.workspace.filesystem import load_manifest
+from robot_studio.infrastructure.workspace.filesystem import load_manifest, resolve_project_entry_path
 
 
 class ProjectService:
@@ -25,13 +24,11 @@ class ProjectService:
         context: WorkspaceContext,
         event_bus: EventBus,
         filesystem: FilesystemProjectProvider | None = None,
-        templates: TemplateService | None = None,
     ) -> None:
         self._repository = repository
         self._context = context
         self._event_bus = event_bus
         self._fs = filesystem or FilesystemProjectProvider()
-        self._templates = templates or TemplateService(self._fs)
 
     def _require_workspace(self):
         workspace = self._context.workspace
@@ -39,20 +36,24 @@ class ProjectService:
             raise ProjectValidationError("Open a workspace before managing projects")
         return workspace
 
-    async def create_project(self, name: str, project_type: ProjectType) -> Project:
+    async def create_project(self, name: str) -> Project:
         workspace = self._require_workspace()
         cleaned = name.strip()
         if not cleaned:
             raise ProjectValidationError("Project name is required")
-        if project_type == ProjectType.IMPORTED:
-            raise ProjectValidationError(
-                "Use import for existing projects",
-            )
 
         project_root = self._fs.project_root_for_name(workspace.path, cleaned)
-        self._templates.apply(project_root, cleaned, project_type)
+        if project_root.exists() and any(project_root.iterdir()):
+            raise ProjectValidationError(
+                f"A project named '{cleaned}' already exists",
+            )
+        project_root.mkdir(parents=True, exist_ok=True)
+        self._fs.ensure_project_dirs(project_root)
 
-        manifest = self._fs.create_manifest(name=cleaned, project_type=project_type)
+        manifest = self._fs.create_manifest(
+            name=cleaned,
+            project_type=ProjectType.EMPTY,
+        )
         self._fs.write_manifest(project_root, manifest)
         self._fs.register_in_workspace(
             workspace.path,
@@ -67,7 +68,7 @@ class ProjectService:
             name=cleaned,
             path=project_root.resolve(),
             created_at=manifest.created_at,
-            type=project_type,
+            type=ProjectType.EMPTY,
         )
         await self._repository.create(project)
         await self._event_bus.publish(
@@ -84,7 +85,9 @@ class ProjectService:
             raise ProjectValidationError(
                 f"Directory does not exist: '{project_root}'",
             )
-        if not self._fs.is_robot_project(project_root):
+        if not self._fs.is_robot_project(project_root) and not self._fs.has_manifest(
+            project_root,
+        ):
             raise ProjectValidationError(
                 f"'{project_root}' does not look like a Robot Framework project",
             )
@@ -151,11 +154,9 @@ class ProjectService:
         manifest = load_manifest(workspace.path)
         hydrated: list[Project] = []
         for entry in manifest.projects:
-            raw_path = Path(entry["path"])
-            project_path = (
-                raw_path
-                if raw_path.is_absolute()
-                else (workspace.path / raw_path).resolve()
+            project_path = resolve_project_entry_path(
+                workspace.path,
+                str(entry.get("path", "")),
             )
             if not project_path.is_dir():
                 continue
@@ -195,6 +196,75 @@ class ProjectService:
             )
         await self._activate(project)
         return project
+
+    async def open_project_at_path(self, path: str | Path) -> Project:
+        """Activate a project under the open workspace from a folder/file path."""
+        workspace = self._require_workspace()
+        target = Path(path).expanduser().resolve()
+        if target.is_file():
+            target = target.parent
+        if not target.is_dir():
+            raise ProjectValidationError(
+                f"Directory does not exist: '{target}'",
+            )
+
+        workspace_root = workspace.path.resolve()
+        try:
+            target.relative_to(workspace_root)
+        except ValueError as exc:
+            raise ProjectValidationError(
+                f"'{target}' is not inside the open workspace '{workspace_root}'",
+            ) from exc
+
+        if target == workspace_root:
+            projects = await self.list_projects()
+            root_matches = [
+                project
+                for project in projects
+                if project.path.resolve() == workspace_root
+            ]
+            if root_matches:
+                await self._activate(root_matches[0])
+                return root_matches[0]
+            if self._fs.has_manifest(target) or self._fs.is_robot_project(target):
+                return await self.import_project(target)
+            raise ProjectValidationError(
+                "Select a project folder (for example under Projects/), "
+                "or open a Robot Framework project folder directly.",
+            )
+
+        projects = await self.list_projects()
+        candidates = [
+            project
+            for project in projects
+            if project.path.resolve() == target
+            or project.path.resolve() in target.parents
+        ]
+        if candidates:
+            pick = max(candidates, key=lambda item: len(str(item.path.resolve())))
+            await self._activate(pick)
+            return pick
+
+        # Unregistered folder under the workspace — import if it looks like a project.
+        cursor = target
+        while cursor != workspace_root and workspace_root in cursor.parents:
+            if self._fs.has_manifest(cursor) or self._fs.is_robot_project(cursor):
+                return await self.import_project(cursor)
+            cursor = cursor.parent
+
+        raise ProjectValidationError(
+            f"No Robot Studio project found at or above '{target}'",
+        )
+
+    async def ensure_root_project(self) -> Project:
+        """Activate or register the workspace root as the sole/primary project."""
+        workspace = self._require_workspace()
+        projects = await self.list_projects()
+        for project in projects:
+            if project.path.resolve() == workspace.path.resolve():
+                await self._activate(project)
+                return project
+        return await self.import_project(workspace.path)
 
     async def list_recent(self, limit: int = 10) -> list[Project]:
         recent = await self._repository.list_recent(limit=limit)

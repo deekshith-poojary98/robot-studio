@@ -90,6 +90,18 @@ async def open_report(
     return OpenArtifactResponse(path=str(path))
 
 
+@router.post("/{run_id}/open-xml", response_model=OpenArtifactResponse)
+async def open_xml(
+    run_id: UUID,
+    gateway: RestGateway = Depends(get_gateway),
+) -> OpenArtifactResponse:
+    try:
+        path = await gateway.open_report_xml(run_id)
+    except ReportValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return OpenArtifactResponse(path=str(path))
+
+
 @router.post("/{run_id}/reveal", response_model=OpenArtifactResponse)
 async def reveal_report(
     run_id: UUID,

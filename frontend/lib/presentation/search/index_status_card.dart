@@ -57,7 +57,7 @@ class IndexStatusCard extends StatelessWidget {
             const Center(child: CircularProgressIndicator())
           else if (data == null)
             Text(
-              'Open a workspace to build the symbol index.',
+              'Open a project to build the symbol index.',
               style: Theme.of(context).textTheme.bodySmall,
             )
           else

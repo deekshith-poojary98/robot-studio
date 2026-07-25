@@ -8,9 +8,7 @@ import '../panels/problems_panel.dart';
 enum BottomPanelTab {
   console('Console'),
   executionLogs('Execution Logs'),
-  problems('Problems'),
-  output('Output'),
-  terminal('Terminal');
+  problems('Problems');
 
   const BottomPanelTab(this.label);
   final String label;
@@ -26,6 +24,7 @@ class BottomPanel extends StatefulWidget {
     this.problemCount = 0,
     this.forceExecutionTab = false,
     this.revealExecutionLogsToken,
+    this.revealProblemsToken,
     this.onProblemSelected,
   });
 
@@ -36,6 +35,7 @@ class BottomPanel extends StatefulWidget {
   final int problemCount;
   final bool forceExecutionTab;
   final int? revealExecutionLogsToken;
+  final int? revealProblemsToken;
   final ValueChanged<DiagnosticInfo>? onProblemSelected;
 
   @override
@@ -61,6 +61,18 @@ class _BottomPanelState extends State<BottomPanel> {
       _activeTab = BottomPanelTab.executionLogs;
       _expanded = true;
     }
+    if (widget.revealProblemsToken != null &&
+        widget.revealProblemsToken != oldWidget.revealProblemsToken) {
+      _activeTab = BottomPanelTab.problems;
+      _expanded = true;
+    }
+    // Auto-open Problems when diagnostics first appear while editing.
+    if (widget.problemCount > 0 &&
+        oldWidget.problemCount == 0 &&
+        widget.problems.isNotEmpty) {
+      _activeTab = BottomPanelTab.problems;
+      _expanded = true;
+    }
   }
 
   @override
@@ -68,7 +80,14 @@ class _BottomPanelState extends State<BottomPanel> {
     if (!_expanded) {
       return _CollapsedBar(
         activeLabel: _activeTab.label,
+        problemCount: widget.problemCount,
         onExpand: () => setState(() => _expanded = true),
+        onOpenProblems: widget.problemCount > 0
+            ? () => setState(() {
+                  _activeTab = BottomPanelTab.problems;
+                  _expanded = true;
+                })
+            : null,
       );
     }
 
@@ -127,7 +146,7 @@ class _BottomPanelState extends State<BottomPanel> {
         lines: widget.logLines.isEmpty
             ? const [
                 '[info] Robot Studio ready.',
-                '[info] Connect a workspace to get started.',
+                '[info] Open a project to get started.',
               ]
             : widget.logLines,
       );
@@ -140,19 +159,10 @@ class _BottomPanelState extends State<BottomPanel> {
       );
     }
 
-    if (_activeTab == BottomPanelTab.problems) {
-      return ProblemsPanel(
-        diagnostics: widget.problems,
-        isLoading: widget.isLoadingProblems,
-        onSelect: widget.onProblemSelected ?? (_) {},
-      );
-    }
-
-    return Center(
-      child: Text(
-        '${_activeTab.label} panel — coming in a later milestone.',
-        style: Theme.of(context).textTheme.bodySmall,
-      ),
+    return ProblemsPanel(
+      diagnostics: widget.problems,
+      isLoading: widget.isLoadingProblems,
+      onSelect: widget.onProblemSelected ?? (_) {},
     );
   }
 }
@@ -161,32 +171,60 @@ class _CollapsedBar extends StatelessWidget {
   const _CollapsedBar({
     required this.activeLabel,
     required this.onExpand,
+    this.problemCount = 0,
+    this.onOpenProblems,
   });
 
   final String activeLabel;
   final VoidCallback onExpand;
+  final int problemCount;
+  final VoidCallback? onOpenProblems;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onExpand,
-      child: Container(
-        height: 28,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          border: Border(top: BorderSide(color: AppColors.borderSubtle)),
-        ),
-        child: Row(
-          children: [
-            Text(
-              activeLabel.toUpperCase(),
-              style: Theme.of(context).textTheme.labelSmall,
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.borderSubtle)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: onExpand,
+              child: Row(
+                children: [
+                  Text(
+                    activeLabel.toUpperCase(),
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.keyboard_arrow_up, size: 16),
+                ],
+              ),
             ),
-            const Spacer(),
-            const Icon(Icons.keyboard_arrow_up, size: 16),
+          ),
+          if (problemCount > 0) ...[
+            const SizedBox(width: 8),
+            InkWell(
+              onTap: onOpenProblems,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                child: Text(
+                  'PROBLEMS $problemCount',
+                  style: const TextStyle(
+                    color: AppColors.error,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

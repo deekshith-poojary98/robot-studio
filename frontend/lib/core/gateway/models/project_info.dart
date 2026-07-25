@@ -1,25 +1,13 @@
-enum ProjectType {
-  browser,
-  api,
-  selenium,
+import 'workspace_info.dart';
+
+/// Persistence tag from the API — not shown as a product "project type".
+enum ProjectKind {
   empty,
   imported;
 
-  String get apiValue => name;
-
-  String get label => switch (this) {
-        ProjectType.browser => 'Browser Automation',
-        ProjectType.api => 'API Testing',
-        ProjectType.selenium => 'Selenium',
-        ProjectType.empty => 'Empty Project',
-        ProjectType.imported => 'Imported',
-      };
-
-  static ProjectType fromApi(String value) {
-    return ProjectType.values.firstWhere(
-      (type) => type.name == value,
-      orElse: () => ProjectType.empty,
-    );
+  static ProjectKind fromApi(String? value) {
+    if (value == 'imported') return ProjectKind.imported;
+    return ProjectKind.empty;
   }
 }
 
@@ -29,8 +17,8 @@ class ProjectInfo {
     required this.workspaceId,
     required this.name,
     required this.path,
-    required this.type,
     required this.createdAt,
+    this.kind = ProjectKind.empty,
   });
 
   factory ProjectInfo.fromJson(Map<String, dynamic> json) {
@@ -39,7 +27,7 @@ class ProjectInfo {
       workspaceId: json['workspace_id'] as String,
       name: json['name'] as String,
       path: json['path'] as String,
-      type: ProjectType.fromApi(json['type'] as String),
+      kind: ProjectKind.fromApi(json['type'] as String?),
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
@@ -48,6 +36,57 @@ class ProjectInfo {
   final String workspaceId;
   final String name;
   final String path;
-  final ProjectType type;
+  final ProjectKind kind;
   final DateTime createdAt;
+}
+
+class OpenProjectByPathResult {
+  const OpenProjectByPathResult({
+    required this.workspace,
+    required this.project,
+    this.needsEnvironment = false,
+    this.detectedEnvironments = const [],
+  });
+
+  factory OpenProjectByPathResult.fromJson(Map<String, dynamic> json) {
+    final detected = json['detected_environments'] as List<dynamic>? ?? const [];
+    return OpenProjectByPathResult(
+      workspace: WorkspaceInfo.fromJson(
+        json['workspace'] as Map<String, dynamic>,
+      ),
+      project: ProjectInfo.fromJson(
+        json['project'] as Map<String, dynamic>,
+      ),
+      needsEnvironment: json['needs_environment'] as bool? ?? false,
+      detectedEnvironments: detected
+          .map(
+            (item) => DetectedEnvironmentInfo.fromJson(
+              item as Map<String, dynamic>,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  final WorkspaceInfo workspace;
+  final ProjectInfo project;
+  final bool needsEnvironment;
+  final List<DetectedEnvironmentInfo> detectedEnvironments;
+}
+
+class DetectedEnvironmentInfo {
+  const DetectedEnvironmentInfo({
+    required this.name,
+    required this.path,
+  });
+
+  factory DetectedEnvironmentInfo.fromJson(Map<String, dynamic> json) {
+    return DetectedEnvironmentInfo(
+      name: json['name'] as String,
+      path: json['path'] as String,
+    );
+  }
+
+  final String name;
+  final String path;
 }

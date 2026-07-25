@@ -41,8 +41,10 @@ async def api_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client, fresh, tmp_path
-
+        try:
+            yield client, fresh, tmp_path
+        finally:
+            await fresh.shutdown()
     app.dependency_overrides.clear()
 
 
@@ -128,9 +130,11 @@ async def test_reports_api_list_get_dashboard_delete(api_client, monkeypatch) ->
 
     log = await client.post(f"/api/v1/reports/{run.id}/open-log")
     report = await client.post(f"/api/v1/reports/{run.id}/open-report")
+    xml = await client.post(f"/api/v1/reports/{run.id}/open-xml")
     reveal = await client.post(f"/api/v1/reports/{run.id}/reveal")
     assert log.status_code == 200
     assert report.status_code == 200
+    assert xml.status_code == 200
     assert reveal.status_code == 200
     assert any(item.startswith("open:") for item in opened)
     assert any(item.startswith("reveal:") for item in opened)

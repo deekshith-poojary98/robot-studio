@@ -15,6 +15,7 @@ from robot_studio.application.services.package_service import PackageService
 from robot_studio.application.services.plugin_service import PluginService
 from robot_studio.application.services.project_service import ProjectService
 from robot_studio.application.services.report_service import ReportService
+from robot_studio.application.services.test_explorer_service import TestExplorerService
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.application.services.workspace_service import WorkspaceService
 from robot_studio.core.config import settings
@@ -42,7 +43,6 @@ from robot_studio.infrastructure.plugins.builtins import register_builtin_capabi
 from robot_studio.infrastructure.plugins.html_report_provider import HtmlReportProvider
 from robot_studio.infrastructure.plugins.plugin_manager import PluginManager
 from robot_studio.infrastructure.project.filesystem import FilesystemProjectProvider
-from robot_studio.infrastructure.project.templates import TemplateService
 from robot_studio.infrastructure.repositories.environment_repository import (
     SqliteEnvironmentRepository,
 )
@@ -85,6 +85,7 @@ class Container:
         init=False,
     )
     execution_service: ExecutionService | None = field(default=None, init=False)
+    test_explorer_service: TestExplorerService | None = field(default=None, init=False)
     report_service: ReportService | None = field(default=None, init=False)
     index_store: SqliteIndexStore | None = field(default=None, init=False)
     index_service: IndexService | None = field(default=None, init=False)
@@ -125,14 +126,12 @@ class Container:
         )
 
         filesystem = FilesystemProjectProvider()
-        templates = TemplateService(filesystem)
         self.project_repository = SqliteProjectRepository(settings.database_path)
         self.project_service = ProjectService(
             repository=self.project_repository,
             context=self.workspace_context,
             event_bus=self.event_bus,
             filesystem=filesystem,
-            templates=templates,
         )
 
         env_fs = FilesystemEnvironmentProvider()
@@ -202,6 +201,15 @@ class Container:
             project_repository=self.project_repository,
         )
         self.index_service.start()
+
+        self.test_explorer_service = TestExplorerService(
+            context=self.workspace_context,
+            event_bus=self.event_bus,
+            store=self.index_store,
+            project_service=self.project_service,
+            execution_service=self.execution_service,
+        )
+        self.test_explorer_service.start()
 
         language = RobotLanguageService(
             store=self.index_store,
@@ -273,6 +281,18 @@ class Container:
         await self.execution_repository.initialize()
         await self.index_store.initialize()
         await self.plugin_manager.initialize()
+
+    async def shutdown(self) -> None:
+        """Release background work started by initialize/open.
+
+        Safe to call more than once, and safe to call when nothing was opened.
+        """
+        if self.git_service is not None:
+            await self.git_service.stop()
+        if self.index_service is not None:
+            await self.index_service.stop()
+        if self.workspace_context is not None:
+            await self.workspace_context.close()
 
 
 container = Container()

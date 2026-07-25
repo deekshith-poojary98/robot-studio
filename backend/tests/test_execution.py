@@ -23,7 +23,7 @@ from robot_studio.core.events import (
     ExecutionStarted,
     InMemoryEventBus,
 )
-from robot_studio.domain.models import ExecutionStatus, ProjectType
+from robot_studio.domain.models import ExecutionStatus
 from robot_studio.infrastructure.environment.filesystem import (
     FilesystemEnvironmentProvider,
 )
@@ -33,7 +33,6 @@ from robot_studio.infrastructure.environment.python_provider import (
 from robot_studio.infrastructure.execution.results_store import FilesystemResultsStore
 from robot_studio.infrastructure.execution.subprocess_runner import SubprocessRunner
 from robot_studio.infrastructure.project.filesystem import FilesystemProjectProvider
-from robot_studio.infrastructure.project.templates import TemplateService
 from robot_studio.infrastructure.repositories.environment_repository import (
     SqliteEnvironmentRepository,
 )
@@ -65,7 +64,6 @@ async def services(tmp_path: Path):
         context=context,
         event_bus=bus,
         filesystem=FilesystemProjectProvider(),
-        templates=TemplateService(FilesystemProjectProvider()),
     )
 
     env_repo = SqliteEnvironmentRepository(db)
@@ -96,9 +94,8 @@ async def services(tmp_path: Path):
         sys.executable,
         install_robot_framework=True,
     )
-    project = await project_service.create_project("Demo", ProjectType.EMPTY)
+    project = await project_service.create_project("Demo")
     suite = project.path / "tests" / "sample.robot"
-    suite.parent.mkdir(parents=True, exist_ok=True)
     suite.write_text(
         "*** Test Cases ***\nHello\n    Log    hello from robot\n",
         encoding="utf-8",

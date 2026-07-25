@@ -164,6 +164,28 @@ class FilesystemEnvironmentProvider:
             key=lambda item: item.name.lower(),
         )
 
+    def discover_candidates(self, project_root: Path) -> list[Path]:
+        """Find local virtualenvs users commonly keep beside a project."""
+        root = project_root.expanduser().resolve()
+        found: list[Path] = []
+        seen: set[Path] = set()
+
+        def _add(path: Path) -> None:
+            resolved = path.resolve()
+            if resolved in seen or not resolved.is_dir():
+                return
+            if self.is_virtualenv(resolved):
+                seen.add(resolved)
+                found.append(resolved)
+
+        for name in (".venv", "venv", "env"):
+            _add(root / name)
+
+        for path in self.discover(root):
+            _add(path)
+
+        return found
+
     def delete_directory(self, environment_root: Path) -> None:
         if environment_root.exists():
             shutil.rmtree(environment_root)

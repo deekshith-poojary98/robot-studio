@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/package_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/status_badge.dart';
 
 class PackageManagerPage extends StatelessWidget {
@@ -144,7 +145,7 @@ class PackageManagerPage extends StatelessWidget {
           const Divider(height: 1),
           Expanded(
             child: !hasActiveEnvironment
-                ? const _MessageState(
+                ? const EmptyState(
                     icon: Icons.memory_outlined,
                     title: 'No active environment',
                     message:
@@ -153,7 +154,7 @@ class PackageManagerPage extends StatelessWidget {
                 : isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : packages.isEmpty
-                        ? _MessageState(
+                        ? EmptyState(
                             icon: Icons.inventory_2_outlined,
                             title: 'No packages found',
                             message: query.isEmpty
@@ -182,42 +183,6 @@ class PackageManagerPage extends StatelessWidget {
                             },
                           ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MessageState extends StatelessWidget {
-  const _MessageState({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 40, color: AppColors.textMuted),
-          const SizedBox(height: 12),
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Text(message, style: Theme.of(context).textTheme.bodySmall),
-          if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: 16),
-            FilledButton(onPressed: onAction, child: Text(actionLabel!)),
-          ],
         ],
       ),
     );

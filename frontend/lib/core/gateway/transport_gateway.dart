@@ -8,6 +8,7 @@ import 'models/package_info.dart';
 import 'models/plugin_info.dart';
 import 'models/project_info.dart';
 import 'models/report_info.dart';
+import 'models/test_explorer_info.dart';
 import 'models/workspace_info.dart';
 
 export 'models/environment_info.dart';
@@ -21,6 +22,7 @@ export 'models/package_info.dart';
 export 'models/plugin_info.dart';
 export 'models/project_info.dart';
 export 'models/report_info.dart';
+export 'models/test_explorer_info.dart';
 export 'models/workspace_info.dart';
 
 /// Abstraction over REST, gRPC, or other transport mechanisms.
@@ -38,7 +40,6 @@ abstract class TransportGateway {
 
   Future<ProjectInfo> createProject({
     required String name,
-    required ProjectType type,
   });
 
   Future<ProjectInfo> importProject(String path);
@@ -46,6 +47,13 @@ abstract class TransportGateway {
   Future<List<ProjectInfo>> listProjects();
 
   Future<ProjectInfo> openProject(String projectId);
+
+  Future<OpenProjectByPathResult> openProjectByPath(String path);
+
+  Future<OpenProjectByPathResult> createStandaloneProject({
+    required String name,
+    required String location,
+  });
 
   Future<List<ProjectInfo>> listRecentProjects();
 
@@ -101,6 +109,22 @@ abstract class TransportGateway {
 
   Future<ExecutionInfo> runProject();
 
+  Future<TestNodeInfo> getTestTree({String? query});
+
+  Future<List<TestNodeInfo>> getTestsForFile(String path);
+
+  Future<ExecutionInfo> runTest({required String file, required String name});
+
+  Future<ExecutionInfo> runTestSuite({String? file});
+
+  Future<ExecutionInfo> runTestsByTag(String tag);
+
+  Future<ExecutionInfo> runFailedTests();
+
+  Future<ExecutionInfo> runSelectedTests(
+    List<({String file, String name})> tests,
+  );
+
   Future<ExecutionInfo> stopExecution();
 
   Future<ExecutionStatusInfo> getExecutionStatus();
@@ -116,6 +140,8 @@ abstract class TransportGateway {
   Future<String> openReportLog(String runId);
 
   Future<String> openReportHtml(String runId);
+
+  Future<String> openReportXml(String runId);
 
   Future<String> revealReport(String runId);
 
@@ -204,7 +230,7 @@ abstract class TransportGateway {
 
   Future<List<FileTreeNode>> listFileTree({
     String? path,
-    int depth = 3,
+    int depth = 0,
   });
 
   Future<List<PluginInfo>> listPlugins();

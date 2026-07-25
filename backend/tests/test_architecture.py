@@ -19,10 +19,13 @@ from robot_studio.infrastructure.plugins.builtins import register_builtin_capabi
 
 
 @pytest.fixture
-def container() -> Container:
+async def container():
     c = Container()
     c.initialize()
-    return c
+    try:
+        yield c
+    finally:
+        await c.shutdown()
 
 
 @pytest.mark.asyncio

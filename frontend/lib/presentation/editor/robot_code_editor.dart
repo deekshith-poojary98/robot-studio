@@ -21,6 +21,7 @@ class RobotCodeEditor extends StatefulWidget {
     this.onCtrlClick,
     this.wordWrap = true,
     this.jumpToLine,
+    this.jumpToColumn,
     this.completionItems = const [],
     this.diagnostics = const [],
     this.signatureHelp,
@@ -35,6 +36,7 @@ class RobotCodeEditor extends StatefulWidget {
   final VoidCallback? onCtrlClick;
   final bool wordWrap;
   final int? jumpToLine;
+  final int? jumpToColumn;
   final List<CompletionItemInfo> completionItems;
   final List<DiagnosticInfo> diagnostics;
   final SignatureHelpInfo? signatureHelp;
@@ -90,7 +92,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _controller.addListener(_onChanged);
     _listening = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _jumpIfNeeded(widget.jumpToLine);
+      _jumpIfNeeded(widget.jumpToLine, widget.jumpToColumn);
     });
   }
 
@@ -117,9 +119,10 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       setState(() {});
     }
     if (widget.jumpToLine != null &&
-        widget.jumpToLine != oldWidget.jumpToLine) {
+        (widget.jumpToLine != oldWidget.jumpToLine ||
+            widget.jumpToColumn != oldWidget.jumpToColumn)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _jumpIfNeeded(widget.jumpToLine);
+        _jumpIfNeeded(widget.jumpToLine, widget.jumpToColumn);
       });
     }
   }
@@ -146,13 +149,16 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     });
   }
 
-  void _jumpIfNeeded(int? line) {
+  void _jumpIfNeeded(int? line, [int? column]) {
     if (line == null || line < 1) return;
     final index = line - 1;
     if (index >= _controller.lineCount) return;
+    final row = _controller.codeLines[index];
+    final maxOffset = row.length;
+    final offset = ((column ?? 1) - 1).clamp(0, maxOffset);
     _controller.selection = CodeLineSelection.collapsed(
       index: index,
-      offset: 0,
+      offset: offset,
     );
   }
 

@@ -24,9 +24,13 @@ class EditorShellController {
   bool wordWrap = true;
   String? statusMessage;
   int? jumpToLine;
+  int? jumpToColumn;
   int cursorLine = 1;
   int cursorColumn = 1;
   List<FileTreeNode> fileTree = [];
+  final Set<String> expandedDirs = {};
+  final Map<String, List<FileTreeNode>> childrenByPath = {};
+  final Set<String> loadingDirs = {};
   List<String> recentFiles = [];
   IndexedSymbolInfo? selectedOutlineSymbol;
   List<CompletionItemInfo> completionItems = [];
@@ -35,6 +39,7 @@ class EditorShellController {
   SignatureHelpInfo? signatureHelp;
   IndexedSymbolInfo? peekDefinition;
   bool loadingLanguageFeatures = false;
+  bool loadingFileTree = false;
 
   Timer? languageDebounce;
 
@@ -63,7 +68,12 @@ class EditorShellController {
     peekDefinition = null;
     statusMessage = null;
     jumpToLine = null;
+    jumpToColumn = null;
     fileTree = [];
+    expandedDirs.clear();
+    childrenByPath.clear();
+    loadingDirs.clear();
+    loadingFileTree = false;
     recentFiles = [];
     languageDebounce?.cancel();
   }
@@ -144,6 +154,11 @@ class EditorShellController {
       completionItems = results[0] as List<CompletionItemInfo>;
       diagnostics = results[1] as List<DiagnosticInfo>;
       signatureHelp = results[2] as SignatureHelpInfo?;
+      // Keep Problems panel in sync with the active file immediately.
+      workspaceProblems = [
+        ...workspaceProblems.where((item) => item.filePath != tab.path),
+        ...diagnostics,
+      ];
       loadingLanguageFeatures = false;
       notify();
       await refreshWorkspaceProblems();
@@ -196,17 +211,84 @@ class EditorShellController {
   Future<void> loadFileTree() async {
     if (workspace() == null) {
       fileTree = [];
+      expandedDirs.clear();
+      childrenByPath.clear();
+      loadingDirs.clear();
       notify();
       return;
     }
+    loadingFileTree = true;
+    notify();
     try {
-      fileTree = await gateway.listFileTree(depth: 5);
+      // Depth 0: immediate children only (VS Code lazy-expand model).
+      fileTree = await gateway.listFileTree(depth: 0);
+      expandedDirs.clear();
+      childrenByPath.clear();
+      loadingDirs.clear();
       if (!isMounted()) return;
+      loadingFileTree = false;
       notify();
     } catch (_) {
       fileTree = [];
+      loadingFileTree = false;
       notify();
     }
+  }
+
+  Future<void> toggleDirectory(String path) async {
+    if (expandedDirs.contains(path)) {
+      expandedDirs.remove(path);
+      notify();
+      return;
+    }
+    expandedDirs.add(path);
+    if (!childrenByPath.containsKey(path)) {
+      loadingDirs.add(path);
+      notify();
+      try {
+        final kids = await gateway.listFileTree(path: path, depth: 0);
+        childrenByPath[path] = kids;
+      } catch (_) {
+        childrenByPath[path] = const [];
+      } finally {
+        loadingDirs.remove(path);
+      }
+    }
+    if (!isMounted()) return;
+    notify();
+  }
+
+  List<FileTreeNode> childrenOf(FileTreeNode node) {
+    if (childrenByPath.containsKey(node.path)) {
+      return childrenByPath[node.path]!;
+    }
+    if (node.children.isNotEmpty) return node.children;
+    return const [];
+  }
+
+  List<FlatFileTreeRow> visibleFileRows() {
+    final rows = <FlatFileTreeRow>[];
+
+    void walk(List<FileTreeNode> nodes, int depth) {
+      for (final node in nodes) {
+        final expanded = expandedDirs.contains(node.path);
+        final loading = loadingDirs.contains(node.path);
+        rows.add(
+          FlatFileTreeRow(
+            node: node,
+            depth: depth,
+            expanded: expanded,
+            loading: loading,
+          ),
+        );
+        if (node.isDir && expanded) {
+          walk(childrenOf(node), depth + 1);
+        }
+      }
+    }
+
+    walk(fileTree, 0);
+    return rows;
   }
 
   static String? extractWordAtCursor(String content, int line, int column) {

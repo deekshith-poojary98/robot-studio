@@ -1,5 +1,6 @@
 """REST transport gateway — adapter between HTTP routes and application services."""
 
+from pathlib import Path
 from uuid import UUID
 
 from robot_studio import __version__
@@ -17,6 +18,10 @@ from robot_studio.application.services.package_service import (
 from robot_studio.application.services.plugin_service import PluginService
 from robot_studio.application.services.project_service import ProjectService
 from robot_studio.application.services.report_service import ReportService
+from robot_studio.application.services.test_explorer_service import (
+    TestExplorerService,
+    TestNode,
+)
 from robot_studio.application.services.workspace_service import WorkspaceService
 from robot_studio.core.container import Container
 from robot_studio.domain.interfaces.indexing import SymbolKind
@@ -76,6 +81,13 @@ class RestGateway:
         return service
 
     @property
+    def _test_explorer_service(self) -> TestExplorerService:
+        service = self._container.test_explorer_service
+        if service is None:
+            raise RuntimeError("TestExplorerService is not initialized")
+        return service
+
+    @property
     def _report_service(self) -> ReportService:
         service = self._container.report_service
         if service is None:
@@ -122,11 +134,8 @@ class RestGateway:
     async def list_recent_workspaces(self) -> list[Workspace]:
         return await self._workspace_service.list_recent()
 
-    async def create_project(self, name: str, project_type: ProjectType) -> Project:
-        return await self._project_service.create_project(
-            name=name,
-            project_type=project_type,
-        )
+    async def create_project(self, name: str) -> Project:
+        return await self._project_service.create_project(name=name)
 
     async def import_project(self, path: str) -> Project:
         return await self._project_service.import_project(path=path)
@@ -136,6 +145,127 @@ class RestGateway:
 
     async def open_project(self, project_id: UUID) -> Project:
         return await self._project_service.open_project(project_id=project_id)
+
+    async def open_project_by_path(self, path: str) -> tuple[Workspace, Project]:
+        """Open a project folder as the primary UX entry.
+
+        The selected folder becomes (or already is) the workspace root with
+        ``.robotstudio/`` metadata inside it — no companion wrapper directories.
+        """
+        from robot_studio.infrastructure.project.filesystem import (
+            FilesystemProjectProvider,
+            ProjectValidationError,
+        )
+        from robot_studio.infrastructure.workspace.filesystem import (
+            find_workspace_root,
+        )
+
+        target = Path(path).expanduser().resolve()
+        if not target.exists():
+            raise ProjectValidationError(f"Path does not exist: '{target}'")
+        if target.is_file():
+            target = target.parent
+
+        fs = FilesystemProjectProvider()
+        workspace_root = find_workspace_root(target)
+
+        # Path is inside an existing Robot Studio workspace (classic or in-project).
+        if workspace_root is not None:
+            workspace = await self._workspace_service.open_workspace(workspace_root)
+            if target == workspace_root.resolve():
+                projects = await self._project_service.list_projects()
+                root_projects = [
+                    item
+                    for item in projects
+                    if item.path.resolve() == workspace_root.resolve()
+                ]
+                if root_projects:
+                    project = await self._project_service.open_project(
+                        root_projects[0].id,
+                    )
+                    return workspace, project
+                if projects:
+                    project = await self._project_service.open_project(projects[0].id)
+                    return workspace, project
+                if fs.is_robot_project(target) or fs.has_manifest(target):
+                    project = await self._project_service.ensure_root_project()
+                    return workspace, project
+                raise ProjectValidationError(
+                    f"Workspace '{workspace.name}' has no projects yet. "
+                    "Create or import a project to continue.",
+                )
+            project = await self._project_service.open_project_at_path(target)
+            return workspace, project
+
+        # Standalone folder — initialize Robot Studio metadata in-place.
+        if not fs.is_robot_project(target) and not fs.has_manifest(target):
+            raise ProjectValidationError(
+                f"'{target}' does not look like a Robot Framework project "
+                "(expected .robot files, requirements.txt, pyproject.toml, or robot.yaml).",
+            )
+
+        workspace = await self._workspace_service.open_or_init_project_workspace(
+            target,
+            target.name,
+        )
+        project = await self._project_service.ensure_root_project()
+        return workspace, project
+
+    async def create_standalone_project(
+        self,
+        name: str,
+        location: str,
+    ) -> tuple[Workspace, Project]:
+        """Create a new project folder that is also its own workspace root."""
+        from robot_studio.infrastructure.project.filesystem import (
+            FilesystemProjectProvider,
+            ProjectValidationError,
+        )
+
+        cleaned = name.strip()
+        if not cleaned:
+            raise ProjectValidationError("Project name is required")
+
+        parent = Path(location).expanduser().resolve()
+        if not parent.is_dir():
+            raise ProjectValidationError(
+                f"Location does not exist or is not a directory: '{parent}'",
+            )
+
+        project_root = parent / cleaned
+        if project_root.exists():
+            raise ProjectValidationError(
+                f"A folder named '{cleaned}' already exists at '{parent}'",
+            )
+
+        fs = FilesystemProjectProvider()
+        project_root.mkdir(parents=True, exist_ok=True)
+        fs.ensure_project_dirs(project_root)
+
+        workspace = await self._workspace_service.open_or_init_project_workspace(
+            project_root,
+            cleaned,
+        )
+        manifest = fs.create_manifest(name=cleaned, project_type=ProjectType.EMPTY)
+        fs.write_manifest(project_root, manifest)
+        project = await self._project_service.ensure_root_project()
+        return workspace, project
+
+    async def environment_prompt_state(
+        self,
+    ) -> tuple[bool, list[dict[str, str]]]:
+        """Return whether the UI should prompt for an environment, plus detections."""
+        try:
+            environments = await self._environment_service.list_environments()
+        except Exception:
+            return False, []
+        if environments:
+            return False, []
+        detected = await self._environment_service.detect_candidate_environments()
+        return True, detected
+
+    async def detect_candidate_environments(self) -> list[dict[str, str]]:
+        return await self._environment_service.detect_candidate_environments()
 
     async def list_recent_projects(self) -> list[Project]:
         return await self._project_service.list_recent()
@@ -232,6 +362,27 @@ class RestGateway:
     async def run_project(self) -> ExecutionRun:
         return await self._execution_service.run_project()
 
+    async def get_test_tree(self, query: str | None = None) -> TestNode:
+        return await self._test_explorer_service.get_tree(query=query)
+
+    async def get_tests_for_file(self, path: str) -> list[TestNode]:
+        return await self._test_explorer_service.get_file(path)
+
+    async def run_test(self, *, file: str, name: str) -> ExecutionRun:
+        return await self._test_explorer_service.run_test(file=file, name=name)
+
+    async def run_test_suite(self, *, file: str | None = None) -> ExecutionRun:
+        return await self._test_explorer_service.run_suite(file=file)
+
+    async def run_tests_by_tag(self, *, tag: str) -> ExecutionRun:
+        return await self._test_explorer_service.run_tag(tag=tag)
+
+    async def run_failed_tests(self) -> ExecutionRun:
+        return await self._test_explorer_service.run_failed()
+
+    async def run_selected_tests(self, *, tests: list[dict]) -> ExecutionRun:
+        return await self._test_explorer_service.run_selected(tests=tests)
+
     async def stop_execution(self) -> ExecutionRun | None:
         return await self._execution_service.stop()
 
@@ -255,6 +406,9 @@ class RestGateway:
 
     async def open_report_html(self, run_id: UUID):
         return await self._report_service.open_report(run_id)
+
+    async def open_report_xml(self, run_id: UUID):
+        return await self._report_service.open_xml(run_id)
 
     async def reveal_report(self, run_id: UUID):
         return await self._report_service.reveal(run_id)
@@ -435,7 +589,7 @@ class RestGateway:
     async def write_file(self, path: str, content: str) -> dict:
         return await self._file_service.write_file(path, content)
 
-    async def list_file_tree(self, path: str | None = None, *, depth: int = 3) -> list[dict]:
+    async def list_file_tree(self, path: str | None = None, *, depth: int = 0) -> list[dict]:
         return await self._file_service.list_tree(path, depth=depth)
 
     @property
@@ -492,6 +646,17 @@ class RestGateway:
 
     async def git_push(self):
         return await self._git_service.push()
+
+    async def git_seed_local_remote(
+        self,
+        *,
+        relative_path: str = ".test-remotes/origin.git",
+        remote_name: str = "origin",
+    ) -> str:
+        return await self._git_service.seed_local_remote(
+            relative_path=relative_path,
+            remote_name=remote_name,
+        )
 
     async def git_diff(self, *, file_path: str | None = None, commit: str | None = None):
         return await self._git_service.diff(file_path=file_path, commit=commit)

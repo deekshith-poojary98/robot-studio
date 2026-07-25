@@ -48,6 +48,12 @@ abstract final class AppSpacing {
   static const xl = 24.0;
 }
 
+/// Two dialog widths only: [form] for prompts, [wide] for list/log content.
+abstract final class AppDialogWidth {
+  static const form = 420.0;
+  static const wide = 480.0;
+}
+
 ThemeData buildAppTheme() {
   const colorScheme = ColorScheme.dark(
     brightness: Brightness.dark,

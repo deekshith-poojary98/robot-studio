@@ -54,9 +54,10 @@ static void my_application_activate(GApplication* application) {
 
   gtk_window_set_default_size(window, 1280, 720);
 
+  // IDE chrome (rail + sidebar + editor + bottom panel) needs a real floor.
   GdkGeometry geometry = {};
-  geometry.min_width = 1024;
-  geometry.min_height = 640;
+  geometry.min_width = 1280;
+  geometry.min_height = 720;
   gtk_window_set_geometry_hints(window, nullptr, &geometry, GDK_HINT_MIN_SIZE);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();

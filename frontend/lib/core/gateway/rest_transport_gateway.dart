@@ -30,7 +30,7 @@ class RestTransportGateway implements TransportGateway {
 
   @override
   Future<HealthResponse> health() async {
-    final response = await _get('/health');
+    final response = await _get('/health', quiet: true);
     return HealthResponse.fromJson(response);
   }
 
@@ -67,11 +67,10 @@ class RestTransportGateway implements TransportGateway {
   @override
   Future<ProjectInfo> createProject({
     required String name,
-    required ProjectType type,
   }) async {
     final response = await _post(
       '/projects',
-      body: {'name': name, 'type': type.apiValue},
+      body: {'name': name},
     );
     return ProjectInfo.fromJson(response);
   }
@@ -101,6 +100,32 @@ class RestTransportGateway implements TransportGateway {
       body: {'project_id': projectId},
     );
     return ProjectInfo.fromJson(response);
+  }
+
+  @override
+  Future<OpenProjectByPathResult> openProjectByPath(String path) async {
+    final response = await _post(
+      '/projects/open-path',
+      body: {'path': path},
+      timeout: const Duration(seconds: 60),
+    );
+    return OpenProjectByPathResult.fromJson(response);
+  }
+
+  @override
+  Future<OpenProjectByPathResult> createStandaloneProject({
+    required String name,
+    required String location,
+  }) async {
+    final response = await _post(
+      '/projects/standalone',
+      body: {
+        'name': name,
+        'location': location,
+      },
+      timeout: const Duration(seconds: 60),
+    );
+    return OpenProjectByPathResult.fromJson(response);
   }
 
   @override
@@ -303,6 +328,85 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<TestNodeInfo> getTestTree({String? query}) async {
+    final suffix = (query == null || query.isEmpty)
+        ? ''
+        : '?q=${Uri.encodeQueryComponent(query)}';
+    final response = await _get('/tests/tree$suffix');
+    return TestNodeInfo.fromJson(response['tree'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<List<TestNodeInfo>> getTestsForFile(String path) async {
+    final response = await _get(
+      '/tests/file?path=${Uri.encodeQueryComponent(path)}',
+    );
+    final items = response['nodes'] as List<dynamic>;
+    return items
+        .map((item) => TestNodeInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<ExecutionInfo> runTest({
+    required String file,
+    required String name,
+  }) async {
+    final response = await _post(
+      '/tests/run',
+      body: {'file': file, 'name': name},
+      timeout: const Duration(seconds: 30),
+    );
+    return ExecutionInfo.fromJson(response);
+  }
+
+  @override
+  Future<ExecutionInfo> runTestSuite({String? file}) async {
+    final response = await _post(
+      '/tests/run-suite',
+      body: {'file': file},
+      timeout: const Duration(seconds: 30),
+    );
+    return ExecutionInfo.fromJson(response);
+  }
+
+  @override
+  Future<ExecutionInfo> runTestsByTag(String tag) async {
+    final response = await _post(
+      '/tests/run-tag',
+      body: {'tag': tag},
+      timeout: const Duration(seconds: 30),
+    );
+    return ExecutionInfo.fromJson(response);
+  }
+
+  @override
+  Future<ExecutionInfo> runFailedTests() async {
+    final response = await _post(
+      '/tests/run-failed',
+      body: const {},
+      timeout: const Duration(seconds: 30),
+    );
+    return ExecutionInfo.fromJson(response);
+  }
+
+  @override
+  Future<ExecutionInfo> runSelectedTests(
+    List<({String file, String name})> tests,
+  ) async {
+    final response = await _post(
+      '/tests/run-selected',
+      body: {
+        'tests': [
+          for (final item in tests) {'file': item.file, 'name': item.name},
+        ],
+      },
+      timeout: const Duration(seconds: 30),
+    );
+    return ExecutionInfo.fromJson(response);
+  }
+
+  @override
   Future<ExecutionInfo> stopExecution() async {
     final response = await _post(
       '/execution/stop',
@@ -364,6 +468,12 @@ class RestTransportGateway implements TransportGateway {
   @override
   Future<String> openReportHtml(String runId) async {
     final response = await _post('/reports/$runId/open-report', body: {});
+    return response['path'] as String? ?? '';
+  }
+
+  @override
+  Future<String> openReportXml(String runId) async {
+    final response = await _post('/reports/$runId/open-xml', body: {});
     return response['path'] as String? ?? '';
   }
 
@@ -648,7 +758,7 @@ class RestTransportGateway implements TransportGateway {
   @override
   Future<List<FileTreeNode>> listFileTree({
     String? path,
-    int depth = 3,
+    int depth = 0,
   }) async {
     final buffer = StringBuffer('/files/tree?depth=$depth');
     if (path != null) {
@@ -831,13 +941,14 @@ class RestTransportGateway implements TransportGateway {
     return GitDiffInfo.fromJson(response);
   }
 
-  Future<Map<String, dynamic>> _get(String path) {
+  Future<Map<String, dynamic>> _get(String path, {bool quiet = false}) {
     return _send(
       'GET',
       path,
       () => _client
           .get(Uri.parse('$baseUrl$path'))
           .timeout(const Duration(seconds: 30)),
+      quiet: quiet,
     );
   }
 
@@ -902,30 +1013,43 @@ class RestTransportGateway implements TransportGateway {
     Future<http.Response> Function() send, {
     Map<String, dynamic>? body,
     bool allowEmpty = false,
+    bool quiet = false,
   }) async {
     final stopwatch = Stopwatch()..start();
-    AppLogger.debug(
-      '$method $path',
-      tag: 'Gateway',
-      data: body == null ? null : AppLogger.summarizeBody(body),
-    );
+    if (!quiet) {
+      AppLogger.debug(
+        '$method $path',
+        tag: 'Gateway',
+        data: body == null ? null : AppLogger.summarizeBody(body),
+      );
+    }
     try {
       final response = await send();
       stopwatch.stop();
-      AppLogger.debug(
-        '$method $path → ${response.statusCode} '
-        '(${stopwatch.elapsedMilliseconds}ms, ${response.bodyBytes.length}b)',
-        tag: 'Gateway',
-      );
+      if (!quiet) {
+        AppLogger.debug(
+          '$method $path → ${response.statusCode} '
+          '(${stopwatch.elapsedMilliseconds}ms, ${response.bodyBytes.length}b)',
+          tag: 'Gateway',
+        );
+      }
       return _decode(response, allowEmpty: allowEmpty);
     } catch (error, stackTrace) {
       stopwatch.stop();
-      AppLogger.error(
-        '$method $path failed after ${stopwatch.elapsedMilliseconds}ms',
-        tag: 'Gateway',
-        error: error,
-        stackTrace: stackTrace,
-      );
+      if (quiet) {
+        AppLogger.debug(
+          '$method $path failed after ${stopwatch.elapsedMilliseconds}ms',
+          tag: 'Gateway',
+          data: '$error',
+        );
+      } else {
+        AppLogger.error(
+          '$method $path failed after ${stopwatch.elapsedMilliseconds}ms',
+          tag: 'Gateway',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
       rethrow;
     }
   }

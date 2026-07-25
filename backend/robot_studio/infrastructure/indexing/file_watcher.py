@@ -6,7 +6,6 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from threading import Thread
 
 from robot_studio.domain.interfaces.indexing import FileWatcher
 from robot_studio.infrastructure.indexing.filesystem_indexer import INDEXABLE_SUFFIXES
@@ -76,12 +75,22 @@ class NativeFileWatcher(FileWatcher):
         for root in list(self._roots):
             if root.exists():
                 observer.schedule(handler, str(root), recursive=True)
-        thread = Thread(target=observer.start, daemon=True)
-        thread.start()
+        # Observer is itself a Thread; start it directly (daemon so process exit
+        # is never blocked if a test forgets to stop).
+        observer.daemon = True  # type: ignore[attr-defined]
+        observer.start()
         self._observer = observer
 
     async def stop(self) -> None:
+        # Drop the loop reference first so late watchdog callbacks cannot
+        # call_soon_threadsafe onto a loop that pytest-asyncio is draining.
         self._running = False
+        self._loop = None
+        if self._observer is not None:
+            self._observer.stop()  # type: ignore[union-attr]
+            self._observer.join(timeout=2)  # type: ignore[union-attr]
+            self._observer = None
+        self._handler = None
         if self._debounce_task is not None:
             self._debounce_task.cancel()
             try:
@@ -89,10 +98,6 @@ class NativeFileWatcher(FileWatcher):
             except asyncio.CancelledError:
                 pass
             self._debounce_task = None
-        if self._observer is not None:
-            self._observer.stop()  # type: ignore[union-attr]
-            self._observer.join(timeout=2)  # type: ignore[union-attr]
-            self._observer = None
         self._pending.clear()
 
     def watch_path(self, path: Path) -> None:
@@ -117,9 +122,21 @@ class NativeFileWatcher(FileWatcher):
         if event != "deleted" and not _is_indexable(path):
             return
         self._pending[str(path)] = (event, path)
-        self._loop.call_soon_threadsafe(self._arm_debounce)
+        loop = self._loop
+        try:
+            loop.call_soon_threadsafe(self._arm_debounce)
+        except RuntimeError:
+            # Event loop already closed during test/app teardown.
+            return
 
     def _arm_debounce(self) -> None:
+        # Callbacks queued before stop() must not spawn work on a closing loop.
+        if not self._running or self._loop is None:
+            return
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return
         if self._debounce_task is not None and not self._debounce_task.done():
             self._debounce_task.cancel()
         self._debounce_task = asyncio.create_task(self._flush_pending())

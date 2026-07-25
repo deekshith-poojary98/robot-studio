@@ -70,6 +70,13 @@ class ExecutionShellController {
     }
   }
 
+  Future<void> disconnectStream() async {
+    await streamSub?.cancel();
+    streamSub = null;
+    await streamClient?.disconnect();
+    streamClient = null;
+  }
+
   bool _isEventForCurrentRun(ExecutionStreamEvent event) {
     final current = currentExecution;
     if (current == null) return false;

@@ -3,16 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/project_info.dart';
 import '../../core/theme/app_theme.dart';
 
-IconData iconForProjectType(ProjectType type) {
-  return switch (type) {
-    ProjectType.browser => Icons.language,
-    ProjectType.api => Icons.api_outlined,
-    ProjectType.selenium => Icons.web_asset,
-    ProjectType.empty => Icons.folder_open_outlined,
-    ProjectType.imported => Icons.link,
-  };
-}
-
 class ProjectDetailsPanel extends StatelessWidget {
   const ProjectDetailsPanel({super.key, required this.project});
 
@@ -31,8 +21,8 @@ class ProjectDetailsPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
-                  iconForProjectType(project.type),
+                const Icon(
+                  Icons.folder_open_outlined,
                   size: 28,
                   color: AppColors.accent,
                 ),
@@ -48,7 +38,6 @@ class ProjectDetailsPanel extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 24),
-            _DetailRow(label: 'Type', value: project.type.label),
             _DetailRow(label: 'Location', value: project.path),
             _DetailRow(
               label: 'Created',

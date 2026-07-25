@@ -95,6 +95,36 @@ class ExecutionService:
             python_executable=environment.python_executable,
             suite=str(project.path),
             workspace_path=workspace.path,
+            run_label=f"Project: {project.name}",
+        )
+
+    async def run_with_options(
+        self,
+        *,
+        suite: str,
+        robot_args: list[str] | None = None,
+        run_label: str | None = None,
+        project_path: Path | None = None,
+    ) -> ExecutionRun:
+        """Start a Robot run with extra CLI args (e.g. --test / --include)."""
+        workspace, project, environment = self._require_session()
+        resolved_suite = suite
+        if not Path(suite).is_absolute():
+            candidate = (project.path / suite).resolve()
+            if candidate.exists():
+                resolved_suite = str(candidate)
+        return await self._start_run(
+            workspace_id=workspace.id,
+            project_id=project.id,
+            project_name=project.name,
+            project_path=project_path or project.path,
+            environment_id=environment.id,
+            environment_name=environment.name,
+            python_executable=environment.python_executable,
+            suite=resolved_suite,
+            workspace_path=workspace.path,
+            robot_args=robot_args or [],
+            run_label=run_label,
         )
 
     async def stop(self) -> ExecutionRun | None:
@@ -162,6 +192,8 @@ class ExecutionService:
         python_executable: Path,
         suite: str,
         workspace_path: Path,
+        robot_args: list[str] | None = None,
+        run_label: str | None = None,
     ) -> ExecutionRun:
         async with self._lock:
             if self._current is not None and self._current.status in {
@@ -174,17 +206,18 @@ class ExecutionService:
                 )
 
         run_id = uuid4()
-        stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+        stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
         output_dir = workspace_path / "Reports" / f"Run-{stamp}"
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        display_suite = run_label or suite
         run = ExecutionRun(
             id=run_id,
             workspace_id=workspace_id,
             project_id=project_id,
             environment_id=environment_id,
             project_name=project_name,
-            suite=suite,
+            suite=display_suite,
             status=ExecutionStatus.STARTING,
             started_at=datetime.now(UTC),
             command="",
@@ -207,7 +240,7 @@ class ExecutionService:
                 "type": "started",
                 "run_id": str(run_id),
                 "status": ExecutionStatus.STARTING.value,
-                "suite": suite,
+                "suite": display_suite,
             },
         )
 
@@ -219,6 +252,7 @@ class ExecutionService:
                     "suite": suite,
                     "output_dir": str(output_dir),
                     "cwd": str(project_path),
+                    "robot_args": list(robot_args or []),
                 },
             )
         except RunnerError as exc:

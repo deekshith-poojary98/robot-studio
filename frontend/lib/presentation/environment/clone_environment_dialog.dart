@@ -51,7 +51,7 @@ class _CloneEnvironmentDialogState extends State<CloneEnvironmentDialog> {
     return AlertDialog(
       title: const Text('Clone Environment'),
       content: SizedBox(
-        width: 420,
+        width: AppDialogWidth.form,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

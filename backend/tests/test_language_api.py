@@ -40,8 +40,10 @@ async def api_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client, fresh, tmp_path
-
+        try:
+            yield client, fresh, tmp_path
+        finally:
+            await fresh.shutdown()
     app.dependency_overrides.clear()
 
 
@@ -56,7 +58,7 @@ async def _open_workspace_with_suite(client: AsyncClient, tmp_path: Path) -> Pat
 
     project = await client.post(
         "/api/v1/projects",
-        json={"name": "Demo", "type": "empty"},
+        json={"name": "Demo"},
     )
     assert project.status_code == 201
     project_path = Path(project.json()["path"])

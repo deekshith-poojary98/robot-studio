@@ -229,6 +229,26 @@ def document_symbols(content: str, file_path: str) -> list[dict[str, Any]]:
                             "detail": detail,
                         },
                     )
+            elif item_type in {
+                "SuiteSetup",
+                "SuiteTeardown",
+                "TestSetup",
+                "TestTeardown",
+            }:
+                label = {
+                    "SuiteSetup": "Suite Setup",
+                    "SuiteTeardown": "Suite Teardown",
+                    "TestSetup": "Test Setup",
+                    "TestTeardown": "Test Teardown",
+                }[item_type]
+                symbols.append(
+                    {
+                        "name": _node_name(item) or label,
+                        "kind": "setting",
+                        "line": line,
+                        "detail": label,
+                    },
+                )
             elif item_type == "Variable":
                 symbols.append(
                     {
@@ -250,15 +270,59 @@ def document_symbols(content: str, file_path: str) -> list[dict[str, Any]]:
                 )
             elif item_type == "TestCase":
                 kind = "test_case" if header in {"test cases", "tasks"} else "keyword"
+                case_name = _node_name(item)
+                case_tags: list[str] = []
+                case_setup: str | None = None
+                case_teardown: str | None = None
+                for entry in getattr(item, "body", []) or []:
+                    entry_type = type(entry).__name__
+                    if entry_type == "Tags":
+                        case_tags.extend(
+                            str(tag) for tag in (getattr(entry, "values", ()) or ())
+                        )
+                    elif entry_type == "Setup":
+                        case_setup = _node_name(entry) or "Setup"
+                    elif entry_type == "Teardown":
+                        case_teardown = _node_name(entry) or "Teardown"
+                detail = header
+                if case_tags:
+                    detail = f"{header}|tags:{','.join(case_tags)}"
                 symbols.append(
                     {
-                        "name": _node_name(item),
+                        "name": case_name,
                         "kind": kind,
                         "line": line,
-                        "detail": header,
+                        "detail": detail,
                         "documentation": _collect_documentation(item),
                     },
                 )
+                for tag in case_tags:
+                    symbols.append(
+                        {
+                            "name": str(tag),
+                            "kind": "tag",
+                            "line": line,
+                            "detail": f"test:{case_name}",
+                        },
+                    )
+                if case_setup:
+                    symbols.append(
+                        {
+                            "name": case_setup,
+                            "kind": "setting",
+                            "line": line,
+                            "detail": f"Setup:{case_name}",
+                        },
+                    )
+                if case_teardown:
+                    symbols.append(
+                        {
+                            "name": case_teardown,
+                            "kind": "setting",
+                            "line": line,
+                            "detail": f"Teardown:{case_name}",
+                        },
+                    )
     return symbols
 
 

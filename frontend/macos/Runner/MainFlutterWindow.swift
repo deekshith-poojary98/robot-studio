@@ -8,8 +8,8 @@ class MainFlutterWindow: NSWindow {
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
 
-    // Keep the IDE shell usable on smaller displays.
-    let minimumSize = NSSize(width: 1024, height: 640)
+    // IDE chrome (rail + sidebar + editor + bottom panel) needs a real floor.
+    let minimumSize = NSSize(width: 1280, height: 720)
     self.minSize = minimumSize
     if frame.width < minimumSize.width || frame.height < minimumSize.height {
       setContentSize(minimumSize)

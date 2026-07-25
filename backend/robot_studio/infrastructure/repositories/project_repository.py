@@ -205,5 +205,5 @@ class SqliteProjectRepository(ProjectRepository):
             name=row["name"],
             path=Path(row["path"]),
             created_at=created_at,
-            type=ProjectType(row["type"]),
+            type=ProjectType.normalize(row["type"]),
         )

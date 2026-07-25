@@ -26,8 +26,10 @@ async def api_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client, fresh, tmp_path
-
+        try:
+            yield client, fresh, tmp_path
+        finally:
+            await fresh.shutdown()
     app.dependency_overrides.clear()
 
 

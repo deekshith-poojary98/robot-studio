@@ -33,10 +33,9 @@ class IntegrationApiClient {
 
   Future<Map<String, dynamic>> createProject({
     required String name,
-    String type = 'empty',
   }) async {
     return _decode(
-      await _post('/projects', {'name': name, 'type': type}),
+      await _post('/projects', {'name': name}),
     );
   }
 
@@ -83,6 +82,10 @@ class IntegrationApiClient {
     return _decode(
       await _post('/environments/activate', {'environment_id': id}),
     );
+  }
+
+  Future<Map<String, dynamic>> importEnvironment(String path) async {
+    return _decode(await _post('/environments/import', {'path': path}));
   }
 
   Future<Map<String, dynamic>> cloneEnvironment({
@@ -141,6 +144,14 @@ class IntegrationApiClient {
     return _decode(await _post('/execution/run', {'file': file}));
   }
 
+  Future<Map<String, dynamic>> runProject() async {
+    return _decode(await _post('/execution/run-project', {}));
+  }
+
+  Future<Map<String, dynamic>> stopExecution() async {
+    return _decode(await _post('/execution/stop', {}));
+  }
+
   Future<Map<String, dynamic>> executionStatus() async {
     return _decode(await _get('/execution/status'));
   }
@@ -153,6 +164,14 @@ class IntegrationApiClient {
   Future<List<Map<String, dynamic>>> listReports() async {
     final body = _decode(await _get('/reports'));
     return (body['runs'] as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> reportsDashboard() async {
+    return _decode(await _get('/reports/dashboard'));
+  }
+
+  Future<void> deleteReport(String runId) async {
+    await _delete('/reports/$runId');
   }
 
   Future<Map<String, dynamic>> gitStatus() async {
@@ -179,6 +198,22 @@ class IntegrationApiClient {
 
   Future<Map<String, dynamic>> gitCheckout(String branch) async {
     return _decode(await _post('/git/checkout', {'branch': branch}));
+  }
+
+  Future<Map<String, dynamic>> gitFetch() async {
+    return _decode(await _post('/git/fetch', {}));
+  }
+
+  Future<Map<String, dynamic>> gitPull() async {
+    return _decode(await _post('/git/pull', {}));
+  }
+
+  Future<Map<String, dynamic>> gitPush() async {
+    return _decode(await _post('/git/push', {}));
+  }
+
+  Future<Map<String, dynamic>> seedLocalGitRemote() async {
+    return _decode(await _post('/git/seed-local-remote', {}));
   }
 
   Future<List<Map<String, dynamic>>> listPlugins() async {
@@ -225,6 +260,90 @@ class IntegrationApiClient {
         'content': content,
       }),
     );
+  }
+
+  Future<List<dynamic>> documentSymbols(String filePath) async {
+    final body = _decode(
+      await _get(
+        '/language/document-symbols?file=${Uri.encodeQueryComponent(filePath)}',
+      ),
+    );
+    return (body['results'] as List<dynamic>? ??
+            body['symbols'] as List<dynamic>? ??
+            const <dynamic>[]);
+  }
+
+  Future<Map<String, dynamic>> rebuildIndex() async {
+    return _decode(await _post('/index/rebuild', {}));
+  }
+
+  Future<Map<String, dynamic>> indexStatus() async {
+    return _decode(await _get('/index/status'));
+  }
+
+  Future<List<Map<String, dynamic>>> searchSymbols({
+    String query = '',
+    String? kind,
+    int limit = 100,
+  }) async {
+    final buffer = StringBuffer(
+      '/search?q=${Uri.encodeQueryComponent(query)}&limit=$limit',
+    );
+    if (kind != null) {
+      buffer.write('&kind=${Uri.encodeQueryComponent(kind)}');
+    }
+    final body = _decode(await _get(buffer.toString()));
+    return (body['results'] as List<dynamic>? ?? const <dynamic>[])
+        .cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> languageCompletion({
+    required String filePath,
+    required String content,
+    required int line,
+    required int column,
+    String query = '',
+  }) async {
+    return _decode(
+      await _post('/language/completion', {
+        'file_path': filePath,
+        'content': content,
+        'line': line,
+        'column': column,
+        'query': query,
+      }),
+    );
+  }
+
+  Future<Map<String, dynamic>?> languageHover({required String name}) async {
+    final response = await _get(
+      '/language/hover?name=${Uri.encodeQueryComponent(name)}',
+    );
+    if (response.statusCode == 200 &&
+        (response.body.isEmpty || response.body == 'null')) {
+      return null;
+    }
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>?> languageDefinition({required String name}) async {
+    final response = await _get(
+      '/language/definition?name=${Uri.encodeQueryComponent(name)}',
+    );
+    if (response.statusCode == 200 &&
+        (response.body.isEmpty || response.body == 'null')) {
+      return null;
+    }
+    return _decode(response);
+  }
+
+  Future<List<dynamic>> languageReferences({required String name}) async {
+    final body = _decode(
+      await _get(
+        '/language/references?name=${Uri.encodeQueryComponent(name)}',
+      ),
+    );
+    return (body['references'] as List<dynamic>? ?? const <dynamic>[]);
   }
 
   Future<IntegrationHttpResponse> _get(String path) async {

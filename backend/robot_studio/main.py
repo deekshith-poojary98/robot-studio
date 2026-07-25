@@ -16,6 +16,7 @@ async def lifespan(_app: FastAPI):
     await container.initialize_async()
     await init_database()
     yield
+    await container.shutdown()
 
 
 def create_app() -> FastAPI:

@@ -73,7 +73,8 @@ Persistent state lives in **SQLite** under `~/.robot-studio` (configurable). Sym
 | Reports | **Shipped** |
 | Git source control | **Shipped** |
 | Plugin manager + builtin/user load | **Shipped** (sandboxing still evolving) |
-| Settings / AI assistant UI | **Not shipped** (Settings stub; AI chrome removed until ready) |
+| Settings / AI assistant UI | **Not shipped** (both hidden from the rail until ready — no stub surfaces) |
+| Desktop packaging: auto-start bundled backend sidecar | **Deferred** (end-of-ship) — freeze Python backend, spawn from app / native launcher, stop on quit; macOS sandbox/spawn entitlements TBD |
 | gRPC Language Service sidecar | **Planned** |
 | Full plugin subprocess sandbox (P2) | **Planned** |
 
@@ -217,7 +218,7 @@ abstract class TransportGateway {
 | Module | Responsibility | Key ports / services | Status |
 |--------|----------------|----------------------|--------|
 | **workspace** | Create/open/recent | `WorkspaceRepository`, `WorkspaceService` | Shipped |
-| **project** | Create/import/open/templates | `ProjectRepository`, `ProjectService` | Shipped |
+| **project** | Create/import/open | `ProjectRepository`, `ProjectService` | Shipped |
 | **files** | Workspace-scoped read/write/tree | `FileService` | Shipped |
 | **environment** | venv lifecycle, interpreters | `EnvironmentRepository`, env manager | Shipped |
 | **packages** | PyPI search, install/update/uninstall | `PackageRegistry`, `Installer` | Shipped |
@@ -225,6 +226,7 @@ abstract class TransportGateway {
 | **indexing** | Rebuild, status, incremental index | `IndexStore`, indexers | Shipped |
 | **language** | Editor intelligence | `LanguageService` | Shipped |
 | **execution** | Run file/project, stop, history, stream | `Runner`, execution service | Shipped |
+| **tests** | Test Explorer discover/run (suite/test/tag/failed) | `TestExplorerService` + IndexStore + Runner | Shipped |
 | **reports** | Dashboard, artifacts, open/reveal | `ReportProvider`, report service | Shipped |
 | **git** | Status, stage/commit, branches, remotes, diff | `GitProvider` / CLI | Shipped |
 | **plugins** | List/enable/disable/reload | Plugin host/manager | Shipped |
@@ -280,7 +282,7 @@ Publishes package install/update/remove events; does not call Indexing directly.
 
 ### Git
 
-Workspace-scoped Git via CLI provider: status, init, commit, branches, history, diff, fetch/pull/push. Remote actions are UI-gated when the folder is not a repository.
+Workspace-scoped Git via CLI provider: status, init, commit, branches, history, diff, fetch/pull/push, plus `POST /git/seed-local-remote` (creates a bare remote under the workspace and wires `origin` + upstream — used by integration GT-10). Remote actions are UI-gated when the folder is not a repository.
 
 ---
 
@@ -451,7 +453,7 @@ robot-studio/
             ├── workspace/ · project/ · environment/ · packages/
             ├── editor/ · search/ · execution/ · reports/
             ├── git/ · plugins/
-            └── widgets/             # guidance dialog, tree, badges, …
+            └── widgets/             # empty state, error dialog, guidance dialog, tree, badges, …
 ```
 
 ---
@@ -509,21 +511,23 @@ Paths below are relative to `/api/v1`. Workspace context is typically **session-
 | GET | `/health` | core |
 | POST | `/workspaces`, `/workspaces/open` | workspace |
 | GET | `/workspaces/recent` | workspace |
-| POST | `/projects`, `/projects/import`, `/projects/open` | project |
+| POST | `/projects`, `/projects/standalone`, `/projects/import`, `/projects/open`, `/projects/open-path` | project |
 | GET | `/projects`, `/projects/recent` | project |
 | GET/PUT | `/files/content` | files |
-| GET | `/files/tree` | files |
+| GET | `/files/tree` | files (`depth` default **0**, `has_children` for lazy expand) |
 | GET/POST | `/environments`, `/environments/import`, `/environments/activate`, … | environment |
 | GET | `/environments/interpreters` | environment |
 | GET/POST | `/packages`, `/packages/search`, `/packages/install`, … | packages |
 | POST | `/execution/run`, `/execution/run-project`, `/execution/stop` | execution |
 | GET | `/execution/history`, `/execution/status` | execution |
+| GET | `/tests/tree`, `/tests/file` | tests |
+| POST | `/tests/run`, `/tests/run-suite`, `/tests/run-tag`, `/tests/run-failed`, `/tests/run-selected` | tests |
 | GET | `/reports`, `/reports/dashboard`, `/reports/{id}` | reports |
-| POST | `/reports/{id}/open-log`, `open-report`, `reveal` | reports |
+| POST | `/reports/{id}/open-log`, `open-report`, `open-xml`, `reveal` | reports |
 | POST/GET | `/index/rebuild`, `/index/status` | index |
 | GET | `/search` | search |
 | GET/POST | `/language/definition`, `hover`, `references`, `completion`, `diagnostics`, `format`, `signature-help`, `document-symbols`, `workspace-symbols` | language |
-| GET/POST | `/git/status`, `init`, `commit`, `branches`, `checkout`, `diff`, `fetch`, `pull`, `push`, … | git |
+| GET/POST | `/git/status`, `init`, `commit`, `branches`, `checkout`, `diff`, `fetch`, `pull`, `push`, `seed-local-remote`, … | git |
 | GET/POST | `/plugins`, `/plugins/refresh`, `enable`, `disable`, `reload` | plugins |
 
 ### WebSocket
@@ -578,16 +582,17 @@ Engineering audit notes: [audit.md](./audit.md).
 | **M1** | Architecture doc, app shell, backend skeleton, health API | ✅ Done |
 | **M1.5** | Architecture v2 (Event Bus, Plugin Host, Indexing, transport) | ✅ Done |
 | **M2** | Workspace create/open/recent, welcome, explorer | ✅ Done |
-| **M3** | Project create/import/templates, details, recent | ✅ Done |
+| **M3** | Project create/import, details, recent (no template types) | ✅ Done |
 | **M4** | Environment manager; activation events | ✅ Done |
 | **M5** | PackageRegistry + PipInstaller; package events | ✅ Done |
 | **M6** | Indexing pipeline; Keyword/Search UI; Language Service (completion + hover + more) | ✅ Done |
 | **M7** | Runner + history + WebSocket log stream | ✅ Done (gRPC migration deferred) |
 | **M8** | ReportProvider + reports UI | ✅ Done |
-| **M9** | Settings, packaging polish, AI provider | 🔶 Partial (Settings stub; AI deferred) |
+| **M9** | Settings, packaging polish, AI provider | 🔶 Partial (Settings hidden until implemented; AI deferred; backend sidecar auto-start deferred to end) |
 | **M10** | Intelligent editor (parsing bridge, diagnostics, navigation) | 🔶 Shipping |
 | **M11** | Plugin framework + manager UI | 🔶 Shipping |
 | **M12** | Git source control | 🔶 Shipping |
+| **M13** | Test Explorer (discover/run suites, tests, tags, failed) | ✅ Done |
 | **UX** | Public-beta usability backlog (status, reports, guidance, terminology, …) | 🔶 In progress |
 
 ---
@@ -599,7 +604,7 @@ Engineering audit notes: [audit.md](./audit.md).
 | Area | v1 | v2 |
 |------|----|----|
 | `domain/interfaces/` | Monolithic | Split per-port modules |
-| `core/container.py` | Empty | Wires EventBus, PluginHost, WorkspaceContext, services |
+| `core/container.py` | Empty | Wires EventBus, PluginHost, WorkspaceContext, services; `shutdown()` stops Git/Index background work and closes the workspace context |
 | `core/events.py` | Missing | EventBus + DomainEvent types |
 | `core/plugins.py` | Missing | PluginHost + registry |
 | `api/gateway.py` | Missing | `RestGateway` |
@@ -611,9 +616,20 @@ Engineering audit notes: [audit.md](./audit.md).
 
 Not domain architecture, but product-facing constraints that affect shell design:
 
-- **Workspace-first** mental model: projects/envs/runs require an open workspace.
-- **Actionable guidance** for missing workspace/project/environment (primary buttons, not dead OK dialogs).
-- **Status chrome**: `ROBOT` / `PYTHON` / `ENV` from active environment; no API version watermark in everyday UI.
+- **Project-first UX, workspace-backed domain**: `WorkspaceContext` still owns workspace + project + environment. **Open Project** / **New Project** initialize `.robotstudio/` inside the selected folder (the folder *is* the workspace root). No companion `project-workspaces/` wrappers. Classic multi-project workspaces remain available under Advanced (**Open/New Workspace**).
+- **Fast open**: open-path returns as soon as metadata is ready; environment creation is never awaited on the critical path. Missing envs surface a compact bottom-right toast titled **Python environment required** (Create Environment / Select Existing; dismiss with ✕), with detection for `.venv` / `venv` / `env` / `Environments/*`.
+- **Background indexing**: `WorkspaceOpened` schedules an incremental index rebuild and returns immediately (VS Code-style). Explicit **Rebuild Index** still runs a full rebuild and waits. Discovery prunes `.venv` / `node_modules` / `.git` / etc. Robot parsing runs off the event loop; bulk rebuilds do not emit per-file `FileIndexed` events.
+- **Large projects**: explorer uses VS Code-style lazy expand (`GET /files/tree` default `depth=0` + `has_children`) and a virtualized flat list so only visible rows are built. Heavy dirs (`.venv`, `node_modules`, …) are skipped. Git status uses `-uno` so thousands of untracked suites do not stall the UI.
+- **Test Explorer** (Tests rail): hierarchical workspace → project → suite → test/task tree with status, live filter, and run actions (all / current file / failed / node). Discovery uses IndexStore + `robot.api` document symbols; runs reuse `ExecutionService` / `Runner`.
+- **Actionable guidance** for missing project/environment (primary buttons prefer Open/New Project).
+- **Status chrome**: project name; `ROBOT` / full `PYTHON major.minor.micro` from the active environment in the status bar (no CONNECTED/OFFLINE label); toolbar context shows **project name** (plus branch • environment), not the workspace name unless multiple projects are open. Health is probed on launch, then every 2s while offline and 15s while connected; three consecutive failures are required before disconnecting the execution stream.
+- **Toolbar layout**: left context (project chip / environment / branch, with git Fetch·Pull·Push in a ⋯ menu shown only for repositories), centered command search, right **Run** (primary, labelled) plus icon-only Run Project and Stop. No product wordmark; profile and notifications deferred.
+- **Editor chrome**: the permanent strip carries editing verbs only (Save, Save All, Format, Find) plus a word-wrap toggle. Language navigation (Definition, Peek, References, Hover, Go to Symbol in File, Find Symbol in Project, Replace, Format Selection, Reveal) is reachable through the editor ⋯ menu and the command palette, matching VS Code / PyCharm chrome discipline.
+- **Rail ownership**: only Explorer, Tests, and Reports render side-rail content (`SidePanel.hasSideContent`); Search, Keywords, Packages, Plugins, and Source Control own the main view and the rail collapses. Bottom panel exposes Console / Execution Logs / Problems only.
+- **Empty and error surfaces**: `EmptyState` gives every empty view an icon, a reason, and one action; `showFriendlyErrorDialog` maps transport/OS exceptions to a plain sentence plus a suggested fix, hiding raw text behind **Show details**. Dialog widths are limited to `AppDialogWidth.form` / `.wide`.
+- **Reports**: Rail Recent list selects a run; main Reports view shows dashboard + details (no second run list). Artifact hyperlinks open output.xml / log.html / report.html.
+- **Problems loop**: Diagnostics refresh while editing `.robot` files; Problems panel + status-bar ERRORS/WARNINGS jump to file:line:column.
+- **Command palette**: ⌘K (macOS) / Ctrl+K and toolbar search open a filtered command list plus project file/symbol search; full Search page remains on the sidebar Search action.
 - **AI** entry points withheld until `AIProvider` ships.
 - Usability backlog: [Robot Studio — Public Beta Usability Review.md](./Robot%20Studio%20%E2%80%94%20Public%20Beta%20Usability%20Review.md).
 

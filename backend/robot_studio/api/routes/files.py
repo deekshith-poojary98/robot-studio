@@ -41,7 +41,7 @@ async def write_file(
 @router.get("/tree", response_model=FileTreeResponse)
 async def list_tree(
     path: str | None = Query(default=None),
-    depth: int = Query(default=3, ge=0, le=8),
+    depth: int = Query(default=0, ge=0, le=8),
     gateway: RestGateway = Depends(get_gateway),
 ) -> FileTreeResponse:
     try:

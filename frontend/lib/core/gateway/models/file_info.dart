@@ -51,6 +51,7 @@ class FileTreeNode {
     required this.relativePath,
     required this.isDir,
     this.suffix = '',
+    this.hasChildren = false,
     this.children = const [],
   });
 
@@ -58,12 +59,15 @@ class FileTreeNode {
     final kids = (json['children'] as List<dynamic>? ?? [])
         .map((item) => FileTreeNode.fromJson(item as Map<String, dynamic>))
         .toList();
+    final isDir = json['is_dir'] as bool? ?? false;
     return FileTreeNode(
       name: json['name'] as String,
       path: json['path'] as String,
       relativePath: json['relative_path'] as String? ?? '',
-      isDir: json['is_dir'] as bool? ?? false,
+      isDir: isDir,
       suffix: json['suffix'] as String? ?? '',
+      hasChildren: json['has_children'] as bool? ??
+          (isDir && kids.isNotEmpty),
       children: kids,
     );
   }
@@ -73,10 +77,41 @@ class FileTreeNode {
   final String relativePath;
   final bool isDir;
   final String suffix;
+  final bool hasChildren;
   final List<FileTreeNode> children;
 
   bool get isRobotSource =>
       suffix == '.robot' || suffix == '.resource' || suffix == '.py';
+
+  FileTreeNode copyWith({
+    bool? hasChildren,
+    List<FileTreeNode>? children,
+  }) {
+    return FileTreeNode(
+      name: name,
+      path: path,
+      relativePath: relativePath,
+      isDir: isDir,
+      suffix: suffix,
+      hasChildren: hasChildren ?? this.hasChildren,
+      children: children ?? this.children,
+    );
+  }
+}
+
+/// One visible row in the VS Code-style virtualized explorer.
+class FlatFileTreeRow {
+  const FlatFileTreeRow({
+    required this.node,
+    required this.depth,
+    required this.expanded,
+    required this.loading,
+  });
+
+  final FileTreeNode node;
+  final int depth;
+  final bool expanded;
+  final bool loading;
 }
 
 class EditorTabInfo {

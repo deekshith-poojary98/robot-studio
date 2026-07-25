@@ -15,8 +15,9 @@ void main() {
     await harness.launchApp(tester);
 
     expect(find.text('Robot Studio'), findsOneWidget);
-    expect(find.text('READY'), findsOneWidget);
+    expect(find.text('CONNECTED'), findsNothing);
     expect(find.text('OFFLINE'), findsNothing);
+    expect(find.text('Open Project'), findsOneWidget);
     expect(find.text('Recent Workspaces'), findsOneWidget);
     expect(find.text('Recent Projects'), findsOneWidget);
     expect(find.text('New Workspace'), findsWidgets);

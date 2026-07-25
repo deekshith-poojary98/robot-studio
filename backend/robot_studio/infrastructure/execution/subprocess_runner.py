@@ -55,6 +55,12 @@ class SubprocessRunner(Runner):
         timeout = request.get("timeout", self._default_timeout)
         run_id = UUID(str(request["run_id"])) if request.get("run_id") else uuid4()
 
+        extra_args = [
+            str(arg)
+            for arg in (request.get("robot_args") or [])
+            if str(arg).strip()
+        ]
+
         command = [
             str(python),
             "-m",
@@ -67,6 +73,7 @@ class SubprocessRunner(Runner):
             "log.html",
             "--report",
             "report.html",
+            *extra_args,
             suite,
         ]
 

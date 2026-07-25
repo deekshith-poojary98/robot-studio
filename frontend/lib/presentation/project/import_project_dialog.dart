@@ -61,7 +61,7 @@ class _ImportProjectDialogState extends State<ImportProjectDialog> {
     return AlertDialog(
       title: const Text('Import Project'),
       content: SizedBox(
-        width: 460,
+        width: AppDialogWidth.wide,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

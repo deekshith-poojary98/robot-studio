@@ -8,6 +8,7 @@ class RunDetailsPanel extends StatelessWidget {
   const RunDetailsPanel({
     super.key,
     required this.run,
+    this.onOpenXml,
     this.onOpenLog,
     this.onOpenReport,
     this.onReveal,
@@ -15,6 +16,7 @@ class RunDetailsPanel extends StatelessWidget {
   });
 
   final ExecutionInfo run;
+  final VoidCallback? onOpenXml;
   final VoidCallback? onOpenLog;
   final VoidCallback? onOpenReport;
   final VoidCallback? onReveal;
@@ -105,18 +107,17 @@ class RunDetailsPanel extends StatelessWidget {
                 _ArtifactRow(
                   label: 'output.xml',
                   path: run.outputXml,
+                  onOpen: run.outputXml == null ? null : onOpenXml,
                 ),
                 _ArtifactRow(
                   label: 'log.html',
                   path: run.logHtml,
-                  actionLabel: 'Open Log',
-                  onAction: run.logHtml == null ? null : onOpenLog,
+                  onOpen: run.logHtml == null ? null : onOpenLog,
                 ),
                 _ArtifactRow(
                   label: 'report.html',
                   path: run.reportHtml,
-                  actionLabel: 'Open Report',
-                  onAction: run.reportHtml == null ? null : onOpenReport,
+                  onOpen: run.reportHtml == null ? null : onOpenReport,
                 ),
                 const SizedBox(height: 10),
                 Row(
@@ -263,53 +264,58 @@ class _ArtifactRow extends StatelessWidget {
   const _ArtifactRow({
     required this.label,
     this.path,
-    this.actionLabel,
-    this.onAction,
+    this.onOpen,
   });
 
   final String label;
   final String? path;
-  final String? actionLabel;
-  final VoidCallback? onAction;
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
+    final canOpen = onOpen != null;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Icon(
-            path == null ? Icons.insert_drive_file_outlined : Icons.description_outlined,
+            path == null
+                ? Icons.insert_drive_file_outlined
+                : Icons.description_outlined,
             size: 16,
             color: path == null ? AppColors.textMuted : AppColors.textSecondary,
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+            child: InkWell(
+              onTap: canOpen ? onOpen : null,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: canOpen ? AppColors.accent : AppColors.textPrimary,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        decoration: canOpen ? TextDecoration.underline : null,
+                        decorationColor: AppColors.accent,
+                      ),
+                    ),
+                    Text(
+                      path ?? 'Not available',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
-                Text(
-                  path ?? 'Not available',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+              ),
             ),
           ),
-          if (actionLabel != null)
-            TextButton(
-              onPressed: onAction,
-              child: Text(actionLabel!),
-            ),
         ],
       ),
     );

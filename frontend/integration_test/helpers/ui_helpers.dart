@@ -41,7 +41,9 @@ Future<void> waitForBackendReady(
   WidgetTester tester, {
   Duration timeout = const Duration(seconds: 30),
 }) async {
-  await pumpUntilFound(tester, find.text('READY'), timeout: timeout);
+  // Connection chrome is hidden; wait for welcome actions that need a live API.
+  await pumpUntilFound(tester, find.text('Open Project'), timeout: timeout);
+  expect(find.text('CONNECTED'), findsNothing);
   expect(find.text('OFFLINE'), findsNothing);
 }
 
@@ -72,7 +74,25 @@ Future<void> tapTooltip(
 }
 
 Future<void> tapSidebarPanel(WidgetTester tester, String label) async {
-  await tapTooltip(tester, label);
+  final exact = find.byTooltip(label);
+  if (tester.widgetList(exact).isNotEmpty) {
+    await tester.tap(exact.first);
+    await tester.pump();
+    return;
+  }
+
+  // Activity rail tooltips are descriptive: "Reports — run history…".
+  final descriptive = find.byWidgetPredicate(
+    (widget) =>
+        widget is Tooltip &&
+        widget.message != null &&
+        (widget.message!.startsWith('$label —') ||
+            widget.message!.startsWith('$label -') ||
+            widget.message == label),
+  );
+  await pumpUntilFound(tester, descriptive);
+  await tester.tap(descriptive.first);
+  await tester.pump();
 }
 
 Finder _dialogField(String labelText) {
@@ -295,6 +315,15 @@ Future<void> openBottomTab(WidgetTester tester, String label) async {
   await tester.pump();
 }
 
+Future<void> openCommandPalette(WidgetTester tester) async {
+  await tester.tap(find.textContaining('Search commands, files, symbols').first);
+  await tester.pump(const Duration(milliseconds: 300));
+  await pumpUntilFound(
+    tester,
+    find.textContaining('Type a command, file, or symbol'),
+  );
+}
+
 Future<void> scrollToAndTap(
   WidgetTester tester,
   Finder finder, {
@@ -332,8 +361,59 @@ Future<void> openProjectInExplorer(
 
 Future<void> openRobotFileInExplorer(
   WidgetTester tester,
-  String fileName,
-) async {
+  String fileName, {
+  String? projectName,
+}) async {
   await tapSidebarPanel(tester, 'Explorer');
-  await scrollToAndTap(tester, find.text(fileName));
+
+  final fileFinder = find.text(fileName);
+  if (tester.widgetList(fileFinder).isEmpty) {
+    if (projectName != null) {
+      final projectLabels = find.text(projectName);
+      await pumpUntilFound(
+        tester,
+        projectLabels,
+        timeout: const Duration(seconds: 20),
+      );
+      // Expand both the Projects tile and the Files-tree directory node.
+      final count = tester.widgetList(projectLabels).length;
+      for (var i = 0; i < count; i++) {
+        await tester.ensureVisible(projectLabels.at(i));
+        await tester.tap(projectLabels.at(i));
+        await tester.pump(const Duration(milliseconds: 300));
+        if (tester.widgetList(fileFinder).isNotEmpty) break;
+      }
+    }
+
+    final testsFolders = find.text('tests');
+    final testsCount = tester.widgetList(testsFolders).length;
+    for (var i = 0; i < testsCount; i++) {
+      await tester.ensureVisible(testsFolders.at(i));
+      await tester.tap(testsFolders.at(i));
+      await tester.pump(const Duration(milliseconds: 300));
+      if (tester.widgetList(fileFinder).isNotEmpty) break;
+    }
+
+    final resourceFolders = find.text('resources');
+    final resourceCount = tester.widgetList(resourceFolders).length;
+    for (var i = 0; i < resourceCount; i++) {
+      await tester.ensureVisible(resourceFolders.at(i));
+      await tester.tap(resourceFolders.at(i));
+      await tester.pump(const Duration(milliseconds: 300));
+      if (tester.widgetList(fileFinder).isNotEmpty) break;
+    }
+  }
+
+  await scrollToAndTap(tester, fileFinder);
+}
+
+/// Language actions moved off the permanent editor strip into its ⋯ menu.
+Future<void> tapEditorMenuAction(WidgetTester tester, String action) async {
+  await pumpUntilFound(tester, find.byKey(const Key('editor.more')));
+  await tester.tap(find.byKey(const Key('editor.more')));
+  await tester.pumpAndSettle();
+  final item = find.byKey(Key('editor.menu.$action'));
+  await pumpUntilFound(tester, item);
+  await tester.tap(item);
+  await tester.pumpAndSettle();
 }

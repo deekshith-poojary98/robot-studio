@@ -8,33 +8,32 @@ void main() {
       const MaterialApp(
         home: Scaffold(
           body: StatusBar(
-            backendConnected: true,
-            workspaceName: 'robot-files',
+            projectName: 'robot-files',
             robotVersion: '7.4.2',
-            pythonVersion: '3.13',
-            venvName: 'myenv',
+            pythonVersion: '3.13.9',
           ),
         ),
       ),
     );
 
     expect(find.text('ROBOT 7.4.2'), findsOneWidget);
-    expect(find.text('PYTHON 3.13'), findsOneWidget);
-    expect(find.text('ENV myenv'), findsOneWidget);
+    expect(find.text('PYTHON 3.13.9'), findsOneWidget);
+    expect(find.text('ROBOT-FILES'), findsOneWidget);
+    expect(find.textContaining('ENV '), findsNothing);
   });
 
-  testWidgets('status bar shows dashes when environment is missing',
-      (tester) async {
+  testWidgets('status bar hides version slots when no environment is active', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
-        home: Scaffold(
-          body: StatusBar(backendConnected: true),
-        ),
+        home: Scaffold(body: StatusBar()),
       ),
     );
 
-    expect(find.text('ROBOT —'), findsOneWidget);
-    expect(find.text('PYTHON —'), findsOneWidget);
-    expect(find.text('ENV —'), findsOneWidget);
+    // Placeholder dashes read as broken indicators, so the slots are omitted.
+    expect(find.textContaining('ROBOT'), findsNothing);
+    expect(find.textContaining('PYTHON'), findsNothing);
+    expect(find.text('NO PROJECT'), findsOneWidget);
   });
 }

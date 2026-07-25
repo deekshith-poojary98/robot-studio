@@ -32,13 +32,13 @@ class _DeleteEnvironmentDialogState extends State<DeleteEnvironmentDialog> {
     return AlertDialog(
       title: const Text('Delete Environment'),
       content: SizedBox(
-        width: 420,
+        width: AppDialogWidth.form,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Remove "${env.name}" from this workspace?',
+              'Remove "${env.name}" from this project?',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             if (env.active) ...[

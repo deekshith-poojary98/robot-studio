@@ -28,8 +28,10 @@ async def api_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client, fresh, tmp_path
-
+        try:
+            yield client, fresh, tmp_path
+        finally:
+            await fresh.shutdown()
     app.dependency_overrides.clear()
 
 
@@ -73,9 +75,10 @@ async def test_git_init_commit_history_diff(api_client) -> None:
     suite.parent.mkdir(parents=True, exist_ok=True)
     suite.write_text("*** Test Cases ***\nDemo\n    Log    hi\n", encoding="utf-8")
 
+    # Status uses `git status -uno` — brand-new files are omitted until tracked.
     status = await client.get("/api/v1/git/status")
     assert status.status_code == 200
-    assert len(status.json()["changes"]) >= 1
+    assert status.json()["changes"] == []
 
     commit = await client.post(
         "/api/v1/git/commit",
@@ -83,6 +86,11 @@ async def test_git_init_commit_history_diff(api_client) -> None:
     )
     assert commit.status_code == 200
     assert commit.json()["message"] == "Add demo suite"
+
+    suite.write_text("*** Test Cases ***\nDemo\n    Log    updated\n", encoding="utf-8")
+    dirty = await client.get("/api/v1/git/status")
+    assert dirty.status_code == 200
+    assert len(dirty.json()["changes"]) >= 1
 
     history = await client.get("/api/v1/git/history")
     assert history.status_code == 200

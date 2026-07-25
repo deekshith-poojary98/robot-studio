@@ -75,7 +75,13 @@ class DiagnosticInfo {
   final String message;
   final String source;
 
-  String get locationLabel => '$filePath:$line:$column';
+  String get fileName {
+    final normalized = filePath.replaceAll('\\', '/');
+    final parts = normalized.split('/');
+    return parts.isEmpty || parts.last.isEmpty ? filePath : parts.last;
+  }
+
+  String get locationLabel => '$fileName:$line:$column';
 }
 
 class SignatureParameterInfo {

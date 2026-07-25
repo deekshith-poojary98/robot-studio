@@ -63,6 +63,17 @@ def is_workspace(path: Path) -> bool:
     return manifest_path(path).is_file()
 
 
+def find_workspace_root(path: Path) -> Path | None:
+    """Walk *path* and its parents for a Robot Studio workspace root."""
+    current = path.expanduser().resolve()
+    if current.is_file():
+        current = current.parent
+    for candidate in (current, *current.parents):
+        if is_workspace(candidate):
+            return candidate
+    return None
+
+
 def load_manifest(workspace_root: Path) -> WorkspaceManifest:
     path = manifest_path(workspace_root)
     if not path.is_file():
@@ -112,3 +123,39 @@ def create_workspace_structure(workspace_root: Path, name: str) -> WorkspaceMani
     )
     write_manifest(workspace_root, manifest)
     return manifest
+
+
+def initialize_project_as_workspace(
+    project_root: Path,
+    name: str | None = None,
+) -> WorkspaceManifest:
+    """Treat *project_root* as a single-project workspace.
+
+    Creates only ``.robotstudio/workspace.json`` inside the project folder.
+    Does **not** create ``Projects/``, ``Shared/``, or other wrapper directories.
+    """
+    root = project_root.expanduser().resolve()
+    if not root.is_dir():
+        raise WorkspaceValidationError(
+            f"Directory does not exist: '{root}'",
+        )
+    if is_workspace(root):
+        return load_manifest(root)
+
+    display_name = (name or root.name).strip() or "Project"
+    manifest = WorkspaceManifest(
+        name=display_name,
+        version=1,
+        created_at=datetime.now(UTC),
+        projects=[],
+    )
+    write_manifest(root, manifest)
+    return manifest
+
+
+def resolve_project_entry_path(workspace_root: Path, stored_path: str) -> Path:
+    """Resolve a workspace.json project path entry to an absolute path."""
+    raw = Path(stored_path)
+    if raw.is_absolute():
+        return raw.expanduser().resolve()
+    return (workspace_root / raw).resolve()

@@ -32,23 +32,40 @@ class _ToolbarButtonState extends State<ToolbarButton> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null;
+    final primary = widget.primary;
+    final danger = widget.danger && enabled;
     final bg = !enabled
-        ? (widget.primary ? AppColors.accent.withValues(alpha: 0.35) : Colors.transparent)
-        : widget.primary
+        ? (primary
+            ? AppColors.accent.withValues(alpha: 0.22)
+            : Colors.transparent)
+        : primary
             ? AppColors.accent
-            : _hovered
-                ? AppColors.surfaceHover
-                : Colors.transparent;
+            : danger && _hovered
+                ? AppColors.error.withValues(alpha: 0.12)
+                : _hovered
+                    ? AppColors.surfaceHover
+                    : Colors.transparent;
     final fg = !enabled
-        ? AppColors.textMuted
-        : widget.primary
+        ? AppColors.textMuted.withValues(alpha: 0.55)
+        : primary
             ? const Color(0xFFE8F2F2)
-            : widget.danger
+            : danger
                 ? AppColors.error
                 : AppColors.textPrimary;
+    final borderColor = !enabled
+        ? (primary || danger
+            ? AppColors.border.withValues(alpha: 0.35)
+            : Colors.transparent)
+        : primary
+            ? Colors.transparent
+            : danger
+                ? AppColors.error.withValues(alpha: _hovered ? 0.55 : 0.35)
+                : (_hovered ? AppColors.border : AppColors.border.withValues(alpha: 0.5));
 
     final child = AnimatedContainer(
       duration: const Duration(milliseconds: 100),
+      constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+      alignment: Alignment.center,
       padding: EdgeInsets.symmetric(
         horizontal: widget.showLabel ? 12 : 8,
         vertical: 7,
@@ -56,9 +73,7 @@ class _ToolbarButtonState extends State<ToolbarButton> {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(AppRadii.sm),
-        border: widget.primary || !enabled
-            ? null
-            : Border.all(color: _hovered ? AppColors.border : Colors.transparent),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

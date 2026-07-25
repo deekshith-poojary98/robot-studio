@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../core/gateway/models/project_info.dart';
 import '../../core/theme/app_theme.dart';
 
-Future<({String name, ProjectType type})?> showNewProjectDialog(
-  BuildContext context,
-) {
-  return showDialog<({String name, ProjectType type})>(
+Future<String?> showNewProjectDialog(BuildContext context) {
+  return showDialog<String>(
     context: context,
     builder: (context) => const NewProjectDialog(),
   );
@@ -21,15 +18,7 @@ class NewProjectDialog extends StatefulWidget {
 
 class _NewProjectDialogState extends State<NewProjectDialog> {
   final _nameController = TextEditingController();
-  ProjectType _type = ProjectType.browser;
   String? _error;
-
-  static const _creatableTypes = [
-    ProjectType.browser,
-    ProjectType.api,
-    ProjectType.selenium,
-    ProjectType.empty,
-  ];
 
   @override
   void dispose() {
@@ -43,7 +32,7 @@ class _NewProjectDialogState extends State<NewProjectDialog> {
       setState(() => _error = 'Project name is required');
       return;
     }
-    Navigator.of(context).pop((name: name, type: _type));
+    Navigator.of(context).pop(name);
   }
 
   @override
@@ -51,7 +40,7 @@ class _NewProjectDialogState extends State<NewProjectDialog> {
     return AlertDialog(
       title: const Text('New Project'),
       content: SizedBox(
-        width: 420,
+        width: AppDialogWidth.form,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -63,24 +52,9 @@ class _NewProjectDialogState extends State<NewProjectDialog> {
                 labelText: 'Project name',
               ),
               onChanged: (_) => setState(() => _error = null),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<ProjectType>(
-              initialValue: _type,
-              decoration: const InputDecoration(
-                labelText: 'Project type',
-              ),
-              items: _creatableTypes
-                  .map(
-                    (type) => DropdownMenuItem(
-                      value: type,
-                      child: Text(type.label),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _type = value);
+              onSubmitted: (_) {
+                if (_nameController.text.trim().isNotEmpty) {
+                  _submit();
                 }
               },
             ),

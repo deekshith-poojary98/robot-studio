@@ -7,6 +7,7 @@ export '../gateway/models/health_response.dart';
 export '../gateway/models/package_info.dart';
 export '../gateway/models/project_info.dart';
 export '../gateway/models/report_info.dart';
+export '../gateway/models/test_explorer_info.dart';
 export '../gateway/models/index_info.dart';
 export '../gateway/models/file_info.dart';
 export '../gateway/models/workspace_info.dart';
@@ -41,9 +42,8 @@ class ApiClient implements TransportGateway {
   @override
   Future<ProjectInfo> createProject({
     required String name,
-    required ProjectType type,
   }) =>
-      _gateway.createProject(name: name, type: type);
+      _gateway.createProject(name: name);
 
   @override
   Future<ProjectInfo> importProject(String path) =>
@@ -55,6 +55,20 @@ class ApiClient implements TransportGateway {
   @override
   Future<ProjectInfo> openProject(String projectId) =>
       _gateway.openProject(projectId);
+
+  @override
+  Future<OpenProjectByPathResult> openProjectByPath(String path) =>
+      _gateway.openProjectByPath(path);
+
+  @override
+  Future<OpenProjectByPathResult> createStandaloneProject({
+    required String name,
+    required String location,
+  }) =>
+      _gateway.createStandaloneProject(
+        name: name,
+        location: location,
+      );
 
   @override
   Future<List<ProjectInfo>> listRecentProjects() =>
@@ -154,6 +168,38 @@ class ApiClient implements TransportGateway {
   Future<ExecutionInfo> runProject() => _gateway.runProject();
 
   @override
+  Future<TestNodeInfo> getTestTree({String? query}) =>
+      _gateway.getTestTree(query: query);
+
+  @override
+  Future<List<TestNodeInfo>> getTestsForFile(String path) =>
+      _gateway.getTestsForFile(path);
+
+  @override
+  Future<ExecutionInfo> runTest({
+    required String file,
+    required String name,
+  }) =>
+      _gateway.runTest(file: file, name: name);
+
+  @override
+  Future<ExecutionInfo> runTestSuite({String? file}) =>
+      _gateway.runTestSuite(file: file);
+
+  @override
+  Future<ExecutionInfo> runTestsByTag(String tag) =>
+      _gateway.runTestsByTag(tag);
+
+  @override
+  Future<ExecutionInfo> runFailedTests() => _gateway.runFailedTests();
+
+  @override
+  Future<ExecutionInfo> runSelectedTests(
+    List<({String file, String name})> tests,
+  ) =>
+      _gateway.runSelectedTests(tests);
+
+  @override
   Future<ExecutionInfo> stopExecution() => _gateway.stopExecution();
 
   @override
@@ -178,6 +224,9 @@ class ApiClient implements TransportGateway {
 
   @override
   Future<String> openReportHtml(String runId) => _gateway.openReportHtml(runId);
+
+  @override
+  Future<String> openReportXml(String runId) => _gateway.openReportXml(runId);
 
   @override
   Future<String> revealReport(String runId) => _gateway.revealReport(runId);
@@ -411,7 +460,7 @@ class ApiClient implements TransportGateway {
   @override
   Future<List<FileTreeNode>> listFileTree({
     String? path,
-    int depth = 3,
+    int depth = 0,
   }) =>
       _gateway.listFileTree(path: path, depth: depth);
 }

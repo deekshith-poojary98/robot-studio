@@ -96,8 +96,12 @@ class PythonEnvironmentProvider:
 
     def get_python_version(self, python_executable: Path) -> str:
         output = self._run(
-            [str(python_executable), "-c", "import sys; print("
-             "f'{sys.version_info.major}.{sys.version_info.minor}')"],
+            [
+                str(python_executable),
+                "-c",
+                "import sys; v = sys.version_info; "
+                "print(f'{v.major}.{v.minor}.{v.micro}')",
+            ],
             error_prefix="Failed to read Python version",
         )
         match = _VERSION_RE.search(output)

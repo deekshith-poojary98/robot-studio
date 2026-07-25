@@ -120,16 +120,16 @@ class IntegrationHarness {
 
   Future<Map<String, dynamic>> seedProject({
     required String name,
-    String type = 'empty',
   }) async {
-    return api.createProject(name: name, type: type);
+    return api.createProject(name: name);
   }
 
   Future<Map<String, dynamic>> seedEnvironment({
     required String name,
     bool installRobot = true,
+    bool activate = true,
   }) async {
-    return performance.measureAsync(
+    final created = await performance.measureAsync(
       'environment_create_api',
       () => api.createEnvironment(
         name: name,
@@ -137,6 +137,13 @@ class IntegrationHarness {
         installRobotFramework: installRobot,
       ),
     );
+    if (activate) {
+      final id = created['id'] as String?;
+      if (id != null) {
+        await api.activateEnvironment(id);
+      }
+    }
+    return created;
   }
 
   void installTestPlugin(String workspacePath) {
@@ -144,27 +151,11 @@ class IntegrationHarness {
   }
 
   Future<void> configureGitRepo(String repoPath) async {
-    final configPath = '$repoPath/.git/config';
-    try {
-      final existing = await api.readFile(configPath);
-      var content = existing['content'] as String? ?? '';
-      if (!content.contains('[user]')) {
-        content = '$content\n[user]\n\temail = integration@test.local\n\tname = Integration Test\n';
-        await api.writeFile(path: configPath, content: content);
-      }
-    } catch (_) {
-      // Repository not initialized yet; configure after init in the test.
-    }
+    // Identity is supplied by the backend commit path (`git -c user.*`).
   }
 
   Future<void> configureGitIdentityAfterInit(String repoPath) async {
-    final configPath = '$repoPath/.git/config';
-    final existing = await api.readFile(configPath);
-    var content = existing['content'] as String? ?? '';
-    if (!content.contains('[user]')) {
-      content = '$content\n[user]\n\temail = integration@test.local\n\tname = Integration Test\n';
-      await api.writeFile(path: configPath, content: content);
-    }
+    // Identity is supplied by the backend commit path (`git -c user.*`).
   }
 
   void expectNoFlutterErrors() {

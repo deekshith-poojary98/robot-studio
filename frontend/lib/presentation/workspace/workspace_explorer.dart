@@ -6,9 +6,8 @@ import '../../core/gateway/models/file_info.dart';
 import '../../core/gateway/models/git_info.dart';
 import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
-import '../git/history_panel.dart';
-import '../project/project_details_panel.dart';
 import '../widgets/explorer_tree.dart';
+import '../widgets/virtual_file_tree.dart';
 
 class WorkspaceExplorer extends StatelessWidget {
   const WorkspaceExplorer({
@@ -29,8 +28,10 @@ class WorkspaceExplorer extends StatelessWidget {
     this.recentRuns = const [],
     this.onSelectReport,
     this.onOpenReports,
-    this.fileTree = const [],
+    this.fileRows = const [],
+    this.isLoadingFileTree = false,
     this.onOpenFile,
+    this.onToggleDirectory,
     this.gitFileStatuses = const {},
   });
 
@@ -50,12 +51,30 @@ class WorkspaceExplorer extends StatelessWidget {
   final List<ExecutionInfo> recentRuns;
   final ValueChanged<ExecutionInfo>? onSelectReport;
   final VoidCallback? onOpenReports;
-  final List<FileTreeNode> fileTree;
+  final List<FlatFileTreeRow> fileRows;
+  final bool isLoadingFileTree;
   final ValueChanged<String>? onOpenFile;
+  final ValueChanged<String>? onToggleDirectory;
   final Map<String, GitFileStatus> gitFileStatuses;
+
+  bool get _isSingleProjectRoot {
+    if (projects.length != 1) return false;
+    final project = projects.first;
+    final projectPath = project.path.replaceAll('\\', '/');
+    final workspacePath = workspace.path.replaceAll('\\', '/');
+    return projectPath == workspacePath;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final headerName = _isSingleProjectRoot
+        ? (selectedProject?.name ?? projects.first.name)
+        : (selectedProject?.name ?? workspace.name);
+    final headerPath = _isSingleProjectRoot
+        ? (selectedProject?.path ?? projects.first.path)
+        : workspace.path;
+    final sectionLabel = _isSingleProjectRoot ? 'PROJECT' : 'WORKSPACE';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -65,12 +84,12 @@ class WorkspaceExplorer extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                workspace.name,
+                headerName,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 3),
               Text(
-                workspace.path,
+                headerPath,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall,
@@ -85,104 +104,92 @@ class WorkspaceExplorer extends StatelessWidget {
             children: [
               const SizedBox(width: 8),
               Text(
-                'WORKSPACE',
+                sectionLabel,
                 style: Theme.of(context).textTheme.labelSmall,
               ),
               const Spacer(),
-              IconButton(
-                tooltip: 'New Project',
-                icon: const Icon(Icons.add, size: 15),
-                onPressed: onNewProject,
-                visualDensity: VisualDensity.compact,
-              ),
-              IconButton(
-                tooltip: 'Import Project',
-                icon: const Icon(Icons.file_download_outlined, size: 15),
-                onPressed: onImportProject,
-                visualDensity: VisualDensity.compact,
-              ),
+              if (!_isSingleProjectRoot) ...[
+                IconButton(
+                  tooltip: 'New Project',
+                  icon: const Icon(Icons.add, size: 15),
+                  onPressed: onNewProject,
+                  visualDensity: VisualDensity.compact,
+                ),
+                IconButton(
+                  tooltip: 'Import Project',
+                  icon: const Icon(Icons.file_download_outlined, size: 15),
+                  onPressed: onImportProject,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
             ],
           ),
         ),
+        if (!_isSingleProjectRoot)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: ToolSection(
+              title: 'Projects',
+              children: [
+                if (isLoadingProjects)
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                else if (projects.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
+                    child: Text(
+                      'No projects yet. Create or import one.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  )
+                else
+                  ...projects.map(
+                    (project) => ExplorerTreeItem(
+                      key: ValueKey(project.id),
+                      icon: Icons.folder_outlined,
+                      label: project.name,
+                      indent: 1,
+                      selected: selectedProject?.id == project.id,
+                      onTap: () => onSelectProject(project),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        if (onOpenFile != null && onToggleDirectory != null) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
+            child: Text(
+              'FILES',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: VirtualFileTree(
+              rows: fileRows,
+              isLoading: isLoadingFileTree,
+              onOpenFile: onOpenFile!,
+              onToggleDirectory: onToggleDirectory!,
+              gitFileStatuses: gitFileStatuses,
+              emptyMessage: 'This project has no files yet.',
+            ),
+          ),
+        ],
         Expanded(
+          flex: 2,
           child: ListView(
             key: const Key('workspace-explorer-list'),
             padding: const EdgeInsets.only(bottom: 12),
             children: [
-              ToolSection(
-                title: 'Projects',
-                children: [
-                  if (isLoadingProjects)
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Center(
-                        child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    )
-                  else if (projects.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
-                      child: Text(
-                        'No projects yet. Create or import one.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    )
-                  else
-                    ...projects.map(
-                      (project) => _ProjectExplorerTile(
-                        project: project,
-                        selected: selectedProject?.id == project.id,
-                        onSelectProject: onSelectProject,
-                        onOpenFile: onOpenFile,
-                        projectNode: _findNodeByPath(fileTree, project.path),
-                        gitFileStatuses: gitFileStatuses,
-                      ),
-                    ),
-                ],
-              ),
-              if (onOpenFile != null)
-                ToolSection(
-                  title: 'Files',
-                  initiallyExpanded: fileTree.isNotEmpty,
-                  children: fileTree.isEmpty
-                      ? [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
-                            child: Text(
-                              'No source files found.',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ),
-                        ]
-                      : [
-                          for (final node in fileTree)
-                            _FileTreeNodeTile(
-                              node: node,
-                              indent: 1,
-                              onOpenFile: onOpenFile!,
-                              gitFileStatuses: gitFileStatuses,
-                            ),
-                        ],
-                ),
-              const ToolSection(
-                title: 'Shared',
-                children: [
-                  ExplorerTreeItem(
-                    icon: Icons.folder_outlined,
-                    label: 'Resources',
-                    indent: 1,
-                  ),
-                  ExplorerTreeItem(
-                    icon: Icons.folder_outlined,
-                    label: 'Variables',
-                    indent: 1,
-                  ),
-                ],
-              ),
               ToolSection(
                 title: 'Environments',
                 trailing: onManageEnvironments == null
@@ -209,7 +216,7 @@ class WorkspaceExplorer extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
                       child: Text(
-                        'No environments yet',
+                        'No environment yet — create one to run tests.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     )
@@ -254,7 +261,7 @@ class WorkspaceExplorer extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
                       child: Text(
-                        'No reports yet',
+                        'No reports yet — run a suite to create one.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     )
@@ -278,150 +285,5 @@ class WorkspaceExplorer extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-FileTreeNode? _findNodeByPath(List<FileTreeNode> nodes, String path) {
-  for (final node in nodes) {
-    if (node.path == path) return node;
-    final nested = _findNodeByPath(node.children, path);
-    if (nested != null) return nested;
-  }
-  return null;
-}
-
-class _ProjectExplorerTile extends StatefulWidget {
-  const _ProjectExplorerTile({
-    required this.project,
-    required this.selected,
-    required this.onSelectProject,
-    required this.projectNode,
-    required this.gitFileStatuses,
-    this.onOpenFile,
-  });
-
-  final ProjectInfo project;
-  final bool selected;
-  final ValueChanged<ProjectInfo> onSelectProject;
-  final ValueChanged<String>? onOpenFile;
-  final FileTreeNode? projectNode;
-  final Map<String, GitFileStatus> gitFileStatuses;
-
-  @override
-  State<_ProjectExplorerTile> createState() => _ProjectExplorerTileState();
-}
-
-class _ProjectExplorerTileState extends State<_ProjectExplorerTile> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final node = widget.projectNode;
-    final canExpand = node != null && node.children.isNotEmpty;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ExplorerTreeItem(
-          icon: iconForProjectType(widget.project.type),
-          label: widget.project.name,
-          indent: 1,
-          selected: widget.selected,
-          onTap: () {
-            widget.onSelectProject(widget.project);
-            if (canExpand) {
-              setState(() => _expanded = !_expanded);
-            }
-          },
-        ),
-        if (_expanded && canExpand && widget.onOpenFile != null)
-          for (final child in node.children)
-            _FileTreeNodeTile(
-              node: child,
-              indent: 2,
-              onOpenFile: widget.onOpenFile!,
-              gitFileStatuses: widget.gitFileStatuses,
-            ),
-      ],
-    );
-  }
-}
-
-class _FileTreeNodeTile extends StatefulWidget {
-  const _FileTreeNodeTile({
-    required this.node,
-    required this.indent,
-    required this.onOpenFile,
-    required this.gitFileStatuses,
-  });
-
-  final FileTreeNode node;
-  final int indent;
-  final ValueChanged<String> onOpenFile;
-  final Map<String, GitFileStatus> gitFileStatuses;
-
-  @override
-  State<_FileTreeNodeTile> createState() => _FileTreeNodeTileState();
-}
-
-class _FileTreeNodeTileState extends State<_FileTreeNodeTile> {
-  late bool _expanded = widget.indent <= 1;
-
-  @override
-  Widget build(BuildContext context) {
-    final node = widget.node;
-    if (node.isDir) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ExplorerTreeItem(
-            icon: _expanded
-                ? Icons.folder_open_outlined
-                : Icons.folder_outlined,
-            label: node.name,
-            indent: widget.indent,
-            onTap: () => setState(() => _expanded = !_expanded),
-          ),
-          if (_expanded)
-            for (final child in node.children)
-              _FileTreeNodeTile(
-                node: child,
-                indent: widget.indent + 1,
-                onOpenFile: widget.onOpenFile,
-                gitFileStatuses: widget.gitFileStatuses,
-              ),
-        ],
-      );
-    }
-
-    if (!node.isRobotSource) return const SizedBox.shrink();
-
-    final gitStatus = _gitStatusForNode(node);
-
-    return ExplorerTreeItem(
-      icon: _iconForSuffix(node.suffix),
-      label: node.name,
-      indent: widget.indent,
-      trailing: gitStatus == null ? null : GitStatusBadge(status: gitStatus),
-      onTap: () => widget.onOpenFile(node.path),
-    );
-  }
-
-  GitFileStatus? _gitStatusForNode(FileTreeNode node) {
-    for (final entry in widget.gitFileStatuses.entries) {
-      if (node.path.endsWith(entry.key) ||
-          node.relativePath == entry.key ||
-          node.path.endsWith('/${entry.key}')) {
-        return entry.value;
-      }
-    }
-    return null;
-  }
-
-  IconData _iconForSuffix(String suffix) {
-    return switch (suffix) {
-      '.py' => Icons.code_outlined,
-      '.resource' => Icons.library_books_outlined,
-      _ => Icons.description_outlined,
-    };
   }
 }

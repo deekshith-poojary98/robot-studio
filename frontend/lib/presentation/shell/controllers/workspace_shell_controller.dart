@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../../core/gateway/transport_gateway.dart';
 import '../../../core/logging/app_logger.dart';
 import 'shell_controller.dart';
@@ -8,12 +10,21 @@ class WorkspaceShellController {
     required this.notify,
     required this.isMounted,
     required this.appendLog,
+    this.healthOfflineInterval = const Duration(seconds: 2),
+    this.healthConnectedInterval = const Duration(seconds: 15),
+    this.offlineFailureThreshold = 3,
   });
 
   final TransportGateway gateway;
   final ShellNotify notify;
   final ShellMounted isMounted;
   final void Function(String line) appendLog;
+  final Duration healthOfflineInterval;
+  final Duration healthConnectedInterval;
+
+  /// Consecutive failed probes required before flipping connected → offline.
+  /// A single blip (restart, brief socket close) should not thrash the UI.
+  final int offlineFailureThreshold;
 
   String backendStatus = 'connecting';
   String? backendVersion;
@@ -31,6 +42,14 @@ class WorkspaceShellController {
   bool loadingEnvironments = false;
   bool busy = false;
 
+  Timer? _healthPollTimer;
+  Future<void> Function()? _onBackendConnected;
+  Future<void> Function()? _onBackendDisconnected;
+  bool _probingHealth = false;
+  bool _loggedOffline = false;
+  bool _monitoring = false;
+  int _consecutiveFailures = 0;
+
   EnvironmentInfo? get activeEnvironment {
     for (final environment in environments) {
       if (environment.active) return environment;
@@ -40,13 +59,59 @@ class WorkspaceShellController {
 
   bool get backendConnected => backendStatus == 'connected';
 
-  Future<void> checkBackend({
+  Duration get _nextHealthInterval =>
+      backendConnected ? healthConnectedInterval : healthOfflineInterval;
+
+  /// Probe immediately and keep polling so the shell recovers when the
+  /// backend comes back. Connection state is not shown in the chrome.
+  Future<void> startBackendMonitoring({
     required Future<void> Function() onConnected,
+    Future<void> Function()? onDisconnected,
   }) async {
-    AppLogger.debug('Checking backend health', tag: 'Shell');
+    _onBackendConnected = onConnected;
+    _onBackendDisconnected = onDisconnected;
+    _loggedOffline = false;
+    _consecutiveFailures = 0;
+    stopBackendMonitoring();
+    _monitoring = true;
+    backendStatus = 'connecting';
+    notify();
+    await _probeBackend();
+    if (!isMounted() || !_monitoring) return;
+    _scheduleNextHealthProbe();
+  }
+
+  void stopBackendMonitoring() {
+    _monitoring = false;
+    _healthPollTimer?.cancel();
+    _healthPollTimer = null;
+  }
+
+  void dispose() {
+    stopBackendMonitoring();
+  }
+
+  void _scheduleNextHealthProbe() {
+    _healthPollTimer?.cancel();
+    if (!_monitoring || !isMounted()) return;
+    _healthPollTimer = Timer(_nextHealthInterval, () {
+      unawaited(_probeBackend().whenComplete(_scheduleNextHealthProbe));
+    });
+  }
+
+  Future<void> _probeBackend() async {
+    if (!isMounted() || _probingHealth) return;
+    _probingHealth = true;
+    final wasConnected = backendConnected;
     try {
       final health = await gateway.health();
       if (!isMounted()) return;
+      _consecutiveFailures = 0;
+      _loggedOffline = false;
+      if (wasConnected) {
+        backendVersion = health.version;
+        return;
+      }
       backendStatus = 'connected';
       backendVersion = health.version;
       logLines = [
@@ -57,21 +122,69 @@ class WorkspaceShellController {
       for (final line in logLines) {
         AppLogger.fromConsoleLine(line, tag: 'Shell');
       }
-      await onConnected();
+      AppLogger.info(
+        'Backend connected',
+        tag: 'Shell',
+        data: 'v${health.version} modules=${health.modules.join(',')}',
+      );
+      final onConnected = _onBackendConnected;
+      if (onConnected != null) {
+        await onConnected();
+      }
     } catch (error, stackTrace) {
       if (!isMounted()) return;
-      AppLogger.error(
-        'Backend unavailable',
-        tag: 'Shell',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      backendStatus = 'offline';
-      logLines = [
-        '[error] Backend unavailable: $error',
-        '[info] Start the backend with: python -m robot_studio.main',
-      ];
-      notify();
+      _consecutiveFailures++;
+      if (wasConnected) {
+        if (_consecutiveFailures < offlineFailureThreshold) {
+          AppLogger.debug(
+            'Health probe failed '
+            '($_consecutiveFailures/$offlineFailureThreshold) — ignoring',
+            tag: 'Shell',
+            data: '$error',
+          );
+          return;
+        }
+        AppLogger.error(
+          'Backend lost — retrying',
+          tag: 'Shell',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        backendStatus = 'offline';
+        backendVersion = null;
+        _loggedOffline = true;
+        logLines = [
+          ...logLines,
+          '[error] Backend connection lost: $error',
+          '[info] Waiting for backend…',
+        ];
+        notify();
+        final onDisconnected = _onBackendDisconnected;
+        if (onDisconnected != null) {
+          await onDisconnected();
+        }
+        return;
+      }
+      if (!_loggedOffline) {
+        _loggedOffline = true;
+        AppLogger.error(
+          'Backend unavailable — retrying',
+          tag: 'Shell',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        backendStatus = 'offline';
+        logLines = [
+          '[error] Backend unavailable: $error',
+          '[info] Waiting for backend… start with: python -m robot_studio.main',
+        ];
+        notify();
+      } else if (backendStatus != 'offline') {
+        backendStatus = 'offline';
+        notify();
+      }
+    } finally {
+      _probingHealth = false;
     }
   }
 

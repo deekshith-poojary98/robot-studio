@@ -18,7 +18,6 @@ from robot_studio.infrastructure.project.filesystem import (
     FilesystemProjectProvider,
     ProjectValidationError,
 )
-from robot_studio.infrastructure.project.templates import TemplateService
 from robot_studio.infrastructure.repositories.project_repository import (
     SqliteProjectRepository,
 )
@@ -38,7 +37,6 @@ async def services(tmp_path: Path):
     workspace_service = WorkspaceService(workspace_repo, context)
 
     fs = FilesystemProjectProvider()
-    templates = TemplateService(fs)
     project_repo = SqliteProjectRepository(db)
     await project_repo.initialize()
     project_service = ProjectService(
@@ -46,7 +44,6 @@ async def services(tmp_path: Path):
         context=context,
         event_bus=bus,
         filesystem=fs,
-        templates=templates,
     )
 
     homes = tmp_path / "homes"
@@ -59,35 +56,12 @@ async def services(tmp_path: Path):
         "project_service": project_service,
         "project_repo": project_repo,
         "fs": fs,
-        "templates": templates,
         "tmp_path": tmp_path,
     }
 
 
 @pytest.mark.asyncio
-async def test_template_generation_browser(tmp_path: Path) -> None:
-    root = tmp_path / "BrowserProj"
-    TemplateService().apply(root, "BrowserProj", ProjectType.BROWSER)
-
-    assert (root / "tests").is_dir()
-    assert (root / "resources").is_dir()
-    assert (root / "variables").is_dir()
-    assert (root / "README.md").is_file()
-    assert "robotframework-browser" in (root / "requirements.txt").read_text()
-    assert (root / "tests" / "sample.robot").is_file()
-
-
-@pytest.mark.asyncio
-async def test_template_empty_only_folders(tmp_path: Path) -> None:
-    root = tmp_path / "EmptyProj"
-    TemplateService().apply(root, "EmptyProj", ProjectType.EMPTY)
-    assert (root / "tests").is_dir()
-    assert not (root / "README.md").exists()
-    assert not (root / "requirements.txt").exists()
-
-
-@pytest.mark.asyncio
-async def test_create_project(services) -> None:
+async def test_create_project_scaffolds_folders_only(services) -> None:
     events: list[object] = []
 
     async def on_created(event: ProjectCreated) -> None:
@@ -99,14 +73,15 @@ async def test_create_project(services) -> None:
     services["bus"].subscribe(ProjectCreated, on_created)
     services["bus"].subscribe(ProjectOpened, on_opened)
 
-    project = await services["project_service"].create_project(
-        "Demo",
-        ProjectType.API,
-    )
+    project = await services["project_service"].create_project("Demo")
 
     assert project.name == "Demo"
-    assert project.type == ProjectType.API
-    assert (project.path / "tests" / "sample.robot").is_file()
+    assert project.type == ProjectType.EMPTY
+    assert (project.path / "tests").is_dir()
+    assert (project.path / "resources").is_dir()
+    assert (project.path / "variables").is_dir()
+    assert not (project.path / "requirements.txt").exists()
+    assert not (project.path / "tests" / "sample.robot").exists()
     assert (project.path / ".robotstudio" / "project.json").is_file()
     assert services["context"].project_id == project.id
     assert any(isinstance(e, ProjectCreated) for e in events)
@@ -118,7 +93,9 @@ async def test_import_project_by_reference(services) -> None:
     external = services["tmp_path"] / "ExternalRobot"
     external.mkdir()
     (external / "requirements.txt").write_text("robotframework\n", encoding="utf-8")
-    (external / "suite.robot").write_text("*** Test Cases ***\nDummy\n    No Operation\n")
+    (external / "suite.robot").write_text(
+        "*** Test Cases ***\nDummy\n    No Operation\n",
+    )
 
     events: list[ProjectImported] = []
 
@@ -167,8 +144,8 @@ async def test_is_robot_project_markers(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_recent_projects_ordering(services) -> None:
-    first = await services["project_service"].create_project("One", ProjectType.EMPTY)
-    second = await services["project_service"].create_project("Two", ProjectType.EMPTY)
+    first = await services["project_service"].create_project("One")
+    second = await services["project_service"].create_project("Two")
     await services["project_service"].open_project(first.id)
 
     recent = await services["project_service"].list_recent()
@@ -178,7 +155,16 @@ async def test_recent_projects_ordering(services) -> None:
 
 @pytest.mark.asyncio
 async def test_list_projects(services) -> None:
-    await services["project_service"].create_project("A", ProjectType.SELENIUM)
-    await services["project_service"].create_project("B", ProjectType.BROWSER)
+    await services["project_service"].create_project("A")
+    await services["project_service"].create_project("B")
     projects = await services["project_service"].list_projects()
     assert sorted(p.name for p in projects) == ["A", "B"]
+
+
+@pytest.mark.asyncio
+async def test_legacy_type_normalizes_to_empty() -> None:
+    assert ProjectType.normalize("browser") == ProjectType.EMPTY
+    assert ProjectType.normalize("api") == ProjectType.EMPTY
+    assert ProjectType.normalize("selenium") == ProjectType.EMPTY
+    assert ProjectType.normalize("imported") == ProjectType.IMPORTED
+    assert ProjectType.normalize("empty") == ProjectType.EMPTY

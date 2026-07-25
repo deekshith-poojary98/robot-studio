@@ -23,7 +23,8 @@ class ProblemsPanel extends StatelessWidget {
     if (diagnostics.isEmpty) {
       return Center(
         child: Text(
-          'No problems detected in the workspace.',
+          'No problems found.\nDiagnostics appear here as you edit .robot files.',
+          textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodySmall,
         ),
       );

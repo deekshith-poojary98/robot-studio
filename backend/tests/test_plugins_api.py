@@ -31,8 +31,10 @@ async def api_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client, fresh, tmp_path
-
+        try:
+            yield client, fresh, tmp_path
+        finally:
+            await fresh.shutdown()
     app.dependency_overrides.clear()
 
 
@@ -137,6 +139,7 @@ async def test_plugin_manager_loads_external_plugin(tmp_path: Path) -> None:
     plugin = container.plugin_manager.get_plugin("hello")
     assert plugin is not None
     assert plugin.status in {"loaded", "enabled"}
+    await container.shutdown()
 
 
 @pytest.mark.asyncio

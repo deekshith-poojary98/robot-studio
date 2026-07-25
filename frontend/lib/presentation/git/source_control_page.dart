@@ -75,7 +75,6 @@ class SourceControlPage extends StatelessWidget {
             isLoading: isLoading,
             isBusy: isBusy,
             onRefresh: onRefresh,
-            onInit: onInit,
             onFetch: onFetch,
             onPull: onPull,
             onPush: onPush,
@@ -85,56 +84,56 @@ class SourceControlPage extends StatelessWidget {
             child: isLoading
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                 : !isRepository
-                    ? _NotRepositoryView(onInit: onInit, isBusy: isBusy)
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Expanded(
-                                  child: _ChangesView(
-                                    changes: status?.changes ?? const [],
-                                    selectedFiles: selectedFiles,
-                                    onToggleFile: onToggleFile,
-                                    onSelectDiffFile: onSelectDiffFile,
-                                    selectedDiffFile: selectedDiffFile,
-                                  ),
-                                ),
-                                CommitPanel(
-                                  controller: commitController,
-                                  enabled: isRepository,
-                                  isBusy: isBusy,
-                                  selectedCount: selectedFiles.length,
-                                  totalCount: status?.changes.length ?? 0,
-                                  onCommit: onCommitAll,
-                                  onCommitSelected: onCommitSelected,
-                                ),
-                              ],
+                ? _NotRepositoryView(onInit: onInit, isBusy: isBusy)
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: _ChangesView(
+                                changes: status?.changes ?? const [],
+                                selectedFiles: selectedFiles,
+                                onToggleFile: onToggleFile,
+                                onSelectDiffFile: onSelectDiffFile,
+                                selectedDiffFile: selectedDiffFile,
+                              ),
                             ),
-                          ),
-                          const VerticalDivider(width: 1),
-                          Expanded(
-                            flex: 4,
-                            child: selectedDiffFile != null
-                                ? DiffViewer(
-                                    diff: diff,
-                                    isLoading: isLoadingDiff,
-                                    fileLabel: selectedDiffFile,
-                                  )
-                                : HistoryPanel(
-                                    commits: history,
-                                    selected: selectedCommit,
-                                    detail: commitDetail,
-                                    isLoading: isLoadingHistory,
-                                    onSelect: onSelectCommit,
-                                    onRefresh: onRefreshHistory,
-                                  ),
-                          ),
-                        ],
+                            CommitPanel(
+                              controller: commitController,
+                              enabled: isRepository,
+                              isBusy: isBusy,
+                              selectedCount: selectedFiles.length,
+                              totalCount: status?.changes.length ?? 0,
+                              onCommit: onCommitAll,
+                              onCommitSelected: onCommitSelected,
+                            ),
+                          ],
+                        ),
                       ),
+                      const VerticalDivider(width: 1),
+                      Expanded(
+                        flex: 4,
+                        child: selectedDiffFile != null
+                            ? DiffViewer(
+                                diff: diff,
+                                isLoading: isLoadingDiff,
+                                fileLabel: selectedDiffFile,
+                              )
+                            : HistoryPanel(
+                                commits: history,
+                                selected: selectedCommit,
+                                detail: commitDetail,
+                                isLoading: isLoadingHistory,
+                                onSelect: onSelectCommit,
+                                onRefresh: onRefreshHistory,
+                              ),
+                      ),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -148,7 +147,6 @@ class _Header extends StatelessWidget {
     required this.isLoading,
     required this.isBusy,
     required this.onRefresh,
-    required this.onInit,
     required this.onFetch,
     required this.onPull,
     required this.onPush,
@@ -158,7 +156,6 @@ class _Header extends StatelessWidget {
   final bool isLoading;
   final bool isBusy;
   final VoidCallback onRefresh;
-  final VoidCallback onInit;
   final VoidCallback onFetch;
   final VoidCallback onPull;
   final VoidCallback onPush;
@@ -172,9 +169,9 @@ class _Header extends StatelessWidget {
         children: [
           Text(
             'Source Control',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontSize: 18,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontSize: 18),
           ),
           const SizedBox(height: 4),
           Text(
@@ -182,45 +179,35 @@ class _Header extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                if (repository?.isRepository ?? false) ...[
-                  OutlinedButton.icon(
-                    onPressed: isBusy ? null : onFetch,
-                    icon: const Icon(Icons.cloud_download_outlined, size: 16),
-                    label: const Text('Fetch'),
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: isBusy ? null : onPull,
-                    icon: const Icon(Icons.download_outlined, size: 16),
-                    label: const Text('Pull'),
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: isBusy ? null : onPush,
-                    icon: const Icon(Icons.upload_outlined, size: 16),
-                    label: const Text('Push'),
-                  ),
-                  const SizedBox(width: 8),
-                ],
+          // Wrap, not horizontal scroll: actions must stay reachable when the
+          // window is narrow.
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (repository?.isRepository ?? false) ...[
                 OutlinedButton.icon(
-                  onPressed: isLoading || isBusy ? null : onRefresh,
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Refresh'),
+                  onPressed: isBusy ? null : onFetch,
+                  icon: const Icon(Icons.cloud_download_outlined, size: 16),
+                  label: const Text('Fetch'),
                 ),
-                if (!(repository?.isRepository ?? false)) ...[
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    onPressed: isBusy ? null : onInit,
-                    icon: const Icon(Icons.folder_special_outlined, size: 16),
-                    label: const Text('Initialize Git Repository'),
-                  ),
-                ],
+                OutlinedButton.icon(
+                  onPressed: isBusy ? null : onPull,
+                  icon: const Icon(Icons.download_outlined, size: 16),
+                  label: const Text('Pull'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: isBusy ? null : onPush,
+                  icon: const Icon(Icons.upload_outlined, size: 16),
+                  label: const Text('Push'),
+                ),
               ],
-            ),
+              OutlinedButton.icon(
+                onPressed: isLoading || isBusy ? null : onRefresh,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Refresh'),
+              ),
+            ],
           ),
         ],
       ),
@@ -262,7 +249,7 @@ class _NotRepositoryView extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Initialize a repository to track changes in this workspace.',
+            'Initialize a repository to track changes in this project.',
             style: TextStyle(color: AppColors.textMuted),
           ),
           const SizedBox(height: 16),
@@ -302,10 +289,7 @@ class _ChangesView extends StatelessWidget {
   Widget build(BuildContext context) {
     if (changes.isEmpty) {
       return const Center(
-        child: Text(
-          'No changes',
-          style: TextStyle(color: AppColors.textMuted),
-        ),
+        child: Text('No changes', style: TextStyle(color: AppColors.textMuted)),
       );
     }
 
@@ -317,18 +301,15 @@ class _ChangesView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(
-          'Changes',
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
+        Text('Changes', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 12),
         for (final status in GitFileStatus.values)
           if (grouped.containsKey(status)) ...[
             Text(
               status.label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: status.color,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(color: status.color),
             ),
             const SizedBox(height: 6),
             ...grouped[status]!.map(
@@ -374,10 +355,7 @@ class _ChangeRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Row(
             children: [
-              Checkbox(
-                value: selected,
-                onChanged: (_) => onToggle(),
-              ),
+              Checkbox(value: selected, onChanged: (_) => onToggle()),
               GitStatusBadge(status: change.status),
               const SizedBox(width: 8),
               Expanded(

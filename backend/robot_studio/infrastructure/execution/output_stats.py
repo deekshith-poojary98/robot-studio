@@ -74,3 +74,44 @@ def _int_attr(element: ET.Element, name: str) -> int:
         return int(element.attrib.get(name, "0") or "0")
     except ValueError:
         return 0
+
+
+def parse_test_results(output_xml: Path | None) -> list[dict]:
+    """Return per-test results from output.xml (name, status, source, message)."""
+    if output_xml is None or not Path(output_xml).is_file():
+        return []
+
+    try:
+        root = ET.parse(Path(output_xml)).getroot()
+    except (ET.ParseError, OSError):
+        return []
+
+    results: list[dict] = []
+    for suite in root.iter("suite"):
+        source = suite.attrib.get("source") or ""
+        for test in suite.findall("test"):
+            name = test.attrib.get("name") or ""
+            if not name:
+                continue
+            status_el = test.find("status")
+            status = (status_el.attrib.get("status") if status_el is not None else "") or ""
+            message = ""
+            if status_el is not None and status_el.text:
+                message = status_el.text.strip()
+            results.append(
+                {
+                    "name": name,
+                    "status": status.upper(),
+                    "source": source,
+                    "message": message,
+                },
+            )
+    return results
+
+
+def list_failed_tests(output_xml: Path | None) -> list[dict]:
+    return [
+        item
+        for item in parse_test_results(output_xml)
+        if item.get("status") == "FAIL"
+    ]

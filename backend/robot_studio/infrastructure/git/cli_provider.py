@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -46,8 +47,12 @@ class CliGitProvider(GitProvider):
         return await self._repository_info(target)
 
     async def status(self, repo_root: Path) -> GitStatus:
-        repository = await self._repository_info(repo_root)
-        raw = await self._run_text(["status", "--porcelain=v1"], cwd=repo_root)
+        repository = await self._repository_info(repo_root, include_porcelain=False)
+        # -uno: skip untracked files — critical for large Robot suites.
+        raw = await self._run_text(
+            ["status", "--porcelain=v1", "-uno"],
+            cwd=repo_root,
+        )
         changes = _parse_porcelain(raw)
         repository.clean = len(changes) == 0
         return GitStatus(repository=repository, changes=changes)
@@ -200,7 +205,20 @@ class CliGitProvider(GitProvider):
             await self._run(["add", "--", *files], cwd=repo_root)
         else:
             await self._run(["add", "-A"], cwd=repo_root)
-        await self._run(["commit", "-m", message], cwd=repo_root)
+        # Always set identity for the commit command so repos without a local
+        # user.email/name still work in CI and fresh workspaces.
+        await self._run(
+            [
+                "-c",
+                "user.email=robot-studio@local",
+                "-c",
+                "user.name=Robot Studio",
+                "commit",
+                "-m",
+                message,
+            ],
+            cwd=repo_root,
+        )
         history = await self.history(repo_root, limit=1)
         if not history:
             raise GitCommandError("Commit succeeded but history is empty")
@@ -227,6 +245,44 @@ class CliGitProvider(GitProvider):
         except GitCommandError as exc:
             return GitRemoteResult(success=False, message=str(exc), output=str(exc))
 
+    async def seed_local_remote(
+        self,
+        repo_root: Path,
+        *,
+        relative_path: str = ".test-remotes/origin.git",
+        remote_name: str = "origin",
+    ) -> str:
+        """Create a bare remote under the repo and set upstream tracking."""
+        remote_path = (repo_root / relative_path).resolve()
+        if remote_path.exists():
+            shutil.rmtree(remote_path)
+        remote_path.mkdir(parents=True, exist_ok=True)
+        await self._run(["init", "--bare"], cwd=remote_path)
+
+        # Replace existing remote if present.
+        try:
+            await self._run(["remote", "remove", remote_name], cwd=repo_root)
+        except GitCommandError:
+            pass
+        await self._run(
+            ["remote", "add", remote_name, str(remote_path)],
+            cwd=repo_root,
+        )
+
+        branch = (
+            await self._run_text(["rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root)
+        ).strip()
+        if branch and branch != "HEAD":
+            await self._run(
+                ["config", f"branch.{branch}.remote", remote_name],
+                cwd=repo_root,
+            )
+            await self._run(
+                ["config", f"branch.{branch}.merge", f"refs/heads/{branch}"],
+                cwd=repo_root,
+            )
+        return str(remote_path)
+
     async def diff(
         self,
         repo_root: Path,
@@ -249,7 +305,12 @@ class CliGitProvider(GitProvider):
         except GitCommandError:
             return False
 
-    async def _repository_info(self, repo_root: Path) -> GitRepositoryInfo:
+    async def _repository_info(
+        self,
+        repo_root: Path,
+        *,
+        include_porcelain: bool = True,
+    ) -> GitRepositoryInfo:
         head: str | None = None
         try:
             head = (await self._run_text(["rev-parse", "HEAD"], cwd=repo_root)).strip()
@@ -273,15 +334,21 @@ class CliGitProvider(GitProvider):
                 ).strip()
             except GitCommandError:
                 pass
-        status_raw = await self._run_text(["status", "--porcelain=v1"], cwd=repo_root)
-        changes = _parse_porcelain(status_raw)
+        clean = True
+        if include_porcelain:
+            status_raw = await self._run_text(
+                ["status", "--porcelain=v1", "-uno"],
+                cwd=repo_root,
+            )
+            changes = _parse_porcelain(status_raw)
+            clean = len(changes) == 0
         return GitRepositoryInfo(
             is_repository=True,
             root=repo_root,
             branch=branch,
             head=head if head else None,
             detached=detached,
-            clean=len(changes) == 0,
+            clean=clean,
         )
 
     async def _run(self, args: list[str], *, cwd: Path) -> None:

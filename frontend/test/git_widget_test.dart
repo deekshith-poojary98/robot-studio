@@ -51,7 +51,7 @@ void main() {
     );
 
     expect(find.text('Not a Git repository'), findsWidgets);
-    expect(find.text('Initialize Git Repository'), findsWidgets);
+    expect(find.text('Initialize Git Repository'), findsOneWidget);
   });
 
   testWidgets('SourceControlPage shows grouped changes', (

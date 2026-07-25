@@ -73,6 +73,15 @@ class GitProvider(ABC):
     async def push(self, repo_root: Path) -> GitRemoteResult: ...
 
     @abstractmethod
+    async def seed_local_remote(
+        self,
+        repo_root: Path,
+        *,
+        relative_path: str = ".test-remotes/origin.git",
+        remote_name: str = "origin",
+    ) -> str: ...
+
+    @abstractmethod
     async def diff(
         self,
         repo_root: Path,

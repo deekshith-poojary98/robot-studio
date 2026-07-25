@@ -9,12 +9,14 @@ class SidebarButton extends StatefulWidget {
     required this.label,
     required this.isActive,
     required this.onTap,
+    this.tooltip,
   });
 
   final IconData icon;
   final String label;
   final bool isActive;
   final VoidCallback onTap;
+  final String? tooltip;
 
   @override
   State<SidebarButton> createState() => _SidebarButtonState();
@@ -33,14 +35,15 @@ class _SidebarButtonState extends State<SidebarButton> {
             : AppColors.textSecondary;
 
     return Tooltip(
-      message: widget.label,
+      message: widget.tooltip ?? widget.label,
       preferBelow: false,
+      waitDuration: const Duration(milliseconds: 250),
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         child: InkWell(
           onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(AppRadii.md),
+          borderRadius: BorderRadius.zero,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             width: 36,
@@ -52,12 +55,17 @@ class _SidebarButtonState extends State<SidebarButton> {
                   : _hovered
                       ? AppColors.surfaceHover
                       : Colors.transparent,
-              borderRadius: BorderRadius.circular(AppRadii.md),
-              border: Border.all(
-                color: active
-                    ? AppColors.accent.withValues(alpha: 0.22)
-                    : Colors.transparent,
-              ),
+              borderRadius: BorderRadius.zero,
+              border: active
+                  ? Border(
+                      top: BorderSide(
+                        color: AppColors.accent.withValues(alpha: 0.22),
+                      ),
+                      bottom: BorderSide(
+                        color: AppColors.accent.withValues(alpha: 0.22),
+                      ),
+                    )
+                  : null,
             ),
             child: Icon(widget.icon, size: 18, color: color),
           ),

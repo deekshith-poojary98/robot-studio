@@ -5,7 +5,6 @@ import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/report_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
 import '../../core/theme/app_theme.dart';
-import '../project/project_details_panel.dart';
 import '../search/index_status_card.dart';
 import '../widgets/explorer_tree.dart';
 import '../widgets/info_card.dart';
@@ -19,6 +18,7 @@ class WelcomeScreen extends StatelessWidget {
     required this.isLoadingRecent,
     required this.onNewWorkspace,
     required this.onOpenWorkspace,
+    required this.onOpenProject,
     required this.onOpenRecentWorkspace,
     required this.onOpenRecentProject,
     this.onNewProject,
@@ -44,6 +44,7 @@ class WelcomeScreen extends StatelessWidget {
   final bool isLoadingRecent;
   final VoidCallback onNewWorkspace;
   final VoidCallback onOpenWorkspace;
+  final VoidCallback onOpenProject;
   final ValueChanged<WorkspaceInfo> onOpenRecentWorkspace;
   final ValueChanged<ProjectInfo> onOpenRecentProject;
   final VoidCallback? onNewProject;
@@ -84,63 +85,51 @@ class WelcomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             const Text(
-              'High-performance workspace for Robot Framework development.',
+              'Robot Framework development, project first.',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
             ),
             const SizedBox(height: 20),
             Text(
-              'Quick Actions',
+              'Projects',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 10),
             LayoutBuilder(
               builder: (context, constraints) {
-                final wide = constraints.maxWidth > 780;
+                final wide = constraints.maxWidth > 560;
                 final tiles = [
                   QuickActionTile(
-                    icon: Icons.add,
-                    label: 'New Workspace',
-                    subtitle: 'Create a Robot Studio workspace',
-                    onTap: onNewWorkspace,
-                  ),
-                  QuickActionTile(
-                    icon: Icons.folder_open_outlined,
-                    label: 'Open Workspace',
-                    subtitle: 'Open an existing workspace',
-                    onTap: onOpenWorkspace,
-                  ),
-                  QuickActionTile(
                     icon: Icons.note_add_outlined,
-                    label: 'Create Robot Project',
-                    subtitle: workspaceOpen
-                        ? 'Add a Robot Framework project'
-                        : 'Requires an open workspace',
-                    enabled: workspaceOpen && onNewProject != null,
-                    disabledTooltip: 'Open a workspace first',
+                    label: 'New Project',
+                    subtitle: 'Create a Robot Framework project',
+                    enabled: onNewProject != null,
+                    disabledTooltip: 'New Project is unavailable',
                     onTap: onNewProject ?? () {},
                   ),
                   QuickActionTile(
-                    icon: Icons.memory_outlined,
-                    label: 'Manage Environments',
-                    subtitle: 'Create and activate Python environments',
-                    enabled: workspaceOpen && onManageEnvironments != null,
-                    disabledTooltip: 'Open a workspace first',
-                    onTap: onManageEnvironments ?? () {},
+                    icon: Icons.folder_special_outlined,
+                    label: 'Open Project',
+                    subtitle: 'Open any Robot Framework project folder',
+                    onTap: onOpenProject,
                   ),
                 ];
 
                 if (wide) {
-                  return Row(
-                    children: [
-                      for (var i = 0; i < tiles.length; i++) ...[
-                        if (i > 0) const SizedBox(width: 10),
-                        Expanded(child: tiles[i]),
+                  return IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < tiles.length; i++) ...[
+                          if (i > 0) const SizedBox(width: 10),
+                          Expanded(child: tiles[i]),
+                        ],
                       ],
-                    ],
+                    ),
                   );
                 }
 
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (var i = 0; i < tiles.length; i++) ...[
                       if (i > 0) const SizedBox(height: 8),
@@ -151,45 +140,76 @@ class WelcomeScreen extends StatelessWidget {
               },
             ),
             const SizedBox(height: 20),
+            InfoCard(
+              title: 'Recent Projects',
+              child: _RecentProjectsBody(
+                projects: recentProjects,
+                isLoading: isLoadingRecent,
+                onOpen: onOpenRecentProject,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Advanced',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Workspaces are optional multi-project containers. Most users can ignore them.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            ),
+            const SizedBox(height: 10),
             LayoutBuilder(
               builder: (context, constraints) {
-                final sideBySide = constraints.maxWidth > 860;
-                final projects = InfoCard(
-                  title: 'Recent Projects',
-                  child: _RecentProjectsBody(
-                    projects: recentProjects,
-                    isLoading: isLoadingRecent,
-                    onOpen: onOpenRecentProject,
+                final wide = constraints.maxWidth > 560;
+                final tiles = [
+                  QuickActionTile(
+                    icon: Icons.folder_open_outlined,
+                    label: 'Open Workspace',
+                    subtitle: 'Open an existing multi-project workspace',
+                    onTap: onOpenWorkspace,
                   ),
-                );
-                final workspaces = InfoCard(
-                  title: 'Recent Workspaces',
-                  child: _RecentWorkspacesBody(
-                    workspaces: recentWorkspaces,
-                    isLoading: isLoadingRecent,
-                    onOpen: onOpenRecentWorkspace,
+                  QuickActionTile(
+                    icon: Icons.add,
+                    label: 'New Workspace',
+                    subtitle: 'Create a multi-project workspace',
+                    onTap: onNewWorkspace,
                   ),
-                );
+                ];
 
-                if (sideBySide) {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: workspaces),
-                      const SizedBox(width: 12),
-                      Expanded(child: projects),
-                    ],
+                if (wide) {
+                  return IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < tiles.length; i++) ...[
+                          if (i > 0) const SizedBox(width: 10),
+                          Expanded(child: tiles[i]),
+                        ],
+                      ],
+                    ),
                   );
                 }
 
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    workspaces,
-                    const SizedBox(height: 12),
-                    projects,
+                    for (var i = 0; i < tiles.length; i++) ...[
+                      if (i > 0) const SizedBox(height: 8),
+                      tiles[i],
+                    ],
                   ],
                 );
               },
+            ),
+            const SizedBox(height: 12),
+            InfoCard(
+              title: 'Recent Workspaces',
+              child: _RecentWorkspacesBody(
+                workspaces: recentWorkspaces,
+                isLoading: isLoadingRecent,
+                onOpen: onOpenRecentWorkspace,
+              ),
             ),
             const SizedBox(height: 12),
             if (_showEditorSections) ...[
@@ -280,7 +300,7 @@ class WelcomeScreen extends StatelessWidget {
                   Expanded(
                     child: Text(
                       activeEnvironmentLabel == null
-                          ? 'Open a workspace and create a Python environment.'
+                          ? 'Open a project, then create or select a Python environment.'
                           : 'Used for execution, packages, and language services.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
@@ -317,7 +337,7 @@ class _DashboardBody extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.all(12),
         child: Text(
-          'No runs indexed yet.',
+          'No runs yet — run a suite to see results here.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       );
@@ -604,14 +624,10 @@ class _RecentProjectsBody extends StatelessWidget {
     return Column(
       children: projects.take(6).map((project) {
         return ExplorerTreeItem(
-          icon: iconForProjectType(project.type),
+          icon: Icons.folder_outlined,
           label: project.name,
           tooltip: '${project.name}\n${project.path}',
           onTap: () => onOpen(project),
-          trailing: Text(
-            project.type.label,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
-          ),
         );
       }).toList(),
     );

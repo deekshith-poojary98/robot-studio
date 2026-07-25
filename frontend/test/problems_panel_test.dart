@@ -48,7 +48,11 @@ void main() {
       ),
     );
 
-    expect(find.text('No problems detected in the workspace.'), findsOneWidget);
+    expect(find.textContaining('No problems found'), findsOneWidget);
+    expect(
+      find.textContaining('Diagnostics appear here'),
+      findsOneWidget,
+    );
   });
 }
 

@@ -5,8 +5,7 @@ import '../../core/theme/app_theme.dart';
 class StatusBar extends StatelessWidget {
   const StatusBar({
     super.key,
-    required this.backendConnected,
-    this.workspaceName,
+    this.projectName,
     this.fileName,
     this.cursorLabel,
     this.dirty = false,
@@ -14,11 +13,10 @@ class StatusBar extends StatelessWidget {
     this.warningCount = 0,
     this.robotVersion,
     this.pythonVersion,
-    this.venvName,
+    this.onProblemsTap,
   });
 
-  final bool backendConnected;
-  final String? workspaceName;
+  final String? projectName;
   final String? fileName;
   final String? cursorLabel;
   final bool dirty;
@@ -26,7 +24,7 @@ class StatusBar extends StatelessWidget {
   final int warningCount;
   final String? robotVersion;
   final String? pythonVersion;
-  final String? venvName;
+  final VoidCallback? onProblemsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -34,53 +32,76 @@ class StatusBar extends StatelessWidget {
       height: 24,
       decoration: const BoxDecoration(
         color: AppColors.statusBar,
-        border: Border(
-          top: BorderSide(color: AppColors.borderSubtle),
-        ),
+        border: Border(top: BorderSide(color: AppColors.borderSubtle)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Row(
         children: [
-          _item(backendConnected ? 'READY' : 'OFFLINE'),
-          _item(workspaceName?.toUpperCase() ?? 'NO WORKSPACE'),
-          if (fileName != null) _item(fileName!.toUpperCase()),
+          // Long project / file names shrink instead of overflowing the bar.
+          _flexItem(projectName?.toUpperCase() ?? 'NO PROJECT', flex: 2),
+          if (fileName != null) _flexItem(fileName!.toUpperCase(), flex: 3),
           if (cursorLabel != null) _item(cursorLabel!),
           if (dirty) _item('MODIFIED'),
-          if (errorCount > 0) _item('ERRORS $errorCount'),
-          if (warningCount > 0) _item('WARNINGS $warningCount'),
+          if (errorCount > 0)
+            _clickableItem('ERRORS $errorCount', onProblemsTap),
+          if (warningCount > 0)
+            _clickableItem('WARNINGS $warningCount', onProblemsTap),
           _item('UTF-8'),
           _item('LF'),
           const Spacer(),
-          _item(
-            robotVersion != null && robotVersion!.isNotEmpty
-                ? 'ROBOT $robotVersion'
-                : 'ROBOT —',
-          ),
-          _item(
-            pythonVersion != null && pythonVersion!.isNotEmpty
-                ? 'PYTHON $pythonVersion'
-                : 'PYTHON —',
-          ),
-          _item(
-            venvName != null && venvName!.isNotEmpty
-                ? 'ENV $venvName'
-                : 'ENV —',
-          ),
+          if (robotVersion != null && robotVersion!.isNotEmpty)
+            _item('ROBOT $robotVersion'),
+          if (pythonVersion != null && pythonVersion!.isNotEmpty)
+            _item('PYTHON $pythonVersion'),
         ],
       ),
     );
   }
 
+  static const _labelStyle = TextStyle(
+    color: AppColors.statusBarText,
+    fontSize: 10,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.3,
+  );
+
   Widget _item(String label) {
     return Padding(
       padding: const EdgeInsets.only(right: 12),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: AppColors.statusBarText,
-          fontSize: 10,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.3,
+      child: Text(label, style: _labelStyle),
+    );
+  }
+
+  Widget _flexItem(String label, {required int flex}) {
+    return Flexible(
+      flex: flex,
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: _labelStyle,
+        ),
+      ),
+    );
+  }
+
+  Widget _clickableItem(String label, VoidCallback? onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: InkWell(
+        onTap: onTap,
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.statusBarText,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.3,
+            decoration: TextDecoration.underline,
+            decorationColor: AppColors.statusBarText,
+          ),
         ),
       ),
     );

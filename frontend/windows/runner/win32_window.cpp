@@ -212,8 +212,9 @@ Win32Window::MessageHandler(HWND hwnd,
       HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
       UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
       double scale_factor = dpi / 96.0;
-      min_max_info->ptMinTrackSize.x = Scale(1024, scale_factor);
-      min_max_info->ptMinTrackSize.y = Scale(640, scale_factor);
+      // IDE chrome (rail + sidebar + editor + bottom panel) needs a real floor.
+      min_max_info->ptMinTrackSize.x = Scale(1280, scale_factor);
+      min_max_info->ptMinTrackSize.y = Scale(720, scale_factor);
       return 0;
     }
 

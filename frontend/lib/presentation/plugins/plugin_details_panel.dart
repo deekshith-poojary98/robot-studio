@@ -62,11 +62,16 @@ class PluginDetailsPanel extends StatelessWidget {
                 Wrap(
                   spacing: 8,
                   children: [
-                    OutlinedButton(onPressed: onEnable, child: const Text('Enable')),
-                    OutlinedButton(
-                      onPressed: selected.isBuiltin ? null : onDisable,
-                      child: const Text('Disable'),
-                    ),
+                    if (!selected.enabled)
+                      FilledButton(
+                        onPressed: onEnable,
+                        child: const Text('Enable'),
+                      )
+                    else if (!selected.isBuiltin)
+                      OutlinedButton(
+                        onPressed: onDisable,
+                        child: const Text('Disable'),
+                      ),
                     OutlinedButton(onPressed: onReload, child: const Text('Reload')),
                   ],
                 ),

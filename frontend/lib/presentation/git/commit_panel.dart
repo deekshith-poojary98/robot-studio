@@ -32,10 +32,7 @@ class CommitPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Commit Message',
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
+          Text('Commit Message', style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 8),
           TextField(
             controller: controller,
@@ -53,46 +50,46 @@ class CommitPanel extends StatelessWidget {
             valueListenable: controller,
             builder: (context, value, _) {
               final hasMessage = value.text.trim().isNotEmpty;
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    FilledButton.icon(
-                      onPressed: enabled && !isBusy && hasMessage
-                          ? onCommit
-                          : null,
-                      icon: isBusy
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.check, size: 16),
-                      label: const Text('Commit All'),
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  FilledButton.icon(
+                    onPressed: enabled && !isBusy && hasMessage
+                        ? onCommit
+                        : null,
+                    icon: isBusy
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check, size: 16),
+                    label: const Text('Commit All'),
+                  ),
+                  OutlinedButton(
+                    onPressed:
+                        enabled && !isBusy && hasMessage && selectedCount > 0
+                        ? onCommitSelected
+                        : null,
+                    child: Text(
+                      selectedCount > 0
+                          ? 'Commit Selected ($selectedCount)'
+                          : 'Commit Selected',
                     ),
-                    const SizedBox(width: 8),
-                    OutlinedButton(
-                      onPressed: enabled &&
-                              !isBusy &&
-                              hasMessage &&
-                              selectedCount > 0
-                          ? onCommitSelected
-                          : null,
-                      child: Text(
-                        selectedCount > 0
-                            ? 'Commit Selected ($selectedCount)'
-                            : 'Commit Selected',
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Text(
                       totalCount == 0
                           ? 'No changes'
-                          : '$totalCount changed file${totalCount == 1 ? '' : 's'}',
+                          : '$totalCount changed file'
+                                '${totalCount == 1 ? '' : 's'}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               );
             },
           ),

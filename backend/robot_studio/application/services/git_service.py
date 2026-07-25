@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from robot_studio.core.events import (
     RepositoryInitialized,
     RepositoryOpened,
     RepositoryUpdated,
+    Subscription,
     WorkspaceOpened,
 )
 from robot_studio.domain.interfaces.git import GitProvider
@@ -40,14 +42,40 @@ class GitService:
     provider: GitProvider
     _repository: GitRepositoryInfo | None = field(default=None, init=False)
     _subscribed: bool = field(default=False, init=False)
+    _background_tasks: set[asyncio.Task] = field(default_factory=set, init=False)
+    _unsubscribes: list[Subscription] = field(default_factory=list, init=False)
+    _stopped: bool = field(default=False, init=False)
 
     def start(self) -> None:
         if self._subscribed:
             return
-        self.event_bus.subscribe(WorkspaceOpened, self._on_workspace_opened)
-        self.event_bus.subscribe(ProjectOpened, self._on_project_opened)
-        self.event_bus.subscribe(FileWritten, self._on_file_written)
+        self._stopped = False
+        self._unsubscribes = [
+            self.event_bus.subscribe(WorkspaceOpened, self._on_workspace_opened),
+            self.event_bus.subscribe(ProjectOpened, self._on_project_opened),
+            self.event_bus.subscribe(FileWritten, self._on_file_written),
+        ]
         self._subscribed = True
+
+    async def stop(self) -> None:
+        self._stopped = True
+        for subscription in self._unsubscribes:
+            subscription.unsubscribe()
+        self._unsubscribes.clear()
+        self._subscribed = False
+        tasks = list(self._background_tasks)
+        self._background_tasks.clear()
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    def _spawn(self, coro: object, *, name: str) -> None:
+        if self._stopped:
+            return
+        task = asyncio.create_task(coro, name=name)  # type: ignore[arg-type]
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     async def _on_file_written(self, event: FileWritten) -> None:
         _ = event
@@ -57,11 +85,12 @@ class GitService:
 
     async def _on_workspace_opened(self, event: WorkspaceOpened) -> None:
         _ = event
-        await self.refresh()
+        # Detect repo without blocking callers for long git ops.
+        self._spawn(self.refresh(), name="git-refresh-on-open")
 
     async def _on_project_opened(self, event: ProjectOpened) -> None:
         _ = event
-        await self.refresh()
+        self._spawn(self.refresh(), name="git-refresh-on-project")
 
     def _scope_path(self) -> Path:
         project = self.context.project
@@ -175,6 +204,21 @@ class GitService:
         repo = await self._require_repository()
         result = await self.provider.push(Path(repo.root))
         return result
+
+    async def seed_local_remote(
+        self,
+        *,
+        relative_path: str = ".test-remotes/origin.git",
+        remote_name: str = "origin",
+    ) -> str:
+        repo = await self._require_repository()
+        remote_path = await self.provider.seed_local_remote(
+            Path(repo.root),
+            relative_path=relative_path,
+            remote_name=remote_name,
+        )
+        await self.event_bus.publish(RepositoryUpdated(root=str(repo.root)))
+        return remote_path
 
     async def diff(
         self,

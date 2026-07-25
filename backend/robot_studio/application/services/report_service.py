@@ -142,6 +142,14 @@ class ReportService:
         _open_path(Path(path))
         return Path(path)
 
+    async def open_xml(self, run_id: UUID) -> Path:
+        run = await self.get_run(run_id)
+        path = run.output_xml
+        if path is None or not Path(path).is_file():
+            raise ReportValidationError("output.xml is not available for this run")
+        _open_path(Path(path))
+        return Path(path)
+
     async def reveal(self, run_id: UUID) -> Path:
         run = await self.get_run(run_id)
         directory = run.output_dir

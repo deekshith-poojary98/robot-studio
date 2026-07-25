@@ -193,6 +193,25 @@ class EnvironmentService:
         """Discover host Python interpreters (does not require an open workspace)."""
         return self._python.discover_interpreters()
 
+    async def detect_candidate_environments(self) -> list[dict[str, str]]:
+        """Find unused local venvs under the active project/workspace root."""
+        workspace = self._require_workspace()
+        registered = {
+            item.path.resolve()
+            for item in await self._repository.list_by_workspace(workspace.id)
+        }
+        candidates: list[dict[str, str]] = []
+        for path in self._fs.discover_candidates(workspace.path):
+            if path.resolve() in registered:
+                continue
+            candidates.append(
+                {
+                    "name": path.name.lstrip(".") or path.name,
+                    "path": str(path.resolve()),
+                },
+            )
+        return candidates
+
     async def get_environment(self, environment_id: UUID) -> Environment:
         workspace = self._require_workspace()
         environment = await self._repository.get(environment_id)
@@ -453,8 +472,9 @@ class EnvironmentService:
                 robot_exe = self._python.resolve_executables(environment.path).robot
             except EnvironmentValidationError:
                 robot_exe = environment.robot_executable
-        return environment.model_copy(
+        enriched = environment.model_copy(
             update={
+                "python_version": info.python_version,
                 "robot_version": info.robot_version,
                 "package_count": info.package_count,
                 "platform": info.platform,
@@ -462,6 +482,28 @@ class EnvironmentService:
                 "robot_executable": robot_exe,
             },
         )
+        # Persist upgraded major.minor → major.minor.micro (and related fields).
+        if enriched.python_version != environment.python_version:
+            await self._repository.update(enriched)
+            if self._fs.has_manifest(environment.path):
+                try:
+                    manifest = self._fs.load_manifest(environment.path)
+                    updated = self._fs.create_manifest(
+                        name=manifest.name,
+                        python_version=enriched.python_version,
+                        python_executable=manifest.python_executable,
+                        pip_executable=manifest.pip_executable,
+                        robot_executable=enriched.robot_executable
+                        or manifest.robot_executable,
+                        path=manifest.path,
+                        active=manifest.active,
+                        environment_id=manifest.id,
+                        created_at=manifest.created_at,
+                    )
+                    self._fs.write_manifest(environment.path, updated)
+                except EnvironmentValidationError:
+                    pass
+        return enriched
 
     @staticmethod
     def _from_manifest(workspace_id: UUID, manifest) -> Environment:

@@ -2,12 +2,25 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.events import EventBus, FileWritten
+
+_SKIP_NAMES = {
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".git",
+    "node_modules",
+    "site-packages",
+    "dist-info",
+}
+
+_VENV_INTERNAL = {"bin", "lib", "include", "share", "scripts", "lib64"}
 
 
 class FileValidationError(Exception):
@@ -68,67 +81,88 @@ class FileService:
             "saved_at": datetime.now(UTC).isoformat(),
         }
 
-    async def list_tree(self, path: str | None = None, *, depth: int = 3) -> list[dict]:
+    async def list_tree(self, path: str | None = None, *, depth: int = 0) -> list[dict]:
+        """List directory entries.
+
+        *depth=0* (default) is VS Code style: only immediate children, no recursion.
+        Callers expand folders with a follow-up request for that path.
+        """
         workspace = self._require_workspace()
         root = self._resolve_under_workspace(path) if path else workspace.path
         if not root.exists():
             raise FileValidationError(f"Path not found: {root}")
-        return self._walk(root, depth=depth, relative_to=workspace.path)
+        return await asyncio.to_thread(self._walk, root, depth, workspace.path)
 
-    def _walk(self, root: Path, *, depth: int, relative_to: Path) -> list[dict]:
+    def _should_skip(self, child: Path, relative_to: Path) -> bool:
+        if child.name in _SKIP_NAMES or child.name.startswith("."):
+            return True
+        if child.name.endswith(".dist-info"):
+            return True
+        try:
+            rel_parts = child.relative_to(relative_to).parts
+        except ValueError:
+            rel_parts = child.parts
+        if "Environments" in rel_parts:
+            env_index = rel_parts.index("Environments")
+            if (
+                len(rel_parts) >= env_index + 3
+                and rel_parts[env_index + 2].lower() in _VENV_INTERNAL
+            ):
+                return True
+            if len(rel_parts) > env_index + 3:
+                return True
+        return False
+
+    def _dir_has_children(self, directory: Path, relative_to: Path) -> bool:
+        try:
+            for child in directory.iterdir():
+                if not self._should_skip(child, relative_to):
+                    return True
+        except OSError:
+            return False
+        return False
+
+    def _walk(self, root: Path, depth: int, relative_to: Path) -> list[dict]:
         if depth < 0 or not root.is_dir():
             return []
-        entries: list[dict] = []
         try:
-            children = sorted(root.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+            children = sorted(
+                root.iterdir(),
+                key=lambda p: (not p.is_dir(), p.name.lower()),
+            )
         except OSError:
             return []
-        skip_names = {
-            "__pycache__",
-            ".venv",
-            "venv",
-            ".git",
-            "node_modules",
-            "site-packages",
-            "dist-info",
-        }
-        # Venv layout under Environments/<name>/ — keep the env folder visible but
-        # do not expand interpreter internals into the explorer.
-        venv_internal = {"bin", "lib", "include", "share", "scripts", "lib64"}
+
+        entries: list[dict] = []
         for child in children:
-            if child.name in skip_names or child.name.startswith("."):
-                continue
-            if child.name.endswith(".dist-info"):
+            if self._should_skip(child, relative_to):
                 continue
             try:
                 rel_parts = child.relative_to(relative_to).parts
             except ValueError:
                 rel_parts = child.parts
-            if "Environments" in rel_parts:
-                env_index = rel_parts.index("Environments")
-                # Environments/<env>/bin|lib|... → skip
-                if len(rel_parts) >= env_index + 3 and rel_parts[env_index + 2].lower() in venv_internal:
-                    continue
-                # Anything deeper under Environments/<env>/... → skip
-                if len(rel_parts) > env_index + 3:
-                    continue
-            item = {
+            is_dir = child.is_dir()
+            item: dict = {
                 "name": child.name,
                 "path": str(child),
                 "relative_path": str(child.relative_to(relative_to)),
-                "is_dir": child.is_dir(),
+                "is_dir": is_dir,
                 "suffix": child.suffix.lower(),
+                "has_children": False,
+                "children": [],
             }
-            if child.is_dir() and depth > 0:
-                # Stop recursion at Environments/<env> itself.
-                if (
+            if is_dir:
+                stop_at_env = (
                     "Environments" in rel_parts
                     and len(rel_parts) == rel_parts.index("Environments") + 2
-                ):
-                    item["children"] = []
+                )
+                if stop_at_env:
+                    item["has_children"] = False
+                elif depth > 0:
+                    nested = self._walk(child, depth - 1, relative_to)
+                    item["children"] = nested
+                    item["has_children"] = bool(nested)
                 else:
-                    item["children"] = self._walk(
-                        child, depth=depth - 1, relative_to=relative_to
-                    )
+                    item["has_children"] = self._dir_has_children(child, relative_to)
             entries.append(item)
         return entries

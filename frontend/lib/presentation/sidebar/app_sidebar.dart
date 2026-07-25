@@ -47,8 +47,8 @@ class AppSidebar extends StatelessWidget {
               ],
             ),
             child: Icon(
-              Icons.crop_square_rounded,
-              size: 16,
+              Icons.precision_manufacturing_outlined,
+              size: 17,
               color: AppColors.accent.withValues(alpha: 0.9),
             ),
           ),
@@ -61,18 +61,22 @@ class AppSidebar extends StatelessWidget {
                   SidebarButton(
                     icon: panel.icon,
                     label: panel.label,
+                    tooltip: panel.tooltip,
                     isActive: panel == activePanel,
                     onTap: () => onPanelSelected(panel),
                   ),
               ],
             ),
           ),
-          SidebarButton(
-            icon: Icons.settings_outlined,
-            label: 'Settings',
-            isActive: false,
-            onTap: onSettings ?? () {},
-          ),
+          // Settings intentionally omitted until it does something real.
+          if (onSettings != null)
+            SidebarButton(
+              icon: Icons.settings_outlined,
+              label: 'Settings',
+              tooltip: 'Settings',
+              isActive: false,
+              onTap: onSettings!,
+            ),
           const SizedBox(height: 10),
         ],
       ),

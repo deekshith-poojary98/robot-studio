@@ -110,7 +110,11 @@ async def index_stack(tmp_path: Path):
     language = RobotLanguageService(store=store, context=context, event_bus=bus)
     language.start()
     facade = LanguageFacade(context=context, language=language)
-    return service, store, facade, suite, lib, bus, workspace, project
+    try:
+        yield service, store, facade, suite, lib, bus, workspace, project
+    finally:
+        await service.stop()
+        await context.close()
 
 
 def test_robot_indexer_extracts_symbols(tmp_path: Path) -> None:
@@ -157,6 +161,33 @@ async def test_incremental_indexing_skips_unchanged(index_stack) -> None:
     )
     assert changed3 is True
     assert count3 > 0
+
+
+@pytest.mark.asyncio
+async def test_schedule_rebuild_returns_before_indexing_finishes(index_stack) -> None:
+    service, _store, _facade, _suite, _lib, _bus, _workspace, _project = index_stack
+    status = await service.schedule_rebuild(full=False)
+    assert status.state == "indexing"
+    task = service._rebuild_task
+    assert task is not None
+    await task
+    ready = await service.get_status()
+    assert ready.state == "ready"
+
+
+def test_discover_files_prunes_venv(tmp_path: Path) -> None:
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "suite.robot").write_text("*** Test Cases ***\nA\n    Log  1\n", encoding="utf-8")
+    venv_lib = root / ".venv" / "lib"
+    venv_lib.mkdir(parents=True)
+    (venv_lib / "site.py").write_text("x = 1\n", encoding="utf-8")
+    node = root / "node_modules" / "pkg"
+    node.mkdir(parents=True)
+    (node / "index.py").write_text("y = 2\n", encoding="utf-8")
+
+    found = FilesystemIndexer(store=object()).discover_files(root)  # type: ignore[arg-type]
+    assert found == [root / "suite.robot"]
 
 
 @pytest.mark.asyncio

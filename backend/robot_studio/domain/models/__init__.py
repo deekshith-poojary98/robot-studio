@@ -1,5 +1,7 @@
 """Domain entities."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -19,11 +21,23 @@ class ExecutionStatus(str, Enum):
 
 
 class ProjectType(str, Enum):
-    BROWSER = "browser"
-    API = "api"
-    SELENIUM = "selenium"
+    """Persistence tag only — not a UX concept.
+
+    New projects are always ``empty``. Imported folders are ``imported``.
+    Legacy template values (browser/api/selenium) normalize to ``empty``.
+    """
+
     EMPTY = "empty"
     IMPORTED = "imported"
+
+    @classmethod
+    def normalize(cls, value: str | ProjectType | None) -> ProjectType:
+        if value is None:
+            return cls.EMPTY
+        raw = value.value if isinstance(value, ProjectType) else str(value)
+        if raw == cls.IMPORTED.value:
+            return cls.IMPORTED
+        return cls.EMPTY
 
 
 class WorkspaceSettings(BaseModel):

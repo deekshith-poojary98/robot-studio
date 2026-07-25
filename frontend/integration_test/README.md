@@ -1,5 +1,8 @@
 # Robot Studio — Integration Tests
 
+## TODO:
+Ship packaging (deferred): Bundle a frozen Python backend sidecar; Flutter (or native launcher) auto-spawns it on app start, health-waits, and stops it on quit. End users never start the backend manually. MacOS sandbox/spawn entitlements need explicit handling.
+
 End-to-end Flutter **desktop** tests for Robot Studio. Suites launch the real UI against a **live Python backend** with an isolated data directory.
 
 Parent docs: [../../README.md](../../README.md) · [../README.md](../README.md)
@@ -80,6 +83,22 @@ Dart defines injected by the script:
 
 | File | Focus |
 |------|--------|
+| `functional_shell_test.dart` | Functional TC SH-01…SH-08 (shell / status / connectivity) |
+| `functional_workspace_test.dart` | Functional TC WS-01…WS-10 (project-first welcome, workspace advanced create/open/recent) |
+| `functional_project_test.dart` | Functional TC PR-01…PR-10 (create/import/select/run gating) |
+| `functional_explorer_test.dart` | Functional TC EX-01…EX-08 (lazy file tree, tabs, save) |
+| `functional_environment_test.dart` | Functional TC EN-01…EN-10 (create/activate/import/clone/delete) |
+| `functional_packages_test.dart` | Functional TC PK-01…PK-09 (list/search/install; some skips) |
+| `functional_editor_test.dart` | Functional TC ED-01…ED-10 (open/tabs/save/problems jump) |
+| `functional_language_test.dart` | Functional TC LG-01…LG-10 (diagnostics/completions/hover/refs) |
+| `functional_index_test.dart` | Functional TC IX-01…IX-10 (index/search/keywords/tests panel) |
+| `functional_command_palette_test.dart` | Functional TC CP-01…CP-07 (command palette) |
+| `functional_execution_test.dart` | Functional TC XC-01…XC-12 (run/stop/history/gating) |
+| `functional_reports_test.dart` | Functional TC RP-01…RP-09 (reports list/details/delete) |
+| `functional_git_test.dart` | Functional TC GT-01…GT-10 (source control; local bare remote for GT-10) |
+| `functional_plugins_test.dart` | Functional TC PL-01…PL-07 (plugins; PL-07 skip) |
+| `functional_ux_test.dart` | Functional TC UX-01…UX-08 (guidance / gating) |
+| `functional_crosscut_test.dart` | Functional TC XR-01…XR-06 (smoke / stress; XR-05 skip) |
 | `startup_test.dart` | App launch, backend connection, welcome shell |
 | `workspace_flow_test.dart` | Create / open workspace |
 | `project_flow_test.dart` | Create / import / select projects |
@@ -93,6 +112,8 @@ Dart defines injected by the script:
 | `plugin_system_test.dart` | Plugin manager / fixtures |
 | `regression_test.dart` | Cross-cutting smoke / regressions |
 
+Functional suites map 1:1 to modules in [Robot Studio — Functional Test Cases.md](../../Robot%20Studio%20%E2%80%94%20Functional%20Test%20Cases.md). Skips: SH-02/SH-03 (external backend stop/restart), WS-02/WS-09 (native FilePicker), PK-04/PK-07/PK-09 (env/network/deferred), PL-07 / XR-05 (cannot stop external backend mid-suite). GT-10 seeds a local bare remote via `POST /git/seed-local-remote`.
+
 Some suites (environment creation, package install, execution) may take several minutes on first run.
 
 ---
@@ -105,12 +126,17 @@ Some suites (environment creation, package install, execution) may take several 
 | `helpers/integration_api_client.dart` | REST setup, verification, async polling |
 | `helpers/integration_harness.dart` | Shared lifecycle, app launch, seed helpers |
 | `helpers/integration_fixtures.dart` | Shared fixture paths / seed data |
-| `helpers/ui_helpers.dart` | UI interaction and condition-based waits |
+| `helpers/ui_helpers.dart` | UI interaction and condition-based waits (incl. `tapEditorMenuAction` for the editor ⋯ menu) |
 | `helpers/performance_tracker.dart` | Timing logs (no pass/fail thresholds) |
 | `fixtures/sample.robot` | Sample suite |
 | `fixtures/test_plugin/` | Fake plugin (`plugin.json` + `plugin.py`) |
 
 Tests avoid arbitrary `sleep()` and wait for visible UI states instead.
+
+After the pre-M14 UX polish pass, suites reach language navigation through the editor
+overflow menu (`tapEditorMenuAction(tester, 'definition' | 'peek' | 'references' | 'hover' | …)`)
+rather than permanent toolbar buttons, and the bottom panel only has Console / Execution
+Logs / Problems — SH-08 and UX-05 now assert that no "coming soon" surface is reachable.
 
 ---
 

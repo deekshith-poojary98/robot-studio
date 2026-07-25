@@ -38,6 +38,9 @@ class _QuickActionTileState extends State<QuickActionTile> {
         borderRadius: BorderRadius.circular(AppRadii.md),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
+          width: double.infinity,
+          alignment: Alignment.centerLeft,
+          constraints: const BoxConstraints(minHeight: 64),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: !enabled
@@ -55,6 +58,7 @@ class _QuickActionTileState extends State<QuickActionTile> {
           child: Opacity(
             opacity: enabled ? 1 : 0.45,
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
                   width: 32,
@@ -68,10 +72,14 @@ class _QuickActionTileState extends State<QuickActionTile> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 12.5,
@@ -81,6 +89,8 @@ class _QuickActionTileState extends State<QuickActionTile> {
                       const SizedBox(height: 2),
                       Text(
                         widget.subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.textMuted,
                           fontSize: 11,

@@ -52,13 +52,13 @@ void main() {
                 workspaceId: '1',
                 name: 'API Suite',
                 path: '/tmp/API',
-                type: ProjectType.api,
                 createdAt: DateTime.utc(2026, 1, 2),
               ),
             ],
             isLoadingRecent: false,
             onNewWorkspace: () {},
             onOpenWorkspace: () {},
+            onOpenProject: () {},
             onOpenRecentWorkspace: (_) {},
             onOpenRecentProject: (_) {},
           ),
@@ -71,7 +71,15 @@ void main() {
     expect(find.text('Recent Projects'), findsOneWidget);
     expect(find.text('Demo Workspace'), findsOneWidget);
     expect(find.text('API Suite'), findsOneWidget);
+    expect(find.text('New Project'), findsOneWidget);
+    expect(find.text('Open Project'), findsOneWidget);
+    expect(find.text('Advanced'), findsOneWidget);
     expect(find.text('New Workspace'), findsOneWidget);
+
+    // Recent Projects appear before Recent Workspaces in the welcome layout.
+    final projectsOffset = tester.getTopLeft(find.text('Recent Projects')).dy;
+    final workspacesOffset = tester.getTopLeft(find.text('Recent Workspaces')).dy;
+    expect(projectsOffset < workspacesOffset, isTrue);
   });
 
   testWidgets('Welcome screen fits short window heights', (
@@ -89,6 +97,7 @@ void main() {
             isLoadingRecent: false,
             onNewWorkspace: () {},
             onOpenWorkspace: () {},
+            onOpenProject: () {},
             onOpenRecentWorkspace: (_) {},
             onOpenRecentProject: (_) {},
           ),
@@ -129,8 +138,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final result = await future;
-    expect(result?.name, 'My Project');
-    expect(result?.type, ProjectType.browser);
+    expect(result, 'My Project');
   });
 
   testWidgets('Import Project dialog validates path', (
@@ -179,6 +187,7 @@ void main() {
         home: Scaffold(
           body: SizedBox(
             width: 300,
+            height: 800,
             child: WorkspaceExplorer(
               workspace: WorkspaceInfo(
                 id: 'w1',
@@ -192,7 +201,6 @@ void main() {
                   workspaceId: 'w1',
                   name: 'Demo Project',
                   path: '/tmp/WS/Projects/Demo Project',
-                  type: ProjectType.browser,
                   createdAt: DateTime.utc(2026, 1, 1),
                 ),
               ],
@@ -224,7 +232,8 @@ void main() {
     );
 
     expect(find.text('Demo Project'), findsOneWidget);
-    expect(find.text('Shared'), findsOneWidget);
+    // "Shared" placeholder rows were removed: they never did anything.
+    expect(find.text('Shared'), findsNothing);
     expect(find.text('Package Manager'), findsOneWidget);
     expect(find.text('robot-3.12 ●'), findsOneWidget);
 
@@ -282,7 +291,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final result = await future;
-    expect(result?.name, 'robot-3.12');
+    expect(result, 'robot-3.12');
     expect(result?.pythonInterpreter, '/usr/bin/python3');
     expect(result?.installRobot, isTrue);
   });
@@ -327,7 +336,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final result = await future;
-    expect(result?.name, 'custom-env');
+    expect(result, 'custom-env');
     expect(result?.pythonInterpreter, '/custom/python3');
   });
 
@@ -430,6 +439,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
+    // Toolbar no longer repeats the product name; only the welcome hero does.
     expect(find.text('Robot Studio'), findsOneWidget);
     expect(find.text('Recent Workspaces'), findsOneWidget);
     expect(find.text('Recent Projects'), findsOneWidget);
@@ -640,7 +650,7 @@ void main() {
     expect(await future, isTrue);
   });
 
-  testWidgets('Toolbar shows Robot Framework status badge', (
+  testWidgets('Toolbar shows environment selector without Robot badge', (
     WidgetTester tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1400, 800));
@@ -650,20 +660,19 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: AppToolbar(
-            panelTitle: 'Explorer',
-            workspaceLabel: 'WS',
+            projectLabel: 'WS',
             environmentLabel: 'robot-main',
             environmentNames: const ['robot-main'],
             selectedEnvironmentName: 'robot-main',
-            robotFrameworkInstalled: false,
             backendConnected: true,
-            onInstallRobotFramework: () {},
           ),
         ),
       ),
     );
 
-    expect(find.textContaining('Robot Framework Missing'), findsOneWidget);
+    expect(find.text('robot-main'), findsOneWidget);
+    expect(find.textContaining('Robot Framework Missing'), findsNothing);
+    expect(find.textContaining('Robot —'), findsNothing);
   });
 
   testWidgets('Execution console shows streamed lines and empty state', (
@@ -712,8 +721,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: AppToolbar(
-            panelTitle: 'Explorer',
-            workspaceLabel: 'WS',
+            projectLabel: 'WS',
             environmentLabel: 'robot-main',
             environmentNames: const ['robot-main'],
             selectedEnvironmentName: 'robot-main',
@@ -729,19 +737,19 @@ void main() {
     );
 
     final runButton = tester.widget<ToolbarButton>(
-      find.widgetWithText(ToolbarButton, 'RUN'),
+      find.byKey(const Key('toolbar.run')),
     );
     final stopButton = tester.widget<ToolbarButton>(
-      find.widgetWithText(ToolbarButton, 'STOP'),
+      find.byKey(const Key('toolbar.stop')),
     );
     expect(runButton.onTap, isNotNull);
     expect(stopButton.onTap, isNull);
 
-    await tester.tap(find.widgetWithText(ToolbarButton, 'RUN'));
+    await tester.tap(find.byKey(const Key('toolbar.run')));
     await tester.pump();
     expect(runTapped, isTrue);
 
-    await tester.tap(find.widgetWithText(ToolbarButton, 'STOP'));
+    await tester.tap(find.byKey(const Key('toolbar.stop')));
     await tester.pump();
     expect(stopTapped, isFalse);
   });
@@ -758,8 +766,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: AppToolbar(
-            panelTitle: 'Explorer',
-            workspaceLabel: 'WS',
+            projectLabel: 'WS',
             environmentLabel: 'robot-main',
             environmentNames: const ['robot-main'],
             selectedEnvironmentName: 'robot-main',
@@ -779,15 +786,15 @@ void main() {
     expect(find.textContaining('1.2s'), findsOneWidget);
 
     final runButton = tester.widget<ToolbarButton>(
-      find.widgetWithText(ToolbarButton, 'RUN'),
+      find.byKey(const Key('toolbar.run')),
     );
     final stopButton = tester.widget<ToolbarButton>(
-      find.widgetWithText(ToolbarButton, 'STOP'),
+      find.byKey(const Key('toolbar.stop')),
     );
     expect(runButton.onTap, isNull);
     expect(stopButton.onTap, isNotNull);
 
-    await tester.tap(find.widgetWithText(ToolbarButton, 'STOP'));
+    await tester.tap(find.byKey(const Key('toolbar.stop')));
     await tester.pump();
     expect(stopTapped, isTrue);
   });
@@ -878,6 +885,7 @@ void main() {
             ],
             onNewWorkspace: () {},
             onOpenWorkspace: () {},
+            onOpenProject: () {},
             onOpenRecentWorkspace: (_) {},
             onOpenRecentProject: (_) {},
           ),
@@ -891,7 +899,7 @@ void main() {
     expect(find.text('Finished'), findsOneWidget);
   });
 
-  testWidgets('Reports page shows runs and empty details', (
+  testWidgets('Reports page shows dashboard and selected run details', (
     WidgetTester tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1280, 800));
@@ -920,7 +928,6 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ReportsPage(
-            runs: [run],
             isLoading: false,
             dashboard: DashboardSummary(
               totalRuns: 1,
@@ -930,7 +937,7 @@ void main() {
               recentRuns: [run],
             ),
             isLoadingDashboard: false,
-            onSelect: (_) {},
+            selected: run,
           ),
         ),
       ),
@@ -940,7 +947,7 @@ void main() {
     expect(find.text('Reports'), findsOneWidget);
     expect(find.text('Demo'), findsOneWidget);
     expect(find.text('PASS'), findsWidgets);
-    expect(find.text('Select a run to view details.'), findsOneWidget);
+    expect(find.text('Select a run from the Reports panel.'), findsNothing);
     expect(find.text('Total Runs'), findsOneWidget);
     expect(find.text('Pass Rate'), findsOneWidget);
   });
@@ -978,6 +985,7 @@ void main() {
               reportHtml: '/tmp/report.html',
               outputDir: '/tmp/Run-1',
             ),
+            onOpenXml: () {},
             onOpenLog: () {},
             onOpenReport: () {},
             onReveal: () {},
@@ -991,8 +999,11 @@ void main() {
     expect(find.text('General'), findsOneWidget);
     expect(find.text('Statistics'), findsOneWidget);
     expect(find.text('Artifacts'), findsOneWidget);
-    expect(find.text('Open Log'), findsOneWidget);
-    expect(find.text('Open Report'), findsOneWidget);
+    expect(find.text('output.xml'), findsOneWidget);
+    expect(find.text('log.html'), findsOneWidget);
+    expect(find.text('report.html'), findsOneWidget);
+    expect(find.text('Open Log'), findsNothing);
+    expect(find.text('Open Report'), findsNothing);
     expect(find.text('Reveal Folder'), findsOneWidget);
     expect(find.text('FAIL'), findsOneWidget);
   });
@@ -1063,6 +1074,7 @@ void main() {
             ),
             onNewWorkspace: () {},
             onOpenWorkspace: () {},
+            onOpenProject: () {},
             onOpenRecentWorkspace: (_) {},
             onOpenRecentProject: (_) {},
           ),
@@ -1232,6 +1244,7 @@ void main() {
             ),
             onNewWorkspace: () {},
             onOpenWorkspace: () {},
+            onOpenProject: () {},
             onOpenRecentWorkspace: (_) {},
             onOpenRecentProject: (_) {},
           ),
@@ -1340,7 +1353,7 @@ void main() {
     );
 
     expect(
-      find.text('Open a file from Explorer or Search to start editing.'),
+      find.text('No file open'),
       findsOneWidget,
     );
   });
@@ -1501,10 +1514,16 @@ void main() {
     expect(find.textContaining('Login With Credentials'), findsWidgets);
     expect(find.textContaining('checkout.robot:8'), findsOneWidget);
     expect(find.byKey(const Key('editor.find')), findsOneWidget);
-    expect(find.byKey(const Key('editor.replace')), findsOneWidget);
+    // Language navigation moved out of the permanent strip into the overflow
+    // menu, so only editing verbs stay visible.
+    expect(find.byKey(const Key('editor.replace')), findsNothing);
+    expect(find.byKey(const Key('editor.definition')), findsNothing);
+    expect(find.byKey(const Key('editor.more')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('editor.definition')));
-    await tester.pump();
+    await tester.tap(find.byKey(const Key('editor.more')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('editor.menu.definition')));
+    await tester.pumpAndSettle();
     expect(definitionTaps, 1);
 
     tester.widget<EditorPage>(find.byType(EditorPage)).onHover();
@@ -1602,14 +1621,12 @@ class _FakeTransportGateway implements TransportGateway {
   @override
   Future<ProjectInfo> createProject({
     required String name,
-    required ProjectType type,
   }) async {
     return ProjectInfo(
       id: 'p-new',
       workspaceId: '1',
       name: name,
       path: '/tmp/$name',
-      type: type,
       createdAt: DateTime.utc(2026, 1, 1),
     );
   }
@@ -1621,7 +1638,6 @@ class _FakeTransportGateway implements TransportGateway {
       workspaceId: '1',
       name: 'Imported',
       path: path,
-      type: ProjectType.imported,
       createdAt: DateTime.utc(2026, 1, 1),
     );
   }
@@ -1636,8 +1652,50 @@ class _FakeTransportGateway implements TransportGateway {
       workspaceId: '1',
       name: 'Opened',
       path: '/tmp/Opened',
-      type: ProjectType.empty,
       createdAt: DateTime.utc(2026, 1, 1),
+    );
+  }
+
+  @override
+  Future<OpenProjectByPathResult> openProjectByPath(String path) async {
+    return OpenProjectByPathResult(
+      workspace: WorkspaceInfo(
+        id: '1',
+        name: 'Alpha',
+        path: '/tmp/Alpha',
+        createdAt: DateTime.utc(2026, 1, 1),
+      ),
+      project: ProjectInfo(
+        id: 'p-path',
+        workspaceId: '1',
+        name: 'Opened',
+        path: path,
+        createdAt: DateTime.utc(2026, 1, 1),
+      ),
+    );
+  }
+
+  @override
+  Future<OpenProjectByPathResult> createStandaloneProject({
+    required String name,
+    required String location,
+  }) async {
+    final path = '$location/$name';
+    return OpenProjectByPathResult(
+      workspace: WorkspaceInfo(
+        id: '1',
+        name: name,
+        path: path,
+        createdAt: DateTime.utc(2026, 1, 1),
+      ),
+      project: ProjectInfo(
+        id: 'p-standalone',
+        workspaceId: '1',
+        name: name,
+        path: path,
+        createdAt: DateTime.utc(2026, 1, 1),
+      ),
+      needsEnvironment: true,
     );
   }
 
@@ -1649,7 +1707,6 @@ class _FakeTransportGateway implements TransportGateway {
         workspaceId: '1',
         name: 'Beta Project',
         path: '/tmp/Beta',
-        type: ProjectType.selenium,
         createdAt: DateTime.utc(2026, 1, 1),
       ),
     ];
@@ -1915,6 +1972,66 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<TestNodeInfo> getTestTree({String? query}) async {
+    return const TestNodeInfo(
+      id: 'workspace:1',
+      kind: 'workspace',
+      name: 'Alpha',
+      children: [
+        TestNodeInfo(
+          id: 'project:p1',
+          kind: 'project',
+          name: 'Demo',
+          children: [
+            TestNodeInfo(
+              id: 'suite:s1',
+              kind: 'suite',
+              name: 'demo',
+              path: '/tmp/demo.robot',
+              children: [
+                TestNodeInfo(
+                  id: 'test:t1',
+                  kind: 'test',
+                  name: 'Login',
+                  path: '/tmp/demo.robot',
+                  line: 3,
+                  status: TestNodeStatus.pass,
+                  tags: ['smoke'],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<List<TestNodeInfo>> getTestsForFile(String path) async => const [];
+
+  @override
+  Future<ExecutionInfo> runTest({
+    required String file,
+    required String name,
+  }) =>
+      runFile(file: file);
+
+  @override
+  Future<ExecutionInfo> runTestSuite({String? file}) => runProject();
+
+  @override
+  Future<ExecutionInfo> runTestsByTag(String tag) => runProject();
+
+  @override
+  Future<ExecutionInfo> runFailedTests() => runProject();
+
+  @override
+  Future<ExecutionInfo> runSelectedTests(
+    List<({String file, String name})> tests,
+  ) =>
+      runProject();
+
+  @override
   Future<ExecutionInfo> stopExecution() async {
     return ExecutionInfo(
       id: 'run-stop',
@@ -1966,6 +2083,9 @@ class _FakeTransportGateway implements TransportGateway {
 
   @override
   Future<String> openReportHtml(String runId) async => '/tmp/report.html';
+
+  @override
+  Future<String> openReportXml(String runId) async => '/tmp/output.xml';
 
   @override
   Future<String> revealReport(String runId) async => '/tmp/Reports';

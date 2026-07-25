@@ -72,7 +72,7 @@ class _NewWorkspaceDialogState extends State<NewWorkspaceDialog> {
     return AlertDialog(
       title: const Text('New Workspace'),
       content: SizedBox(
-        width: 420,
+        width: AppDialogWidth.form,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

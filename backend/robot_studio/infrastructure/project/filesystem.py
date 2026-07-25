@@ -18,6 +18,8 @@ from robot_studio.infrastructure.workspace.filesystem import (
 
 PROJECT_MANIFEST = "project.json"
 PROJECT_MARKER = Path(WORKSPACE_META_DIR) / PROJECT_MANIFEST
+WORKSPACE_LINK = "workspace-link.json"
+WORKSPACE_LINK_MARKER = Path(WORKSPACE_META_DIR) / WORKSPACE_LINK
 
 
 class ProjectValidationError(Exception):
@@ -52,7 +54,7 @@ class ProjectManifest:
         return cls(
             id=UUID(str(data["id"])),
             name=str(data["name"]),
-            type=ProjectType(str(data.get("type", ProjectType.EMPTY.value))),
+            type=ProjectType.normalize(data.get("type", ProjectType.EMPTY.value)),
             created_at=created_at,
             version=int(data.get("version", 1)),
         )
@@ -92,18 +94,58 @@ class FilesystemProjectProvider:
             ) from exc
 
     def is_robot_project(self, path: Path) -> bool:
+        """Cheap project heuristic — never walk the whole tree."""
         if not path.is_dir():
             return False
-        if any(path.rglob("*.robot")):
-            return True
         for marker in ("requirements.txt", "pyproject.toml", "robot.yaml"):
             if (path / marker).is_file():
                 return True
+        # Prefer shallow markers: root + common suite folders only.
+        shallow_dirs = (
+            path,
+            path / "tests",
+            path / "test",
+            path / "Tests",
+            path / "robot",
+            path / "keywords",
+            path / "resources",
+        )
+        for candidate in shallow_dirs:
+            if not candidate.is_dir():
+                continue
+            try:
+                if any(candidate.glob("*.robot")):
+                    return True
+                if any(candidate.glob("*.resource")):
+                    return True
+            except OSError:
+                continue
         return False
 
     def ensure_project_dirs(self, project_root: Path) -> None:
         for relative in ("tests", "resources", "variables"):
             (project_root / relative).mkdir(parents=True, exist_ok=True)
+
+    def write_workspace_link(self, project_root: Path, workspace_root: Path) -> None:
+        meta_dir = project_root / WORKSPACE_META_DIR
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        target = meta_dir / WORKSPACE_LINK
+        target.write_text(
+            json.dumps({"workspace_path": str(workspace_root.resolve())}, indent=2)
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def read_workspace_link(self, project_root: Path) -> Path | None:
+        path = project_root / WORKSPACE_LINK_MARKER
+        if not path.is_file():
+            return None
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            linked = Path(str(raw["workspace_path"])).expanduser().resolve()
+        except (OSError, json.JSONDecodeError, KeyError, TypeError):
+            return None
+        return linked
 
     def register_in_workspace(
         self,
@@ -113,19 +155,28 @@ class FilesystemProjectProvider:
         name: str,
         path: Path,
     ) -> None:
+        from robot_studio.infrastructure.workspace.filesystem import (
+            resolve_project_entry_path,
+        )
+
         manifest = load_manifest(workspace_root)
-        resolved = str(path.resolve())
+        workspace_resolved = workspace_root.resolve()
+        resolved = path.resolve()
         entries = [
             entry
             for entry in manifest.projects
-            if str(Path(entry.get("path", "")).expanduser().resolve()) != resolved
+            if resolve_project_entry_path(
+                workspace_resolved,
+                str(entry.get("path", "")),
+            )
+            != resolved
             and entry.get("id") != str(project_id)
         ]
         try:
-            relative = str(path.resolve().relative_to(workspace_root.resolve()))
-            stored_path = relative
+            relative = resolved.relative_to(workspace_resolved)
+            stored_path = "." if str(relative) == "." else str(relative)
         except ValueError:
-            stored_path = resolved
+            stored_path = str(resolved)
 
         entries.append(
             {

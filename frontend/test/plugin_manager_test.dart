@@ -36,8 +36,43 @@ void main() {
     );
 
     expect(find.text('Demo Plugin'), findsOneWidget);
-    expect(find.text('Enable'), findsOneWidget);
+    expect(find.text('Disable'), findsOneWidget);
+    expect(find.text('Enable'), findsNothing);
     expect(find.text('toolbar-action'), findsOneWidget);
+  });
+
+  testWidgets('PluginManagerPage shows Enable when plugin is disabled', (
+    WidgetTester tester,
+  ) async {
+    const plugin = PluginInfo(
+      id: 'demo',
+      name: 'Demo Plugin',
+      version: '1.0.0',
+      status: 'disabled',
+      enabled: false,
+      capabilities: ['toolbar-action'],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PluginManagerPage(
+            plugins: const [plugin],
+            isLoading: false,
+            selected: plugin,
+            onRefresh: () {},
+            onSelect: (_) {},
+            onEnable: (_) {},
+            onDisable: (_) {},
+            onReload: (_) {},
+            onOpenFolder: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Enable'), findsWidgets);
+    expect(find.text('Disable'), findsNothing);
   });
 
   testWidgets('PluginManagerPage shows empty state', (WidgetTester tester) async {

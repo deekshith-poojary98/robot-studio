@@ -2,36 +2,36 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/report_info.dart';
 import '../../core/theme/app_theme.dart';
-import 'reports_run_list.dart';
+import '../widgets/empty_state.dart';
 import 'run_details_panel.dart';
 
 class ReportsPage extends StatelessWidget {
   const ReportsPage({
     super.key,
-    required this.runs,
     required this.isLoading,
     required this.dashboard,
     required this.isLoadingDashboard,
     this.selected,
     this.onRefresh,
-    this.onSelect,
+    this.onOpenXml,
     this.onOpenLog,
     this.onOpenReport,
     this.onReveal,
     this.onDelete,
+    this.onRunSuite,
   });
 
-  final List<ExecutionInfo> runs;
   final bool isLoading;
   final DashboardSummary? dashboard;
   final bool isLoadingDashboard;
   final ExecutionInfo? selected;
   final VoidCallback? onRefresh;
-  final ValueChanged<ExecutionInfo>? onSelect;
+  final VoidCallback? onOpenXml;
   final VoidCallback? onOpenLog;
   final VoidCallback? onOpenReport;
   final VoidCallback? onReveal;
   final VoidCallback? onDelete;
+  final VoidCallback? onRunSuite;
 
   @override
   Widget build(BuildContext context) {
@@ -79,50 +79,25 @@ class ReportsPage extends StatelessWidget {
           ),
           const Divider(height: 1),
           Expanded(
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 340,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                        child: Text(
-                          'Recent Runs',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
+            child: isLoading && selected == null
+                ? const Center(child: CircularProgressIndicator())
+                : selected == null
+                    ? EmptyState(
+                        icon: Icons.assessment_outlined,
+                        title: 'No run selected',
+                        message: 'Pick a run in the Reports list to open its '
+                            'log, report, and statistics.',
+                        actionLabel: onRunSuite == null ? null : 'Run Suite',
+                        onAction: onRunSuite,
+                      )
+                    : RunDetailsPanel(
+                        run: selected!,
+                        onOpenXml: onOpenXml,
+                        onOpenLog: onOpenLog,
+                        onOpenReport: onOpenReport,
+                        onReveal: onReveal,
+                        onDelete: onDelete,
                       ),
-                      Expanded(
-                        child: ReportsRunList(
-                          runs: runs,
-                          isLoading: isLoading,
-                          selectedId: selected?.id,
-                          onSelect: onSelect,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const VerticalDivider(width: 1),
-                Expanded(
-                  child: selected == null
-                      ? Center(
-                          child: Text(
-                            'Select a run to view details.',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        )
-                      : RunDetailsPanel(
-                          run: selected!,
-                          onOpenLog: onOpenLog,
-                          onOpenReport: onOpenReport,
-                          onReveal: onReveal,
-                          onDelete: onDelete,
-                        ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -157,7 +132,7 @@ class _DashboardStrip extends StatelessWidget {
           border: Border.all(color: AppColors.border),
         ),
         child: Text(
-          'No runs indexed yet.',
+          'No runs yet — run a suite to collect pass/fail statistics.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       );

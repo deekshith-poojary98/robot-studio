@@ -12,6 +12,7 @@ from robot_studio.domain.models import Workspace
 from robot_studio.infrastructure.workspace.filesystem import (
     WorkspaceValidationError,
     create_workspace_structure,
+    initialize_project_as_workspace,
     is_workspace,
     load_manifest,
 )
@@ -84,6 +85,21 @@ class WorkspaceService:
         await self._repository.create(workspace)
         await self._activate(workspace)
         return workspace
+
+    async def open_or_init_project_workspace(
+        self,
+        path: str | Path,
+        name: str | None = None,
+    ) -> Workspace:
+        """Open a folder as a workspace, initializing in-project metadata if needed."""
+        workspace_root = Path(path).expanduser().resolve()
+        if not workspace_root.is_dir():
+            raise WorkspaceValidationError(
+                f"Directory does not exist: '{workspace_root}'",
+            )
+        if not is_workspace(workspace_root):
+            initialize_project_as_workspace(workspace_root, name)
+        return await self.open_workspace(workspace_root)
 
     async def list_recent(self, limit: int = 10) -> list[Workspace]:
         recent = await self._repository.list_recent(limit=limit)

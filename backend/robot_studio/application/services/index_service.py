@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -17,6 +18,7 @@ from robot_studio.core.events import (
     ProjectCreated,
     ProjectImported,
     ProjectOpened,
+    Subscription,
     WorkspaceOpened,
 )
 from robot_studio.domain.interfaces.indexing import FileWatcher, IndexScope, SymbolKind
@@ -48,25 +50,54 @@ class IndexService:
     _last_indexed_at: datetime | None = field(default=None, init=False)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     _rebuild_task: asyncio.Task | None = field(default=None, init=False)
+    _unsubscribes: list[Subscription] = field(default_factory=list, init=False)
+    _stopped: bool = field(default=False, init=False)
 
     def start(self) -> None:
         if self._subscribed:
             return
-        self.event_bus.subscribe(WorkspaceOpened, self._on_workspace_opened)
-        self.event_bus.subscribe(ProjectOpened, self._on_project_changed)
-        self.event_bus.subscribe(ProjectCreated, self._on_project_changed)
-        self.event_bus.subscribe(ProjectImported, self._on_project_changed)
+        self._stopped = False
+        self._unsubscribes = [
+            self.event_bus.subscribe(WorkspaceOpened, self._on_workspace_opened),
+            self.event_bus.subscribe(ProjectOpened, self._on_project_changed),
+            self.event_bus.subscribe(ProjectCreated, self._on_project_changed),
+            self.event_bus.subscribe(ProjectImported, self._on_project_changed),
+        ]
         self.watcher.on_change = self._on_file_change
         self._subscribed = True
 
+    async def stop(self) -> None:
+        """Release the watcher thread and any in-flight rebuild.
+
+        Stop the watcher before awaiting cancelled rebuild work — otherwise
+        filesystem events keep arming debounce tasks while we drain the
+        rebuild, and pytest-asyncio's loop teardown livelocks.
+        """
+        self._stopped = True
+        for subscription in self._unsubscribes:
+            subscription.unsubscribe()
+        self._unsubscribes.clear()
+        self._subscribed = False
+        self.watcher.on_change = None
+        if self.watcher.is_running:
+            await self.watcher.stop()
+        async with self._lock:
+            task = self._rebuild_task
+            self._rebuild_task = None
+        if task is not None and not task.done():
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+
     async def _on_workspace_opened(self, event: WorkspaceOpened) -> None:
         _ = event
-        await self.rebuild()
+        # Never block open-path / workspace open on indexing (VS Code model).
+        await self.schedule_rebuild(full=False)
 
     async def _on_project_changed(self, event: ProjectOpened | ProjectCreated | ProjectImported) -> None:
         if self.context.workspace is None:
             return
-        await self.reindex_project(event.project_id)
+        await self.schedule_reindex_project(event.project_id)
 
     async def _on_file_change(self, event: str, path: Path) -> None:
         workspace = self.context.workspace
@@ -110,31 +141,87 @@ class IndexService:
             raise IndexValidationError("Open a workspace before indexing")
         return workspace
 
-    async def rebuild(self) -> IndexStatus:
+    async def schedule_rebuild(self, *, full: bool = False) -> IndexStatus:
+        """Start indexing in the background and return immediately."""
+        if self._stopped:
+            return await self.get_status()
         workspace = self._require_workspace()
+        self._state = "indexing"
+        self._message = "Indexing workspace…" if not full else "Rebuilding index…"
+        self._errors = []
         async with self._lock:
             if self._rebuild_task and not self._rebuild_task.done():
                 return await self.get_status()
             self._rebuild_task = asyncio.create_task(
-                self._rebuild_workspace(workspace.id, workspace.path),
+                self._rebuild_workspace(
+                    workspace.id,
+                    workspace.path,
+                    full=full,
+                ),
+                name="index-rebuild",
             )
-            return await self._rebuild_task
+        return await self.get_status()
 
-    async def reindex_project(self, project_id: UUID) -> IndexStatus:
+    async def schedule_reindex_project(self, project_id: UUID) -> IndexStatus:
+        """Reindex one project in the background without blocking the caller."""
+        if self._stopped:
+            return await self.get_status()
         workspace = self._require_workspace()
         project = await self.project_repository.get(project_id)
         if project is None or project.workspace_id != workspace.id:
             return await self.get_status()
 
+        self._state = "indexing"
+        self._message = f"Indexing project '{project.name}'…"
         async with self._lock:
             if self._rebuild_task and not self._rebuild_task.done():
                 return await self.get_status()
             self._rebuild_task = asyncio.create_task(
                 self._reindex_project_root(workspace.id, project),
+                name=f"index-project-{project_id}",
             )
-            return await self._rebuild_task
+        return await self.get_status()
 
-    async def _rebuild_workspace(self, workspace_id: UUID, workspace_path: Path) -> IndexStatus:
+    async def rebuild(self) -> IndexStatus:
+        """Explicit rebuild (API / UI) — waits until indexing finishes."""
+        workspace = self._require_workspace()
+        self._state = "indexing"
+        self._message = "Rebuilding index…"
+        self._errors = []
+        async with self._lock:
+            prior = self._rebuild_task
+            if prior is not None and not prior.done():
+                prior.cancel()
+                try:
+                    await prior
+                except asyncio.CancelledError:
+                    pass
+            self._rebuild_task = asyncio.create_task(
+                self._rebuild_workspace(
+                    workspace.id,
+                    workspace.path,
+                    full=True,
+                ),
+                name="index-rebuild-full",
+            )
+            task = self._rebuild_task
+        await task
+        return await self.get_status()
+
+    async def reindex_project(self, project_id: UUID) -> IndexStatus:
+        await self.schedule_reindex_project(project_id)
+        task = self._rebuild_task
+        if task is not None and not task.done():
+            await task
+        return await self.get_status()
+
+    async def _rebuild_workspace(
+        self,
+        workspace_id: UUID,
+        workspace_path: Path,
+        *,
+        full: bool = False,
+    ) -> IndexStatus:
         self._state = "indexing"
         self._message = "Indexing workspace…"
         self._errors = []
@@ -147,7 +234,19 @@ class IndexService:
             if shared.exists():
                 roots.append((shared, None))
 
-            await self.store.invalidate(IndexScope.WORKSPACE, str(workspace_id))
+            for root, project_id in roots:
+                self.watcher.watch_path(root)
+
+            # Watch immediately so edits during background index are not missed.
+            # Watcher failures must never abort indexing (sandbox / FSEvents issues).
+            try:
+                if not self.watcher.is_running:
+                    await self.watcher.start()
+            except Exception as exc:  # noqa: BLE001
+                self._errors.append(f"file watcher: {exc}")
+
+            if full:
+                await self.store.invalidate(IndexScope.WORKSPACE, str(workspace_id))
             indexed_paths: set[str] = set()
 
             for root, project_id in roots:
@@ -156,6 +255,7 @@ class IndexService:
                         workspace_id=workspace_id,
                         root=root,
                         project_id=project_id,
+                        force=full,
                     ),
                 )
 
@@ -172,8 +272,6 @@ class IndexService:
             await self.event_bus.publish(
                 IndexUpdated(scope=IndexScope.WORKSPACE.value, scope_id=str(workspace_id)),
             )
-            if not self.watcher.is_running:
-                await self.watcher.start()
         except Exception as exc:  # noqa: BLE001
             self._state = "error"
             self._message = str(exc)
@@ -190,6 +288,7 @@ class IndexService:
                 workspace_id=workspace_id,
                 root=Path(project.path),
                 project_id=project.id,
+                force=True,
             )
             for existing in await self.store.list_indexed_files(
                 workspace_id,
@@ -208,7 +307,10 @@ class IndexService:
                 IndexUpdated(scope=IndexScope.PROJECT.value, scope_id=str(project.id)),
             )
             if not self.watcher.is_running:
-                await self.watcher.start()
+                try:
+                    await self.watcher.start()
+                except Exception as exc:  # noqa: BLE001
+                    self._errors.append(f"file watcher: {exc}")
         except Exception as exc:  # noqa: BLE001
             self._state = "error"
             self._message = str(exc)
@@ -221,28 +323,28 @@ class IndexService:
         workspace_id: UUID,
         root: Path,
         project_id: UUID | None,
+        force: bool = False,
     ) -> set[str]:
         indexed_paths: set[str] = set()
         self.watcher.watch_path(root)
-        for path in self.indexer.discover_files(root):
+        # Discovery is sync and can touch huge trees — keep the event loop free.
+        paths = await asyncio.to_thread(self.indexer.discover_files, root)
+        total = len(paths)
+        for index, path in enumerate(paths):
             try:
-                count, _changed = await self.indexer.index_file(
+                await self.indexer.index_file(
                     path,
                     workspace_id=workspace_id,
                     project_id=project_id,
-                    force=True,
+                    force=force,
                 )
                 indexed_paths.add(str(path))
-                await self.event_bus.publish(
-                    FileIndexed(
-                        path=str(path),
-                        workspace_id=workspace_id,
-                        project_id=project_id,
-                        symbol_count=count,
-                    ),
-                )
+                # Intentionally no per-file FileIndexed during bulk rebuild.
             except Exception as exc:  # noqa: BLE001
                 self._errors.append(f"{path}: {exc}")
+            if index % 10 == 0:
+                self._message = f"Indexing… {index + 1}/{total}"
+                await asyncio.sleep(0)
         return indexed_paths
 
     async def get_status(self) -> IndexStatus:

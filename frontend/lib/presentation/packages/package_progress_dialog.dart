@@ -78,7 +78,7 @@ class _PackageProgressDialogState extends State<_PackageProgressDialog> {
     return AlertDialog(
       title: Text(widget.title),
       content: SizedBox(
-        width: 480,
+        width: AppDialogWidth.wide,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

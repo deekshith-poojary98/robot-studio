@@ -26,6 +26,7 @@ class FileTreeNode(BaseModel):
     relative_path: str
     is_dir: bool
     suffix: str = ""
+    has_children: bool = False
     children: list["FileTreeNode"] = Field(default_factory=list)
 
 

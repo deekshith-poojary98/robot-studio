@@ -24,7 +24,9 @@ void main() {
     startedAt: DateTime.utc(2026, 1, 1),
   );
 
-  testWidgets('reports side panel lists recent runs', (tester) async {
+  testWidgets('reports side panel lists recent runs without Open Reports', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -32,14 +34,16 @@ void main() {
             panel: SidebarPanel.reports,
             workspace: workspace,
             recentRuns: [run],
+            onSelectReport: (_) {},
+            onOpenReports: () {},
           ),
         ),
       ),
     );
 
     expect(find.textContaining('Amazon'), findsOneWidget);
-    expect(find.text('No reports yet. Run a suite to generate artifacts.'),
-        findsNothing);
+    expect(find.text('Open Reports'), findsNothing);
+    expect(find.text('No reports yet'), findsNothing);
   });
 
   testWidgets('reports side panel empty state when no runs', (tester) async {
@@ -55,7 +59,10 @@ void main() {
       ),
     );
 
-    expect(find.text('No reports yet. Run a suite to generate artifacts.'),
-        findsOneWidget);
+    expect(find.text('No reports yet'), findsOneWidget);
+    expect(
+      find.text('Run your first Robot Framework suite to generate a report.'),
+      findsOneWidget,
+    );
   });
 }

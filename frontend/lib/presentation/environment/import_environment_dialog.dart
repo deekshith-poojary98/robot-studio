@@ -60,7 +60,7 @@ class _ImportEnvironmentDialogState extends State<ImportEnvironmentDialog> {
     return AlertDialog(
       title: const Text('Import Environment'),
       content: SizedBox(
-        width: 480,
+        width: AppDialogWidth.wide,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

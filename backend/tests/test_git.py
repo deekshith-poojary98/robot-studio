@@ -73,12 +73,17 @@ async def test_init_status_commit_checkout_branch(git_stack) -> None:
     sample = workspace_path / "sample.robot"
     sample.write_text("*** Test Cases ***\nA\n    Log    x\n", encoding="utf-8")
 
+    # Status uses `git status -uno` (skip untracked) for large-suite performance.
     status = await service.status()
     assert status.repository.is_repository is True
-    assert any(change.path.endswith("sample.robot") for change in status.changes)
+    assert status.changes == []
 
     commit = await service.commit("Initial commit")
     assert commit.message == "Initial commit"
+
+    sample.write_text("*** Test Cases ***\nA\n    Log    updated\n", encoding="utf-8")
+    dirty = await service.status()
+    assert any(change.path.endswith("sample.robot") for change in dirty.changes)
 
     branch = await service.create_branch("feature/login")
     assert branch.name == "feature/login"

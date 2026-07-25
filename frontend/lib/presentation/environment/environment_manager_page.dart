@@ -55,7 +55,7 @@ class EnvironmentManagerPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Manage Python virtual environments for this workspace.',
+                        'Manage Python virtual environments for this project.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],

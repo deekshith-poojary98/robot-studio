@@ -172,6 +172,18 @@ async def git_push(
     return to_remote_response(result)
 
 
+@router.post("/seed-local-remote")
+async def git_seed_local_remote(
+    gateway: RestGateway = Depends(get_gateway),
+) -> dict[str, str]:
+    """Create a bare remote under the workspace and wire origin + upstream."""
+    try:
+        remote_path = await gateway.git_seed_local_remote()
+    except GitValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"remote_path": remote_path}
+
+
 @router.get("/diff", response_model=GitDiffResponse)
 async def git_diff(
     file: str | None = Query(default=None),

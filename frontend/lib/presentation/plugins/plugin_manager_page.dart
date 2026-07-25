@@ -51,7 +51,7 @@ class PluginManagerPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Manage built-in and workspace plugins.',
+                        'Manage built-in and project plugins.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -204,16 +204,16 @@ class _PluginRow extends StatelessWidget {
                 spacing: 4,
                 runSpacing: 0,
                 children: [
-                  TextButton(
-                    onPressed: plugin.enabled ? null : onEnable,
-                    child: const Text('Enable'),
-                  ),
-                  TextButton(
-                    onPressed: plugin.isBuiltin || !plugin.enabled
-                        ? null
-                        : onDisable,
-                    child: const Text('Disable'),
-                  ),
+                  if (!plugin.enabled)
+                    TextButton(
+                      onPressed: onEnable,
+                      child: const Text('Enable'),
+                    )
+                  else
+                    TextButton(
+                      onPressed: plugin.isBuiltin ? null : onDisable,
+                      child: Text(plugin.isBuiltin ? 'Built-in' : 'Disable'),
+                    ),
                   TextButton(onPressed: onReload, child: const Text('Reload')),
                   TextButton(
                     onPressed: plugin.path == null ? null : onOpenFolder,
@@ -246,7 +246,7 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Add plugins to Workspace/Plugins or ~/.robotstudio/plugins.',
+            'Add plugins to the project Plugins/ folder or ~/.robotstudio/plugins.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],

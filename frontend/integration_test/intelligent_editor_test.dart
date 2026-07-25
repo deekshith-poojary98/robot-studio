@@ -47,7 +47,7 @@ void main() {
     await openBottomTab(tester, 'Problems');
     await pumpUntilFound(tester, find.textContaining('UnknownKeyword'));
 
-    expect(find.byKey(const Key('editor.definition')), findsOneWidget);
+    expect(find.byKey(const Key('editor.more')), findsOneWidget);
     expect(find.byKey(const Key('editor.find')), findsOneWidget);
 
     harness.expectNoFlutterErrors();
