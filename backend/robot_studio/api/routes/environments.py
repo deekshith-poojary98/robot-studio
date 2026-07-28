@@ -40,6 +40,7 @@ def _to_response(environment: Environment) -> EnvironmentResponse:
         package_count=environment.package_count,
         platform=environment.platform,
         architecture=environment.architecture,
+        available=environment.available,
     )
 
 

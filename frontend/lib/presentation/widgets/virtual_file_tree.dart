@@ -270,7 +270,11 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
   Future<void> _commitEdit(String rawName) async {
     final edit = _edit;
     if (edit == null) return;
-    final name = rawName.trim();
+    var name = rawName.trim();
+    if (edit.kind == _InlineEditKind.newFile) {
+      final withRobot = ExplorerFileActions.robotSuggestion(name);
+      if (withRobot != null) name = withRobot;
+    }
 
     // Rename → same name is a no-op (don't treat the current entry as a clash).
     if (edit.kind == _InlineEditKind.rename && edit.targetPath != null) {
@@ -282,7 +286,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
     }
 
     final error = ExplorerFileActions.validateName(
-      rawName,
+      name,
       existingNames: _siblingNames(
         edit.parentPath,
         excluding: edit.targetPath,
@@ -536,8 +540,6 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
   Widget _buildCreatingRow(_DisplayRow item) {
     final edit = item.edit!;
     final isFolder = edit.kind == _InlineEditKind.newFolder;
-    final suggestion =
-        !isFolder ? ExplorerFileActions.robotSuggestion(_draftName) : null;
     return ExplorerTreeItem(
       label: '',
       leading: explorerFileIcon(name: _draftName, isDirectory: isFolder),
@@ -545,14 +547,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
       isEditing: true,
       editInitialValue: edit.initialName,
       editHint: isFolder ? 'Folder name' : 'File name',
-      suggestion: suggestion,
       onEditChanged: (value) => setState(() => _draftName = value),
-      onApplySuggestion: suggestion == null
-          ? null
-          : () {
-              setState(() => _draftName = suggestion);
-              _commitEdit(suggestion);
-            },
       onEditSubmit: (value) {
         _draftName = value;
         _commitEdit(value);
@@ -564,7 +559,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
   Widget _buildEntryRow(FlatFileTreeRow row, bool editing) {
     final node = row.node;
     final selected = (_selectedPath ?? widget.selectedPath) == node.path;
-    // Robot ".robot" suggestions are only for New File — never while renaming.
+    // Robot extension is appended silently on New File commit when missing.
 
     Widget child;
     if (node.isDir) {

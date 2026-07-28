@@ -369,7 +369,14 @@ class RobotLanguageService(LanguageService):
                 continue
             if raw.startswith(" ") or raw.startswith("\t"):
                 token = raw.strip().split()[0] if raw.strip() else ""
-                if token and not token.startswith("$") and token.lower() not in known_keywords:
+                # Local settings ([Documentation], [Tags], …) are not keyword calls.
+                if token.startswith("[") and token.endswith("]"):
+                    continue
+                if (
+                    token
+                    and not token.startswith("$")
+                    and token.lower() not in known_keywords
+                ):
                     diagnostics.append(
                         self._diag(
                             file_path,

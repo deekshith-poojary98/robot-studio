@@ -56,17 +56,27 @@ class EnvironmentBadge extends StatelessWidget {
     super.key,
     required this.label,
     this.active = false,
+    this.broken = false,
   });
 
   final String label;
   final bool active;
+  final bool broken;
 
   @override
   Widget build(BuildContext context) {
+    final Color? dot;
+    if (broken) {
+      dot = AppColors.warning;
+    } else if (active) {
+      dot = AppColors.accent;
+    } else {
+      dot = AppColors.textMuted;
+    }
     return StatusBadge(
       label: label,
-      dotColor: active ? AppColors.accent : AppColors.textMuted,
-      filled: active,
+      dotColor: dot,
+      filled: active && !broken,
     );
   }
 }

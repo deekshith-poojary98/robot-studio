@@ -77,6 +77,8 @@ class Environment(BaseModel):
     package_count: int = 0
     platform: str | None = None
     architecture: str | None = None
+    # Runtime-only: False when the venv/python path is gone from disk.
+    available: bool = True
 
 
 class InstalledPackage(BaseModel):

@@ -42,35 +42,54 @@ class StatusBar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm + 2),
         child: Row(
           children: [
-            _flexItem(
-              projectName?.toUpperCase() ?? 'NO PROJECT',
-              flex: 2,
-              tooltip: projectName == null ? 'No project open' : projectName!,
+            Expanded(
+              child: Row(
+                children: [
+                  _flexItem(
+                    projectName?.toUpperCase() ?? 'NO PROJECT',
+                    flex: 2,
+                    tooltip: projectName == null
+                        ? 'No project open'
+                        : projectName!,
+                  ),
+                  if (fileName != null)
+                    _flexItem(
+                      fileName!.toUpperCase(),
+                      flex: 3,
+                      tooltip: fileName,
+                    ),
+                  if (cursorLabel != null)
+                    _item(cursorLabel!, tooltip: 'Cursor position'),
+                  if (dirty) _item('MODIFIED', tooltip: 'Unsaved changes'),
+                  if (errorCount > 0)
+                    _clickableItem(
+                      'ERRORS $errorCount',
+                      onProblemsTap,
+                      tooltip: 'Open Problems panel',
+                    ),
+                  if (warningCount > 0)
+                    _clickableItem(
+                      'WARNINGS $warningCount',
+                      onProblemsTap,
+                      tooltip: 'Open Problems panel',
+                    ),
+                  if (notification != null && notification!.isNotEmpty)
+                    _flexItem(notification!, flex: 3, tooltip: notification),
+                ],
+              ),
             ),
-            if (fileName != null)
-              _flexItem(fileName!.toUpperCase(), flex: 3, tooltip: fileName),
-            if (cursorLabel != null)
-              _item(cursorLabel!, tooltip: 'Cursor position'),
-            if (dirty) _item('MODIFIED', tooltip: 'Unsaved changes'),
-            if (errorCount > 0)
-              _clickableItem(
-                'ERRORS $errorCount',
-                onProblemsTap,
-                tooltip: 'Open Problems panel',
-              ),
-            if (warningCount > 0)
-              _clickableItem(
-                'WARNINGS $warningCount',
-                onProblemsTap,
-                tooltip: 'Open Problems panel',
-              ),
-            if (notification != null && notification!.isNotEmpty)
-              _flexItem(notification!, flex: 3, tooltip: notification),
-            const Spacer(),
             if (robotVersion != null && robotVersion!.isNotEmpty)
-              _item('ROBOT $robotVersion', tooltip: 'Robot Framework version'),
+              _item(
+                'ROBOT $robotVersion',
+                tooltip: 'Robot Framework version',
+                trailing: false,
+              ),
             if (pythonVersion != null && pythonVersion!.isNotEmpty)
-              _item('PYTHON $pythonVersion', tooltip: 'Python version'),
+              _item(
+                'PYTHON $pythonVersion',
+                tooltip: 'Python version',
+                trailing: false,
+              ),
           ],
         ),
       ),
@@ -84,9 +103,11 @@ class StatusBar extends StatelessWidget {
     letterSpacing: 0.3,
   );
 
-  Widget _item(String label, {String? tooltip}) {
+  Widget _item(String label, {String? tooltip, bool trailing = true}) {
     final child = Padding(
-      padding: const EdgeInsets.only(right: AppSpacing.md),
+      padding: trailing
+          ? const EdgeInsets.only(right: AppSpacing.md)
+          : const EdgeInsets.only(left: AppSpacing.md),
       child: Text(label, style: _labelStyle),
     );
     if (tooltip == null) return child;

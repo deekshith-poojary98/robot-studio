@@ -104,6 +104,35 @@ async def test_language_diagnostics_api(api_client) -> None:
     assert response.status_code == 200
     messages = [item["message"] for item in response.json()["diagnostics"]]
     assert any("Unknown keyword" in msg for msg in messages)
+    assert not any("Unknown keyword '[Documentation]'" in msg for msg in messages)
+
+
+@pytest.mark.asyncio
+async def test_language_diagnostics_ignores_local_settings(api_client) -> None:
+    client, _fresh, tmp_path = api_client
+    suite = await _open_workspace_with_suite(client, tmp_path)
+    content = """*** Test Cases ***
+Example Test
+    [Documentation]    Example test case
+    [Tags]    smoke
+    Log    Hello
+
+*** Keywords ***
+Example Keyword
+    [Documentation]    Example reusable keyword
+    [Arguments]    ${name}
+    Log    ${name}
+"""
+
+    response = await client.post(
+        "/api/v1/language/diagnostics",
+        json={"file_path": str(suite), "content": content},
+    )
+    assert response.status_code == 200
+    messages = [item["message"] for item in response.json()["diagnostics"]]
+    assert not any("Unknown keyword '[Documentation]'" in msg for msg in messages)
+    assert not any("Unknown keyword '[Tags]'" in msg for msg in messages)
+    assert not any("Unknown keyword '[Arguments]'" in msg for msg in messages)
 
 
 @pytest.mark.asyncio

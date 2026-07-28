@@ -40,11 +40,28 @@ async def test_create_file_and_folder(file_stack) -> None:
     service, root, events = file_stack
     created = await service.create_file(str(root / "tests" / "Login.robot"), "")
     assert Path(created["path"]).is_file()
+    text = Path(created["path"]).read_text(encoding="utf-8")
+    assert "*** Settings ***" in text
+    assert "*** Variables ***" in text
+    assert "*** Test Cases ***" in text
+    assert "*** Keywords ***" in text
+    assert "Example Test" in text
     folder = await service.create_directory(str(root / "resources" / "shared"))
     assert Path(folder["path"]).is_dir()
     kinds = [item.kind for item in events]
     assert "FILE_CREATED" in kinds
     assert "DIRECTORY_CREATED" in kinds
+
+
+@pytest.mark.asyncio
+async def test_create_robot_preserves_explicit_content(file_stack) -> None:
+    service, root, _events = file_stack
+    custom = "*** Test Cases ***\nOnly\n    No Operation\n"
+    created = await service.create_file(str(root / "custom.robot"), custom)
+    assert Path(created["path"]).read_text(encoding="utf-8") == custom
+
+    plain = await service.create_file(str(root / "notes.txt"), "")
+    assert Path(plain["path"]).read_text(encoding="utf-8") == ""
 
 
 @pytest.mark.asyncio

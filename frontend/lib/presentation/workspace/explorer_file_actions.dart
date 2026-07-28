@@ -65,6 +65,31 @@ class ExplorerFileActions {
     return '$cleaned.robot';
   }
 
+  /// Default suite scaffold for newly created empty `*.robot` files.
+  static const defaultRobotSuiteContent = '''*** Settings ***
+Documentation    Test suite description
+Library          BuiltIn
+
+*** Variables ***
+
+*** Test Cases ***
+Example Test
+    [Documentation]    Example test case
+    Log    Hello, Robot Framework!
+
+*** Keywords ***
+Example Keyword
+    [Documentation]    Example reusable keyword
+    Log    Keyword executed
+''';
+
+  /// Returns [defaultRobotSuiteContent] for `.robot` paths; otherwise empty.
+  static String initialContentFor(String nameOrPath) {
+    final lower = nameOrPath.replaceAll('\\', '/').toLowerCase();
+    if (lower.endsWith('.robot')) return defaultRobotSuiteContent;
+    return '';
+  }
+
   static String joinPath(String parent, String name) {
     final left = parent.replaceAll('\\', '/').replaceAll(RegExp(r'/+$'), '');
     return '$left/$name';

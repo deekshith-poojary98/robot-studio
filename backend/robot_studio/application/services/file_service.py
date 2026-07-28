@@ -34,6 +34,25 @@ _WINDOWS_RESERVED = {
     *(f"LPT{i}" for i in range(1, 10)),
 }
 
+# Seeded into newly created empty ``*.robot`` suite files.
+DEFAULT_ROBOT_SUITE_CONTENT = """\
+*** Settings ***
+Documentation    Test suite description
+Library          BuiltIn
+
+*** Variables ***
+
+*** Test Cases ***
+Example Test
+    [Documentation]    Example test case
+    Log    Hello, Robot Framework!
+
+*** Keywords ***
+Example Keyword
+    [Documentation]    Example reusable keyword
+    Log    Keyword executed
+"""
+
 
 class FileValidationError(Exception):
     """Raised when a file operation is invalid."""
@@ -143,7 +162,10 @@ class FileService:
         if target.exists():
             raise FileValidationError(f"'{target.name}' already exists")
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
+        body = content
+        if not body and target.suffix.lower() == ".robot":
+            body = DEFAULT_ROBOT_SUITE_CONTENT
+        target.write_text(body, encoding="utf-8")
         stat = target.stat()
         if self.event_bus is not None:
             await self.event_bus.publish(FileWritten(path=str(target)))

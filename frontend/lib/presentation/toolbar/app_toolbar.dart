@@ -18,6 +18,7 @@ class AppToolbar extends StatelessWidget {
     required this.backendConnected,
     this.environmentNames = const [],
     this.selectedEnvironmentName,
+    this.environmentBroken = false,
     this.onEnvironmentSelected,
     this.onManageEnvironments,
     this.onRun,
@@ -49,6 +50,7 @@ class AppToolbar extends StatelessWidget {
   final bool backendConnected;
   final List<String> environmentNames;
   final String? selectedEnvironmentName;
+  final bool environmentBroken;
   final ValueChanged<String>? onEnvironmentSelected;
   final VoidCallback? onManageEnvironments;
   final VoidCallback? onRun;
@@ -104,6 +106,7 @@ class AppToolbar extends StatelessWidget {
                       label: environmentLabel,
                       names: environmentNames,
                       selectedName: selectedEnvironmentName,
+                      broken: environmentBroken,
                       enabled: backendConnected && environmentNames.isNotEmpty,
                       onSelected: onEnvironmentSelected,
                       onManage: onManageEnvironments,
@@ -338,12 +341,14 @@ class _EnvironmentSelector extends StatelessWidget {
     required this.enabled,
     required this.onSelected,
     required this.onManage,
+    this.broken = false,
   });
 
   final String label;
   final List<String> names;
   final String? selectedName;
   final bool enabled;
+  final bool broken;
   final ValueChanged<String>? onSelected;
   final VoidCallback? onManage;
 
@@ -353,8 +358,14 @@ class _EnvironmentSelector extends StatelessWidget {
       return EnvironmentBadge(label: label, active: false);
     }
 
+    final display = broken && selectedName != null
+        ? '$selectedName · missing'
+        : (selectedName ?? label);
+
     return PopupMenuButton<String>(
-      tooltip: 'Select environment',
+      tooltip: broken
+          ? 'Environment folder is missing — recreate or manage environments'
+          : 'Select environment',
       onSelected: (value) {
         if (value == '__manage__') {
           onManage?.call();
@@ -377,8 +388,9 @@ class _EnvironmentSelector extends StatelessWidget {
         ),
       ],
       child: EnvironmentBadge(
-        label: selectedName ?? label,
+        label: display,
         active: selectedName != null,
+        broken: broken,
       ),
     );
   }

@@ -38,6 +38,7 @@ import '../search/search_page.dart';
 import '../sidebar/app_sidebar.dart';
 import '../sidebar/sidebar_panel.dart';
 import '../toolbar/app_toolbar.dart';
+import '../widgets/side_panel_resize_handle.dart';
 import '../widgets/environment_prompt_toast.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/error_dialog.dart';
@@ -102,6 +103,7 @@ class _AppShellState extends State<AppShell> {
 
   void _appendLog(String line) => _workspace.append(line);
   bool _showEnvironmentManager = false;
+  double _sidePanelWidth = SidePanel.defaultWidth;
   EnvironmentSort _environmentSort = EnvironmentSort.active;
   bool _showPackageManager = false;
   bool _showPluginManager = false;
@@ -3024,7 +3026,10 @@ class _AppShellState extends State<AppShell> {
         await _editor.ensureExpanded(parentPath);
         await _editor.refreshParentOf(path);
       } else {
-        final created = await _gateway.createFile(path: path);
+        final created = await _gateway.createFile(
+          path: path,
+          content: ExplorerFileActions.initialContentFor(name),
+        );
         await _editor.ensureExpanded(parentPath);
         await _editor.refreshParentOf(created.path);
         await _openFile(created.path);
@@ -3724,6 +3729,7 @@ class _AppShellState extends State<AppShell> {
                           .map((item) => item.name)
                           .toList(),
                       selectedEnvironmentName: activeEnvironment?.name,
+                      environmentBroken: activeEnvironment?.available == false,
                       onEnvironmentSelected: _handleActivateByName,
                       onManageEnvironments: _handleManageEnvironments,
                       backendConnected: connected,
@@ -3821,6 +3827,7 @@ class _AppShellState extends State<AppShell> {
                           ),
                           SidePanel(
                             panel: _activePanel,
+                            width: _sidePanelWidth,
                             workspace: _activeWorkspace,
                             projects: _projects,
                             isLoadingProjects: _loadingProjects,
@@ -3890,6 +3897,18 @@ class _AppShellState extends State<AppShell> {
                               });
                             },
                           ),
+                          if (SidePanel.hasSideContent(_activePanel))
+                            SidePanelResizeHandle(
+                              onDragDelta: (dx) {
+                                setState(() {
+                                  _sidePanelWidth =
+                                      (_sidePanelWidth + dx).clamp(
+                                    SidePanel.minWidth,
+                                    SidePanel.maxWidth,
+                                  );
+                                });
+                              },
+                            ),
                           Expanded(child: _buildCenter()),
                         ],
                       ),

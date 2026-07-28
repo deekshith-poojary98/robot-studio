@@ -20,6 +20,18 @@ void main() {
     expect(find.text('PYTHON 3.13.9'), findsOneWidget);
     expect(find.text('ROBOT-FILES'), findsOneWidget);
     expect(find.textContaining('ENV '), findsNothing);
+
+    final project = tester.getTopLeft(find.text('ROBOT-FILES'));
+    final robot = tester.getTopLeft(find.text('ROBOT 7.4.2'));
+    final python = tester.getTopLeft(find.text('PYTHON 3.13.9'));
+    expect(robot.dx, greaterThan(project.dx));
+    expect(python.dx, greaterThan(robot.dx));
+    final barWidth = tester.getSize(find.byType(StatusBar)).width;
+    expect(tester.getTopRight(find.text('PYTHON 3.13.9')).dx, lessThan(barWidth));
+    expect(
+      barWidth - tester.getTopRight(find.text('PYTHON 3.13.9')).dx,
+      lessThan(24),
+    );
   });
 
   testWidgets('status bar hides version slots when no environment is active', (

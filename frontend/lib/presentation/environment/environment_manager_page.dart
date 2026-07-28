@@ -202,6 +202,13 @@ class _EnvironmentRow extends StatelessWidget {
                         const SizedBox(width: 8),
                         if (env.active)
                           const EnvironmentBadge(label: 'Active', active: true),
+                        if (!env.available) ...[
+                          const SizedBox(width: 8),
+                          const EnvironmentBadge(
+                            label: 'Missing',
+                            broken: true,
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 6),

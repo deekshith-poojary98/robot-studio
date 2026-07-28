@@ -322,9 +322,14 @@ class EnvironmentService:
             self._context.environment_id is not None
             and self._context.environment_id == environment.id
         ):
-            raise EnvironmentValidationError(
-                "Cannot delete the active environment. Activate another environment first.",
-            )
+            if self._has_python(environment):
+                raise EnvironmentValidationError(
+                    "Cannot delete the active environment. Activate another environment first.",
+                )
+            # Broken/missing active env — allow cleanup so the user can recover.
+            await self._repository.clear_active(workspace.id)
+            if self._context.environment_id == environment.id:
+                await self._context.clear_active_environment()
 
         await self._repository.delete(environment_id)
         if delete_files:
@@ -411,7 +416,9 @@ class EnvironmentService:
     ) -> list[Environment]:
         environments = await self._repository.list_by_workspace(workspace_id)
         if environments:
-            return [item for item in environments if item.path.is_dir()]
+            # Keep rows even when the folder was deleted so the UI can show
+            # "active but missing" instead of a healthy-looking ghost state.
+            return environments
 
         hydrated: list[Environment] = []
         for env_root in self._fs.discover(workspace_path):
@@ -455,16 +462,14 @@ class EnvironmentService:
             await self._context.set_active_environment(active)
 
     async def _enrich(self, environment: Environment) -> Environment:
-        if not environment.python_executable.is_file() and not (
-            environment.path / "bin" / "python"
-        ).is_file():
-            return environment
+        if not self._has_python(environment):
+            return environment.model_copy(update={"available": False})
         python = environment.python_executable
         if not python.is_file():
             try:
                 python = self._python.resolve_executables(environment.path).python
             except EnvironmentValidationError:
-                return environment
+                return environment.model_copy(update={"available": False})
         info = self._python.inspect(python)
         robot_exe = environment.robot_executable
         if info.robot_version and (robot_exe is None or not Path(robot_exe).is_file()):
@@ -480,6 +485,7 @@ class EnvironmentService:
                 "platform": info.platform,
                 "architecture": info.architecture,
                 "robot_executable": robot_exe,
+                "available": True,
             },
         )
         # Persist upgraded major.minor → major.minor.micro (and related fields).
@@ -504,6 +510,16 @@ class EnvironmentService:
                 except EnvironmentValidationError:
                     pass
         return enriched
+
+    @staticmethod
+    def _has_python(environment: Environment) -> bool:
+        if environment.python_executable.is_file():
+            return True
+        if (environment.path / "bin" / "python").is_file():
+            return True
+        if (environment.path / "Scripts" / "python.exe").is_file():
+            return True
+        return False
 
     @staticmethod
     def _from_manifest(workspace_id: UUID, manifest) -> Environment:

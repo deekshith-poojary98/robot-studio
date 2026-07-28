@@ -14,6 +14,7 @@ class EnvironmentInfo {
     this.packageCount = 0,
     this.platform,
     this.architecture,
+    this.available = true,
   });
 
   factory EnvironmentInfo.fromJson(Map<String, dynamic> json) {
@@ -32,6 +33,7 @@ class EnvironmentInfo {
       packageCount: (json['package_count'] as num?)?.toInt() ?? 0,
       platform: json['platform'] as String?,
       architecture: json['architecture'] as String?,
+      available: json['available'] as bool? ?? true,
     );
   }
 
@@ -49,6 +51,7 @@ class EnvironmentInfo {
   final int packageCount;
   final String? platform;
   final String? architecture;
+  final bool available;
 }
 
 class PythonInterpreterInfo {

@@ -37,6 +37,7 @@ class EnvironmentResponse(BaseModel):
     package_count: int = 0
     platform: str | None = None
     architecture: str | None = None
+    available: bool = True
 
 
 class EnvironmentListResponse(BaseModel):

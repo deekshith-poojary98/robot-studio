@@ -61,6 +61,17 @@ void main() {
     expect(ExplorerFileActions.robotSuggestion(''), isNull);
   });
 
+  test('ExplorerFileActions seeds robot suite template', () {
+    final content = ExplorerFileActions.initialContentFor('Login.robot');
+    expect(content, contains('*** Settings ***'));
+    expect(content, contains('*** Variables ***'));
+    expect(content, contains('*** Test Cases ***'));
+    expect(content, contains('*** Keywords ***'));
+    expect(content, contains('Example Test'));
+    expect(ExplorerFileActions.initialContentFor('notes.txt'), isEmpty);
+    expect(ExplorerFileActions.initialContentFor('lib.resource'), isEmpty);
+  });
+
   testWidgets('VirtualFileTree builds only visible rows', (tester) async {
     final rows = List.generate(
       200,
@@ -230,7 +241,9 @@ void main() {
     expect(find.textContaining('.robot'), findsNothing);
   });
 
-  testWidgets('new file shows robot suggestion', (tester) async {
+  testWidgets('new file appends .robot on submit without suggestion chip', (
+    tester,
+  ) async {
     String? createdName;
     final key = GlobalKey<VirtualFileTreeState>();
 
@@ -260,8 +273,8 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Login');
     await tester.pump();
 
-    expect(find.text('Create Login.robot'), findsOneWidget);
-    await tester.tap(find.text('Create Login.robot'));
+    expect(find.textContaining('Create '), findsNothing);
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
     expect(createdName, 'Login.robot');
   });

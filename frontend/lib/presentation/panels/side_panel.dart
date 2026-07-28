@@ -20,6 +20,7 @@ class SidePanel extends StatelessWidget {
   const SidePanel({
     super.key,
     required this.panel,
+    this.width = defaultWidth,
     this.workspace,
     this.projects = const [],
     this.isLoadingProjects = false,
@@ -68,6 +69,7 @@ class SidePanel extends StatelessWidget {
   });
 
   final SidebarPanel panel;
+  final double width;
   final WorkspaceInfo? workspace;
   final List<ProjectInfo> projects;
   final bool isLoadingProjects;
@@ -124,8 +126,13 @@ class SidePanel extends StatelessWidget {
   final String? selectedOutlineId;
   final ValueChanged<IndexedSymbolInfo>? onOutlineSelect;
 
+  /// Default / min / max widths for the resizable side content column.
+  static const double defaultWidth = 280;
+  static const double minWidth = 200;
+  static const double maxWidth = 480;
+
   /// Panels that own the side rail. Everything else lives in the main view, so
-  /// showing a 280px column that says "open in the main view" is dead chrome.
+  /// showing a side column that says "open in the main view" is dead chrome.
   static bool hasSideContent(SidebarPanel panel) {
     return panel == SidebarPanel.explorer ||
         panel == SidebarPanel.tests ||
@@ -135,18 +142,19 @@ class SidePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!hasSideContent(panel)) return const SizedBox.shrink();
-    return Container(
-      width: 280,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(right: BorderSide(color: AppColors.borderSubtle)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          PanelHeader(title: panel.label),
-          Expanded(child: _buildBody(context)),
-        ],
+    return SizedBox(
+      width: width.clamp(minWidth, maxWidth),
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PanelHeader(title: panel.label),
+            Expanded(child: _buildBody(context)),
+          ],
+        ),
       ),
     );
   }

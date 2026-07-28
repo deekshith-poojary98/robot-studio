@@ -209,6 +209,26 @@ async def test_delete_protection(services) -> None:
 
 
 @pytest.mark.asyncio
+async def test_missing_venv_marked_unavailable(services) -> None:
+    environment = await services["environment_service"].create_environment(
+        "gone",
+        sys.executable,
+    )
+    assert environment.available is True
+    assert environment.is_active is True
+
+    # Simulate deleting the Environments folder while the DB row remains.
+    import shutil
+
+    shutil.rmtree(environment.path)
+    listed = await services["environment_service"].list_environments()
+    assert len(listed) == 1
+    assert listed[0].id == environment.id
+    assert listed[0].is_active is True
+    assert listed[0].available is False
+
+
+@pytest.mark.asyncio
 async def test_repository_persistence(services) -> None:
     created = await services["environment_service"].create_environment(
         "persist",
