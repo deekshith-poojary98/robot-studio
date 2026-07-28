@@ -170,6 +170,66 @@ void main() {
     expect(renamedTo, 'Logout.robot');
   });
 
+  testWidgets('rename keeping the same name is a no-op', (tester) async {
+    var renameCalls = 0;
+    final key = GlobalKey<VirtualFileTreeState>();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: VirtualFileTree(
+            key: key,
+            rows: [_dir('test')],
+            rootPath: '/tmp',
+            onOpenFile: (_) {},
+            onToggleDirectory: (_) {},
+            onRenameEntry: ({required path, required newName}) async {
+              renameCalls++;
+            },
+          ),
+        ),
+      ),
+    );
+
+    key.currentState!.beginRename('/tmp/test');
+    await tester.pumpAndSettle();
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(renameCalls, 0);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.textContaining('already exists'), findsNothing);
+  });
+
+  testWidgets('rename folder does not show robot Create suggestion', (
+    tester,
+  ) async {
+    final key = GlobalKey<VirtualFileTreeState>();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: VirtualFileTree(
+            key: key,
+            rows: [_dir('tests')],
+            rootPath: '/tmp',
+            onOpenFile: (_) {},
+            onToggleDirectory: (_) {},
+            onRenameEntry: ({required path, required newName}) async {},
+          ),
+        ),
+      ),
+    );
+
+    key.currentState!.beginRename('/tmp/tests');
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'test');
+    await tester.pump();
+
+    expect(find.textContaining('Create'), findsNothing);
+    expect(find.textContaining('.robot'), findsNothing);
+  });
+
   testWidgets('new file shows robot suggestion', (tester) async {
     String? createdName;
     final key = GlobalKey<VirtualFileTreeState>();

@@ -12,6 +12,7 @@ import 'empty_state.dart';
 import 'explorer_file_icon.dart';
 import 'explorer_tree.dart';
 import 'app_menu.dart';
+import 'app_toast.dart';
 
 enum _InlineEditKind { rename, newFile, newFolder }
 
@@ -269,6 +270,17 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
   Future<void> _commitEdit(String rawName) async {
     final edit = _edit;
     if (edit == null) return;
+    final name = rawName.trim();
+
+    // Rename → same name is a no-op (don't treat the current entry as a clash).
+    if (edit.kind == _InlineEditKind.rename && edit.targetPath != null) {
+      final current = ExplorerFileActions.basename(edit.targetPath!);
+      if (name == current) {
+        setState(() => _edit = null);
+        return;
+      }
+    }
+
     final error = ExplorerFileActions.validateName(
       rawName,
       existingNames: _siblingNames(
@@ -278,13 +290,16 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
     );
     if (error != null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error)),
+        showAppToast(
+          context,
+          message: error,
+          icon: Icons.error_outline,
+          iconColor: AppColors.error,
+          duration: const Duration(seconds: 4),
         );
       }
       return;
     }
-    final name = rawName.trim();
     setState(() => _edit = null);
 
     switch (edit.kind) {
@@ -549,8 +564,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
   Widget _buildEntryRow(FlatFileTreeRow row, bool editing) {
     final node = row.node;
     final selected = (_selectedPath ?? widget.selectedPath) == node.path;
-    final suggestion =
-        editing ? ExplorerFileActions.robotSuggestion(_draftName) : null;
+    // Robot ".robot" suggestions are only for New File — never while renaming.
 
     Widget child;
     if (node.isDir) {
@@ -571,13 +585,6 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
         editInitialValue: editing ? _edit?.initialName : null,
         onEditChanged:
             editing ? (value) => setState(() => _draftName = value) : null,
-        suggestion: suggestion,
-        onApplySuggestion: suggestion == null
-            ? null
-            : () {
-                setState(() => _draftName = suggestion);
-                _commitEdit(suggestion);
-              },
         onEditSubmit: editing
             ? (value) {
                 _draftName = value;
@@ -627,13 +634,6 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
         editInitialValue: editing ? _edit?.initialName : null,
         onEditChanged:
             editing ? (value) => setState(() => _draftName = value) : null,
-        suggestion: suggestion,
-        onApplySuggestion: suggestion == null
-            ? null
-            : () {
-                setState(() => _draftName = suggestion);
-                _commitEdit(suggestion);
-              },
         onEditSubmit: editing
             ? (value) {
                 _draftName = value;

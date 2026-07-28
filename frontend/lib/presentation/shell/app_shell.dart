@@ -39,6 +39,7 @@ import '../sidebar/app_sidebar.dart';
 import '../sidebar/sidebar_panel.dart';
 import '../toolbar/app_toolbar.dart';
 import '../widgets/environment_prompt_toast.dart';
+import '../widgets/app_toast.dart';
 import '../widgets/error_dialog.dart';
 import '../widgets/guidance_dialog.dart';
 import '../widgets/virtual_file_tree.dart';
@@ -865,12 +866,11 @@ class _AppShellState extends State<AppShell> {
     try {
       await _gateway.openReportLog(run.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Opened log.html'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
+      showAppToast(
+        context,
+        message: 'Opened log.html',
+        icon: Icons.description_outlined,
+        duration: const Duration(seconds: 2),
       );
     } catch (error) {
       if (!mounted) return;
@@ -884,12 +884,11 @@ class _AppShellState extends State<AppShell> {
     try {
       await _gateway.openReportHtml(run.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Opened report.html'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
+      showAppToast(
+        context,
+        message: 'Opened report.html',
+        icon: Icons.description_outlined,
+        duration: const Duration(seconds: 2),
       );
     } catch (error) {
       if (!mounted) return;
@@ -903,12 +902,11 @@ class _AppShellState extends State<AppShell> {
     try {
       await _gateway.openReportXml(run.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Opened output.xml'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
+      showAppToast(
+        context,
+        message: 'Opened output.xml',
+        icon: Icons.description_outlined,
+        duration: const Duration(seconds: 2),
       );
     } catch (error) {
       if (!mounted) return;
@@ -1830,22 +1828,17 @@ class _AppShellState extends State<AppShell> {
   Future<void> _suggestMissingLibraryInstall() async {
     final suggestion = _missingLibrarySuggestion(_executionLines);
     if (suggestion == null || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
+    showAppToast(
+      context,
+      message:
           'Missing library "${suggestion.library}". Install ${suggestion.package}?',
-        ),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 8),
-        action: SnackBarAction(
-          label: 'Install',
-          onPressed: () {
-            unawaited(_installSuggestedPackage(suggestion.package));
-          },
-        ),
-      ),
+      actionLabel: 'Install',
+      onAction: () {
+        unawaited(_installSuggestedPackage(suggestion.package));
+      },
+      duration: const Duration(seconds: 8),
+      icon: Icons.extension_outlined,
+      iconColor: AppColors.warning,
     );
   }
 
@@ -1860,11 +1853,11 @@ class _AppShellState extends State<AppShell> {
       _appendLog('[info] Installed $packageName');
       await _loadPackages();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Installed $packageName'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showAppToast(
+        context,
+        message: 'Installed $packageName',
+        icon: Icons.check_circle_outline,
+        iconColor: AppColors.success,
       );
     } catch (error) {
       if (!mounted) return;
@@ -2298,9 +2291,11 @@ class _AppShellState extends State<AppShell> {
     );
     if (!mounted) return;
     if (action == 'compare') {
-      ScaffoldMessenger.of(
+      showAppToast(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Compare is coming soon')));
+        message: 'Compare is coming soon',
+        icon: Icons.difference_outlined,
+      );
       return;
     }
     if (action == 'reload') {

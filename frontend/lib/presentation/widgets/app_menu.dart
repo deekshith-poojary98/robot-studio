@@ -64,5 +64,11 @@ class AppCheckedPopupMenuItem<T> extends CheckedPopupMenuItem<T> {
 }
 
 class AppPopupMenuDivider extends PopupMenuDivider {
-  const AppPopupMenuDivider({super.key}) : super(height: 8);
+  /// Visible hairline between menu groups (not empty vertical padding).
+  const AppPopupMenuDivider({super.key})
+      : super(
+          height: 9,
+          thickness: 1,
+          color: AppColors.border,
+        );
 }

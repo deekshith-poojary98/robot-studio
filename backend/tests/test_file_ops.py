@@ -56,6 +56,11 @@ async def test_rename_delete_duplicate(file_stack) -> None:
     assert Path(renamed["path"]).name == "b.robot"
     assert not path.exists()
 
+    # Enter without changing the name must not raise "already exists".
+    same = await service.rename_path(renamed["path"], "b.robot")
+    assert Path(same["path"]).name == "b.robot"
+    assert Path(same["path"]).is_file()
+
     dup = await service.duplicate_path(renamed["path"])
     assert Path(dup["path"]).name == "b copy.robot"
 

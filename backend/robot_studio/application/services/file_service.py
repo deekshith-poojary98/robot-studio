@@ -175,6 +175,17 @@ class FileService:
         cleaned = self.validate_entry_name(new_name)
         destination = source.with_name(cleaned)
         destination = self._resolve_under_workspace(destination)
+        # Same-name rename (Enter without changing) is a no-op — destination
+        # already "exists" because it is the source path.
+        if source.resolve() == destination.resolve() or (
+            destination.exists() and source.samefile(destination)
+        ):
+            return {
+                "path": str(source),
+                "old_path": str(source),
+                "is_dir": source.is_dir(),
+                "name": source.name,
+            }
         if destination.exists():
             raise FileValidationError(f"'{cleaned}' already exists")
         is_dir = source.is_dir()

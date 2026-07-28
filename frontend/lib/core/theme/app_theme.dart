@@ -152,7 +152,7 @@ ThemeData buildAppTheme() {
       color: AppColors.surfaceElevated,
       surfaceTintColor: Colors.transparent,
       elevation: 6,
-      menuPadding: const EdgeInsets.symmetric(vertical: 4),
+      menuPadding: const EdgeInsets.symmetric(vertical: 2),
       textStyle: const TextStyle(
         color: AppColors.textPrimary,
         fontSize: 12.5,
@@ -220,6 +220,20 @@ ThemeData buildAppTheme() {
         border: Border.all(color: AppColors.border),
       ),
       textStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: AppColors.surfaceElevated,
+      contentTextStyle: const TextStyle(
+        color: AppColors.textPrimary,
+        fontSize: 12.5,
+      ),
+      actionTextColor: AppColors.accent,
+      behavior: SnackBarBehavior.floating,
+      elevation: 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        side: const BorderSide(color: AppColors.border),
+      ),
     ),
     dividerTheme: const DividerThemeData(
       color: AppColors.borderSubtle,
