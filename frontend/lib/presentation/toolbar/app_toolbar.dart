@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/git_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../git/branch_selector.dart';
+import '../widgets/app_menu.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/toolbar_button.dart';
 
@@ -246,33 +247,21 @@ class _GitRemoteMenu extends StatelessWidget {
         'push' => onPush?.call(),
         _ => null,
       },
-      itemBuilder: (context) => const [
-        PopupMenuItem<String>(
+      itemBuilder: (context) => [
+        AppPopupMenuItem.icon(
           value: 'fetch',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.cloud_download_outlined, size: 16),
-            title: Text('Fetch'),
-          ),
+          icon: Icons.cloud_download_outlined,
+          label: 'Fetch',
         ),
-        PopupMenuItem<String>(
+        AppPopupMenuItem.icon(
           value: 'pull',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.download_outlined, size: 16),
-            title: Text('Pull'),
-          ),
+          icon: Icons.download_outlined,
+          label: 'Pull',
         ),
-        PopupMenuItem<String>(
+        AppPopupMenuItem.icon(
           value: 'push',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.upload_outlined, size: 16),
-            title: Text('Push'),
-          ),
+          icon: Icons.upload_outlined,
+          label: 'Push',
         ),
       ],
       child: Container(
@@ -375,14 +364,14 @@ class _EnvironmentSelector extends StatelessWidget {
       },
       itemBuilder: (context) => [
         ...names.map(
-          (name) => CheckedPopupMenuItem<String>(
+          (name) => AppCheckedPopupMenuItem<String>(
             value: name,
             checked: name == selectedName,
             child: Text(name),
           ),
         ),
-        const PopupMenuDivider(),
-        const PopupMenuItem<String>(
+        const AppPopupMenuDivider(),
+        const AppPopupMenuItem<String>(
           value: '__manage__',
           child: Text('Manage Environments…'),
         ),

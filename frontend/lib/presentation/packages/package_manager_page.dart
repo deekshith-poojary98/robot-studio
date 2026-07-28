@@ -125,6 +125,8 @@ class PackageManagerPage extends StatelessWidget {
                 const SizedBox(width: 12),
                 DropdownButton<PackageSort>(
                   value: sort,
+                  isDense: true,
+                  style: const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
                   underline: const SizedBox.shrink(),
                   items: PackageSort.values
                       .map(

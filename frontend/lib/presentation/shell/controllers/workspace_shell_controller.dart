@@ -203,6 +203,16 @@ class WorkspaceShellController {
       recentWorkspaces = await gateway.listRecentWorkspaces();
       recentProjects = await gateway.listRecentProjects();
       if (!isMounted()) return;
+      final projectPaths = {
+        for (final project in recentProjects)
+          project.path.replaceAll('\\', '/'),
+      };
+      recentWorkspaces = recentWorkspaces
+          .where(
+            (workspace) =>
+                !projectPaths.contains(workspace.path.replaceAll('\\', '/')),
+          )
+          .toList();
       loadingRecent = false;
       notify();
     } catch (error) {

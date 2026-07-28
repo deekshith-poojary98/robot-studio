@@ -13,6 +13,7 @@ from robot_studio.infrastructure.workspace.filesystem import (
     WorkspaceValidationError,
     create_workspace_structure,
     initialize_project_as_workspace,
+    is_classic_workspace,
     is_workspace,
     load_manifest,
 )
@@ -105,7 +106,9 @@ class WorkspaceService:
         recent = await self._repository.list_recent(limit=limit)
         valid: list[Workspace] = []
         for workspace in recent:
-            if is_workspace(workspace.path):
+            # Only classic multi-project containers — project-folder opens belong
+            # on the Recent Projects list.
+            if is_classic_workspace(workspace.path):
                 valid.append(workspace)
         return valid
 
@@ -113,5 +116,6 @@ class WorkspaceService:
         return self._context.workspace
 
     async def _activate(self, workspace: Workspace) -> None:
-        await self._repository.record_recent(workspace)
+        if is_classic_workspace(workspace.path):
+            await self._repository.record_recent(workspace)
         await self._context.open(workspace)

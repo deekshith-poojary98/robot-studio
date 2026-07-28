@@ -76,6 +76,8 @@ ThemeData buildAppTheme() {
     dividerColor: AppColors.border,
     fontFamily: 'SF Pro Text',
     splashFactory: InkSparkle.splashFactory,
+    visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
+    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.surface,
       foregroundColor: AppColors.textPrimary,
@@ -122,7 +124,8 @@ ThemeData buildAppTheme() {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: AppColors.surfaceElevated,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadii.sm),
         borderSide: const BorderSide(color: AppColors.border),
@@ -143,6 +146,49 @@ ThemeData buildAppTheme() {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.lg),
         side: const BorderSide(color: AppColors.border),
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: AppColors.surfaceElevated,
+      surfaceTintColor: Colors.transparent,
+      elevation: 6,
+      menuPadding: const EdgeInsets.symmetric(vertical: 4),
+      textStyle: const TextStyle(
+        color: AppColors.textPrimary,
+        fontSize: 12.5,
+        height: 1.2,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        side: const BorderSide(color: AppColors.border),
+      ),
+    ),
+    menuButtonTheme: MenuButtonThemeData(
+      style: ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        minimumSize: const WidgetStatePropertyAll(Size(0, 28)),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        ),
+        textStyle: const WidgetStatePropertyAll(
+          TextStyle(fontSize: 12.5, height: 1.2),
+        ),
+      ),
+    ),
+    dropdownMenuTheme: DropdownMenuThemeData(
+      textStyle: const TextStyle(fontSize: 12.5, height: 1.2),
+      menuStyle: MenuStyle(
+        backgroundColor: const WidgetStatePropertyAll(AppColors.surfaceElevated),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 4)),
+        visualDensity: VisualDensity.compact,
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.sm),
+            side: const BorderSide(color: AppColors.border),
+          ),
+        ),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
@@ -183,6 +229,9 @@ ThemeData buildAppTheme() {
     listTileTheme: const ListTileThemeData(
       dense: true,
       visualDensity: VisualDensity.compact,
+      minVerticalPadding: 0,
+      minLeadingWidth: 28,
+      contentPadding: EdgeInsets.symmetric(horizontal: 10),
       iconColor: AppColors.textSecondary,
       textColor: AppColors.textPrimary,
     ),

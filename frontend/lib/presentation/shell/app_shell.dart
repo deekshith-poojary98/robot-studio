@@ -172,19 +172,10 @@ class _AppShellState extends State<AppShell> {
   bool get _loadingProjects => _workspace.loadingProjects;
   bool get _loadingEnvironments => _workspace.loadingEnvironments;
 
-  /// Toolbar context: project first; workspace name only for multi-project.
+  /// Toolbar project chip — name only (branch/env have their own controls).
   String get _chromeContextLabel {
     final project = _selectedProject;
-    if (project != null) {
-      final branch = _gitStatus?.repository.branch;
-      final env = _activeEnvironment?.name;
-      final parts = <String>[
-        if (branch != null && branch.isNotEmpty) branch,
-        if (env != null && env.isNotEmpty) env,
-      ];
-      if (parts.isEmpty) return project.name;
-      return '${project.name}  ·  ${parts.join(' • ')}';
-    }
+    if (project != null) return project.name;
     if (_projects.length > 1) {
       return _activeWorkspace?.name ?? 'No project';
     }
@@ -333,7 +324,16 @@ class _AppShellState extends State<AppShell> {
       final projects = await _gateway.listRecentProjects();
       if (!mounted) return;
       setState(() {
-        _workspace.recentWorkspaces = workspaces;
+        final projectPaths = {
+          for (final project in projects) project.path.replaceAll('\\', '/'),
+        };
+        // In-project opens must not also appear under Advanced → Recent Workspaces.
+        _workspace.recentWorkspaces = workspaces
+            .where(
+              (workspace) =>
+                  !projectPaths.contains(workspace.path.replaceAll('\\', '/')),
+            )
+            .toList();
         _workspace.recentProjects = projects;
         _workspace.loadingRecent = false;
       });
@@ -497,7 +497,6 @@ class _AppShellState extends State<AppShell> {
       _showEnvironmentManager = false;
       _showSearchPage = false;
       _showEditorPage = false;
-      _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
       _activePanel = SidebarPanel.plugins;
@@ -604,7 +603,6 @@ class _AppShellState extends State<AppShell> {
       _showEnvironmentManager = false;
       _showSearchPage = false;
       _showEditorPage = false;
-      _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
       _activePanel = SidebarPanel.sourceControl;
@@ -825,7 +823,6 @@ class _AppShellState extends State<AppShell> {
       _showEnvironmentManager = false;
       _showSearchPage = false;
       _showEditorPage = false;
-      _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
       _activePanel = SidebarPanel.reports;
@@ -848,7 +845,6 @@ class _AppShellState extends State<AppShell> {
       _showEnvironmentManager = false;
       _showSearchPage = false;
       _showEditorPage = false;
-      _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
       _activePanel = SidebarPanel.reports;
@@ -1524,12 +1520,12 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
+    // Keep `_selectedProject` so Run still works after creating/activating an env.
     setState(() {
       _showEnvironmentManager = true;
       _showPackageManager = false;
       _showSearchPage = false;
       _showEditorPage = false;
-      _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
       _clearExecutionPageUnlessTests();
@@ -1551,7 +1547,6 @@ class _AppShellState extends State<AppShell> {
       _showEnvironmentManager = false;
       _showSearchPage = false;
       _showEditorPage = false;
-      _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
       _activePanel = SidebarPanel.packages;
@@ -1565,7 +1560,6 @@ class _AppShellState extends State<AppShell> {
       _selectedPackage = package;
       _showPackageManager = true;
       _showEnvironmentManager = false;
-      _selectedProject = null;
       _selectedEnvironment = null;
     });
     try {
@@ -1665,7 +1659,6 @@ class _AppShellState extends State<AppShell> {
   Future<void> _handleSelectEnvironment(EnvironmentInfo environment) async {
     setState(() {
       _selectedEnvironment = environment;
-      _selectedProject = null;
       _selectedPackage = null;
       _showEnvironmentManager = false;
       _showPackageManager = false;
@@ -1806,7 +1799,6 @@ class _AppShellState extends State<AppShell> {
       setState(() {
         if (selectResult) {
           _selectedEnvironment = environment;
-          _selectedProject = null;
           _clearExecutionPageUnlessTests();
         }
         _busy = false;
@@ -3230,7 +3222,6 @@ class _AppShellState extends State<AppShell> {
       _showPackageManager = false;
       _showReportsPage = false;
       _showExecutionPage = false;
-      _selectedProject = null;
       _selectedEnvironment = null;
       _selectedPackage = null;
       _execution.selectedReport = null;
@@ -3791,7 +3782,6 @@ class _AppShellState extends State<AppShell> {
                                   _showPluginManager = false;
                                   _showSourceControl = false;
                                   _showReportsPage = false;
-                                  _selectedProject = null;
                                   _selectedEnvironment = null;
                                   _selectedPackage = null;
                                   _execution.selectedReport = null;

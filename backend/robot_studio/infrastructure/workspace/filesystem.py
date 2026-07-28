@@ -63,6 +63,16 @@ def is_workspace(path: Path) -> bool:
     return manifest_path(path).is_file()
 
 
+def is_classic_workspace(path: Path) -> bool:
+    """True for multi-project workspace roots (have a ``Projects/`` directory).
+
+    In-project opens only create ``.robotstudio/`` inside the project folder and
+    should appear under Recent Projects, not Recent Workspaces.
+    """
+    root = path.expanduser().resolve()
+    return is_workspace(root) and (root / "Projects").is_dir()
+
+
 def find_workspace_root(path: Path) -> Path | None:
     """Walk *path* and its parents for a Robot Studio workspace root."""
     current = path.expanduser().resolve()

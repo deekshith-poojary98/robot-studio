@@ -105,6 +105,8 @@ class SearchPage extends StatelessWidget {
                 const SizedBox(width: 10),
                 DropdownButton<SymbolKind?>(
                   value: kind,
+                  isDense: true,
+                  style: const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
                   hint: const Text('All kinds'),
                   items: [
                     const DropdownMenuItem<SymbolKind?>(

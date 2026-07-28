@@ -5,6 +5,7 @@ import '../../core/gateway/models/index_info.dart';
 import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/app_menu.dart';
 import 'editor_navigation_widgets.dart';
 import 'editor_tabs_bar.dart';
 import 'robot_code_editor.dart';
@@ -343,7 +344,7 @@ class _EditorOverflowMenu extends StatelessWidget {
           'Format Selection',
           hasActiveFile,
         ),
-        const PopupMenuDivider(),
+        const AppPopupMenuDivider(),
         _item(
           'definition',
           Icons.subdirectory_arrow_right,
@@ -358,7 +359,7 @@ class _EditorOverflowMenu extends StatelessWidget {
         ),
         _item('references', Icons.link, 'Find References', hasActiveFile),
         _item('hover', Icons.info_outline, 'Show Hover Info', hasActiveFile),
-        const PopupMenuDivider(),
+        const AppPopupMenuDivider(),
         _item(
           'open-symbol',
           Icons.list_alt,
@@ -371,7 +372,7 @@ class _EditorOverflowMenu extends StatelessWidget {
           'Find Symbol in Project',
           true,
         ),
-        const PopupMenuDivider(),
+        const AppPopupMenuDivider(),
         _item('reveal', Icons.folder_open, 'Reveal in Folder', hasActiveFile),
       ],
     );
@@ -383,16 +384,12 @@ class _EditorOverflowMenu extends StatelessWidget {
     String label,
     bool enabled,
   ) {
-    return PopupMenuItem<String>(
+    return AppPopupMenuItem.icon(
       key: Key('editor.menu.$value'),
       value: value,
+      icon: icon,
+      label: label,
       enabled: enabled,
-      child: ListTile(
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(icon, size: 16),
-        title: Text(label),
-      ),
     );
   }
 }

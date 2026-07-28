@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/git_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/app_menu.dart';
 
 class BranchSelector extends StatelessWidget {
   const BranchSelector({
@@ -48,12 +49,12 @@ class BranchSelector extends StatelessWidget {
       itemBuilder: (context) {
         if (localBranches.isEmpty) {
           return [
-            const PopupMenuItem<String>(
+            const AppPopupMenuItem<String>(
               enabled: false,
               child: Text('No branches'),
             ),
-            const PopupMenuDivider(),
-            const PopupMenuItem<String>(
+            const AppPopupMenuDivider(),
+            const AppPopupMenuItem<String>(
               value: '__create__',
               child: Text('Create branch…'),
             ),
@@ -61,7 +62,7 @@ class BranchSelector extends StatelessWidget {
         }
         return [
           ...localBranches.map(
-            (branch) => PopupMenuItem<String>(
+            (branch) => AppPopupMenuItem<String>(
               value: branch.name,
               child: Row(
                 children: [
@@ -69,6 +70,8 @@ class BranchSelector extends StatelessWidget {
                     child: Text(
                       branch.name,
                       style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.2,
                         fontWeight:
                             branch.current ? FontWeight.w600 : FontWeight.normal,
                       ),
@@ -94,8 +97,8 @@ class BranchSelector extends StatelessWidget {
               ),
             ),
           ),
-          const PopupMenuDivider(),
-          const PopupMenuItem<String>(
+          const AppPopupMenuDivider(),
+          const AppPopupMenuItem<String>(
             value: '__create__',
             child: Text('Create branch…'),
           ),

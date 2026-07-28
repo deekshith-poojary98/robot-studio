@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/test_explorer_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/app_menu.dart';
 import '../widgets/skeleton_list.dart';
 
 typedef TestNodeCallback = void Function(TestNodeInfo node);
@@ -448,11 +449,11 @@ class _TestTreeNodeTile extends StatelessWidget {
       ),
       items: [
         if (node.isRunnable)
-          const PopupMenuItem(value: 'run', child: Text('Run')),
+          const AppPopupMenuItem(value: 'run', child: Text('Run')),
         if (node.path != null)
-          const PopupMenuItem(value: 'open', child: Text('Open File')),
+          const AppPopupMenuItem(value: 'open', child: Text('Open File')),
         if (node.path != null)
-          const PopupMenuItem(
+          const AppPopupMenuItem(
             value: 'reveal',
             child: Text('Reveal in Explorer'),
           ),

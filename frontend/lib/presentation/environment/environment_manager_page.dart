@@ -88,6 +88,8 @@ class EnvironmentManagerPage extends StatelessWidget {
                 const SizedBox(width: 10),
                 DropdownButton<EnvironmentSort>(
                   value: sort,
+                  isDense: true,
+                  style: const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
                   underline: const SizedBox.shrink(),
                   items: EnvironmentSort.values
                       .map(

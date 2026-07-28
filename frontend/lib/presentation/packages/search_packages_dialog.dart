@@ -251,6 +251,7 @@ class _SearchPackagesDialogState extends State<SearchPackagesDialog> {
                             ? _selectedVersion
                             : (_versions.isNotEmpty ? _versions.first : null),
                         isExpanded: true,
+                        isDense: true,
                         menuMaxHeight: 180,
                         borderRadius: BorderRadius.circular(AppRadii.sm),
                         decoration: const InputDecoration(

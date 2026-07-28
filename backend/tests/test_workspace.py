@@ -212,6 +212,27 @@ async def test_service_list_recent_filters_invalid_workspaces(
 
 
 @pytest.mark.asyncio
+async def test_project_folder_opens_are_not_recent_workspaces(
+    service: WorkspaceService,
+    tmp_path: Path,
+) -> None:
+    from robot_studio.infrastructure.workspace.filesystem import (
+        initialize_project_as_workspace,
+    )
+
+    classic = await service.create_workspace("ClassicWS", tmp_path)
+    project_root = tmp_path / "MySuite"
+    project_root.mkdir()
+    initialize_project_as_workspace(project_root, "MySuite")
+    await service.open_workspace(project_root)
+
+    recent = await service.list_recent()
+    assert [item.name for item in recent] == ["ClassicWS"]
+    assert classic.path in {item.path for item in recent}
+    assert project_root.resolve() not in {item.path.resolve() for item in recent}
+
+
+@pytest.mark.asyncio
 async def test_repository_get_by_path(
     repository: SqliteWorkspaceRepository,
     tmp_path: Path,

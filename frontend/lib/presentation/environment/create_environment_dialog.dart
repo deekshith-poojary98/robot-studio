@@ -180,6 +180,8 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
                 // ignore: deprecated_member_use
                 value: _selectedDropdownValue ?? _customValue,
                 isExpanded: true,
+                isDense: true,
+                style: const TextStyle(fontSize: 12.5),
                 decoration: const InputDecoration(
                   labelText: 'Available interpreters',
                 ),

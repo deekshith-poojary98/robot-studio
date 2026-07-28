@@ -11,6 +11,7 @@ import '../workspace/explorer_file_actions.dart';
 import 'empty_state.dart';
 import 'explorer_file_icon.dart';
 import 'explorer_tree.dart';
+import 'app_menu.dart';
 
 enum _InlineEditKind { rename, newFile, newFolder }
 
@@ -217,26 +218,26 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
       position: position,
       items: [
         if (!isDir)
-          const PopupMenuItem(value: 'open', child: Text('Open')),
+          const AppPopupMenuItem(value: 'open', child: Text('Open')),
         if (isDir) ...[
-          const PopupMenuItem(value: 'new_file', child: Text('New File')),
-          const PopupMenuItem(value: 'new_folder', child: Text('New Folder')),
-          const PopupMenuDivider(),
+          const AppPopupMenuItem(value: 'new_file', child: Text('New File')),
+          const AppPopupMenuItem(value: 'new_folder', child: Text('New Folder')),
+          const AppPopupMenuDivider(),
         ],
-        const PopupMenuItem(value: 'rename', child: Text('Rename')),
+        const AppPopupMenuItem(value: 'rename', child: Text('Rename')),
         if (!isDir)
-          const PopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
-        const PopupMenuItem(value: 'delete', child: Text('Delete')),
-        const PopupMenuDivider(),
-        const PopupMenuItem(
+          const AppPopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
+        const AppPopupMenuItem(value: 'delete', child: Text('Delete')),
+        const AppPopupMenuDivider(),
+        const AppPopupMenuItem(
           value: 'copy_rel',
           child: Text('Copy Relative Path'),
         ),
-        const PopupMenuItem(
+        const AppPopupMenuItem(
           value: 'copy_abs',
           child: Text('Copy Absolute Path'),
         ),
-        PopupMenuItem(value: 'reveal', child: Text(revealLabel)),
+        AppPopupMenuItem(value: 'reveal', child: Text(revealLabel)),
       ],
     );
 
