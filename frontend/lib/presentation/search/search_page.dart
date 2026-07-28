@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/index_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/skeleton_list.dart';
 import '../widgets/status_badge.dart';
 import 'index_status_card.dart';
 
@@ -60,25 +62,19 @@ class SearchPage extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Search',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontSize: 18,
-                            ),
+                Text(
+                  'Search',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontSize: 18,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Search indexed keywords, variables, libraries, resources, and files.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Search indexed keywords, variables, libraries, resources, and files.',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
             ),
@@ -185,14 +181,14 @@ class _ResultsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isSearching) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonList(rows: 7);
     }
     if (results.isEmpty) {
-      return Center(
-        child: Text(
-          'No symbols found. Rebuild the index or refine your query.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+      return const EmptyState(
+        icon: Icons.search_off_outlined,
+        title: 'No symbols found',
+        message: 'Rebuild the index or refine your query.',
+        compact: true,
       );
     }
     return ListView.separated(

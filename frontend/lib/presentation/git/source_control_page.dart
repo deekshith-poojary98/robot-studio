@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/git_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/skeleton_list.dart';
 import 'commit_panel.dart';
 import 'diff_viewer.dart';
 import 'history_panel.dart';
@@ -82,9 +84,16 @@ class SourceControlPage extends StatelessWidget {
           const Divider(height: 1),
           Expanded(
             child: isLoading
-                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SkeletonList(rows: 8)
                 : !isRepository
-                ? _NotRepositoryView(onInit: onInit, isBusy: isBusy)
+                ? EmptyState(
+                    icon: Icons.source_outlined,
+                    title: 'No Git repository',
+                    message:
+                        'Initialize a repository to track changes in this project.',
+                    actionLabel: isBusy ? null : 'Initialize Git Repository',
+                    onAction: isBusy ? null : onInit,
+                  )
                 : Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -233,39 +242,13 @@ class _NotRepositoryView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.source_outlined,
-            size: 48,
-            color: AppColors.textMuted,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Not a Git repository',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Initialize a repository to track changes in this project.',
-            style: TextStyle(color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: isBusy ? null : onInit,
-            icon: isBusy
-                ? const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.folder_special_outlined, size: 16),
-            label: const Text('Initialize Git Repository'),
-          ),
-        ],
-      ),
+    // Kept for API stability; SourceControlPage now uses EmptyState directly.
+    return EmptyState(
+      icon: Icons.source_outlined,
+      title: 'No Git repository',
+      message: 'Initialize a repository to track changes in this project.',
+      actionLabel: isBusy ? null : 'Initialize Git Repository',
+      onAction: isBusy ? null : onInit,
     );
   }
 }
@@ -288,8 +271,11 @@ class _ChangesView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (changes.isEmpty) {
-      return const Center(
-        child: Text('No changes', style: TextStyle(color: AppColors.textMuted)),
+      return const EmptyState(
+        icon: Icons.check_circle_outline,
+        title: 'No changes',
+        message: 'Your working tree is clean.',
+        compact: true,
       );
     }
 

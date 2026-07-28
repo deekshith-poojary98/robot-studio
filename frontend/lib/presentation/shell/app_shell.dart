@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/gateway/models/workspace_event_info.dart';
 import '../../core/gateway/rest_transport_gateway.dart';
 import '../../core/gateway/transport_gateway.dart';
 import '../../core/logging/app_logger.dart';
@@ -40,10 +41,13 @@ import '../toolbar/app_toolbar.dart';
 import '../widgets/environment_prompt_toast.dart';
 import '../widgets/error_dialog.dart';
 import '../widgets/guidance_dialog.dart';
+import '../widgets/virtual_file_tree.dart';
+import '../workspace/explorer_file_actions.dart';
 import '../workspace/new_workspace_dialog.dart';
 import '../workspace/welcome_screen.dart';
 import 'controllers/editor_shell_controller.dart';
 import 'controllers/execution_shell_controller.dart';
+import 'controllers/workspace_live_controller.dart';
 import 'controllers/workspace_shell_controller.dart';
 import 'status_bar.dart';
 
@@ -84,6 +88,12 @@ class _AppShellState extends State<AppShell> {
   late final WorkspaceShellController _workspace;
   late final ExecutionShellController _execution;
   late final EditorShellController _editor;
+  late final WorkspaceLiveController _live;
+  String? _liveNotification;
+  bool _missingProjectDialogOpen = false;
+  bool _missingWorkspaceDialogOpen = false;
+  final GlobalKey<VirtualFileTreeState> _fileTreeKey =
+      GlobalKey<VirtualFileTreeState>();
 
   void _notify() {
     if (mounted) setState(() {});
@@ -246,6 +256,22 @@ class _AppShellState extends State<AppShell> {
       isMounted: () => mounted,
       workspace: () => _workspace.activeWorkspace,
     );
+    _live = WorkspaceLiveController(
+      notify: _notify,
+      isMounted: () => mounted,
+      appendLog: _appendLog,
+      onFilesystemEvent: _handleLiveFilesystemEvent,
+      onGitChanged: _refreshGit,
+      onIndexUpdated: _handleLiveIndexUpdated,
+      onTestsChanged: () => _loadTestTree(),
+      onEnvironmentChanged: _loadEnvironments,
+      onProjectMissing: _handleLiveProjectMissing,
+      onWorkspaceMissing: _handleLiveWorkspaceMissing,
+      onStatusMessage: (message) {
+        if (!mounted) return;
+        setState(() => _liveNotification = message.isEmpty ? null : message);
+      },
+    );
     AppLogger.info('AppShell init', tag: 'Shell');
     _bootstrap();
   }
@@ -255,6 +281,7 @@ class _AppShellState extends State<AppShell> {
     AppLogger.debug('AppShell dispose', tag: 'Shell');
     _testFilterDebounce?.cancel();
     _gitCommitController.dispose();
+    _live.dispose();
     _workspace.dispose();
     _execution.dispose();
     _editor.dispose();
@@ -272,10 +299,12 @@ class _AppShellState extends State<AppShell> {
     await _workspace.startBackendMonitoring(
       onConnected: () async {
         _connectExecutionStream();
+        unawaited(_live.connect());
         await _loadRecent();
       },
       onDisconnected: () async {
         await _execution.disconnectStream();
+        await _live.disconnect();
       },
     );
     if (_backendStatus != 'connected') {
@@ -1154,11 +1183,11 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Future<void> _openProjectAtPath(String path) async {
+  Future<void> _openProjectAtPath(String path, {bool force = false}) async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      final result = await _gateway.openProjectByPath(path);
+      final result = await _gateway.openProjectByPath(path, force: force);
       if (!mounted) return;
       await _applyOpenedWorkspace(
         result.workspace,
@@ -1170,8 +1199,26 @@ class _AppShellState extends State<AppShell> {
       if (!mounted) return;
       setState(() => _busy = false);
       _appendLog('[error] $error');
+      if (!force && _isNonRobotProjectWarning(error)) {
+        final continueAnyway = await showContinueAnywayDialog(
+          context: context,
+          title: 'Could not open project',
+          error: error,
+        );
+        if (!mounted) return;
+        if (continueAnyway) {
+          await _openProjectAtPath(path, force: true);
+        }
+        return;
+      }
       await _showError('Could not open project', error);
     }
+  }
+
+  bool _isNonRobotProjectWarning(Object error) {
+    return error.toString().toLowerCase().contains(
+      'does not look like a robot framework project',
+    );
   }
 
   Future<void> _applyOpenedWorkspace(
@@ -2207,45 +2254,348 @@ class _AppShellState extends State<AppShell> {
       final fresh = await _gateway.readFile(path);
       if (!mounted) return;
       if (fresh.mtime == tab.mtime) return;
-
-      if (!tab.isDirty) {
-        setState(() {
-          tab.content = fresh.content;
-          tab.savedContent = fresh.content;
-          tab.mtime = fresh.mtime;
-        });
+      await _applyExternalFileChange(tab, fresh);
+    } catch (error) {
+      // Missing file is handled by the deleted-open-file flow.
+      final message = '$error'.toLowerCase();
+      if (message.contains('not found') || message.contains('no such file')) {
+        await _handleDeletedOpenFile(path);
         return;
       }
+      _appendLog('[warn] Could not check external changes: $error');
+    }
+  }
 
-      final reload = await showDialog<bool>(
+  Future<void> _applyExternalFileChange(
+    EditorTabInfo tab,
+    FileContentInfo fresh,
+  ) async {
+    if (!tab.isDirty) {
+      setState(() {
+        tab.content = fresh.content;
+        tab.savedContent = fresh.content;
+        tab.mtime = fresh.mtime;
+        if (_editor.activePath == tab.path) {
+          _editor.jumpToLine = tab.cursorLine;
+          _editor.jumpToColumn = tab.cursorColumn;
+        }
+      });
+      return;
+    }
+
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('File changed on disk'),
+        content: Text('"${tab.fileName}" was modified outside the editor.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop('keep'),
+            child: const Text('Keep My Changes'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop('compare'),
+            child: const Text('Compare'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop('reload'),
+            child: const Text('Reload'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'compare') {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Compare is coming soon')));
+      return;
+    }
+    if (action == 'reload') {
+      setState(() {
+        tab.content = fresh.content;
+        tab.savedContent = fresh.content;
+        tab.mtime = fresh.mtime;
+        if (_editor.activePath == tab.path) {
+          _editor.jumpToLine = tab.cursorLine;
+          _editor.jumpToColumn = tab.cursorColumn;
+        }
+      });
+    }
+  }
+
+  Future<void> _handleDeletedOpenFile(String path) async {
+    final tabIndex = _editorTabs.indexWhere((tab) => tab.path == path);
+    if (tabIndex < 0) return;
+    final tab = _editorTabs[tabIndex];
+
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('File was deleted on disk'),
+        content: Text(
+          '"${tab.fileName}" no longer exists. Close the tab or restore it from the editor buffer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop('close'),
+            child: const Text('Close Tab'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop('restore'),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'close') {
+      // Force-close without discard prompt — file is already gone on disk.
+      final updated = _editorTabs
+          .where((item) => item.path != path)
+          .toList(growable: false);
+      String? nextPath;
+      setState(() {
+        _editor.tabs = updated.toList();
+        if (_editor.activePath == path) {
+          if (updated.isEmpty) {
+            _editor.activePath = null;
+            _showEditorPage = false;
+          } else {
+            nextPath = updated.last.path;
+            _editor.activePath = nextPath;
+          }
+        }
+      });
+      if (nextPath != null) {
+        await _loadOutline(nextPath!);
+      }
+      return;
+    }
+    if (action == 'restore') {
+      try {
+        final written = await _gateway.writeFile(
+          path: path,
+          content: tab.content,
+        );
+        if (!mounted) return;
+        setState(() {
+          tab.savedContent = tab.content;
+          tab.mtime = written.mtime;
+        });
+      } catch (error) {
+        await _showError('Could not restore file', error);
+      }
+    }
+  }
+
+  Future<void> _handleLiveFilesystemEvent(WorkspaceStreamEvent event) async {
+    final absolute = event.absolutePath ?? event.path;
+    if (absolute == null || absolute.isEmpty) return;
+
+    switch (event.type) {
+      case 'FILE_DELETED':
+      case 'DIRECTORY_DELETED':
+        _editor.removePathFromTree(absolute);
+        if (event.type == 'FILE_DELETED') {
+          final open = _editorTabs.any(
+            (tab) => WorkspaceLiveController.pathsEqual(tab.path, absolute),
+          );
+          if (open) {
+            await _handleDeletedOpenFile(absolute);
+          }
+        }
+        if (event.oldAbsolutePath != null) {
+          await _editor.refreshParentOf(event.oldAbsolutePath!);
+        }
+        await _editor.refreshParentOf(absolute);
+        return;
+      case 'FILE_RENAMED':
+      case 'DIRECTORY_RENAMED':
+        final oldPath = event.oldAbsolutePath ?? event.oldPath;
+        if (oldPath != null) {
+          _editor.removePathFromTree(oldPath);
+          final tabIndex = _editorTabs.indexWhere(
+            (tab) => WorkspaceLiveController.pathsEqual(tab.path, oldPath),
+          );
+          if (tabIndex >= 0) {
+            setState(() {
+              final tab = _editorTabs[tabIndex];
+              final updated = EditorTabInfo(
+                path: absolute,
+                content: tab.content,
+                savedContent: tab.savedContent,
+                mtime: tab.mtime,
+                cursorLine: tab.cursorLine,
+                cursorColumn: tab.cursorColumn,
+              );
+              _editor.tabs = [
+                for (var i = 0; i < _editorTabs.length; i++)
+                  if (i == tabIndex) updated else _editorTabs[i],
+              ];
+              if (_editor.activePath == oldPath) {
+                _editor.activePath = absolute;
+              }
+            });
+          }
+          await _editor.refreshParentOf(oldPath);
+        }
+        await _editor.refreshParentOf(absolute);
+        return;
+      case 'FILE_MODIFIED':
+        await _editor.refreshParentOf(absolute);
+        final tabIndex = _editorTabs.indexWhere(
+          (tab) => WorkspaceLiveController.pathsEqual(tab.path, absolute),
+        );
+        if (tabIndex >= 0) {
+          await _checkExternalChanges(_editorTabs[tabIndex].path);
+        }
+        return;
+      case 'FILE_CREATED':
+      case 'DIRECTORY_CREATED':
+        await _editor.refreshParentOf(absolute);
+        return;
+      default:
+        return;
+    }
+  }
+
+  Future<void> _handleLiveIndexUpdated(WorkspaceStreamEvent event) async {
+    await _loadIndexStatus();
+    if (_showSearchPage && _searchQuery.trim().isNotEmpty) {
+      await _runSearch();
+    }
+    final active = _activeEditorPath;
+    if (active != null &&
+        (active.endsWith('.robot') || active.endsWith('.resource'))) {
+      await _loadOutline(active);
+      _scheduleLanguageRefresh();
+    }
+  }
+
+  Future<void> _handleLiveProjectMissing(WorkspaceStreamEvent event) async {
+    if (_missingProjectDialogOpen || _selectedProject == null) return;
+    _missingProjectDialogOpen = true;
+    try {
+      final action = await showDialog<String>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('File Changed Externally'),
-          content: Text(
-            '"${_fileNameFromPath(path)}" was modified outside the editor. Reload and lose unsaved changes?',
-          ),
+          title: const Text('Project no longer exists'),
+          content: const Text('The active project was removed from disk.'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Keep Editing'),
+              onPressed: () => Navigator.of(context).pop('dismiss'),
+              child: const Text('Dismiss'),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Reload'),
+              onPressed: () => Navigator.of(context).pop('locate'),
+              child: const Text('Locate'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop('close'),
+              child: const Text('Close Project'),
             ),
           ],
         ),
       );
-      if (reload == true && mounted) {
-        setState(() {
-          tab.content = fresh.content;
-          tab.savedContent = fresh.content;
-          tab.mtime = fresh.mtime;
-        });
+      if (!mounted) return;
+      if (action == 'close' || action == 'locate') {
+        await _unloadActiveProject();
+        if (action == 'locate') {
+          await _handleOpenProject();
+        }
       }
-    } catch (error) {
-      _appendLog('[warn] Could not check external changes: $error');
+    } finally {
+      _missingProjectDialogOpen = false;
     }
+  }
+
+  Future<void> _handleLiveWorkspaceMissing(WorkspaceStreamEvent event) async {
+    if (_missingWorkspaceDialogOpen || _activeWorkspace == null) return;
+    _missingWorkspaceDialogOpen = true;
+    try {
+      final action = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Workspace no longer exists'),
+          content: const Text('The active workspace was removed from disk.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop('dismiss'),
+              child: const Text('Dismiss'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop('locate'),
+              child: const Text('Locate'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop('close'),
+              child: const Text('Close Workspace'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (action == 'close' || action == 'locate') {
+        await _unloadActiveWorkspace();
+        if (action == 'locate') {
+          await _handleOpenWorkspace();
+        }
+      }
+    } finally {
+      _missingWorkspaceDialogOpen = false;
+    }
+  }
+
+  Future<void> _unloadActiveProject() async {
+    final projectPath = _selectedProject?.path;
+    setState(() {
+      _selectedProject = null;
+      _showEditorPage = false;
+      _testTree = null;
+      if (projectPath != null) {
+        _editor.tabs = _editorTabs
+            .where(
+              (tab) => !tab.path
+                  .replaceAll('\\', '/')
+                  .startsWith(projectPath.replaceAll('\\', '/')),
+            )
+            .toList();
+        _editor.activePath = _editor.tabs.isEmpty
+            ? null
+            : _editor.tabs.first.path;
+      } else {
+        _editor.tabs = [];
+        _editor.activePath = null;
+      }
+    });
+    await _editor.loadFileTree();
+    await _refreshGit();
+    await _loadIndexStatus();
+  }
+
+  Future<void> _unloadActiveWorkspace() async {
+    setState(() {
+      _workspace.activeWorkspace = null;
+      _selectedProject = null;
+      _selectedEnvironment = null;
+      _selectedPackage = null;
+      _showEnvironmentManager = false;
+      _showPackageManager = false;
+      _showReportsPage = false;
+      _showSearchPage = false;
+      _showEditorPage = false;
+      _showSourceControl = false;
+      _showPluginManager = false;
+      _editor.reset();
+      _gitStatus = null;
+      _gitHistory = [];
+      _testTree = null;
+      _indexStatus = null;
+      _searchResults = [];
+      _liveNotification = null;
+    });
+    await _loadRecent();
   }
 
   void _onContentChanged(String path, String content) =>
@@ -2633,10 +2983,225 @@ class _AppShellState extends State<AppShell> {
   Future<void> _revealCurrentFile() async {
     final path = _activeEditorPath;
     if (path == null) return;
+    await _revealPathInOs(path);
+  }
+
+  Future<void> _revealPathInOs(String path) async {
+    try {
+      await ExplorerFileActions.revealInOs(path);
+      if (!mounted) return;
+      setState(() {
+        _editor.statusMessage =
+            '${ExplorerFileActions.revealLabel()}: ${ExplorerFileActions.basename(path)}';
+      });
+    } catch (error) {
+      await _showError(ExplorerFileActions.revealLabel(), error);
+    }
+  }
+
+  Future<void> _copyAbsolutePath(String path) async {
     await Clipboard.setData(ClipboardData(text: path));
+    if (!mounted) return;
     setState(() {
-      _editor.statusMessage = 'Path: $path (copied to clipboard)';
+      _editor.statusMessage = 'Copied absolute path';
     });
+  }
+
+  Future<void> _copyRelativePath(String path) async {
+    final root = (_selectedProject?.path ?? _activeWorkspace?.path ?? '')
+        .replaceAll('\\', '/');
+    final normalized = path.replaceAll('\\', '/');
+    var relative = normalized;
+    if (root.isNotEmpty &&
+        (normalized == root || normalized.startsWith('$root/'))) {
+      relative = normalized == root
+          ? '.'
+          : normalized.substring(root.length + 1);
+    }
+    await Clipboard.setData(ClipboardData(text: relative));
+    if (!mounted) return;
+    setState(() {
+      _editor.statusMessage = 'Copied relative path';
+    });
+  }
+
+  Future<void> _explorerCreateEntry({
+    required String parentPath,
+    required String name,
+    required bool isDirectory,
+  }) async {
+    final path = ExplorerFileActions.joinPath(parentPath, name);
+    try {
+      if (isDirectory) {
+        await _gateway.createDirectory(path: path);
+        await _editor.ensureExpanded(parentPath);
+        await _editor.refreshParentOf(path);
+      } else {
+        final created = await _gateway.createFile(path: path);
+        await _editor.ensureExpanded(parentPath);
+        await _editor.refreshParentOf(created.path);
+        await _openFile(created.path);
+      }
+    } catch (error) {
+      await _showError(isDirectory ? 'New Folder' : 'New File', error);
+    }
+  }
+
+  Future<void> _explorerRenameEntry({
+    required String path,
+    required String newName,
+  }) async {
+    try {
+      final result = await _gateway.renamePath(path: path, newName: newName);
+      // Tabs/tree update via workspace live events; nudge parent refresh.
+      await _editor.refreshParentOf(result.oldPath ?? path);
+      await _editor.refreshParentOf(result.path);
+    } catch (error) {
+      await _showError('Rename', error);
+    }
+  }
+
+  Future<void> _explorerDeleteEntry(String path) async {
+    final name = ExplorerFileActions.basename(path);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const Key('explorer-delete-dialog'),
+        title: Text('Delete $name?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('explorer-delete-confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _gateway.deletePath(path: path);
+      await _closeTabsUnder(path);
+      _editor.removePathFromTree(path);
+      await _editor.refreshParentOf(path);
+    } catch (error) {
+      await _showError('Delete', error);
+    }
+  }
+
+  Future<void> _closeTabsUnder(String path) async {
+    final normalized = path.replaceAll('\\', '/');
+    final victims = _editorTabs
+        .where((tab) {
+          final tabPath = tab.path.replaceAll('\\', '/');
+          return tabPath == normalized || tabPath.startsWith('$normalized/');
+        })
+        .map((tab) => tab.path)
+        .toList();
+    for (final tabPath in victims) {
+      await _closeTabWithoutDirtyPrompt(tabPath);
+    }
+  }
+
+  Future<void> _closeTabWithoutDirtyPrompt(String path) async {
+    final tabIndex = _editorTabs.indexWhere((tab) => tab.path == path);
+    if (tabIndex < 0) return;
+    final updated = [..._editorTabs]..removeAt(tabIndex);
+    String? nextPath;
+    setState(() {
+      _editor.tabs = updated;
+      if (_editor.activePath == path) {
+        if (updated.isEmpty) {
+          _editor.activePath = null;
+          _editor.documentOutline = [];
+          _editor.selectedOutlineSymbol = null;
+          _showEditorPage = false;
+        } else {
+          nextPath = updated.last.path;
+          _editor.activePath = nextPath;
+        }
+      }
+      _editorHover = null;
+      _editorReferences = [];
+    });
+    if (nextPath != null) {
+      await _loadOutline(nextPath!);
+    }
+  }
+
+  Future<void> _explorerDuplicateEntry(String path) async {
+    try {
+      final result = await _gateway.duplicatePath(path: path);
+      await _editor.refreshParentOf(result.path);
+      if (!result.isDir) {
+        await _openFile(result.path);
+      }
+    } catch (error) {
+      await _showError('Duplicate', error);
+    }
+  }
+
+  Future<void> _explorerMoveEntry({
+    required String sourcePath,
+    required String destinationParentPath,
+  }) async {
+    try {
+      final result = await _gateway.movePath(
+        path: sourcePath,
+        destinationDir: destinationParentPath,
+      );
+      _editor.removePathFromTree(sourcePath);
+      final root = (_selectedProject?.path ?? _activeWorkspace?.path ?? '')
+          .replaceAll('\\', '/');
+      final destNorm = destinationParentPath.replaceAll('\\', '/');
+      final destIsRoot = root.isNotEmpty && destNorm == root;
+      if (!destIsRoot) {
+        await _editor.ensureExpanded(destinationParentPath);
+      }
+      await _editor.refreshParentOf(sourcePath);
+      await _editor.refreshParentOf(result.path);
+      // Keep open tabs pointing at the new path.
+      final normalized = sourcePath.replaceAll('\\', '/');
+      final movedTabs = <int>[];
+      for (var i = 0; i < _editorTabs.length; i++) {
+        final tabPath = _editorTabs[i].path.replaceAll('\\', '/');
+        if (tabPath == normalized || tabPath.startsWith('$normalized/')) {
+          movedTabs.add(i);
+        }
+      }
+      if (movedTabs.isNotEmpty) {
+        setState(() {
+          final next = [..._editorTabs];
+          for (final i in movedTabs) {
+            final tab = next[i];
+            final oldPath = tab.path;
+            final tabPath = oldPath.replaceAll('\\', '/');
+            final suffix = tabPath == normalized
+                ? ''
+                : tabPath.substring(normalized.length);
+            final newPath = '${result.path.replaceAll('\\', '/')}$suffix';
+            next[i] = EditorTabInfo(
+              path: newPath,
+              content: tab.content,
+              savedContent: tab.savedContent,
+              mtime: tab.mtime,
+              cursorLine: tab.cursorLine,
+              cursorColumn: tab.cursorColumn,
+            );
+            if (_editor.activePath == oldPath) {
+              _editor.activePath = newPath;
+            }
+          }
+          _editor.tabs = next;
+        });
+      }
+    } catch (error) {
+      await _showError('Move', error);
+    }
   }
 
   void _handleContinueWorking() {
@@ -2658,9 +3223,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     setState(() {
-      _activePanel = kind == SymbolKind.keyword
-          ? SidebarPanel.keywords
-          : SidebarPanel.search;
+      _activePanel = SidebarPanel.search;
       _showSearchPage = true;
       _showEditorPage = false;
       _showEnvironmentManager = false;
@@ -2671,11 +3234,12 @@ class _AppShellState extends State<AppShell> {
       _selectedEnvironment = null;
       _selectedPackage = null;
       _execution.selectedReport = null;
-      if (kind != null) {
-        _searchKind = kind;
-      }
+      _searchKind = kind;
+      _searchResults = [];
+      _selectedSymbol = null;
     });
     _loadIndexStatus();
+    unawaited(_runSearch());
   }
 
   Future<void> _openCommandPalette() async {
@@ -2789,13 +3353,6 @@ class _AppShellState extends State<AppShell> {
           icon: Icons.search,
           kind: PaletteItemKind.command,
           onSelect: () => unawaited(_openSearchPanel()),
-        ),
-        PaletteItem(
-          id: 'search.keywords',
-          title: 'Browse Keywords',
-          icon: Icons.vpn_key_outlined,
-          kind: PaletteItemKind.command,
-          onSelect: () => unawaited(_openSearchPanel(kind: SymbolKind.keyword)),
         ),
         PaletteItem(
           id: 'index.rebuild',
@@ -3117,9 +3674,7 @@ class _AppShellState extends State<AppShell> {
     if (_showExecutionPage || _activePanel == SidebarPanel.tests) {
       return _CenterView.execution;
     }
-    if (_showSearchPage ||
-        _activePanel == SidebarPanel.search ||
-        _activePanel == SidebarPanel.keywords) {
+    if (_showSearchPage || _activePanel == SidebarPanel.search) {
       return _CenterView.search;
     }
     if (_showEditorPage &&
@@ -3228,8 +3783,7 @@ class _AppShellState extends State<AppShell> {
                                 } else {
                                   _showExecutionPage = false;
                                 }
-                                if (panel == SidebarPanel.search ||
-                                    panel == SidebarPanel.keywords) {
+                                if (panel == SidebarPanel.search) {
                                   _showSearchPage = true;
                                   _showEditorPage = false;
                                   _showEnvironmentManager = false;
@@ -3241,9 +3795,6 @@ class _AppShellState extends State<AppShell> {
                                   _selectedEnvironment = null;
                                   _selectedPackage = null;
                                   _execution.selectedReport = null;
-                                  if (panel == SidebarPanel.keywords) {
-                                    _searchKind = SymbolKind.keyword;
-                                  }
                                 } else {
                                   _showSearchPage = false;
                                   if (panel == SidebarPanel.explorer) {
@@ -3277,9 +3828,9 @@ class _AppShellState extends State<AppShell> {
                               } else if (panel == SidebarPanel.tests) {
                                 _loadExecutionHistory();
                                 _loadTestSuites();
-                              } else if (panel == SidebarPanel.search ||
-                                  panel == SidebarPanel.keywords) {
+                              } else if (panel == SidebarPanel.search) {
                                 _loadIndexStatus();
+                                unawaited(_runSearch());
                               }
                             },
                           ),
@@ -3292,12 +3843,6 @@ class _AppShellState extends State<AppShell> {
                             onSelectProject: _handleSelectProject,
                             onNewProject: _handleNewProject,
                             onImportProject: _handleImportProject,
-                            environments: _environments,
-                            isLoadingEnvironments: _loadingEnvironments,
-                            selectedEnvironment: _selectedEnvironment,
-                            onSelectEnvironment: _handleSelectEnvironment,
-                            onManageEnvironments: _handleManageEnvironments,
-                            onOpenPackageManager: _handleOpenPackageManager,
                             recentRuns: _reportRuns.take(8).toList(),
                             onSelectReport: _selectReport,
                             testSuites: _testSuites,
@@ -3332,6 +3877,33 @@ class _AppShellState extends State<AppShell> {
                             onToggleDirectory: (path) =>
                                 unawaited(_editor.toggleDirectory(path)),
                             gitFileStatuses: _gitFileStatuses,
+                            fileTreeKey: _fileTreeKey,
+                            onEnsureExpanded: (path) =>
+                                _editor.ensureExpanded(path),
+                            onCreateEntry: _explorerCreateEntry,
+                            onRenameEntry: _explorerRenameEntry,
+                            onDeleteEntry: _explorerDeleteEntry,
+                            onDuplicateEntry: _explorerDuplicateEntry,
+                            onMoveEntry: _explorerMoveEntry,
+                            onCopyRelativePath: (path) =>
+                                unawaited(_copyRelativePath(path)),
+                            onCopyAbsolutePath: (path) =>
+                                unawaited(_copyAbsolutePath(path)),
+                            onRevealInOs: (path) =>
+                                unawaited(_revealPathInOs(path)),
+                            onCollapseAllFolders: () {
+                              _editor.collapseAllFolders();
+                            },
+                            outline: _documentOutline,
+                            isLoadingOutline: _loadingOutline,
+                            selectedOutlineId: _selectedOutlineSymbol?.id,
+                            onOutlineSelect: (symbol) {
+                              setState(() {
+                                _editor.selectedOutlineSymbol = symbol;
+                                _editor.jumpToLine = symbol.line;
+                                _showEditorPage = true;
+                              });
+                            },
                           ),
                           Expanded(child: _buildCenter()),
                         ],
@@ -3376,6 +3948,7 @@ class _AppShellState extends State<AppShell> {
                           : _revealProblemsPanel,
                       robotVersion: _activeEnvironment?.robotVersion,
                       pythonVersion: _activeEnvironment?.pythonVersion,
+                      notification: _liveNotification,
                     ),
                   ],
                 ),
@@ -3605,8 +4178,6 @@ class _AppShellState extends State<AppShell> {
       _CenterView.editor => EditorPage(
         tabs: _editorTabs,
         activePath: _activeEditorPath,
-        outline: _documentOutline,
-        isLoadingOutline: _loadingOutline,
         wordWrap: _wordWrap,
         hover: _editorHover,
         references: _editorReferences,
@@ -3635,12 +4206,6 @@ class _AppShellState extends State<AppShell> {
         onWorkspaceSymbol: _editorWorkspaceSymbol,
         onCtrlClick: _editorCtrlClickDefinition,
         onClosePeek: () => setState(() => _editor.peekDefinition = null),
-        onOutlineSelect: (symbol) {
-          setState(() {
-            _editor.selectedOutlineSymbol = symbol;
-            _editor.jumpToLine = symbol.line;
-          });
-        },
         onFind: () {},
         onReplace: () {},
         onReveal: _revealCurrentFile,
@@ -3649,7 +4214,6 @@ class _AppShellState extends State<AppShell> {
       _CenterView.placeholder => _WorkspaceOpenPlaceholder(
         workspace: _activeWorkspace!,
         projects: _projects,
-        onSelectProject: _handleSelectProject,
         onNewProject: _handleNewProject,
         onImportProject: _handleImportProject,
         onManageEnvironments: _handleManageEnvironments,
@@ -3662,7 +4226,6 @@ class _WorkspaceOpenPlaceholder extends StatelessWidget {
   const _WorkspaceOpenPlaceholder({
     required this.workspace,
     required this.projects,
-    required this.onSelectProject,
     required this.onNewProject,
     required this.onImportProject,
     required this.onManageEnvironments,
@@ -3670,7 +4233,6 @@ class _WorkspaceOpenPlaceholder extends StatelessWidget {
 
   final WorkspaceInfo workspace;
   final List<ProjectInfo> projects;
-  final ValueChanged<ProjectInfo> onSelectProject;
   final VoidCallback onNewProject;
   final VoidCallback onImportProject;
   final VoidCallback onManageEnvironments;
@@ -3701,26 +4263,11 @@ class _WorkspaceOpenPlaceholder extends StatelessWidget {
               Text(
                 projects.isEmpty
                     ? 'Create a project to get started.'
-                    : 'Pick a project to continue.',
+                    : 'Open a project from the Explorer, or create a new one.',
                 style: Theme.of(context).textTheme.bodySmall,
                 textAlign: TextAlign.center,
               ),
-              if (projects.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                for (final project in projects.take(6))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () => onSelectProject(project),
-                        icon: const Icon(Icons.play_arrow_outlined, size: 16),
-                        label: Text('Continue with ${project.name}'),
-                      ),
-                    ),
-                  ),
-              ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Wrap(
                 spacing: 12,
                 runSpacing: 8,

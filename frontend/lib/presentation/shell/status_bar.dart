@@ -13,6 +13,7 @@ class StatusBar extends StatelessWidget {
     this.warningCount = 0,
     this.robotVersion,
     this.pythonVersion,
+    this.notification,
     this.onProblemsTap,
   });
 
@@ -24,36 +25,54 @@ class StatusBar extends StatelessWidget {
   final int warningCount;
   final String? robotVersion;
   final String? pythonVersion;
+  final String? notification;
   final VoidCallback? onProblemsTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 24,
-      decoration: const BoxDecoration(
-        color: AppColors.statusBar,
-        border: Border(top: BorderSide(color: AppColors.borderSubtle)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Row(
-        children: [
-          // Long project / file names shrink instead of overflowing the bar.
-          _flexItem(projectName?.toUpperCase() ?? 'NO PROJECT', flex: 2),
-          if (fileName != null) _flexItem(fileName!.toUpperCase(), flex: 3),
-          if (cursorLabel != null) _item(cursorLabel!),
-          if (dirty) _item('MODIFIED'),
-          if (errorCount > 0)
-            _clickableItem('ERRORS $errorCount', onProblemsTap),
-          if (warningCount > 0)
-            _clickableItem('WARNINGS $warningCount', onProblemsTap),
-          _item('UTF-8'),
-          _item('LF'),
-          const Spacer(),
-          if (robotVersion != null && robotVersion!.isNotEmpty)
-            _item('ROBOT $robotVersion'),
-          if (pythonVersion != null && pythonVersion!.isNotEmpty)
-            _item('PYTHON $pythonVersion'),
-        ],
+    return Semantics(
+      container: true,
+      label: 'Status bar',
+      child: Container(
+        height: 24,
+        decoration: const BoxDecoration(
+          color: AppColors.statusBar,
+          border: Border(top: BorderSide(color: AppColors.borderSubtle)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm + 2),
+        child: Row(
+          children: [
+            _flexItem(
+              projectName?.toUpperCase() ?? 'NO PROJECT',
+              flex: 2,
+              tooltip: projectName == null ? 'No project open' : projectName!,
+            ),
+            if (fileName != null)
+              _flexItem(fileName!.toUpperCase(), flex: 3, tooltip: fileName),
+            if (cursorLabel != null)
+              _item(cursorLabel!, tooltip: 'Cursor position'),
+            if (dirty) _item('MODIFIED', tooltip: 'Unsaved changes'),
+            if (errorCount > 0)
+              _clickableItem(
+                'ERRORS $errorCount',
+                onProblemsTap,
+                tooltip: 'Open Problems panel',
+              ),
+            if (warningCount > 0)
+              _clickableItem(
+                'WARNINGS $warningCount',
+                onProblemsTap,
+                tooltip: 'Open Problems panel',
+              ),
+            if (notification != null && notification!.isNotEmpty)
+              _flexItem(notification!, flex: 3, tooltip: notification),
+            const Spacer(),
+            if (robotVersion != null && robotVersion!.isNotEmpty)
+              _item('ROBOT $robotVersion', tooltip: 'Robot Framework version'),
+            if (pythonVersion != null && pythonVersion!.isNotEmpty)
+              _item('PYTHON $pythonVersion', tooltip: 'Python version'),
+          ],
+        ),
       ),
     );
   }
@@ -65,31 +84,47 @@ class StatusBar extends StatelessWidget {
     letterSpacing: 0.3,
   );
 
-  Widget _item(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 12),
+  Widget _item(String label, {String? tooltip}) {
+    final child = Padding(
+      padding: const EdgeInsets.only(right: AppSpacing.md),
       child: Text(label, style: _labelStyle),
     );
+    if (tooltip == null) return child;
+    return Tooltip(message: tooltip, child: child);
   }
 
-  Widget _flexItem(String label, {required int flex}) {
+  Widget _flexItem(String label, {required int flex, String? tooltip}) {
     return Flexible(
       flex: flex,
       child: Padding(
-        padding: const EdgeInsets.only(right: 12),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: _labelStyle,
-        ),
+        padding: const EdgeInsets.only(right: AppSpacing.md),
+        child: tooltip == null
+            ? Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _labelStyle,
+              )
+            : Tooltip(
+                message: tooltip,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _labelStyle,
+                ),
+              ),
       ),
     );
   }
 
-  Widget _clickableItem(String label, VoidCallback? onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 12),
+  Widget _clickableItem(
+    String label,
+    VoidCallback? onTap, {
+    String? tooltip,
+  }) {
+    final child = Padding(
+      padding: const EdgeInsets.only(right: AppSpacing.md),
       child: InkWell(
         onTap: onTap,
         child: Text(
@@ -105,5 +140,7 @@ class StatusBar extends StatelessWidget {
         ),
       ),
     );
+    if (tooltip == null) return child;
+    return Tooltip(message: tooltip, child: child);
   }
 }

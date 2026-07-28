@@ -74,7 +74,7 @@ frontend/
 
 ### Sidebar panels
 
-Explorer · Search · Tests · Keywords · Packages · Plugins · Source Control · Reports  
+Explorer · Search · Tests · Packages · Plugins · Source Control · Reports
 
 AI and Settings are **not** in the rail until those features ship — nothing in the chrome
 opens a “coming soon” surface. Only Explorer, Tests, and Reports own the 280px side rail;
@@ -90,22 +90,25 @@ column that says “open in the main view”.
 - Toolbar: left = project chip / environment / branch (git Fetch·Pull·Push live in a ⋯ menu, repos only); center = command search (⌘K on macOS, Ctrl+K elsewhere); right = **Run** (labelled, primary) plus icon-only **Run Project** and **Stop**. No product wordmark (the rail logo carries it), no profile or notification icons.
 - Editor strip: Save · Save All · Format · Find on the left, word-wrap toggle and a ⋯ menu on the right. Replace, Format Selection, Go to Definition, Peek Definition, Find References, Hover Info, Go to Symbol in File, Find Symbol in Project, and Reveal in Folder live in that menu instead of a permanent ribbon.
 - Bottom panel tabs are Console · Execution Logs · Problems only; the Output and Terminal stubs were removed.
-- Welcome: **New Project** + **Open Project** + **Recent Projects** first; **Open/New Workspace** + **Recent Workspaces** under Advanced. New Project asks only for a name (empty `tests/` / `resources/` / `variables/` folders — no Browser/API/Selenium template picker). Opening a project initializes `.robotstudio/` in-place (no wrapper dirs) and does not block on environment creation. Missing-env prompts appear as a bottom-right dismissible toast (not a top banner).
+- Welcome: **New Project** + **Open Project** + **Recent Projects** first; **Open/New Workspace** + **Recent Workspaces** under Advanced. New Project asks only for a name (empty `tests/` / `resources/` / `variables/` folders — no Browser/API/Selenium template picker). Opening a project initializes `.robotstudio/` in-place (no wrapper dirs) and does not block on environment creation. Folders that don’t look like Robot projects show a warning with **Continue anyways** (opens via `force=true`) instead of a hard block. Missing-env prompts appear as a bottom-right dismissible toast (not a top banner).
 - Opening a workspace/project auto-selects a recent/first project when possible; **Recent Projects** and command palette **Open Project** use `POST /projects/open-path`. **New Project** from welcome uses `POST /projects/standalone`. Indexing and git refresh run in the background after open (status shows “Indexing…”). Explorer uses a VS Code-style **lazy file tree**: root loads depth 0 (immediate children), folders expand via follow-up `GET /files/tree?path=…&depth=0`, and the UI renders a virtualized flat list (`ListView.builder`) so only visible rows are built.
-- Explorer: single-project roots show the **project name** as the tree root (no Workspace → Projects nesting). Classic multi-project workspaces keep the Projects section.
+- Explorer file ops (context menu + project-header New File/Folder + shortcuts when the tree is focused): **New File** / **New Folder** (inline name entry; typing `Login` offers **Create Login.robot**), **Rename** (F2, inline), **Delete** (confirmation), **Duplicate**, **Copy Relative/Absolute Path**, **Reveal in Finder/Explorer/File Manager**, and drag-and-drop move. Mutations go through `FileService` → EventBus → `/workspace/events` (no full tree rebuild).
+- Explorer is file-focused (project header + file tree). File/folder rows use VS Code **Material Icon Theme** glyphs via `vscode_material_icon_theme` (`fileToIcon` / `directoryToIcon`; `.resource` → Robot glyph). A collapsible **OUTLINE** pane sits under the tree (VS Code-style) for the active editor’s document symbols. Environments, Packages, and Reports live on their dedicated activity-rail views / toolbar — not duplicated under Explorer.
 - **Run** is the only primary-styled run control; **Run Project** and **Stop** are quiet icon buttons (Stop stays muted when idle).
 - Run status badge shows `Last: Failed` (etc.) and opens **Execution Logs**; Idle badge is hidden.
-- Status bar shows the active **project** name (`NO PROJECT` when none), then `ROBOT` / `PYTHON` from the active environment (full `major.minor.micro`). Version slots are hidden rather than showing `—`; long project/file names ellipsize instead of overflowing. Backend connection state is not displayed.
-- Environment prompt toast leads with **Python environment required** and a one-line next step, with Create Environment / Select Existing wrapping on narrow windows.
-- Empty states everywhere use `EmptyState`: why you are here plus one obvious action (e.g. Reports → “No reports yet · Run your first Robot Framework suite” → **Run Suite**).
-- Errors use `showFriendlyErrorDialog`: a plain sentence, a suggested fix, and **Show details** for the raw exception (with Copy details). Dialog widths come from `AppDialogWidth.form` (420) / `AppDialogWidth.wide` (480).
+- Status bar shows the active **project** name (`NO PROJECT` when none), then `ROBOT` / `PYTHON` from the active environment (full `major.minor.micro`). Version slots are hidden rather than showing `—`; long project/file names ellipsize instead of overflowing. Backend connection state is not displayed. Ephemeral live-workspace hints appear mid-bar (`Indexing workspace…`, `Workspace synchronized`, external change counts). Decorative UTF-8/LF chips were removed; ERRORS/WARNINGS/project chips have tooltips.
+- Editor: syntax highlighting via `re_highlight` for common file types (Python, JSON, YAML, JS/TS, Markdown, …) using builtin grammars; `.robot` / `.resource` keep the custom Robot Framework grammar.
+- Explorer stays synchronized via `/api/v1/workspace/events` (incremental parent refresh — expanded folders and selection are preserved). Open editors detect external modify/delete without polling. File rows highlight the active editor path; long names truncate to one line; expand chevrons animate (~160ms).
+- Empty states use shared `EmptyState` across explorer/files, Source Control, Search, Problems, Tests, Environments, and Plugins. List loads use `SkeletonList` instead of a bare spinner where practical.
+- Errors use `showFriendlyErrorDialog`: a plain sentence, a suggested fix, and **Show details** for the raw exception (with Copy details). Timeouts say “taking longer than expected” rather than dumping `TimeoutException`. Dialog widths come from `AppDialogWidth.form` (420) / `AppDialogWidth.wide` (480).
+- Editor tabs: hover highlight, full-path tooltip, Semantics on close.
 - Git action rows (source control header, commit bar) wrap instead of scrolling horizontally, so nothing hides off-screen on small windows.
 - Activity rail: selected/hover highlight uses square corners (no rounded pill).
 - Activity rail tooltips describe each panel (e.g. Reports — run history and HTML reports).
 - Plugin rows show **Enable** or **Disable** (not both); built-ins don’t offer a disabled Enable control.
 - Reports: rail panel lists recent runs (tap to open details); main Reports page shows dashboard + details only (no duplicate run list). Artifact filenames are hyperlinks; Reveal Folder remains.
 - Problems: live diagnostics while editing; click a problem (or status-bar ERRORS/WARNINGS) to jump to file:line:column; panel auto-opens when issues appear.
-- Command palette: toolbar search / ⌘K / Ctrl+K opens commands + file/symbol search; sidebar Search still opens the full Search page.
+- Command palette: toolbar search / ⌘K / Ctrl+K opens commands + file/symbol search; sidebar **Search** opens the full symbol search page (filter by kind, including keywords).
 - **Test Explorer** (Tests rail): tree of workspace → projects → suites → tests/tasks with PASS/FAIL/SKIP/NOT RUN/RUNNING dots; toolbar Run All / Run Current File / Run Failed / Refresh / Expand / Collapse; live filter by suite, test, tag, or file.
 - Missing-library run failures (Browser, SeleniumLibrary, …) can prompt Install via snackbar.
 
@@ -126,11 +129,14 @@ Notable suites under `test/`:
 | File | Covers |
 |------|--------|
 | `widget_test.dart` | Welcome, dialogs, managers, toolbar, editor shells |
-| `virtual_file_tree_test.dart` | VS Code-style virtualized explorer rows + dir toggle |
+| `editor_syntax_test.dart` | File-extension → re_highlight / custom Robot theme mapping |
+| `virtual_file_tree_test.dart` | Virtualized explorer, context menus, inline rename, Robot suggestion, shortcuts |
+| `explorer_file_icon_test.dart` | Material Icon Theme file/folder glyphs |
 | `test_explorer_panel_test.dart` | Test Explorer tree, search, toolbar, expand/status |
 | `status_bar_test.dart` | ROBOT / PYTHON labels, project name, hidden version slots |
 | `ux_guidance_test.dart` | Guidance dialog + recent-item tooltips |
 | `ux_polish_ab_test.dart` | Status bar omits connection chrome; Run/Stop styling, Last: run badge, report hyperlink |
+| `workspace_live_events_test.dart` | Workspace event parsing, StatusBar notification slot, Git debounce |
 | `execution_stream_status_test.dart` | Cold-start idle vs stale run status |
 | `reports_side_panel_test.dart` | Reports side panel uses real runs |
 | `git_widget_test.dart` | Source control widgets |
@@ -140,6 +146,7 @@ Notable suites under `test/`:
 | `backend_health_retry_test.dart` | Health probe retries; transient failures ignored; offline after consecutive misses |
 | `plugin_manager_test.dart` | Plugin manager layout / rows |
 | `ux_polish_sprint_test.dart` | Error dialog Show details, env toast copy, collapsed rail, bottom tabs, hidden Settings |
+| `ux_polish_pre_m14_test.dart` | Skeleton loaders, EmptyState semantics, explorer selection, status bar tooltips, timeout copy |
 
 ### Integration (E2E)
 

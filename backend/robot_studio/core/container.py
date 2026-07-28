@@ -17,6 +17,7 @@ from robot_studio.application.services.project_service import ProjectService
 from robot_studio.application.services.report_service import ReportService
 from robot_studio.application.services.test_explorer_service import TestExplorerService
 from robot_studio.application.services.workspace_context import WorkspaceContext
+from robot_studio.application.services.workspace_event_service import WorkspaceEventService
 from robot_studio.application.services.workspace_service import WorkspaceService
 from robot_studio.core.config import settings
 from robot_studio.core.events import EventBus, InMemoryEventBus
@@ -93,6 +94,10 @@ class Container:
     language_facade: LanguageFacade | None = field(default=None, init=False)
     file_service: FileService | None = field(default=None, init=False)
     git_service: GitService | None = field(default=None, init=False)
+    workspace_event_service: WorkspaceEventService | None = field(
+        default=None,
+        init=False,
+    )
     plugin_manager: PluginManager | None = field(default=None, init=False)
     plugin_service: PluginService | None = field(default=None, init=False)
     _initialized: bool = field(default=False, init=False)
@@ -202,6 +207,13 @@ class Container:
         )
         self.index_service.start()
 
+        self.workspace_event_service = WorkspaceEventService(
+            context=self.workspace_context,
+            event_bus=self.event_bus,
+            watcher=watcher,
+        )
+        self.workspace_event_service.start()
+
         self.test_explorer_service = TestExplorerService(
             context=self.workspace_context,
             event_bus=self.event_bus,
@@ -289,6 +301,8 @@ class Container:
         """
         if self.git_service is not None:
             await self.git_service.stop()
+        if self.workspace_event_service is not None:
+            await self.workspace_event_service.stop()
         if self.index_service is not None:
             await self.index_service.stop()
         if self.workspace_context is not None:

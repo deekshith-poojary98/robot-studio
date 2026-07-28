@@ -9,7 +9,7 @@ import '../../core/theme/app_theme.dart';
 import 'editor_find_panel.dart';
 import 'editor_language_widgets.dart';
 import 'editor_navigation_widgets.dart';
-import 'robot_language.dart';
+import 'editor_syntax.dart';
 
 class RobotCodeEditor extends StatefulWidget {
   const RobotCodeEditor({
@@ -187,6 +187,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   Widget build(BuildContext context) {
     final isRobot =
         widget.path.endsWith('.robot') || widget.path.endsWith('.resource');
+    final codeTheme = codeThemeForPath(widget.path);
 
     final editor = CodeEditor(
       controller: _controller,
@@ -201,14 +202,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
         cursorColor: AppColors.accent,
         selectionColor: AppColors.accentSoft,
         highlightColor: const Color(0x334A8F90),
-        codeTheme: isRobot
-            ? CodeHighlightTheme(
-                languages: {
-                  'robot': CodeHighlightThemeMode(mode: langRobot),
-                },
-                theme: robotStudioHighlightTheme,
-              )
-            : null,
+        codeTheme: codeTheme,
       ),
       indicatorBuilder: (context, editingController, chunkController, notifier) {
         return Row(

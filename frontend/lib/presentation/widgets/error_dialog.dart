@@ -27,6 +27,31 @@ Future<void> showFriendlyErrorDialog({
   );
 }
 
+/// Warning dialog that can proceed anyway. Returns `true` if the user chose
+/// [continueLabel], `false` if they closed / dismissed.
+Future<bool> showContinueAnywayDialog({
+  required BuildContext context,
+  required String title,
+  required Object error,
+  String? summary,
+  String? recovery,
+  String continueLabel = 'Continue anyways',
+}) async {
+  final details = error.toString();
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => _FriendlyErrorDialog(
+      title: title,
+      summary: summary ?? friendlyErrorSummary(details),
+      recovery: recovery ?? friendlyErrorRecovery(details),
+      details: details,
+      warning: true,
+      continueLabel: continueLabel,
+    ),
+  );
+  return result ?? false;
+}
+
 /// Turns transport/exception noise into one plain sentence.
 String friendlyErrorSummary(String raw) {
   final text = raw.toLowerCase();
@@ -36,7 +61,7 @@ String friendlyErrorSummary(String raw) {
     return 'Robot Studio could not reach its backend service.';
   }
   if (text.contains('timeout') || text.contains('timed out')) {
-    return 'The operation took too long and was stopped.';
+    return 'That is taking longer than expected.';
   }
   if (text.contains('permission denied') || text.contains('errno 13')) {
     return 'Robot Studio is not allowed to use that file or folder.';
@@ -55,6 +80,9 @@ String friendlyErrorSummary(String raw) {
   if (text.contains('environment')) {
     return 'The Python environment could not complete this request.';
   }
+  if (text.contains('does not look like a robot framework project')) {
+    return 'This folder does not look like a Robot Framework project.';
+  }
   return 'That action did not finish.';
 }
 
@@ -67,7 +95,7 @@ String friendlyErrorRecovery(String raw) {
     return 'Make sure the backend is running, then try again.';
   }
   if (text.contains('timeout') || text.contains('timed out')) {
-    return 'Try again. If it keeps timing out, the project may be very large.';
+    return 'Still working in the background — try again in a moment, or wait for a larger project to finish indexing.';
   }
   if (text.contains('permission denied') || text.contains('errno 13')) {
     return 'Pick a different location, or fix the folder permissions.';
@@ -86,6 +114,9 @@ String friendlyErrorRecovery(String raw) {
   if (text.contains('environment')) {
     return 'Check the active environment in the toolbar, then try again.';
   }
+  if (text.contains('does not look like a robot framework project')) {
+    return 'You can still open it. Robot Studio will treat the folder as a project.';
+  }
   return 'Try again. If it keeps failing, check the details below.';
 }
 
@@ -97,6 +128,8 @@ class _FriendlyErrorDialog extends StatefulWidget {
     required this.details,
     this.actionLabel,
     this.onAction,
+    this.warning = false,
+    this.continueLabel,
   });
 
   final String title;
@@ -105,6 +138,8 @@ class _FriendlyErrorDialog extends StatefulWidget {
   final String details;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final bool warning;
+  final String? continueLabel;
 
   @override
   State<_FriendlyErrorDialog> createState() => _FriendlyErrorDialogState();
@@ -118,7 +153,11 @@ class _FriendlyErrorDialogState extends State<_FriendlyErrorDialog> {
     return AlertDialog(
       title: Row(
         children: [
-          const Icon(Icons.error_outline, size: 20, color: AppColors.error),
+          Icon(
+            widget.warning ? Icons.warning_amber_rounded : Icons.error_outline,
+            size: 20,
+            color: widget.warning ? AppColors.warning : AppColors.error,
+          ),
           const SizedBox(width: 10),
           Expanded(child: Text(widget.title)),
         ],
@@ -181,18 +220,31 @@ class _FriendlyErrorDialogState extends State<_FriendlyErrorDialog> {
         ),
       ),
       actions: [
-        if (widget.actionLabel != null && widget.onAction != null)
+        if (widget.continueLabel != null) ...[
           TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              widget.onAction!();
-            },
-            child: Text(widget.actionLabel!),
+            key: const Key('warning.close'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Close'),
           ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
-        ),
+          FilledButton(
+            key: const Key('warning.continue'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(widget.continueLabel!),
+          ),
+        ] else ...[
+          if (widget.actionLabel != null && widget.onAction != null)
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                widget.onAction!();
+              },
+              child: Text(widget.actionLabel!),
+            ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
       ],
     );
   }

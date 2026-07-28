@@ -142,14 +142,19 @@ class PipInstaller(Installer):
         )
 
     async def _outdated_map(self, python: Path) -> dict[str, str]:
+        # `pip list --outdated` can take tens of seconds on cold/network runs.
+        # Never block package listing on it — update badges are best-effort.
         try:
-            raw = await asyncio.to_thread(
-                self._run_capture,
-                python,
-                ["-m", "pip", "list", "--outdated", "--format=json"],
+            raw = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self._run_capture,
+                    python,
+                    ["-m", "pip", "list", "--outdated", "--format=json"],
+                ),
+                timeout=8.0,
             )
             items = json.loads(raw or "[]")
-        except (PackageInstallError, json.JSONDecodeError):
+        except (PackageInstallError, json.JSONDecodeError, TimeoutError, asyncio.TimeoutError):
             return {}
         result: dict[str, str] = {}
         for item in items:

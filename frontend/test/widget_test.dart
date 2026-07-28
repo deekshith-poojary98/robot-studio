@@ -78,7 +78,9 @@ void main() {
 
     // Recent Projects appear before Recent Workspaces in the welcome layout.
     final projectsOffset = tester.getTopLeft(find.text('Recent Projects')).dy;
-    final workspacesOffset = tester.getTopLeft(find.text('Recent Workspaces')).dy;
+    final workspacesOffset = tester
+        .getTopLeft(find.text('Recent Workspaces'))
+        .dy;
     expect(projectsOffset < workspacesOffset, isTrue);
   });
 
@@ -118,9 +120,7 @@ void main() {
       const MaterialApp(home: Scaffold(body: SizedBox())),
     );
 
-    final future = showNewProjectDialog(
-      tester.element(find.byType(SizedBox)),
-    );
+    final future = showNewProjectDialog(tester.element(find.byType(SizedBox)));
     await tester.pumpAndSettle();
 
     expect(find.text('New Project'), findsOneWidget);
@@ -171,7 +171,7 @@ void main() {
     expect(await future, '/tmp/robot');
   });
 
-  testWidgets('Project explorer lists projects and environments', (
+  testWidgets('Project explorer lists projects without env/package/report sections', (
     WidgetTester tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1280, 800));
@@ -180,7 +180,6 @@ void main() {
     var newTapped = false;
     var importTapped = false;
     ProjectInfo? selected;
-    EnvironmentInfo? selectedEnv;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -209,22 +208,6 @@ void main() {
               onSelectProject: (project) => selected = project,
               onNewProject: () => newTapped = true,
               onImportProject: () => importTapped = true,
-              environments: [
-                EnvironmentInfo(
-                  id: 'e1',
-                  workspaceId: 'w1',
-                  name: 'robot-3.12',
-                  path: '/tmp/WS/Environments/robot-3.12',
-                  pythonVersion: '3.12',
-                  pythonExecutable: '/tmp/WS/Environments/robot-3.12/bin/python',
-                  pipExecutable: '/tmp/WS/Environments/robot-3.12/bin/pip',
-                  createdAt: DateTime.utc(2026, 1, 1),
-                  active: true,
-                  robotVersion: '7.0',
-                  packageCount: 12,
-                ),
-              ],
-              onSelectEnvironment: (environment) => selectedEnv = environment,
             ),
           ),
         ),
@@ -232,10 +215,10 @@ void main() {
     );
 
     expect(find.text('Demo Project'), findsOneWidget);
-    // "Shared" placeholder rows were removed: they never did anything.
     expect(find.text('Shared'), findsNothing);
-    expect(find.text('Package Manager'), findsOneWidget);
-    expect(find.text('robot-3.12 ●'), findsOneWidget);
+    expect(find.text('Environments'), findsNothing);
+    expect(find.text('Packages'), findsNothing);
+    expect(find.text('Reports'), findsNothing);
 
     await tester.tap(find.byTooltip('New Project'));
     await tester.pump();
@@ -248,10 +231,6 @@ void main() {
     await tester.tap(find.text('Demo Project'));
     await tester.pump();
     expect(selected?.name, 'Demo Project');
-
-    await tester.tap(find.text('robot-3.12 ●'));
-    await tester.pump();
-    expect(selectedEnv?.name, 'robot-3.12');
   });
 
   testWidgets('Create Environment dialog validates fields', (
@@ -432,9 +411,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
-      RobotStudioApp(
-        home: AppShell(gateway: _FakeTransportGateway()),
-      ),
+      RobotStudioApp(home: AppShell(gateway: _FakeTransportGateway())),
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
@@ -807,9 +784,7 @@ void main() {
 
     await tester.pumpWidget(
       const MaterialApp(
-        home: Scaffold(
-          body: ExecutionHistoryList(runs: []),
-        ),
+        home: Scaffold(body: ExecutionHistoryList(runs: [])),
       ),
     );
     expect(find.text('No executions yet.'), findsOneWidget);
@@ -1118,10 +1093,7 @@ void main() {
 
     expect(find.text('Search symbols…'), findsOneWidget);
     expect(find.text('Index Status'), findsOneWidget);
-    expect(
-      find.text('No symbols found. Rebuild the index or refine your query.'),
-      findsOneWidget,
-    );
+    expect(find.text('No symbols found'), findsOneWidget);
   });
 
   testWidgets('Search page shows results and detail actions', (
@@ -1315,8 +1287,6 @@ void main() {
           body: EditorPage(
             tabs: const [],
             activePath: null,
-            outline: const [],
-            isLoadingOutline: false,
             wordWrap: true,
             hover: null,
             references: const [],
@@ -1342,7 +1312,6 @@ void main() {
             onWorkspaceSymbol: () {},
             onCtrlClick: () {},
             onClosePeek: () {},
-            onOutlineSelect: (_) {},
             onFind: () {},
             onReplace: () {},
             onReveal: () {},
@@ -1352,10 +1321,7 @@ void main() {
       ),
     );
 
-    expect(
-      find.text('No file open'),
-      findsOneWidget,
-    );
+    expect(find.text('No file open'), findsOneWidget);
   });
 
   testWidgets('EditorPage opens file via tabs list', (
@@ -1386,8 +1352,6 @@ void main() {
           body: EditorPage(
             tabs: tabs,
             activePath: tabs[0].path,
-            outline: const [],
-            isLoadingOutline: false,
             wordWrap: true,
             hover: null,
             references: const [],
@@ -1413,7 +1377,6 @@ void main() {
             onWorkspaceSymbol: () {},
             onCtrlClick: () {},
             onClosePeek: () {},
-            onOutlineSelect: (_) {},
             onFind: () {},
             onReplace: () {},
             onReveal: () {},
@@ -1459,8 +1422,6 @@ void main() {
           body: EditorPage(
             tabs: tabs,
             activePath: tabs[0].path,
-            outline: const [],
-            isLoadingOutline: false,
             wordWrap: true,
             hover: const HoverInfo(
               name: 'Login With Credentials',
@@ -1499,7 +1460,6 @@ void main() {
             onWorkspaceSymbol: () {},
             onCtrlClick: () {},
             onClosePeek: () {},
-            onOutlineSelect: (_) {},
             onFind: () => findTaps++,
             onReplace: () => replaceTaps++,
             onReveal: () {},
@@ -1619,9 +1579,7 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<ProjectInfo> createProject({
-    required String name,
-  }) async {
+  Future<ProjectInfo> createProject({required String name}) async {
     return ProjectInfo(
       id: 'p-new',
       workspaceId: '1',
@@ -1657,7 +1615,10 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<OpenProjectByPathResult> openProjectByPath(String path) async {
+  Future<OpenProjectByPathResult> openProjectByPath(
+    String path, {
+    bool force = false,
+  }) async {
     return OpenProjectByPathResult(
       workspace: WorkspaceInfo(
         id: '1',
@@ -1820,8 +1781,9 @@ class _FakeTransportGateway implements TransportGateway {
     required String environmentId,
     bool deleteFiles = false,
   }) async {
-    _environments =
-        _environments.where((item) => item.id != environmentId).toList();
+    _environments = _environments
+        .where((item) => item.id != environmentId)
+        .toList();
   }
 
   List<PackageInfo> _packages = [
@@ -2010,10 +1972,7 @@ class _FakeTransportGateway implements TransportGateway {
   Future<List<TestNodeInfo>> getTestsForFile(String path) async => const [];
 
   @override
-  Future<ExecutionInfo> runTest({
-    required String file,
-    required String name,
-  }) =>
+  Future<ExecutionInfo> runTest({required String file, required String name}) =>
       runFile(file: file);
 
   @override
@@ -2028,8 +1987,7 @@ class _FakeTransportGateway implements TransportGateway {
   @override
   Future<ExecutionInfo> runSelectedTests(
     List<({String file, String name})> tests,
-  ) =>
-      runProject();
+  ) => runProject();
 
   @override
   Future<ExecutionInfo> stopExecution() async {
@@ -2227,9 +2185,7 @@ class _FakeTransportGateway implements TransportGateway {
     required String content,
     String query = '',
   }) async {
-    return const [
-      CompletionItemInfo(label: 'Log', kind: 'keyword'),
-    ];
+    return const [CompletionItemInfo(label: 'Log', kind: 'keyword')];
   }
 
   @override
@@ -2315,7 +2271,10 @@ class _FakeTransportGateway implements TransportGateway {
         clean: false,
       ),
       changes: [
-        GitFileChangeInfo(path: 'tests/login.robot', status: GitFileStatus.modified),
+        GitFileChangeInfo(
+          path: 'tests/login.robot',
+          status: GitFileStatus.modified,
+        ),
         GitFileChangeInfo(path: 'README.md', status: GitFileStatus.untracked),
       ],
     );
@@ -2360,7 +2319,10 @@ class _FakeTransportGateway implements TransportGateway {
       date: DateTime.utc(2026, 1, 1),
       message: 'Initial commit',
       files: const [
-        GitFileChangeInfo(path: 'tests/login.robot', status: GitFileStatus.added),
+        GitFileChangeInfo(
+          path: 'tests/login.robot',
+          status: GitFileStatus.added,
+        ),
       ],
     );
   }
@@ -2426,10 +2388,7 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<GitDiffInfo> getGitDiff({
-    String? filePath,
-    String? commit,
-  }) async {
+  Future<GitDiffInfo> getGitDiff({String? filePath, String? commit}) async {
     return GitDiffInfo(
       filePath: filePath,
       lines: const [
@@ -2457,10 +2416,46 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<List<FileTreeNode>> listFileTree({
-    String? path,
-    int depth = 3,
+  Future<FileMutationResult> createFile({
+    required String path,
+    String content = '',
   }) async {
+    return FileMutationResult(path: path);
+  }
+
+  @override
+  Future<FileMutationResult> createDirectory({required String path}) async {
+    return FileMutationResult(path: path, isDir: true);
+  }
+
+  @override
+  Future<FileMutationResult> renamePath({
+    required String path,
+    required String newName,
+  }) async {
+    return FileMutationResult(path: path, oldPath: path, name: newName);
+  }
+
+  @override
+  Future<FileMutationResult> movePath({
+    required String path,
+    required String destinationDir,
+  }) async {
+    return FileMutationResult(path: '$destinationDir/${path.split('/').last}');
+  }
+
+  @override
+  Future<FileMutationResult> duplicatePath({required String path}) async {
+    return FileMutationResult(path: '$path copy');
+  }
+
+  @override
+  Future<FileMutationResult> deletePath({required String path}) async {
+    return FileMutationResult(path: path, deleted: true);
+  }
+
+  @override
+  Future<List<FileTreeNode>> listFileTree({String? path, int depth = 3}) async {
     if (!withWorkspace) return const [];
     return const [
       FileTreeNode(

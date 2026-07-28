@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/plugin_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/skeleton_list.dart';
 import '../widgets/status_badge.dart';
 
 class PluginManagerPage extends StatelessWidget {
@@ -68,9 +70,14 @@ class PluginManagerPage extends StatelessWidget {
           const Divider(height: 1),
           Expanded(
             child: isLoading
-                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SkeletonList(rows: 4)
                 : plugins.isEmpty
-                    ? const _EmptyState()
+                    ? const EmptyState(
+                        icon: Icons.extension_outlined,
+                        title: 'No plugins discovered',
+                        message:
+                            'Add plugins to the project Plugins/ folder or ~/.robotstudio/plugins.',
+                      )
                     : ListView.separated(
                         padding: const EdgeInsets.all(16),
                         itemCount: plugins.length,
@@ -224,32 +231,6 @@ class _PluginRow extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.extension_outlined, size: 42, color: AppColors.textMuted),
-          const SizedBox(height: 12),
-          Text(
-            'No plugins discovered yet.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Add plugins to the project Plugins/ folder or ~/.robotstudio/plugins.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
       ),
     );
   }

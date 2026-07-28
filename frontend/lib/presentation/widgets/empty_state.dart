@@ -29,42 +29,52 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.all(compact ? 20 : 28),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: compact ? 260 : 380),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: compact ? 28 : 36, color: AppColors.textMuted),
-              SizedBox(height: compact ? 12 : 14),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: compact
-                    ? theme.textTheme.titleSmall
-                    : theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall,
-              ),
-              if (actionLabel != null && onAction != null) ...[
-                SizedBox(height: compact ? 14 : 18),
-                FilledButton(onPressed: onAction, child: Text(actionLabel!)),
-              ],
-              if (secondaryActionLabel != null &&
-                  onSecondaryAction != null) ...[
-                const SizedBox(height: 6),
-                TextButton(
-                  onPressed: onSecondaryAction,
-                  child: Text(secondaryActionLabel!),
+    return Semantics(
+      label: '$title. $message',
+      child: Center(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(compact ? AppSpacing.lg : AppSpacing.xl),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: compact ? 260 : 380),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: compact ? 28 : 36,
+                  color: AppColors.textMuted,
                 ),
+                SizedBox(height: compact ? AppSpacing.md : AppSpacing.md + 2),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: compact
+                      ? theme.textTheme.titleSmall
+                      : theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.xs + 2),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall,
+                ),
+                if (actionLabel != null && onAction != null) ...[
+                  SizedBox(height: compact ? AppSpacing.md : AppSpacing.lg),
+                  FilledButton(
+                    onPressed: onAction,
+                    child: Text(actionLabel!),
+                  ),
+                ],
+                if (secondaryActionLabel != null &&
+                    onSecondaryAction != null) ...[
+                  const SizedBox(height: AppSpacing.xs + 2),
+                  TextButton(
+                    onPressed: onSecondaryAction,
+                    child: Text(secondaryActionLabel!),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

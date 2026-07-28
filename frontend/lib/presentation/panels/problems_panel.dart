@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/skeleton_list.dart';
 
 class ProblemsPanel extends StatelessWidget {
   const ProblemsPanel({
@@ -18,22 +20,22 @@ class ProblemsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+      return const SkeletonList(rows: 5);
     }
     if (diagnostics.isEmpty) {
-      return Center(
-        child: Text(
-          'No problems found.\nDiagnostics appear here as you edit .robot files.',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+      return const EmptyState(
+        icon: Icons.check_circle_outline,
+        title: 'No problems',
+        message: 'Diagnostics appear here as you edit .robot files.',
+        compact: true,
       );
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       itemCount: diagnostics.length,
-      separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.borderSubtle),
+      separatorBuilder: (_, __) =>
+          const Divider(height: 1, color: AppColors.borderSubtle),
       itemBuilder: (context, index) {
         final item = diagnostics[index];
         return ListTile(
@@ -46,10 +48,14 @@ class ProblemsPanel extends StatelessWidget {
           ),
           title: Text(
             item.message,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 12),
           ),
           subtitle: Text(
             item.locationLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall,
           ),
           onTap: () => onSelect(item),

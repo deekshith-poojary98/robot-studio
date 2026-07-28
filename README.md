@@ -30,18 +30,20 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 | **Workspaces** | Advanced multi-project containers (Open / New / Recent); still the domain container behind the scenes |
 | **Environments** | Create / import / clone / activate; non-blocking prompt on open; detects `.venv` / `venv` / `env` / `Environments/*` |
 | **Packages** | List installed packages, search PyPI, install / update / uninstall |
-| **Editor** | Multi-tab Robot editor, outline, find/replace, live diagnostics |
+| **Editor** | Multi-tab Robot editor, find/replace, live diagnostics; document outline under Explorer |
 | **Language intelligence** | Completions, hover, go-to-definition, references, document symbols |
 | **Problems** | Bottom Problems panel synced while editing; jump to line/column; status-bar ERRORS/WARNINGS shortcut |
 | **Command palette** | ⌘K / Ctrl+K (toolbar search) for commands, recent files, project files, and symbols |
 | **Indexing** | Background on open (incremental); full rebuild on demand; excludes `.venv` / `node_modules` / `.git` |
 | **Test Explorer** | Browse suites/tests/tasks/tags; run test, suite, tag, failed; live filter + status |
 | **Execution** | Run file or project; live WebSocket logs; stop; history |
+| **Explorer file ops** | New file/folder, inline rename, delete, duplicate, copy path, reveal in OS, drag-move via live events |
+| **Live workspace** | FS/index/git/env events over `/workspace/events`; explorer incremental refresh; external edit / deleted-file dialogs; auto Git + Test Explorer refresh |
 | **Reports** | Recent runs, pass/fail stats; open `report.html` / `log.html` / `output.xml` from run details |
 | **Git** | Status, stage, commit, branches, history, diff; remote actions when a repo exists |
 | **Plugins** | Builtin capabilities + plugin manager UI (load / enable / details) |
 | **Status** | Project context, `ROBOT` / `PYTHON` versions (backend connection is not shown) |
-| **UX guidance** | Actionable dialogs for missing project/env; gated CTAs; clickable run status → Execution Logs |
+| **UX guidance** | Actionable dialogs for missing project/env; gated CTAs; clickable run status → Execution Logs; shared EmptyState + skeleton loaders; friendly timeout copy |
 | **Chrome** | Quiet toolbar (project · environment · branch · Run / Run Project / Stop, git remotes behind ⋯); editor strip keeps Save / Save All / Format / Find / Wrap and moves language navigation to its ⋯ menu |
 | **Errors** | Failure dialogs state what happened and how to fix it; raw exception text stays behind **Show details** |
 
@@ -136,7 +138,7 @@ Integration tests may also set `ROBOT_STUDIO_PYTHON` / `INTEGRATION_PYTHON` so e
 
 ## Typical workflow
 
-1. **New Project** or **Open Project** (any Robot Framework folder — Studio initializes `.robotstudio/` inside that folder; no wrapper workspace). **Open Workspace** / **New Workspace** remain under Advanced for multi-project containers.
+1. **New Project** or **Open Project** (any folder — Studio initializes `.robotstudio/` inside it; no wrapper workspace. Non-Robot-looking folders warn first with **Continue anyways**). **Open Workspace** / **New Workspace** remain under Advanced for multi-project containers.
 2. Opening a project is immediate; environment setup, indexing, and git refresh continue in the background. If no Python environment is registered, a non-blocking bottom-right toast titled **Python environment required** offers Create Environment / Select Existing (dismiss with ✕), and suggests an existing `.venv` when found.
 3. Create or activate a **Python environment**; install Robot Framework and libraries via the package manager.
 4. Open `.robot` files in the editor; rebuild the **index** if keyword search looks empty (BuiltIn keywords such as `Log` are always searchable).
@@ -204,6 +206,7 @@ robot-studio/
 | `/environments` | Create, activate, clone, delete |
 | `/packages` | List, search, install, uninstall |
 | `/execution` | Run, stop, history; `/execution/stream` WebSocket |
+| `/workspace/events` | Live FS / index / git / environment WebSocket fan-out |
 | `/reports` | Runs, dashboard, artifacts |
 | `/index`, `/search` | Rebuild, status, symbol search |
 | `/language` | Definition, hover, references, completion, diagnostics |

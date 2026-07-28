@@ -144,7 +144,7 @@ class _SearchPackagesDialogState extends State<SearchPackagesDialog> {
     return AlertDialog(
       title: const Text('Search PyPI'),
       content: SizedBox(
-        width: 560,
+        width: AppDialogWidth.wide,
         height: 480,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

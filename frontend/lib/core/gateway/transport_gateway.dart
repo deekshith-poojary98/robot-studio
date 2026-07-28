@@ -38,9 +38,7 @@ abstract class TransportGateway {
 
   Future<List<WorkspaceInfo>> listRecentWorkspaces();
 
-  Future<ProjectInfo> createProject({
-    required String name,
-  });
+  Future<ProjectInfo> createProject({required String name});
 
   Future<ProjectInfo> importProject(String path);
 
@@ -48,7 +46,10 @@ abstract class TransportGateway {
 
   Future<ProjectInfo> openProject(String projectId);
 
-  Future<OpenProjectByPathResult> openProjectByPath(String path);
+  Future<OpenProjectByPathResult> openProjectByPath(
+    String path, {
+    bool force = false,
+  });
 
   Future<OpenProjectByPathResult> createStandaloneProject({
     required String name,
@@ -96,10 +97,7 @@ abstract class TransportGateway {
 
   Future<PackageInfo> getPackage(String name);
 
-  Future<PackageOperationResult> installPackage(
-    String name, {
-    String? version,
-  });
+  Future<PackageOperationResult> installPackage(String name, {String? version});
 
   Future<PackageOperationResult> updatePackage(String name);
 
@@ -228,10 +226,28 @@ abstract class TransportGateway {
     required String content,
   });
 
-  Future<List<FileTreeNode>> listFileTree({
-    String? path,
-    int depth = 0,
+  Future<FileMutationResult> createFile({
+    required String path,
+    String content = '',
   });
+
+  Future<FileMutationResult> createDirectory({required String path});
+
+  Future<FileMutationResult> renamePath({
+    required String path,
+    required String newName,
+  });
+
+  Future<FileMutationResult> movePath({
+    required String path,
+    required String destinationDir,
+  });
+
+  Future<FileMutationResult> duplicatePath({required String path});
+
+  Future<FileMutationResult> deletePath({required String path});
+
+  Future<List<FileTreeNode>> listFileTree({String? path, int depth = 0});
 
   Future<List<PluginInfo>> listPlugins();
 
@@ -259,10 +275,7 @@ abstract class TransportGateway {
 
   Future<GitRepositoryInfo> checkoutGitBranch(String branch);
 
-  Future<GitBranchInfo> createGitBranch(
-    String name, {
-    String? startPoint,
-  });
+  Future<GitBranchInfo> createGitBranch(String name, {String? startPoint});
 
   Future<void> deleteGitBranch(String name);
 
@@ -277,10 +290,7 @@ abstract class TransportGateway {
 
   Future<GitRemoteResultInfo> pushGit();
 
-  Future<GitDiffInfo> getGitDiff({
-    String? filePath,
-    String? commit,
-  });
+  Future<GitDiffInfo> getGitDiff({String? filePath, String? commit});
 }
 
 class GatewayException implements Exception {

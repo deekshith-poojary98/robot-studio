@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/gateway/models/environment_info.dart';
 import '../../core/gateway/models/execution_info.dart';
 import '../../core/gateway/models/file_info.dart';
 import '../../core/gateway/models/git_info.dart';
@@ -14,6 +13,7 @@ import '../tests/test_explorer_panel.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/explorer_tree.dart';
 import '../widgets/panel_header.dart';
+import '../widgets/virtual_file_tree.dart';
 import '../workspace/workspace_explorer.dart';
 
 class SidePanel extends StatelessWidget {
@@ -27,15 +27,8 @@ class SidePanel extends StatelessWidget {
     this.onSelectProject,
     this.onNewProject,
     this.onImportProject,
-    this.environments = const [],
-    this.isLoadingEnvironments = false,
-    this.selectedEnvironment,
-    this.onSelectEnvironment,
-    this.onManageEnvironments,
-    this.onOpenPackageManager,
     this.recentRuns = const [],
     this.onSelectReport,
-    this.onOpenReports,
     this.testSuites = const [],
     this.onSelectTestSuite,
     this.testTree,
@@ -57,6 +50,21 @@ class SidePanel extends StatelessWidget {
     this.onOpenFile,
     this.onToggleDirectory,
     this.gitFileStatuses = const {},
+    this.fileTreeKey,
+    this.onEnsureExpanded,
+    this.onCreateEntry,
+    this.onRenameEntry,
+    this.onDeleteEntry,
+    this.onDuplicateEntry,
+    this.onMoveEntry,
+    this.onCopyRelativePath,
+    this.onCopyAbsolutePath,
+    this.onRevealInOs,
+    this.onCollapseAllFolders,
+    this.outline = const [],
+    this.isLoadingOutline = false,
+    this.selectedOutlineId,
+    this.onOutlineSelect,
   });
 
   final SidebarPanel panel;
@@ -67,15 +75,8 @@ class SidePanel extends StatelessWidget {
   final ValueChanged<ProjectInfo>? onSelectProject;
   final VoidCallback? onNewProject;
   final VoidCallback? onImportProject;
-  final List<EnvironmentInfo> environments;
-  final bool isLoadingEnvironments;
-  final EnvironmentInfo? selectedEnvironment;
-  final ValueChanged<EnvironmentInfo>? onSelectEnvironment;
-  final VoidCallback? onManageEnvironments;
-  final VoidCallback? onOpenPackageManager;
   final List<ExecutionInfo> recentRuns;
   final ValueChanged<ExecutionInfo>? onSelectReport;
-  final VoidCallback? onOpenReports;
   final List<IndexedSymbolInfo> testSuites;
   final ValueChanged<IndexedSymbolInfo>? onSelectTestSuite;
   final TestNodeInfo? testTree;
@@ -97,6 +98,31 @@ class SidePanel extends StatelessWidget {
   final ValueChanged<String>? onOpenFile;
   final ValueChanged<String>? onToggleDirectory;
   final Map<String, GitFileStatus> gitFileStatuses;
+  final GlobalKey<VirtualFileTreeState>? fileTreeKey;
+  final Future<void> Function(String path)? onEnsureExpanded;
+  final Future<void> Function({
+    required String parentPath,
+    required String name,
+    required bool isDirectory,
+  })? onCreateEntry;
+  final Future<void> Function({
+    required String path,
+    required String newName,
+  })? onRenameEntry;
+  final Future<void> Function(String path)? onDeleteEntry;
+  final Future<void> Function(String path)? onDuplicateEntry;
+  final Future<void> Function({
+    required String sourcePath,
+    required String destinationParentPath,
+  })? onMoveEntry;
+  final ValueChanged<String>? onCopyRelativePath;
+  final ValueChanged<String>? onCopyAbsolutePath;
+  final ValueChanged<String>? onRevealInOs;
+  final VoidCallback? onCollapseAllFolders;
+  final List<IndexedSymbolInfo> outline;
+  final bool isLoadingOutline;
+  final String? selectedOutlineId;
+  final ValueChanged<IndexedSymbolInfo>? onOutlineSelect;
 
   /// Panels that own the side rail. Everything else lives in the main view, so
   /// showing a 280px column that says "open in the main view" is dead chrome.
@@ -145,20 +171,27 @@ class SidePanel extends StatelessWidget {
         onSelectProject: onSelectProject ?? (_) {},
         onNewProject: onNewProject ?? () {},
         onImportProject: onImportProject ?? () {},
-        environments: environments,
-        isLoadingEnvironments: isLoadingEnvironments,
-        selectedEnvironment: selectedEnvironment,
-        onSelectEnvironment: onSelectEnvironment,
-        onManageEnvironments: onManageEnvironments,
-        onOpenPackageManager: onOpenPackageManager,
-        recentRuns: recentRuns,
-        onSelectReport: onSelectReport,
-        onOpenReports: onOpenReports,
         fileRows: fileRows,
         isLoadingFileTree: isLoadingFileTree,
+        selectedFilePath: currentEditorPath,
         onOpenFile: onOpenFile,
         onToggleDirectory: onToggleDirectory,
         gitFileStatuses: gitFileStatuses,
+        fileTreeKey: fileTreeKey,
+        onEnsureExpanded: onEnsureExpanded,
+        onCreateEntry: onCreateEntry,
+        onRenameEntry: onRenameEntry,
+        onDeleteEntry: onDeleteEntry,
+        onDuplicateEntry: onDuplicateEntry,
+        onMoveEntry: onMoveEntry,
+        onCopyRelativePath: onCopyRelativePath,
+        onCopyAbsolutePath: onCopyAbsolutePath,
+        onRevealInOs: onRevealInOs,
+        onCollapseAllFolders: onCollapseAllFolders,
+        outline: outline,
+        isLoadingOutline: isLoadingOutline,
+        selectedOutlineId: selectedOutlineId,
+        onOutlineSelect: onOutlineSelect,
       );
     }
 

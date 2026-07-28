@@ -146,11 +146,19 @@ class RestGateway:
     async def open_project(self, project_id: UUID) -> Project:
         return await self._project_service.open_project(project_id=project_id)
 
-    async def open_project_by_path(self, path: str) -> tuple[Workspace, Project]:
+    async def open_project_by_path(
+        self,
+        path: str,
+        *,
+        force: bool = False,
+    ) -> tuple[Workspace, Project]:
         """Open a project folder as the primary UX entry.
 
         The selected folder becomes (or already is) the workspace root with
         ``.robotstudio/`` metadata inside it — no companion wrapper directories.
+
+        When ``force`` is false, folders that do not look like Robot Framework
+        projects are rejected so the UI can warn and offer “Continue anyways”.
         """
         from robot_studio.infrastructure.project.filesystem import (
             FilesystemProjectProvider,
@@ -187,8 +195,14 @@ class RestGateway:
                 if projects:
                     project = await self._project_service.open_project(projects[0].id)
                     return workspace, project
-                if fs.is_robot_project(target) or fs.has_manifest(target):
-                    project = await self._project_service.ensure_root_project()
+                if (
+                    force
+                    or fs.is_robot_project(target)
+                    or fs.has_manifest(target)
+                ):
+                    project = await self._project_service.ensure_root_project(
+                        force=force,
+                    )
                     return workspace, project
                 raise ProjectValidationError(
                     f"Workspace '{workspace.name}' has no projects yet. "
@@ -198,7 +212,11 @@ class RestGateway:
             return workspace, project
 
         # Standalone folder — initialize Robot Studio metadata in-place.
-        if not fs.is_robot_project(target) and not fs.has_manifest(target):
+        if (
+            not force
+            and not fs.is_robot_project(target)
+            and not fs.has_manifest(target)
+        ):
             raise ProjectValidationError(
                 f"'{target}' does not look like a Robot Framework project "
                 "(expected .robot files, requirements.txt, pyproject.toml, or robot.yaml).",
@@ -208,7 +226,7 @@ class RestGateway:
             target,
             target.name,
         )
-        project = await self._project_service.ensure_root_project()
+        project = await self._project_service.ensure_root_project(force=force)
         return workspace, project
 
     async def create_standalone_project(
@@ -588,6 +606,24 @@ class RestGateway:
 
     async def write_file(self, path: str, content: str) -> dict:
         return await self._file_service.write_file(path, content)
+
+    async def create_file(self, path: str, content: str = "") -> dict:
+        return await self._file_service.create_file(path, content)
+
+    async def create_directory(self, path: str) -> dict:
+        return await self._file_service.create_directory(path)
+
+    async def rename_path(self, path: str, new_name: str) -> dict:
+        return await self._file_service.rename_path(path, new_name)
+
+    async def move_path(self, path: str, destination_dir: str) -> dict:
+        return await self._file_service.move_path(path, destination_dir)
+
+    async def duplicate_path(self, path: str) -> dict:
+        return await self._file_service.duplicate_path(path)
+
+    async def delete_path(self, path: str) -> dict:
+        return await self._file_service.delete_path(path)
 
     async def list_file_tree(self, path: str | None = None, *, depth: int = 0) -> list[dict]:
         return await self._file_service.list_tree(path, depth=depth)

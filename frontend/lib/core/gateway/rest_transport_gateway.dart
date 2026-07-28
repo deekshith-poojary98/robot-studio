@@ -22,8 +22,8 @@ export 'models/workspace_info.dart';
 /// REST implementation of [TransportGateway].
 class RestTransportGateway implements TransportGateway {
   RestTransportGateway({String? baseUrl, http.Client? client})
-      : baseUrl = baseUrl ?? BackendConfig.httpBaseUrl,
-        _client = client ?? http.Client();
+    : baseUrl = baseUrl ?? BackendConfig.httpBaseUrl,
+      _client = client ?? http.Client();
 
   final String baseUrl;
   final http.Client _client;
@@ -48,10 +48,7 @@ class RestTransportGateway implements TransportGateway {
 
   @override
   Future<WorkspaceInfo> openWorkspace(String path) async {
-    final response = await _post(
-      '/workspaces/open',
-      body: {'path': path},
-    );
+    final response = await _post('/workspaces/open', body: {'path': path});
     return WorkspaceInfo.fromJson(response);
   }
 
@@ -65,22 +62,14 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<ProjectInfo> createProject({
-    required String name,
-  }) async {
-    final response = await _post(
-      '/projects',
-      body: {'name': name},
-    );
+  Future<ProjectInfo> createProject({required String name}) async {
+    final response = await _post('/projects', body: {'name': name});
     return ProjectInfo.fromJson(response);
   }
 
   @override
   Future<ProjectInfo> importProject(String path) async {
-    final response = await _post(
-      '/projects/import',
-      body: {'path': path},
-    );
+    final response = await _post('/projects/import', body: {'path': path});
     return ProjectInfo.fromJson(response);
   }
 
@@ -103,10 +92,16 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<OpenProjectByPathResult> openProjectByPath(String path) async {
+  Future<OpenProjectByPathResult> openProjectByPath(
+    String path, {
+    bool force = false,
+  }) async {
     final response = await _post(
       '/projects/open-path',
-      body: {'path': path},
+      body: {
+        'path': path,
+        'force': force,
+      },
       timeout: const Duration(seconds: 60),
     );
     return OpenProjectByPathResult.fromJson(response);
@@ -119,10 +114,7 @@ class RestTransportGateway implements TransportGateway {
   }) async {
     final response = await _post(
       '/projects/standalone',
-      body: {
-        'name': name,
-        'location': location,
-      },
+      body: {'name': name, 'location': location},
       timeout: const Duration(seconds: 60),
     );
     return OpenProjectByPathResult.fromJson(response);
@@ -180,10 +172,7 @@ class RestTransportGateway implements TransportGateway {
 
   @override
   Future<EnvironmentInfo> importEnvironment(String path) async {
-    final response = await _post(
-      '/environments/import',
-      body: {'path': path},
-    );
+    final response = await _post('/environments/import', body: {'path': path});
     return EnvironmentInfo.fromJson(response);
   }
 
@@ -220,8 +209,7 @@ class RestTransportGateway implements TransportGateway {
     required String environmentId,
     bool deleteFiles = false,
   }) async {
-    final path =
-        '/environments/$environmentId?delete_files=$deleteFiles';
+    final path = '/environments/$environmentId?delete_files=$deleteFiles';
     await _send(
       'DELETE',
       path,
@@ -507,7 +495,9 @@ class RestTransportGateway implements TransportGateway {
     SymbolKind? kind,
     int limit = 100,
   }) async {
-    final buffer = StringBuffer('/search?q=${Uri.encodeQueryComponent(query)}&limit=$limit');
+    final buffer = StringBuffer(
+      '/search?q=${Uri.encodeQueryComponent(query)}&limit=$limit',
+    );
     if (kind != null) {
       buffer.write('&kind=${Uri.encodeQueryComponent(kind.apiValue)}');
     }
@@ -586,7 +576,9 @@ class RestTransportGateway implements TransportGateway {
     final response = await _get('/language/references?${params.join('&')}');
     final items = response['references'] as List<dynamic>;
     return items
-        .map((item) => SymbolReferenceInfo.fromJson(item as Map<String, dynamic>))
+        .map(
+          (item) => SymbolReferenceInfo.fromJson(item as Map<String, dynamic>),
+        )
         .toList();
   }
 
@@ -672,7 +664,9 @@ class RestTransportGateway implements TransportGateway {
     );
     final items = response['items'] as List<dynamic>;
     return items
-        .map((item) => CompletionItemInfo.fromJson(item as Map<String, dynamic>))
+        .map(
+          (item) => CompletionItemInfo.fromJson(item as Map<String, dynamic>),
+        )
         .toList();
   }
 
@@ -698,10 +692,7 @@ class RestTransportGateway implements TransportGateway {
     int? startLine,
     int? endLine,
   }) async {
-    final body = <String, dynamic>{
-      'file_path': filePath,
-      'content': content,
-    };
+    final body = <String, dynamic>{'file_path': filePath, 'content': content};
     if (startLine != null) body['start_line'] = startLine;
     if (endLine != null) body['end_line'] = endLine;
     final response = await _post('/language/format', body: body);
@@ -756,10 +747,61 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<List<FileTreeNode>> listFileTree({
-    String? path,
-    int depth = 0,
+  Future<FileMutationResult> createFile({
+    required String path,
+    String content = '',
   }) async {
+    final response = await _post(
+      '/files/create',
+      body: {'path': path, 'content': content},
+    );
+    return FileMutationResult.fromJson(response);
+  }
+
+  @override
+  Future<FileMutationResult> createDirectory({required String path}) async {
+    final response = await _post('/files/mkdir', body: {'path': path});
+    return FileMutationResult.fromJson(response);
+  }
+
+  @override
+  Future<FileMutationResult> renamePath({
+    required String path,
+    required String newName,
+  }) async {
+    final response = await _post(
+      '/files/rename',
+      body: {'path': path, 'new_name': newName},
+    );
+    return FileMutationResult.fromJson(response);
+  }
+
+  @override
+  Future<FileMutationResult> movePath({
+    required String path,
+    required String destinationDir,
+  }) async {
+    final response = await _post(
+      '/files/move',
+      body: {'path': path, 'destination_dir': destinationDir},
+    );
+    return FileMutationResult.fromJson(response);
+  }
+
+  @override
+  Future<FileMutationResult> duplicatePath({required String path}) async {
+    final response = await _post('/files/duplicate', body: {'path': path});
+    return FileMutationResult.fromJson(response);
+  }
+
+  @override
+  Future<FileMutationResult> deletePath({required String path}) async {
+    final response = await _post('/files/delete', body: {'path': path});
+    return FileMutationResult.fromJson(response);
+  }
+
+  @override
+  Future<List<FileTreeNode>> listFileTree({String? path, int depth = 0}) async {
     final buffer = StringBuffer('/files/tree?depth=$depth');
     if (path != null) {
       buffer.write('&path=${Uri.encodeQueryComponent(path)}');
@@ -841,7 +883,9 @@ class RestTransportGateway implements TransportGateway {
       final detail = decoded is Map<String, dynamic>
           ? decoded['detail']?.toString()
           : null;
-      throw GatewayException(detail ?? 'Request failed (${response.statusCode})');
+      throw GatewayException(
+        detail ?? 'Request failed (${response.statusCode})',
+      );
     }
     if (response.body.isEmpty || response.body == 'null') return null;
     return GitRepositoryInfo.fromJson(
@@ -925,10 +969,7 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<GitDiffInfo> getGitDiff({
-    String? filePath,
-    String? commit,
-  }) async {
+  Future<GitDiffInfo> getGitDiff({String? filePath, String? commit}) async {
     final buffer = StringBuffer('/git/diff?');
     if (filePath != null) {
       buffer.write('file=${Uri.encodeQueryComponent(filePath)}');
@@ -963,7 +1004,9 @@ class RestTransportGateway implements TransportGateway {
       final detail = decoded is Map<String, dynamic>
           ? decoded['detail']?.toString()
           : null;
-      throw GatewayException(detail ?? 'Request failed (${response.statusCode})');
+      throw GatewayException(
+        detail ?? 'Request failed (${response.statusCode})',
+      );
     }
     if (decoded is List<dynamic>) return decoded;
     throw GatewayException('Expected JSON array from $path');
@@ -1067,10 +1110,7 @@ class RestTransportGateway implements TransportGateway {
           ? decoded['detail']?.toString()
           : null;
       final message = detail ?? 'Request failed (${response.statusCode})';
-      AppLogger.warn(
-        'HTTP ${response.statusCode}: $message',
-        tag: 'Gateway',
-      );
+      AppLogger.warn('HTTP ${response.statusCode}: $message', tag: 'Gateway');
       throw GatewayException(message);
     }
 

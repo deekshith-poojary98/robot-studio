@@ -120,7 +120,10 @@ async def open_project_by_path(
     gateway: RestGateway = Depends(get_gateway),
 ) -> OpenProjectByPathResponse:
     try:
-        workspace, project = await gateway.open_project_by_path(path=request.path)
+        workspace, project = await gateway.open_project_by_path(
+            path=request.path,
+            force=request.force,
+        )
     except (ProjectValidationError, WorkspaceValidationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     needs, detected = await gateway.environment_prompt_state()

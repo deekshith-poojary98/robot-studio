@@ -104,12 +104,52 @@ void main() {
     expect(find.byTooltip('Dismiss'), findsOneWidget);
   });
 
+  testWidgets('continue-anyway warning offers Close and Continue anyways', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: FilledButton(
+                onPressed: () => showContinueAnywayDialog(
+                  context: context,
+                  title: 'Could not open project',
+                  error: Exception(
+                    "'/tmp/empty' does not look like a Robot Framework project "
+                    "(expected .robot files, requirements.txt, pyproject.toml, or robot.yaml).",
+                  ),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('This folder does not look like a Robot Framework project.'),
+      findsOneWidget,
+    );
+    expect(find.text('Close'), findsOneWidget);
+    expect(find.text('Continue anyways'), findsOneWidget);
+    expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('warning.continue')));
+    await tester.pumpAndSettle();
+    expect(find.text('Continue anyways'), findsNothing);
+  });
+
   testWidgets('side rail collapses for panels that own the main view', (
     tester,
   ) async {
     for (final panel in [
       SidebarPanel.search,
-      SidebarPanel.keywords,
       SidebarPanel.packages,
       SidebarPanel.plugins,
       SidebarPanel.sourceControl,

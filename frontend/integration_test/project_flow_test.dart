@@ -49,7 +49,8 @@ void main() {
     await pumpUntilAbsent(tester, find.text('Import Project'));
 
     await pumpUntilFound(tester, find.text('import-me'));
-    await pumpUntilFound(tester, find.textContaining('Imported'));
+    expect(find.textContaining('Imported'), findsNothing);
+    expect(find.text('LOCATION'), findsOneWidget);
     harness.expectNoFlutterErrors();
   });
 }

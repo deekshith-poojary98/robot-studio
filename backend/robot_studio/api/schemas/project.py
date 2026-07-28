@@ -21,6 +21,7 @@ class OpenProjectRequest(BaseModel):
 
 class OpenProjectByPathRequest(BaseModel):
     path: str = Field(min_length=1)
+    force: bool = False
 
 
 class CreateStandaloneProjectRequest(BaseModel):

@@ -235,10 +235,121 @@ class EditorShellController {
     }
   }
 
+  /// Incrementally refresh the parent of [path] without collapsing the tree.
+  Future<void> refreshParentOf(String path) async {
+    final ws = workspace();
+    if (ws == null) return;
+    final normalized = path.replaceAll('\\', '/');
+    final wsPath = ws.path.replaceAll('\\', '/');
+    String? parent;
+    final slash = normalized.lastIndexOf('/');
+    if (slash > 0) {
+      parent = normalized.substring(0, slash);
+    }
+    await refreshDirectory(parent, workspaceRoot: wsPath);
+  }
+
+  Future<void> refreshDirectory(
+    String? directoryPath, {
+    required String workspaceRoot,
+  }) async {
+    final ws = workspace();
+    if (ws == null) return;
+    final isRoot = directoryPath == null ||
+        directoryPath.isEmpty ||
+        directoryPath.replaceAll('\\', '/') == workspaceRoot;
+
+    try {
+      if (isRoot) {
+        final fresh = await gateway.listFileTree(depth: 0);
+        if (!isMounted()) return;
+        fileTree = fresh;
+        _pruneMissingTreeState(fresh);
+        notify();
+        return;
+      }
+
+      final parent = directoryPath.replaceAll('\\', '/');
+      // Only hit the API when the parent is visible (expanded or cached).
+      if (!expandedDirs.contains(parent) && !childrenByPath.containsKey(parent)) {
+        // Parent collapsed — mark hasChildren on ancestor if present in root.
+        notify();
+        return;
+      }
+      final kids = await gateway.listFileTree(path: parent, depth: 0);
+      if (!isMounted()) return;
+      childrenByPath[parent] = kids;
+      _pruneMissingTreeState(fileTree);
+      notify();
+    } catch (_) {
+      // Ignore transient FS races during delete/rename storms.
+    }
+  }
+
+  void removePathFromTree(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    fileTree = _filterNodes(fileTree, normalized);
+    final updated = <String, List<FileTreeNode>>{};
+    for (final entry in childrenByPath.entries) {
+      if (entry.key == normalized || entry.key.startsWith('$normalized/')) {
+        continue;
+      }
+      updated[entry.key] = _filterNodes(entry.value, normalized);
+    }
+    childrenByPath
+      ..clear()
+      ..addAll(updated);
+    expandedDirs.removeWhere(
+      (item) => item == normalized || item.startsWith('$normalized/'),
+    );
+    notify();
+  }
+
+  List<FileTreeNode> _filterNodes(List<FileTreeNode> nodes, String removed) {
+    return nodes
+        .where((node) {
+          final p = node.path.replaceAll('\\', '/');
+          return p != removed && !p.startsWith('$removed/');
+        })
+        .toList();
+  }
+
+  void _pruneMissingTreeState(List<FileTreeNode> roots) {
+    final alive = <String>{};
+    void walk(List<FileTreeNode> nodes) {
+      for (final node in nodes) {
+        alive.add(node.path.replaceAll('\\', '/'));
+        final cached = childrenByPath[node.path];
+        if (cached != null) walk(cached);
+      }
+    }
+
+    walk(roots);
+    for (final entry in childrenByPath.entries) {
+      walk(entry.value);
+    }
+    expandedDirs.removeWhere((path) {
+      final n = path.replaceAll('\\', '/');
+      return !alive.contains(n);
+    });
+    childrenByPath.removeWhere((key, _) {
+      final n = key.replaceAll('\\', '/');
+      return !alive.contains(n);
+    });
+  }
+
   Future<void> toggleDirectory(String path) async {
     if (expandedDirs.contains(path)) {
       expandedDirs.remove(path);
       notify();
+      return;
+    }
+    await ensureExpanded(path);
+  }
+
+  /// Expand [path] if collapsed, loading children when needed.
+  Future<void> ensureExpanded(String path) async {
+    if (expandedDirs.contains(path) && childrenByPath.containsKey(path)) {
       return;
     }
     expandedDirs.add(path);
@@ -255,6 +366,13 @@ class EditorShellController {
       }
     }
     if (!isMounted()) return;
+    notify();
+  }
+
+  /// Collapse every expanded folder while keeping cached children for fast re-expand.
+  void collapseAllFolders() {
+    if (expandedDirs.isEmpty) return;
+    expandedDirs.clear();
     notify();
   }
 

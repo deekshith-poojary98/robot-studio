@@ -111,9 +111,25 @@ class EventBus(ABC):
 - Application services **publish** events after successful state changes.
 - Subscribers **must not** call back into the publisher synchronously (avoid cycles).
 - Subscribers may schedule async work (e.g. index rebuild) on a background task.
-- The frontend does **not** connect to the Event Bus directly — it receives filtered streams through the Transport Gateway (execution WebSocket today; broader event fan-out still evolving).
+- The frontend does **not** connect to the Event Bus directly — it receives filtered streams through the Transport Gateway (execution WebSocket + workspace events WebSocket).
 
-Concrete event types live in `backend/robot_studio/core/events.py` (`WorkspaceOpened`, `ExecutionFinished`, `IndexUpdated`, `PluginLoaded`, Git events, etc.).
+Concrete event types live in `backend/robot_studio/core/events.py` (`WorkspaceOpened`, `ExecutionFinished`, `IndexUpdated`, `FilesystemChanged`, `PluginLoaded`, Git events, etc.).
+
+**Live workspace fan-out (Tier 1 — shipped):**
+
+```
+NativeFileWatcher / PollingFileWatcher
+        ↓ on_fs_change (all non-skipped files/dirs) + on_change (indexable)
+EventBus (FilesystemChanged, IndexUpdated, RepositoryUpdated, …)
+        ↓
+WorkspaceEventService → WS /api/v1/workspace/events
+        ↓
+Flutter WorkspaceEventStreamClient → WorkspaceLiveController
+        ↓
+Explorer (incremental) · Editor conflict UX · Git (300ms debounce) · Tests · Search/index · StatusBar
+```
+
+Wire event types: `FILE_CREATED|DELETED|MODIFIED|RENAMED`, `DIRECTORY_CREATED|DELETED|RENAMED`, `PROJECT_CHANGED`, `WORKSPACE_CHANGED`, `INDEX_UPDATED`, `GIT_CHANGED`, `ENVIRONMENT_CHANGED`.
 
 ---
 
@@ -191,6 +207,7 @@ Central store for **symbol intelligence**. Keyword Explorer, search, and Languag
 |---------|-----|
 | **REST** `/api/v1/...` | CRUD, commands, language, index, git, plugins, reports |
 | **WebSocket** `/api/v1/execution/stream` | Execution status + log fan-out |
+| **WebSocket** `/api/v1/workspace/events` | Live FS / index / git / env / workspace fan-out (**Tier 1 shipped**) |
 
 #### Planned (Phase 2+)
 
@@ -222,7 +239,7 @@ abstract class TransportGateway {
 | **files** | Workspace-scoped read/write/tree | `FileService` | Shipped |
 | **environment** | venv lifecycle, interpreters | `EnvironmentRepository`, env manager | Shipped |
 | **packages** | PyPI search, install/update/uninstall | `PackageRegistry`, `Installer` | Shipped |
-| **keywords / search** | Symbol search UI | reads `IndexStore` | Shipped |
+| **search** | Symbol search UI (keywords, variables, libraries, …) | reads `IndexStore` | Shipped |
 | **indexing** | Rebuild, status, incremental index | `IndexStore`, indexers | Shipped |
 | **language** | Editor intelligence | `LanguageService` | Shipped |
 | **execution** | Run file/project, stop, history, stream | `Runner`, execution service | Shipped |
@@ -420,10 +437,11 @@ robot-studio/
 │       ├── application/
 │       │   └── services/            # workspace, project, file, environment,
 │       │                            # package, execution, index, language,
-│       │                            # report, git, plugin, workspace_context
+│       │                            # report, git, plugin, workspace_context,
+│       │                            # workspace_event_service, test_explorer
 │       ├── infrastructure/
 │       │   ├── repositories/
-│       │   ├── indexing/
+│       │   ├── indexing/            # FileWatcher (index + live FS channels)
 │       │   ├── language/            # RobotLanguageService, parsing bridge/worker
 │       │   ├── execution/
 │       │   ├── environment/
@@ -435,20 +453,22 @@ robot-studio/
 │       └── api/
 │           ├── router.py
 │           ├── gateway.py           # RestGateway
-│           ├── routes/              # health, workspaces, projects, environments,
-│           │                        # packages, execution, reports, index/search,
-│           │                        # language, files, git, plugins
+│           ├── routes/              # health, workspaces, workspace_events,
+│           │                        # projects, environments, packages,
+│           │                        # execution, reports, index/search,
+│           │                        # language, files, git, plugins, tests
 │           └── schemas/
 └── frontend/
     └── lib/
         ├── core/
-        │   ├── gateway/             # TransportGateway, RestTransportGateway, models
+        │   ├── gateway/             # TransportGateway, RestTransportGateway,
+        │   │                        # execution + workspace event stream clients
         │   ├── config/
         │   ├── api/
         │   ├── logging/
         │   └── theme/
         └── presentation/
-            ├── shell/               # AppShell, status bar, controllers
+            ├── shell/               # AppShell, status bar, live/workspace controllers
             ├── sidebar/ · toolbar/ · panels/
             ├── workspace/ · project/ · environment/ · packages/
             ├── editor/ · search/ · execution/ · reports/
@@ -514,6 +534,7 @@ Paths below are relative to `/api/v1`. Workspace context is typically **session-
 | POST | `/projects`, `/projects/standalone`, `/projects/import`, `/projects/open`, `/projects/open-path` | project |
 | GET | `/projects`, `/projects/recent` | project |
 | GET/PUT | `/files/content` | files |
+| POST | `/files/create`, `/files/mkdir`, `/files/rename`, `/files/move`, `/files/duplicate`, `/files/delete` | files (Explorer mutations; publish `FilesystemChanged`) |
 | GET | `/files/tree` | files (`depth` default **0**, `has_children` for lazy expand) |
 | GET/POST | `/environments`, `/environments/import`, `/environments/activate`, … | environment |
 | GET | `/environments/interpreters` | environment |
@@ -593,6 +614,7 @@ Engineering audit notes: [audit.md](./audit.md).
 | **M11** | Plugin framework + manager UI | 🔶 Shipping |
 | **M12** | Git source control | 🔶 Shipping |
 | **M13** | Test Explorer (discover/run suites, tests, tags, failed) | ✅ Done |
+| **Pre-M14** | Workspace Explorer file ops (create/rename/delete/duplicate/move/reveal) | ✅ Done |
 | **UX** | Public-beta usability backlog (status, reports, guidance, terminology, …) | 🔶 In progress |
 
 ---
@@ -620,12 +642,13 @@ Not domain architecture, but product-facing constraints that affect shell design
 - **Fast open**: open-path returns as soon as metadata is ready; environment creation is never awaited on the critical path. Missing envs surface a compact bottom-right toast titled **Python environment required** (Create Environment / Select Existing; dismiss with ✕), with detection for `.venv` / `venv` / `env` / `Environments/*`.
 - **Background indexing**: `WorkspaceOpened` schedules an incremental index rebuild and returns immediately (VS Code-style). Explicit **Rebuild Index** still runs a full rebuild and waits. Discovery prunes `.venv` / `node_modules` / `.git` / etc. Robot parsing runs off the event loop; bulk rebuilds do not emit per-file `FileIndexed` events.
 - **Large projects**: explorer uses VS Code-style lazy expand (`GET /files/tree` default `depth=0` + `has_children`) and a virtualized flat list so only visible rows are built. Heavy dirs (`.venv`, `node_modules`, …) are skipped. Git status uses `-uno` so thousands of untracked suites do not stall the UI.
+- **Explorer mutations**: create/rename/delete/duplicate/move publish `FilesystemChanged` from `FileService`; UI updates via the live workspace pipeline (parent-only refresh). Inline rename and create avoid dialogs except delete confirmation.
 - **Test Explorer** (Tests rail): hierarchical workspace → project → suite → test/task tree with status, live filter, and run actions (all / current file / failed / node). Discovery uses IndexStore + `robot.api` document symbols; runs reuse `ExecutionService` / `Runner`.
 - **Actionable guidance** for missing project/environment (primary buttons prefer Open/New Project).
 - **Status chrome**: project name; `ROBOT` / full `PYTHON major.minor.micro` from the active environment in the status bar (no CONNECTED/OFFLINE label); toolbar context shows **project name** (plus branch • environment), not the workspace name unless multiple projects are open. Health is probed on launch, then every 2s while offline and 15s while connected; three consecutive failures are required before disconnecting the execution stream.
 - **Toolbar layout**: left context (project chip / environment / branch, with git Fetch·Pull·Push in a ⋯ menu shown only for repositories), centered command search, right **Run** (primary, labelled) plus icon-only Run Project and Stop. No product wordmark; profile and notifications deferred.
 - **Editor chrome**: the permanent strip carries editing verbs only (Save, Save All, Format, Find) plus a word-wrap toggle. Language navigation (Definition, Peek, References, Hover, Go to Symbol in File, Find Symbol in Project, Replace, Format Selection, Reveal) is reachable through the editor ⋯ menu and the command palette, matching VS Code / PyCharm chrome discipline.
-- **Rail ownership**: only Explorer, Tests, and Reports render side-rail content (`SidePanel.hasSideContent`); Search, Keywords, Packages, Plugins, and Source Control own the main view and the rail collapses. Bottom panel exposes Console / Execution Logs / Problems only.
+- **Rail ownership**: only Explorer, Tests, and Reports render side-rail content (`SidePanel.hasSideContent`); Search, Packages, Plugins, and Source Control own the main view and the rail collapses. Bottom panel exposes Console / Execution Logs / Problems only.
 - **Empty and error surfaces**: `EmptyState` gives every empty view an icon, a reason, and one action; `showFriendlyErrorDialog` maps transport/OS exceptions to a plain sentence plus a suggested fix, hiding raw text behind **Show details**. Dialog widths are limited to `AppDialogWidth.form` / `.wide`.
 - **Reports**: Rail Recent list selects a run; main Reports view shows dashboard + details (no second run list). Artifact hyperlinks open output.xml / log.html / report.html.
 - **Problems loop**: Diagnostics refresh while editing `.robot` files; Problems panel + status-bar ERRORS/WARNINGS jump to file:line:column.

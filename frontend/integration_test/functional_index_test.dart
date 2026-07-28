@@ -97,7 +97,7 @@ Run Hello
       project: 'IxLog',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'IX Log');
-    await tapSidebarPanel(tester, 'Keywords');
+    await tapSidebarPanel(tester, 'Search');
     await pumpUntilFound(tester, find.text('Search'));
     await pumpUntilFound(tester, find.text('READY'), timeout: const Duration(seconds: 60));
 

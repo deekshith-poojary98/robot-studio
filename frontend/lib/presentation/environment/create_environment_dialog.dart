@@ -149,7 +149,7 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
     return AlertDialog(
       title: const Text('Create Environment'),
       content: SizedBox(
-        width: 520,
+        width: AppDialogWidth.wide,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

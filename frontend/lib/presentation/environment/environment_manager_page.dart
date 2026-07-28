@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/environment_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/skeleton_list.dart';
 import '../widgets/status_badge.dart';
 
 class EnvironmentManagerPage extends StatelessWidget {
@@ -106,9 +108,18 @@ class EnvironmentManagerPage extends StatelessWidget {
           const Divider(height: 1),
           Expanded(
             child: isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const SkeletonList(rows: 5)
                 : environments.isEmpty
-                    ? _EmptyState(onCreate: onCreate, onImport: onImport)
+                    ? EmptyState(
+                        icon: Icons.memory_outlined,
+                        title: 'No environments yet',
+                        message:
+                            'Create a virtual environment or import an existing one.',
+                        actionLabel: 'Create Environment',
+                        onAction: onCreate,
+                        secondaryActionLabel: 'Import…',
+                        onSecondaryAction: onImport,
+                      )
                     : ListView.separated(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -129,55 +140,6 @@ class EnvironmentManagerPage extends StatelessWidget {
                           );
                         },
                       ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.onCreate,
-    required this.onImport,
-  });
-
-  final VoidCallback onCreate;
-  final VoidCallback onImport;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.memory_outlined, size: 40, color: AppColors.textMuted),
-          const SizedBox(height: 12),
-          Text(
-            'No environments yet',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Create a virtual environment or import an existing one.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FilledButton.icon(
-                onPressed: onCreate,
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('Create Environment'),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                onPressed: onImport,
-                icon: const Icon(Icons.file_download_outlined, size: 16),
-                label: const Text('Import'),
-              ),
-            ],
           ),
         ],
       ),

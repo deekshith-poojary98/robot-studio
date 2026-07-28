@@ -94,6 +94,6 @@ void main() {
       ),
     );
 
-    expect(find.text('No plugins discovered yet.'), findsOneWidget);
+    expect(find.text('No plugins discovered'), findsOneWidget);
   });
 }

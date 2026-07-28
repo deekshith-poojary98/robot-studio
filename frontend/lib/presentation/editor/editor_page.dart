@@ -5,7 +5,6 @@ import '../../core/gateway/models/index_info.dart';
 import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
-import 'document_outline.dart';
 import 'editor_navigation_widgets.dart';
 import 'editor_tabs_bar.dart';
 import 'robot_code_editor.dart';
@@ -15,8 +14,6 @@ class EditorPage extends StatefulWidget {
     super.key,
     required this.tabs,
     required this.activePath,
-    required this.outline,
-    required this.isLoadingOutline,
     required this.wordWrap,
     required this.hover,
     required this.references,
@@ -36,7 +33,6 @@ class EditorPage extends StatefulWidget {
     required this.onPeekDefinition,
     required this.onFindReferences,
     required this.onHover,
-    required this.onOutlineSelect,
     required this.onFind,
     required this.onReplace,
     required this.onReveal,
@@ -53,8 +49,6 @@ class EditorPage extends StatefulWidget {
 
   final List<EditorTabInfo> tabs;
   final String? activePath;
-  final List<IndexedSymbolInfo> outline;
-  final bool isLoadingOutline;
   final bool wordWrap;
   final HoverInfo? hover;
   final List<SymbolReferenceInfo> references;
@@ -74,7 +68,6 @@ class EditorPage extends StatefulWidget {
   final VoidCallback onPeekDefinition;
   final VoidCallback onFindReferences;
   final VoidCallback onHover;
-  final ValueChanged<IndexedSymbolInfo> onOutlineSelect;
   final VoidCallback onFind;
   final VoidCallback onReplace;
   final VoidCallback onReveal;
@@ -225,11 +218,6 @@ class _EditorPageState extends State<EditorPage> {
                               widget.onContentChanged(active.path, content),
                           onCursorChanged: widget.onCursorChanged,
                         ),
-                      ),
-                      DocumentOutlinePanel(
-                        symbols: widget.outline,
-                        isLoading: widget.isLoadingOutline,
-                        onSelect: widget.onOutlineSelect,
                       ),
                       if (widget.hover != null || widget.references.isNotEmpty)
                         SizedBox(

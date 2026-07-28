@@ -452,15 +452,16 @@
 
 
 
-### PR-10 — Continue with project CTA
+### PR-10 — Open project from Explorer
 
-
-|                   |                                                             |
-| ----------------- | ----------------------------------------------------------- |
-| **Priority**      | P2                                                          |
-| **Preconditions** | Workspace open, project listed                              |
-| **Steps**         | Use any “Continue with …” / open project affordance.        |
-| **Expected**      | Lands in useful context (explorer/editor), not empty shell. |
+| Field             | Detail                                                       |
+|-------------------|--------------------------------------------------------------|
+| **ID**            | PR-10                                                        |
+| **Title**         | Open project from Explorer after workspace open              |
+| **Priority**      | P2                                                           |
+| **Preconditions** | Workspace open, project listed                               |
+| **Steps**         | Open a project from the Explorer (no “Continue with …” CTA). |
+| **Expected**      | Lands in useful context (explorer/editor), not empty shell.  |
 
 
 ---

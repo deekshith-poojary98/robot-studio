@@ -16,11 +16,6 @@ enum SidebarPanel {
     Icons.science_outlined,
     'Tests — browse, run, and track suites and tests',
   ),
-  keywords(
-    'Keywords',
-    Icons.vpn_key_outlined,
-    'Keywords — browse and search Robot keywords',
-  ),
   packages(
     'Packages',
     Icons.inventory_2_outlined,

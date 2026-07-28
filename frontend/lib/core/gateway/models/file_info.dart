@@ -44,6 +44,41 @@ class FileWriteResult {
   final String? savedAt;
 }
 
+class FileMutationResult {
+  const FileMutationResult({
+    required this.path,
+    this.oldPath,
+    this.isDir = false,
+    this.name,
+    this.deleted = false,
+    this.mtime,
+    this.size,
+    this.savedAt,
+  });
+
+  factory FileMutationResult.fromJson(Map<String, dynamic> json) {
+    return FileMutationResult(
+      path: json['path'] as String,
+      oldPath: json['old_path'] as String?,
+      isDir: json['is_dir'] as bool? ?? false,
+      name: json['name'] as String?,
+      deleted: json['deleted'] as bool? ?? false,
+      mtime: (json['mtime'] as num?)?.toDouble(),
+      size: (json['size'] as num?)?.toInt(),
+      savedAt: json['saved_at'] as String?,
+    );
+  }
+
+  final String path;
+  final String? oldPath;
+  final bool isDir;
+  final String? name;
+  final bool deleted;
+  final double? mtime;
+  final int? size;
+  final String? savedAt;
+}
+
 class FileTreeNode {
   const FileTreeNode({
     required this.name,
@@ -66,8 +101,7 @@ class FileTreeNode {
       relativePath: json['relative_path'] as String? ?? '',
       isDir: isDir,
       suffix: json['suffix'] as String? ?? '',
-      hasChildren: json['has_children'] as bool? ??
-          (isDir && kids.isNotEmpty),
+      hasChildren: json['has_children'] as bool? ?? (isDir && kids.isNotEmpty),
       children: kids,
     );
   }
@@ -83,10 +117,7 @@ class FileTreeNode {
   bool get isRobotSource =>
       suffix == '.robot' || suffix == '.resource' || suffix == '.py';
 
-  FileTreeNode copyWith({
-    bool? hasChildren,
-    List<FileTreeNode>? children,
-  }) {
+  FileTreeNode copyWith({bool? hasChildren, List<FileTreeNode>? children}) {
     return FileTreeNode(
       name: name,
       path: path,

@@ -114,7 +114,7 @@ void main() {
     await harness.launchAppWithWorkspace(tester, workspaceName: 'WS Enable');
 
     await pumpUntilFound(tester, find.text('New Project'));
-    await pumpUntilFound(tester, find.text('Environments'));
+    expect(find.byTooltip('Manage Environments'), findsWidgets);
 
     // Toolbar New Project tooltip should be enabled.
     expect(find.byTooltip('New Project'), findsWidgets);

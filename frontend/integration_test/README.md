@@ -86,7 +86,7 @@ Dart defines injected by the script:
 | `functional_shell_test.dart` | Functional TC SH-01…SH-08 (shell / status / connectivity) |
 | `functional_workspace_test.dart` | Functional TC WS-01…WS-10 (project-first welcome, workspace advanced create/open/recent) |
 | `functional_project_test.dart` | Functional TC PR-01…PR-10 (create/import/select/run gating) |
-| `functional_explorer_test.dart` | Functional TC EX-01…EX-08 (lazy file tree, tabs, save) |
+| `functional_explorer_test.dart` | Functional TC EX-01…EX-08 (lazy file tree, tabs, save); Pre-M14 file ops covered by widget tests |
 | `functional_environment_test.dart` | Functional TC EN-01…EN-10 (create/activate/import/clone/delete) |
 | `functional_packages_test.dart` | Functional TC PK-01…PK-09 (list/search/install; some skips) |
 | `functional_editor_test.dart` | Functional TC ED-01…ED-10 (open/tabs/save/problems jump) |
@@ -114,7 +114,7 @@ Dart defines injected by the script:
 
 Functional suites map 1:1 to modules in [Robot Studio — Functional Test Cases.md](../../Robot%20Studio%20%E2%80%94%20Functional%20Test%20Cases.md). Skips: SH-02/SH-03 (external backend stop/restart), WS-02/WS-09 (native FilePicker), PK-04/PK-07/PK-09 (env/network/deferred), PL-07 / XR-05 (cannot stop external backend mid-suite). GT-10 seeds a local bare remote via `POST /git/seed-local-remote`.
 
-Some suites (environment creation, package install, execution) may take several minutes on first run.
+Some suites (environment creation with `installRobot: true`, package install, execution) may take several minutes on first run — watch for `[perf] environment_create_api` rather than assuming a hang.
 
 ---
 
@@ -124,12 +124,14 @@ Some suites (environment creation, package install, execution) may take several 
 |------|---------|
 | `helpers/backend_process.dart` | Starts/stops backend with isolated `ROBOT_STUDIO_DATA_DIR` |
 | `helpers/integration_api_client.dart` | REST setup, verification, async polling |
-| `helpers/integration_harness.dart` | Shared lifecycle, app launch, seed helpers |
+| `helpers/integration_harness.dart` | Shared lifecycle, app launch, seed helpers (`openRecentWorkspace` waits for welcome to dismiss — not the workspace title, which disappears when a project auto-opens) |
 | `helpers/integration_fixtures.dart` | Shared fixture paths / seed data |
 | `helpers/ui_helpers.dart` | UI interaction and condition-based waits (incl. `tapEditorMenuAction` for the editor ⋯ menu) |
 | `helpers/performance_tracker.dart` | Timing logs (no pass/fail thresholds) |
 | `fixtures/sample.robot` | Sample suite |
 | `fixtures/test_plugin/` | Fake plugin (`plugin.json` + `plugin.py`) |
+
+Live workspace events (`/api/v1/workspace/events`) are covered by backend `tests/test_workspace_events.py` and Flutter `test/workspace_live_events_test.dart`; explorer/git E2E suites exercise the UI side indirectly.
 
 Tests avoid arbitrary `sleep()` and wait for visible UI states instead.
 
@@ -144,7 +146,7 @@ Logs / Problems — SH-08 and UX-05 now assert that no "coming soon" surface is 
 
 - Widget / unit tests live in `frontend/test/` and run separately: `flutter test` (see [../README.md](../README.md)).
 - Git suites need the system `git` CLI (same as production Source Control).
-- After adding or renaming suites, update **this README** and the suite table in the root / frontend READMEs if they mention coverage.
+- After UX polish / project-type removal: connection chrome is not asserted as CONNECTED/OFFLINE; New Project is name-only (no template picker); language actions use `editor.more` + `tapEditorMenuAction`; Settings/Output/Terminal stubs are expected absent.
 
 ---
 

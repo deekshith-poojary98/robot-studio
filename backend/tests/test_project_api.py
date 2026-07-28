@@ -245,6 +245,30 @@ async def test_open_project_by_path_opens_workspace_root_with_project(
 
 
 @pytest.mark.asyncio
+async def test_open_project_by_path_rejects_non_robot_unless_forced(api_client) -> None:
+    client, _fresh, tmp_path = api_client
+    empty = tmp_path / "plain-folder"
+    empty.mkdir()
+
+    blocked = await client.post(
+        "/api/v1/projects/open-path",
+        json={"path": str(empty)},
+    )
+    assert blocked.status_code == 400, blocked.text
+    assert "does not look like" in blocked.json()["detail"]
+
+    forced = await client.post(
+        "/api/v1/projects/open-path",
+        json={"path": str(empty), "force": True},
+    )
+    assert forced.status_code == 200, forced.text
+    body = forced.json()
+    assert body["project"]["name"] == "plain-folder"
+    assert body["workspace"]["path"] == str(empty.resolve())
+    assert (empty / ".robotstudio" / "workspace.json").is_file()
+
+
+@pytest.mark.asyncio
 async def test_health_still_ok(api_client) -> None:
     client, _, _ = api_client
     response = await client.get("/api/v1/health")

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../core/gateway/models/environment_info.dart';
-import '../../core/gateway/models/execution_info.dart';
 import '../../core/gateway/models/file_info.dart';
 import '../../core/gateway/models/git_info.dart';
+import '../../core/gateway/models/index_info.dart';
 import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
+import '../editor/document_outline.dart';
 import '../widgets/explorer_tree.dart';
 import '../widgets/virtual_file_tree.dart';
 
@@ -19,20 +19,27 @@ class WorkspaceExplorer extends StatelessWidget {
     required this.onSelectProject,
     required this.onNewProject,
     required this.onImportProject,
-    this.environments = const [],
-    this.isLoadingEnvironments = false,
-    this.selectedEnvironment,
-    this.onSelectEnvironment,
-    this.onManageEnvironments,
-    this.onOpenPackageManager,
-    this.recentRuns = const [],
-    this.onSelectReport,
-    this.onOpenReports,
     this.fileRows = const [],
     this.isLoadingFileTree = false,
+    this.selectedFilePath,
     this.onOpenFile,
     this.onToggleDirectory,
     this.gitFileStatuses = const {},
+    this.fileTreeKey,
+    this.onEnsureExpanded,
+    this.onCreateEntry,
+    this.onRenameEntry,
+    this.onDeleteEntry,
+    this.onDuplicateEntry,
+    this.onMoveEntry,
+    this.onCopyRelativePath,
+    this.onCopyAbsolutePath,
+    this.onRevealInOs,
+    this.onCollapseAllFolders,
+    this.outline = const [],
+    this.isLoadingOutline = false,
+    this.selectedOutlineId,
+    this.onOutlineSelect,
   });
 
   final WorkspaceInfo workspace;
@@ -42,20 +49,37 @@ class WorkspaceExplorer extends StatelessWidget {
   final ValueChanged<ProjectInfo> onSelectProject;
   final VoidCallback onNewProject;
   final VoidCallback onImportProject;
-  final List<EnvironmentInfo> environments;
-  final bool isLoadingEnvironments;
-  final EnvironmentInfo? selectedEnvironment;
-  final ValueChanged<EnvironmentInfo>? onSelectEnvironment;
-  final VoidCallback? onManageEnvironments;
-  final VoidCallback? onOpenPackageManager;
-  final List<ExecutionInfo> recentRuns;
-  final ValueChanged<ExecutionInfo>? onSelectReport;
-  final VoidCallback? onOpenReports;
   final List<FlatFileTreeRow> fileRows;
   final bool isLoadingFileTree;
+  final String? selectedFilePath;
   final ValueChanged<String>? onOpenFile;
   final ValueChanged<String>? onToggleDirectory;
   final Map<String, GitFileStatus> gitFileStatuses;
+  final GlobalKey<VirtualFileTreeState>? fileTreeKey;
+  final Future<void> Function(String path)? onEnsureExpanded;
+  final Future<void> Function({
+    required String parentPath,
+    required String name,
+    required bool isDirectory,
+  })? onCreateEntry;
+  final Future<void> Function({
+    required String path,
+    required String newName,
+  })? onRenameEntry;
+  final Future<void> Function(String path)? onDeleteEntry;
+  final Future<void> Function(String path)? onDuplicateEntry;
+  final Future<void> Function({
+    required String sourcePath,
+    required String destinationParentPath,
+  })? onMoveEntry;
+  final ValueChanged<String>? onCopyRelativePath;
+  final ValueChanged<String>? onCopyAbsolutePath;
+  final ValueChanged<String>? onRevealInOs;
+  final VoidCallback? onCollapseAllFolders;
+  final List<IndexedSymbolInfo> outline;
+  final bool isLoadingOutline;
+  final String? selectedOutlineId;
+  final ValueChanged<IndexedSymbolInfo>? onOutlineSelect;
 
   bool get _isSingleProjectRoot {
     if (projects.length != 1) return false;
@@ -65,49 +89,36 @@ class WorkspaceExplorer extends StatelessWidget {
     return projectPath == workspacePath;
   }
 
+  String get _filesRootPath {
+    if (_isSingleProjectRoot) {
+      return selectedProject?.path ?? projects.first.path;
+    }
+    return selectedProject?.path ?? workspace.path;
+  }
+
   @override
   Widget build(BuildContext context) {
     final headerName = _isSingleProjectRoot
         ? (selectedProject?.name ?? projects.first.name)
         : (selectedProject?.name ?? workspace.name);
-    final headerPath = _isSingleProjectRoot
-        ? (selectedProject?.path ?? projects.first.path)
-        : workspace.path;
-    final sectionLabel = _isSingleProjectRoot ? 'PROJECT' : 'WORKSPACE';
 
     return Column(
+      key: const Key('workspace-explorer-list'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                headerName,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 3),
-              Text(
-                headerPath,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+          padding: const EdgeInsets.fromLTRB(4, 6, 4, 2),
           child: Row(
             children: [
               const SizedBox(width: 8),
-              Text(
-                sectionLabel,
-                style: Theme.of(context).textTheme.labelSmall,
+              Expanded(
+                child: Text(
+                  headerName.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
               ),
-              const Spacer(),
               if (!_isSingleProjectRoot) ...[
                 IconButton(
                   tooltip: 'New Project',
@@ -119,6 +130,31 @@ class WorkspaceExplorer extends StatelessWidget {
                   tooltip: 'Import Project',
                   icon: const Icon(Icons.file_download_outlined, size: 15),
                   onPressed: onImportProject,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+              if (onCreateEntry != null &&
+                  onOpenFile != null &&
+                  onToggleDirectory != null) ...[
+                IconButton(
+                  key: const Key('explorer-new-file'),
+                  tooltip: 'New File',
+                  icon: const Icon(Icons.note_add_outlined, size: 15),
+                  onPressed: () => fileTreeKey?.currentState?.beginNewFile(),
+                  visualDensity: VisualDensity.compact,
+                ),
+                IconButton(
+                  key: const Key('explorer-new-folder'),
+                  tooltip: 'New Folder',
+                  icon: const Icon(Icons.create_new_folder_outlined, size: 15),
+                  onPressed: () => fileTreeKey?.currentState?.beginNewFolder(),
+                  visualDensity: VisualDensity.compact,
+                ),
+                IconButton(
+                  key: const Key('explorer-collapse-all'),
+                  tooltip: 'Collapse All Folders',
+                  icon: const Icon(Icons.unfold_less, size: 15),
+                  onPressed: onCollapseAllFolders,
                   visualDensity: VisualDensity.compact,
                 ),
               ],
@@ -164,124 +200,38 @@ class WorkspaceExplorer extends StatelessWidget {
               ],
             ),
           ),
-        if (onOpenFile != null && onToggleDirectory != null) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
-            child: Text(
-              'FILES',
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
-          ),
+        if (onOpenFile != null && onToggleDirectory != null)
           Expanded(
-            flex: 3,
             child: VirtualFileTree(
+              key: fileTreeKey,
               rows: fileRows,
               isLoading: isLoadingFileTree,
+              selectedPath: selectedFilePath,
+              rootPath: _filesRootPath,
               onOpenFile: onOpenFile!,
               onToggleDirectory: onToggleDirectory!,
               gitFileStatuses: gitFileStatuses,
               emptyMessage: 'This project has no files yet.',
+              emptyHint: 'Create a file to get started.',
+              onEnsureExpanded: onEnsureExpanded,
+              onCreateEntry: onCreateEntry,
+              onRenameEntry: onRenameEntry,
+              onDeleteEntry: onDeleteEntry,
+              onDuplicateEntry: onDuplicateEntry,
+              onMoveEntry: onMoveEntry,
+              onCopyRelativePath: onCopyRelativePath,
+              onCopyAbsolutePath: onCopyAbsolutePath,
+              onRevealInOs: onRevealInOs,
             ),
-          ),
-        ],
-        Expanded(
-          flex: 2,
-          child: ListView(
-            key: const Key('workspace-explorer-list'),
-            padding: const EdgeInsets.only(bottom: 12),
-            children: [
-              ToolSection(
-                title: 'Environments',
-                trailing: onManageEnvironments == null
-                    ? null
-                    : IconButton(
-                        tooltip: 'Manage Environments',
-                        icon: const Icon(Icons.settings_outlined, size: 14),
-                        onPressed: onManageEnvironments,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                children: [
-                  if (isLoadingEnvironments)
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Center(
-                        child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    )
-                  else if (environments.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
-                      child: Text(
-                        'No environment yet — create one to run tests.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    )
-                  else
-                    ...environments.map(
-                      (environment) => ExplorerTreeItem(
-                        icon: Icons.memory_outlined,
-                        label: environment.active
-                            ? '${environment.name} ●'
-                            : environment.name,
-                        indent: 1,
-                        selected: selectedEnvironment?.id == environment.id,
-                        onTap: onSelectEnvironment == null
-                            ? null
-                            : () => onSelectEnvironment!(environment),
-                      ),
-                    ),
-                ],
-              ),
-              ToolSection(
-                title: 'Packages',
-                children: [
-                  ExplorerTreeItem(
-                    icon: Icons.inventory_2_outlined,
-                    label: 'Package Manager',
-                    indent: 1,
-                    onTap: onOpenPackageManager,
-                  ),
-                ],
-              ),
-              ToolSection(
-                title: 'Reports',
-                initiallyExpanded: recentRuns.isNotEmpty,
-                children: [
-                  ExplorerTreeItem(
-                    icon: Icons.bar_chart_outlined,
-                    label: 'Reports',
-                    indent: 1,
-                    onTap: onOpenReports,
-                  ),
-                  if (recentRuns.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
-                      child: Text(
-                        'No reports yet — run a suite to create one.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    )
-                  else
-                    ...recentRuns.take(5).map(
-                          (run) => ExplorerTreeItem(
-                            icon: Icons.play_circle_outline,
-                            label: run.suite.isEmpty
-                                ? run.projectName
-                                : run.suite,
-                            indent: 1,
-                            onTap: onSelectReport == null
-                                ? null
-                                : () => onSelectReport!(run),
-                          ),
-                        ),
-                ],
-              ),
-            ],
-          ),
+          )
+        else
+          const Spacer(),
+        DocumentOutlinePanel(
+          embedded: true,
+          symbols: outline,
+          isLoading: isLoadingOutline,
+          selectedId: selectedOutlineId,
+          onSelect: onOutlineSelect,
         ),
       ],
     );

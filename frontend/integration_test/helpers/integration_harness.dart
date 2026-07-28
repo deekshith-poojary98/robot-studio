@@ -96,11 +96,14 @@ class IntegrationHarness {
     String workspaceName,
   ) async {
     await tapText(tester, workspaceName);
-    await pumpUntilFound(
+    // Welcome dismisses once the workspace opens. With a seeded project the
+    // explorer header becomes the project name, so do not require workspaceName.
+    await pumpUntilAbsent(
       tester,
-      find.text(workspaceName),
+      find.text('Recent Workspaces'),
       timeout: const Duration(seconds: 20),
     );
+    expect(find.text('No workspace'), findsNothing);
   }
 
   Directory workspaceLocation(String suffix) {

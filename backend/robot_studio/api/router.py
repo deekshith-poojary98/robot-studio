@@ -13,12 +13,14 @@ from robot_studio.api.routes import (
     git,
     reports,
     tests,
+    workspace_events,
     workspaces,
 )
 
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(workspaces.router)
+api_router.include_router(workspace_events.router)
 api_router.include_router(projects.router)
 api_router.include_router(environments.router)
 api_router.include_router(packages.router)

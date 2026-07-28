@@ -17,7 +17,7 @@ export '../gateway/transport_gateway.dart';
 /// Backward-compatible alias for [RestTransportGateway].
 class ApiClient implements TransportGateway {
   ApiClient({String? baseUrl, RestTransportGateway? gateway})
-      : _gateway = gateway ?? RestTransportGateway(baseUrl: baseUrl);
+    : _gateway = gateway ?? RestTransportGateway(baseUrl: baseUrl);
 
   final TransportGateway _gateway;
 
@@ -28,8 +28,7 @@ class ApiClient implements TransportGateway {
   Future<WorkspaceInfo> createWorkspace({
     required String name,
     required String location,
-  }) =>
-      _gateway.createWorkspace(name: name, location: location);
+  }) => _gateway.createWorkspace(name: name, location: location);
 
   @override
   Future<WorkspaceInfo> openWorkspace(String path) =>
@@ -40,9 +39,7 @@ class ApiClient implements TransportGateway {
       _gateway.listRecentWorkspaces();
 
   @override
-  Future<ProjectInfo> createProject({
-    required String name,
-  }) =>
+  Future<ProjectInfo> createProject({required String name}) =>
       _gateway.createProject(name: name);
 
   @override
@@ -57,18 +54,17 @@ class ApiClient implements TransportGateway {
       _gateway.openProject(projectId);
 
   @override
-  Future<OpenProjectByPathResult> openProjectByPath(String path) =>
-      _gateway.openProjectByPath(path);
+  Future<OpenProjectByPathResult> openProjectByPath(
+    String path, {
+    bool force = false,
+  }) =>
+      _gateway.openProjectByPath(path, force: force);
 
   @override
   Future<OpenProjectByPathResult> createStandaloneProject({
     required String name,
     required String location,
-  }) =>
-      _gateway.createStandaloneProject(
-        name: name,
-        location: location,
-      );
+  }) => _gateway.createStandaloneProject(name: name, location: location);
 
   @override
   Future<List<ProjectInfo>> listRecentProjects() =>
@@ -77,8 +73,7 @@ class ApiClient implements TransportGateway {
   @override
   Future<List<EnvironmentInfo>> listEnvironments({
     EnvironmentSort sort = EnvironmentSort.active,
-  }) =>
-      _gateway.listEnvironments(sort: sort);
+  }) => _gateway.listEnvironments(sort: sort);
 
   @override
   Future<List<PythonInterpreterInfo>> listPythonInterpreters() =>
@@ -89,12 +84,11 @@ class ApiClient implements TransportGateway {
     required String name,
     required String pythonInterpreter,
     bool installRobotFramework = false,
-  }) =>
-      _gateway.createEnvironment(
-        name: name,
-        pythonInterpreter: pythonInterpreter,
-        installRobotFramework: installRobotFramework,
-      );
+  }) => _gateway.createEnvironment(
+    name: name,
+    pythonInterpreter: pythonInterpreter,
+    installRobotFramework: installRobotFramework,
+  );
 
   @override
   Future<EnvironmentInfo> importEnvironment(String path) =>
@@ -112,28 +106,22 @@ class ApiClient implements TransportGateway {
   Future<EnvironmentInfo> cloneEnvironment({
     required String environmentId,
     required String name,
-  }) =>
-      _gateway.cloneEnvironment(
-        environmentId: environmentId,
-        name: name,
-      );
+  }) => _gateway.cloneEnvironment(environmentId: environmentId, name: name);
 
   @override
   Future<void> deleteEnvironment({
     required String environmentId,
     bool deleteFiles = false,
-  }) =>
-      _gateway.deleteEnvironment(
-        environmentId: environmentId,
-        deleteFiles: deleteFiles,
-      );
+  }) => _gateway.deleteEnvironment(
+    environmentId: environmentId,
+    deleteFiles: deleteFiles,
+  );
 
   @override
   Future<PackageListResult> listPackages({
     String? query,
     PackageSort sort = PackageSort.name,
-  }) =>
-      _gateway.listPackages(query: query, sort: sort);
+  }) => _gateway.listPackages(query: query, sort: sort);
 
   @override
   Future<List<PackageSearchResult>> searchPackages(String query) =>
@@ -150,8 +138,7 @@ class ApiClient implements TransportGateway {
   Future<PackageOperationResult> installPackage(
     String name, {
     String? version,
-  }) =>
-      _gateway.installPackage(name, version: version);
+  }) => _gateway.installPackage(name, version: version);
 
   @override
   Future<PackageOperationResult> updatePackage(String name) =>
@@ -176,10 +163,7 @@ class ApiClient implements TransportGateway {
       _gateway.getTestsForFile(path);
 
   @override
-  Future<ExecutionInfo> runTest({
-    required String file,
-    required String name,
-  }) =>
+  Future<ExecutionInfo> runTest({required String file, required String name}) =>
       _gateway.runTest(file: file, name: name);
 
   @override
@@ -196,8 +180,7 @@ class ApiClient implements TransportGateway {
   @override
   Future<ExecutionInfo> runSelectedTests(
     List<({String file, String name})> tests,
-  ) =>
-      _gateway.runSelectedTests(tests);
+  ) => _gateway.runSelectedTests(tests);
 
   @override
   Future<ExecutionInfo> stopExecution() => _gateway.stopExecution();
@@ -246,8 +229,7 @@ class ApiClient implements TransportGateway {
     String query = '',
     SymbolKind? kind,
     int limit = 100,
-  }) =>
-      _gateway.searchSymbols(query: query, kind: kind, limit: limit);
+  }) => _gateway.searchSymbols(query: query, kind: kind, limit: limit);
 
   @override
   Future<IndexedSymbolInfo?> languageDefinition({
@@ -258,16 +240,15 @@ class ApiClient implements TransportGateway {
     int? line,
     int? column,
     String? content,
-  }) =>
-      _gateway.languageDefinition(
-        name: name,
-        symbolId: symbolId,
-        kind: kind,
-        filePath: filePath,
-        line: line,
-        column: column,
-        content: content,
-      );
+  }) => _gateway.languageDefinition(
+    name: name,
+    symbolId: symbolId,
+    kind: kind,
+    filePath: filePath,
+    line: line,
+    column: column,
+    content: content,
+  );
 
   @override
   Future<List<SymbolReferenceInfo>> languageReferences({
@@ -278,16 +259,15 @@ class ApiClient implements TransportGateway {
     int? line,
     int? column,
     String? content,
-  }) =>
-      _gateway.languageReferences(
-        name: name,
-        symbolId: symbolId,
-        kind: kind,
-        filePath: filePath,
-        line: line,
-        column: column,
-        content: content,
-      );
+  }) => _gateway.languageReferences(
+    name: name,
+    symbolId: symbolId,
+    kind: kind,
+    filePath: filePath,
+    line: line,
+    column: column,
+    content: content,
+  );
 
   @override
   Future<HoverInfo?> languageHover({
@@ -298,16 +278,15 @@ class ApiClient implements TransportGateway {
     int? line,
     int? column,
     String? content,
-  }) =>
-      _gateway.languageHover(
-        name: name,
-        symbolId: symbolId,
-        kind: kind,
-        filePath: filePath,
-        line: line,
-        column: column,
-        content: content,
-      );
+  }) => _gateway.languageHover(
+    name: name,
+    symbolId: symbolId,
+    kind: kind,
+    filePath: filePath,
+    line: line,
+    column: column,
+    content: content,
+  );
 
   @override
   Future<List<IndexedSymbolInfo>> documentSymbols(String filePath) =>
@@ -317,8 +296,7 @@ class ApiClient implements TransportGateway {
   Future<List<IndexedSymbolInfo>> workspaceSymbols({
     String query = '',
     int limit = 200,
-  }) =>
-      _gateway.workspaceSymbols(query: query, limit: limit);
+  }) => _gateway.workspaceSymbols(query: query, limit: limit);
 
   @override
   Future<List<CompletionItemInfo>> languageCompletion({
@@ -327,21 +305,19 @@ class ApiClient implements TransportGateway {
     required int column,
     required String content,
     String query = '',
-  }) =>
-      _gateway.languageCompletion(
-        filePath: filePath,
-        line: line,
-        column: column,
-        content: content,
-        query: query,
-      );
+  }) => _gateway.languageCompletion(
+    filePath: filePath,
+    line: line,
+    column: column,
+    content: content,
+    query: query,
+  );
 
   @override
   Future<List<DiagnosticInfo>> languageDiagnostics({
     required String filePath,
     required String content,
-  }) =>
-      _gateway.languageDiagnostics(filePath: filePath, content: content);
+  }) => _gateway.languageDiagnostics(filePath: filePath, content: content);
 
   @override
   Future<String> languageFormat({
@@ -349,13 +325,12 @@ class ApiClient implements TransportGateway {
     required String content,
     int? startLine,
     int? endLine,
-  }) =>
-      _gateway.languageFormat(
-        filePath: filePath,
-        content: content,
-        startLine: startLine,
-        endLine: endLine,
-      );
+  }) => _gateway.languageFormat(
+    filePath: filePath,
+    content: content,
+    startLine: startLine,
+    endLine: endLine,
+  );
 
   @override
   Future<SignatureHelpInfo?> languageSignatureHelp({
@@ -363,13 +338,12 @@ class ApiClient implements TransportGateway {
     required int line,
     required int column,
     required String content,
-  }) =>
-      _gateway.languageSignatureHelp(
-        filePath: filePath,
-        line: line,
-        column: column,
-        content: content,
-      );
+  }) => _gateway.languageSignatureHelp(
+    filePath: filePath,
+    line: line,
+    column: column,
+    content: content,
+  );
 
   @override
   Future<List<PluginInfo>> listPlugins() => _gateway.listPlugins();
@@ -415,10 +389,7 @@ class ApiClient implements TransportGateway {
       _gateway.checkoutGitBranch(branch);
 
   @override
-  Future<GitBranchInfo> createGitBranch(
-    String name, {
-    String? startPoint,
-  }) =>
+  Future<GitBranchInfo> createGitBranch(String name, {String? startPoint}) =>
       _gateway.createGitBranch(name, startPoint: startPoint);
 
   @override
@@ -428,8 +399,7 @@ class ApiClient implements TransportGateway {
   Future<GitCommitInfo> commitGitChanges({
     required String message,
     List<String>? files,
-  }) =>
-      _gateway.commitGitChanges(message: message, files: files);
+  }) => _gateway.commitGitChanges(message: message, files: files);
 
   @override
   Future<GitRemoteResultInfo> fetchGit() => _gateway.fetchGit();
@@ -441,10 +411,7 @@ class ApiClient implements TransportGateway {
   Future<GitRemoteResultInfo> pushGit() => _gateway.pushGit();
 
   @override
-  Future<GitDiffInfo> getGitDiff({
-    String? filePath,
-    String? commit,
-  }) =>
+  Future<GitDiffInfo> getGitDiff({String? filePath, String? commit}) =>
       _gateway.getGitDiff(filePath: filePath, commit: commit);
 
   @override
@@ -454,14 +421,43 @@ class ApiClient implements TransportGateway {
   Future<FileWriteResult> writeFile({
     required String path,
     required String content,
-  }) =>
-      _gateway.writeFile(path: path, content: content);
+  }) => _gateway.writeFile(path: path, content: content);
 
   @override
-  Future<List<FileTreeNode>> listFileTree({
-    String? path,
-    int depth = 0,
+  Future<FileMutationResult> createFile({
+    required String path,
+    String content = '',
   }) =>
+      _gateway.createFile(path: path, content: content);
+
+  @override
+  Future<FileMutationResult> createDirectory({required String path}) =>
+      _gateway.createDirectory(path: path);
+
+  @override
+  Future<FileMutationResult> renamePath({
+    required String path,
+    required String newName,
+  }) =>
+      _gateway.renamePath(path: path, newName: newName);
+
+  @override
+  Future<FileMutationResult> movePath({
+    required String path,
+    required String destinationDir,
+  }) =>
+      _gateway.movePath(path: path, destinationDir: destinationDir);
+
+  @override
+  Future<FileMutationResult> duplicatePath({required String path}) =>
+      _gateway.duplicatePath(path: path);
+
+  @override
+  Future<FileMutationResult> deletePath({required String path}) =>
+      _gateway.deletePath(path: path);
+
+  @override
+  Future<List<FileTreeNode>> listFileTree({String? path, int depth = 0}) =>
       _gateway.listFileTree(path: path, depth: depth);
 }
 

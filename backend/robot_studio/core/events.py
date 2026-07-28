@@ -202,6 +202,20 @@ class FileWritten(DomainEvent):
 
 
 @dataclass(frozen=True)
+class FilesystemChanged(DomainEvent):
+    """Debounced filesystem change for live workspace fan-out.
+
+    ``kind`` uses the Tier-1 wire vocabulary (FILE_CREATED, DIRECTORY_DELETED,
+    FILE_RENAMED, …). ``path`` / ``old_path`` are absolute paths.
+    """
+
+    kind: str
+    path: str
+    old_path: str | None = None
+    is_directory: bool = False
+
+
+@dataclass(frozen=True)
 class PluginLoaded(DomainEvent):
     plugin_id: str
 

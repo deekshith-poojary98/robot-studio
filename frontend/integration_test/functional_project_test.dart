@@ -143,7 +143,7 @@ void main() {
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('PR-07 project details show type and location', (tester) async {
+  testWidgets('PR-07 project details show location', (tester) async {
     await harness.seedWorkspace(name: 'PR Details', suffix: 'pr-07');
     final project = await harness.seedProject(name: 'DetailProj');
     final path = project['path'] as String;
@@ -151,7 +151,7 @@ void main() {
     await harness.launchAppWithWorkspace(tester, workspaceName: 'PR Details');
     await openProjectInExplorer(tester, projectName: 'DetailProj');
 
-    expect(find.text('TYPE'), findsOneWidget);
+    expect(find.text('TYPE'), findsNothing);
     expect(find.text('LOCATION'), findsOneWidget);
     // Path basename or full path fragment should appear.
     expect(
@@ -226,18 +226,14 @@ void main() {
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('PR-10 continue with project CTA selects project', (tester) async {
+  testWidgets('PR-10 open project from explorer after workspace open',
+      (tester) async {
     await harness.seedWorkspace(name: 'PR Continue', suffix: 'pr-10');
     await harness.seedProject(name: 'ContinueMe');
     await harness.launchAppWithWorkspace(tester, workspaceName: 'PR Continue');
 
-    final continueBtn = find.textContaining('Continue with ContinueMe');
-    if (tester.widgetList(continueBtn).isNotEmpty) {
-      await tester.tap(continueBtn.first);
-      await tester.pump(const Duration(milliseconds: 400));
-    } else {
-      await openProjectInExplorer(tester, projectName: 'ContinueMe');
-    }
+    expect(find.textContaining('Continue with'), findsNothing);
+    await openProjectInExplorer(tester, projectName: 'ContinueMe');
 
     await pumpUntilFound(tester, find.text('TYPE'));
     harness.expectNoFlutterErrors();

@@ -25,4 +25,7 @@ class BackendConfig {
 
   static String get wsExecutionUrl =>
       'ws://$host:$port/api/v1/execution/stream';
+
+  static String get wsWorkspaceEventsUrl =>
+      'ws://$host:$port/api/v1/workspace/events';
 }

@@ -77,7 +77,7 @@ class ProjectService:
         await self._activate(project)
         return project
 
-    async def import_project(self, path: str | Path) -> Project:
+    async def import_project(self, path: str | Path, *, force: bool = False) -> Project:
         workspace = self._require_workspace()
         project_root = Path(path).expanduser().resolve()
 
@@ -85,8 +85,10 @@ class ProjectService:
             raise ProjectValidationError(
                 f"Directory does not exist: '{project_root}'",
             )
-        if not self._fs.is_robot_project(project_root) and not self._fs.has_manifest(
-            project_root,
+        if (
+            not force
+            and not self._fs.is_robot_project(project_root)
+            and not self._fs.has_manifest(project_root)
         ):
             raise ProjectValidationError(
                 f"'{project_root}' does not look like a Robot Framework project",
@@ -256,7 +258,7 @@ class ProjectService:
             f"No Robot Studio project found at or above '{target}'",
         )
 
-    async def ensure_root_project(self) -> Project:
+    async def ensure_root_project(self, *, force: bool = False) -> Project:
         """Activate or register the workspace root as the sole/primary project."""
         workspace = self._require_workspace()
         projects = await self.list_projects()
@@ -264,7 +266,7 @@ class ProjectService:
             if project.path.resolve() == workspace.path.resolve():
                 await self._activate(project)
                 return project
-        return await self.import_project(workspace.path)
+        return await self.import_project(workspace.path, force=force)
 
     async def list_recent(self, limit: int = 10) -> list[Project]:
         recent = await self._repository.list_recent(limit=limit)

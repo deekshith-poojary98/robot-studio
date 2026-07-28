@@ -3,7 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.files import (
+    DirectoryCreateRequest,
     FileContentResponse,
+    FileCreateRequest,
+    FileMoveRequest,
+    FileMutationResponse,
+    FilePathRequest,
+    FileRenameRequest,
     FileTreeNode,
     FileTreeResponse,
     FileWriteRequest,
@@ -36,6 +42,83 @@ async def write_file(
     except FileValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return FileWriteResponse(**result)
+
+
+@router.post("/create", response_model=FileMutationResponse)
+async def create_file(
+    request: FileCreateRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> FileMutationResponse:
+    try:
+        result = await gateway.create_file(request.path, request.content)
+    except FileValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return FileMutationResponse(
+        path=result["path"],
+        mtime=result.get("mtime"),
+        size=result.get("size"),
+        saved_at=result.get("saved_at"),
+    )
+
+
+@router.post("/mkdir", response_model=FileMutationResponse)
+async def create_directory(
+    request: DirectoryCreateRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> FileMutationResponse:
+    try:
+        result = await gateway.create_directory(request.path)
+    except FileValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return FileMutationResponse(**result)
+
+
+@router.post("/rename", response_model=FileMutationResponse)
+async def rename_path(
+    request: FileRenameRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> FileMutationResponse:
+    try:
+        result = await gateway.rename_path(request.path, request.new_name)
+    except FileValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return FileMutationResponse(**result)
+
+
+@router.post("/move", response_model=FileMutationResponse)
+async def move_path(
+    request: FileMoveRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> FileMutationResponse:
+    try:
+        result = await gateway.move_path(request.path, request.destination_dir)
+    except FileValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return FileMutationResponse(**result)
+
+
+@router.post("/duplicate", response_model=FileMutationResponse)
+async def duplicate_path(
+    request: FilePathRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> FileMutationResponse:
+    try:
+        result = await gateway.duplicate_path(request.path)
+    except FileValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return FileMutationResponse(**result)
+
+
+@router.post("/delete", response_model=FileMutationResponse)
+async def delete_path(
+    request: FilePathRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> FileMutationResponse:
+    try:
+        result = await gateway.delete_path(request.path)
+    except FileValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return FileMutationResponse(**result)
 
 
 @router.get("/tree", response_model=FileTreeResponse)

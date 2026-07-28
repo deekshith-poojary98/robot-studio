@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/test_explorer_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/skeleton_list.dart';
 
 typedef TestNodeCallback = void Function(TestNodeInfo node);
 
@@ -76,6 +78,8 @@ class _TestExplorerPanelState extends State<TestExplorerPanel> {
   void _seedExpanded() {
     final tree = widget.tree;
     if (tree == null || _seeded) return;
+    // Seed defaults once per tree id; INDEX_UPDATED refreshes keep expand state
+    // when the root id is stable.
     _expanded
       ..clear()
       ..add(tree.id);
@@ -166,26 +170,13 @@ class _TestExplorerPanelState extends State<TestExplorerPanel> {
         ),
         Expanded(
           child: widget.isLoading && widget.tree == null
-              ? const Center(
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
+              ? const SkeletonList(rows: 6)
               : widget.tree == null
-                  ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text(
-                          'Open a project to browse tests.',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
+                  ? const EmptyState(
+                      icon: Icons.science_outlined,
+                      title: 'No tests yet',
+                      message: 'Open a project to browse suites and cases.',
+                      compact: true,
                     )
                   : ListView(
                       padding: const EdgeInsets.only(bottom: 12),

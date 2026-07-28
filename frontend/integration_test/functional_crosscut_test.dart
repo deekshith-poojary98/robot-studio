@@ -69,7 +69,6 @@ void main() {
       'Explorer',
       'Search',
       'Tests',
-      'Keywords',
       'Source Control',
       'Reports',
       'Packages',
