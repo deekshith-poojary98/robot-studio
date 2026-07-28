@@ -83,8 +83,8 @@ class SourceControlPage extends StatelessWidget {
           ),
           const Divider(height: 1),
           Expanded(
-            child: isLoading
-                ? const SkeletonList(rows: 8)
+            child: isLoading && status == null
+                ? const _SourceControlSkeleton()
                 : !isRepository
                 ? EmptyState(
                     icon: Icons.source_outlined,
@@ -352,6 +352,107 @@ class _ChangeRow extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Mirrors the loaded Source Control body: changes + commit (left) | history (right).
+class _SourceControlSkeleton extends StatelessWidget {
+  const _SourceControlSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          flex: 3,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: SkeletonList(
+                  rows: 6,
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                ),
+              ),
+              _CommitPanelSkeleton(),
+            ],
+          ),
+        ),
+        VerticalDivider(width: 1),
+        Expanded(
+          flex: 4,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: _SkeletonBlock(width: 72, height: 12),
+              ),
+              Divider(height: 1),
+              Expanded(
+                child: SkeletonList(
+                  rows: 7,
+                  padding: EdgeInsets.all(16),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CommitPanelSkeleton extends StatelessWidget {
+  const _CommitPanelSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.borderSubtle)),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SkeletonBlock(width: 110, height: 10),
+          SizedBox(height: 8),
+          _SkeletonBlock(height: 72),
+          SizedBox(height: 12),
+          Row(
+            children: [
+              _SkeletonBlock(width: 100, height: 28),
+              SizedBox(width: 8),
+              _SkeletonBlock(width: 130, height: 28),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonBlock extends StatelessWidget {
+  const _SkeletonBlock({this.width, required this.height});
+
+  final double? width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        width: width ?? double.infinity,
+        height: height,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceHover,
+          borderRadius: BorderRadius.circular(AppRadii.xs),
         ),
       ),
     );

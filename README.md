@@ -40,7 +40,7 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 | **Explorer file ops** | New file/folder (`.robot` files seeded with Settings/Variables/Test Cases/Keywords scaffold), inline rename, delete, duplicate, copy path, reveal in OS, drag-move via live events |
 | **Live workspace** | FS/index/git/env events over `/workspace/events`; explorer incremental refresh; external edit / deleted-file dialogs; auto Git + Test Explorer refresh |
 | **Reports** | Recent runs, pass/fail stats; open `report.html` / `log.html` / `output.xml` from run details |
-| **Git** | Status, stage, commit, branches, history, diff; remote actions when a repo exists |
+| **Git** | Status (incl. untracked), stage, commit, branches, history, diff; remote actions when a repo exists |
 | **Plugins** | Builtin capabilities + plugin manager UI (load / enable / details) |
 | **Status** | Project context, `ROBOT` / `PYTHON` versions (backend connection is not shown) |
 | **UX guidance** | Actionable dialogs for missing project/env; gated CTAs; clickable run status → Execution Logs; shared EmptyState + skeleton loaders; friendly timeout copy |

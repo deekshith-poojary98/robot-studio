@@ -104,3 +104,21 @@ async def test_move_and_validation(file_stack) -> None:
         FileService.validate_entry_name("CON")
     with pytest.raises(FileValidationError):
         await service.create_file(str(folder / "move.me"))
+
+
+@pytest.mark.asyncio
+async def test_list_tree_shows_dotfiles_except_heavy(file_stack) -> None:
+    service, root, _events = file_stack
+    (root / ".gitignore").write_text("*.pyc\n", encoding="utf-8")
+    (root / ".env.example").write_text("KEY=\n", encoding="utf-8")
+    (root / ".git").mkdir()
+    (root / ".venv").mkdir()
+    (root / ".DS_Store").write_text("", encoding="utf-8")
+
+    tree = await service.list_tree(None, depth=0)
+    names = {item["name"] for item in tree}
+    assert ".gitignore" in names
+    assert ".env.example" in names
+    assert ".git" not in names
+    assert ".venv" not in names
+    assert ".DS_Store" not in names

@@ -531,7 +531,11 @@ class _AppShellState extends State<AppShell> {
       return;
     }
 
-    setState(() => _loadingGit = true);
+    // Only show the page skeleton on first load — keep content on refresh.
+    final initialLoad = _gitStatus == null;
+    if (initialLoad) {
+      setState(() => _loadingGit = true);
+    }
     try {
       final status = await _gateway.getGitStatus();
       final branches = status.repository.isRepository
@@ -552,7 +556,10 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _loadGitHistory() async {
     if (_gitStatus?.repository.isRepository != true) return;
-    setState(() => _loadingGitHistory = true);
+    final initialLoad = _gitHistory.isEmpty;
+    if (initialLoad) {
+      setState(() => _loadingGitHistory = true);
+    }
     try {
       final history = await _gateway.getGitHistory(limit: 50);
       if (!mounted) return;

@@ -6,6 +6,7 @@ import 'package:robot_studio/presentation/git/branch_selector.dart';
 import 'package:robot_studio/presentation/git/commit_panel.dart';
 import 'package:robot_studio/presentation/git/history_panel.dart';
 import 'package:robot_studio/presentation/git/source_control_page.dart';
+import 'package:robot_studio/presentation/widgets/skeleton_list.dart';
 
 void main() {
   testWidgets('SourceControlPage shows empty repository state', (
@@ -52,6 +53,114 @@ void main() {
 
     expect(find.text('Not a Git repository'), findsWidgets);
     expect(find.text('Initialize Git Repository'), findsOneWidget);
+  });
+
+  testWidgets('SourceControlPage loading skeleton matches two-column layout', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 1400,
+            height: 900,
+            child: SourceControlPage(
+              status: null,
+              branches: const [],
+              history: const [],
+              selectedCommit: null,
+              commitDetail: null,
+              diff: null,
+              selectedFiles: const {},
+              selectedDiffFile: null,
+              commitController: TextEditingController(),
+              isLoading: true,
+              isBusy: false,
+              isLoadingHistory: false,
+              isLoadingDiff: false,
+              onRefresh: () {},
+              onInit: () {},
+              onToggleFile: (_) {},
+              onSelectDiffFile: (_) {},
+              onCommitAll: () {},
+              onCommitSelected: () {},
+              onSelectCommit: (_) {},
+              onRefreshHistory: () {},
+              onFetch: () {},
+              onPull: () {},
+              onPush: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Source Control'), findsOneWidget);
+    expect(find.byType(VerticalDivider), findsOneWidget);
+    // Left changes list + right history list.
+    expect(find.byType(SkeletonList), findsNWidgets(2));
+  });
+
+  testWidgets('SourceControlPage refresh keeps content instead of skeleton', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 1400,
+            height: 900,
+            child: SourceControlPage(
+              status: const GitStatusInfo(
+                repository: GitRepositoryInfo(
+                  isRepository: true,
+                  branch: 'main',
+                  clean: false,
+                ),
+                changes: [
+                  GitFileChangeInfo(
+                    path: 'a.robot',
+                    status: GitFileStatus.modified,
+                  ),
+                ],
+              ),
+              branches: const [],
+              history: const [],
+              selectedCommit: null,
+              commitDetail: null,
+              diff: null,
+              selectedFiles: const {},
+              selectedDiffFile: null,
+              commitController: TextEditingController(),
+              isLoading: true,
+              isBusy: false,
+              isLoadingHistory: false,
+              isLoadingDiff: false,
+              onRefresh: () {},
+              onInit: () {},
+              onToggleFile: (_) {},
+              onSelectDiffFile: (_) {},
+              onCommitAll: () {},
+              onCommitSelected: () {},
+              onSelectCommit: (_) {},
+              onRefreshHistory: () {},
+              onFetch: () {},
+              onPull: () {},
+              onPush: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('a.robot'), findsOneWidget);
+    expect(find.byType(SkeletonList), findsNothing);
   });
 
   testWidgets('SourceControlPage shows grouped changes', (

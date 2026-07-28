@@ -48,9 +48,10 @@ class CliGitProvider(GitProvider):
 
     async def status(self, repo_root: Path) -> GitStatus:
         repository = await self._repository_info(repo_root, include_porcelain=False)
-        # -uno: skip untracked files — critical for large Robot suites.
+        # -uall: list files inside untracked dirs (IDE-friendly). Ignored paths
+        # still stay hidden via .gitignore.
         raw = await self._run_text(
-            ["status", "--porcelain=v1", "-uno"],
+            ["status", "--porcelain=v1", "-uall"],
             cwd=repo_root,
         )
         changes = _parse_porcelain(raw)
@@ -337,7 +338,7 @@ class CliGitProvider(GitProvider):
         clean = True
         if include_porcelain:
             status_raw = await self._run_text(
-                ["status", "--porcelain=v1", "-uno"],
+                ["status", "--porcelain=v1", "-uall"],
                 cwd=repo_root,
             )
             changes = _parse_porcelain(status_raw)

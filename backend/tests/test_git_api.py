@@ -75,10 +75,14 @@ async def test_git_init_commit_history_diff(api_client) -> None:
     suite.parent.mkdir(parents=True, exist_ok=True)
     suite.write_text("*** Test Cases ***\nDemo\n    Log    hi\n", encoding="utf-8")
 
-    # Status uses `git status -uno` — brand-new files are omitted until tracked.
+    # Brand-new files appear as untracked in Source Control.
     status = await client.get("/api/v1/git/status")
     assert status.status_code == 200
-    assert status.json()["changes"] == []
+    changes = status.json()["changes"]
+    assert any(
+        item["path"].endswith("demo.robot") and item["status"] == "untracked"
+        for item in changes
+    )
 
     commit = await client.post(
         "/api/v1/git/commit",

@@ -20,6 +20,7 @@ _SKIP_NAMES = {
     "node_modules",
     "site-packages",
     "dist-info",
+    ".DS_Store",
 }
 
 _VENV_INTERNAL = {"bin", "lib", "include", "share", "scripts", "lib64"}
@@ -334,7 +335,8 @@ class FileService:
         return await asyncio.to_thread(self._walk, root, depth, workspace.path)
 
     def _should_skip(self, child: Path, relative_to: Path) -> bool:
-        if child.name in _SKIP_NAMES or child.name.startswith("."):
+        # Skip known heavy/noise dirs only — show normal dotfiles (.gitignore, etc.).
+        if child.name in _SKIP_NAMES:
             return True
         if child.name.endswith(".dist-info"):
             return True

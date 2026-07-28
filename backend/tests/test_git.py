@@ -18,6 +18,7 @@ from robot_studio.core.events import (
     WorkspaceOpened,
 )
 from robot_studio.domain.models import Workspace, WorkspaceSettings
+from robot_studio.domain.models.git import GitFileStatus
 from robot_studio.infrastructure.git.cli_provider import CliGitProvider
 
 
@@ -73,10 +74,13 @@ async def test_init_status_commit_checkout_branch(git_stack) -> None:
     sample = workspace_path / "sample.robot"
     sample.write_text("*** Test Cases ***\nA\n    Log    x\n", encoding="utf-8")
 
-    # Status uses `git status -uno` (skip untracked) for large-suite performance.
     status = await service.status()
     assert status.repository.is_repository is True
-    assert status.changes == []
+    assert any(
+        change.path.endswith("sample.robot")
+        and change.status == GitFileStatus.UNTRACKED
+        for change in status.changes
+    )
 
     commit = await service.commit("Initial commit")
     assert commit.message == "Initial commit"

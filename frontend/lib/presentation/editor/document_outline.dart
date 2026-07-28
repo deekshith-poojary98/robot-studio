@@ -17,7 +17,7 @@ class DocumentOutlinePanel extends StatelessWidget {
     this.onSelect,
     this.selectedId,
     this.embedded = false,
-    this.initiallyExpanded = true,
+    this.initiallyExpanded = false,
   });
 
   final List<IndexedSymbolInfo> symbols;
@@ -75,7 +75,7 @@ class _EmbeddedOutline extends StatefulWidget {
     required this.isLoading,
     this.onSelect,
     this.selectedId,
-    this.initiallyExpanded = true,
+    this.initiallyExpanded = false,
   });
 
   final List<IndexedSymbolInfo> symbols;
