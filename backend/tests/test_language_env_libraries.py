@@ -14,7 +14,10 @@ from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
 from robot_studio.infrastructure.language.robot_language_service import (
     RobotLanguageService,
 )
-from robot_studio.infrastructure.language.robot_parsing_worker import resolve_library
+from robot_studio.infrastructure.language.robot_parsing_worker import (
+    resolve_library,
+    signature_help,
+)
 
 
 class _FakeBridge:
@@ -25,11 +28,24 @@ class _FakeBridge:
         assert environment_path is not None
         return environment_path / "bin" / "python"
 
-    async def run(self, python_executable: Path, *, op: str, library: str = "", **_kwargs):
+    async def run(
+        self,
+        python_executable: Path,
+        *,
+        op: str,
+        library: str = "",
+        content: str = "",
+        file_path: str = "",
+        line: int = 1,
+        column: int = 1,
+        **_kwargs,
+    ):
+        if op == "signature_help":
+            return signature_help(content, file_path, line, column)
         assert op == "resolve_library"
         return self._libraries.get(
             library.casefold(),
-            {"available": False, "name": library, "keywords": []},
+            {"available": False, "name": library, "keywords": [], "keyword_info": {}},
         )
 
 
@@ -38,6 +54,115 @@ async def test_resolve_library_worker_collections() -> None:
     result = resolve_library("Collections")
     assert result["available"] is True
     assert any(name == "Append To List" for name in result["keywords"])
+    info = result["keyword_info"]["append to list"]
+    assert info["parameters"]
+    assert any("list" in p["label"].lower() for p in info["parameters"])
+
+
+def test_signature_help_keeps_multiword_keywords() -> None:
+    content = """*** Test Cases ***
+Demo
+    Open Workbook    ${EXCEL_PATH}
+"""
+    result = signature_help(content, "demo.robot", line=3, column=10)
+    assert result is not None
+    assert result["keyword"] == "Open Workbook"
+    assert result["arguments"] == ["${EXCEL_PATH}"]
+
+
+def test_signature_help_assignment_cell() -> None:
+    content = """*** Test Cases ***
+Demo
+    ${data}    Fetch Sheet Data    Sheet1
+"""
+    result = signature_help(content, "demo.robot", line=3, column=28)
+    assert result is not None
+    assert result["keyword"] == "Fetch Sheet Data"
+    assert result["arguments"] == ["Sheet1"]
+
+
+@pytest.mark.asyncio
+async def test_signature_help_uses_env_library_args(tmp_path: Path) -> None:
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").UTC,
+        ),
+    )
+    await context.open(workspace)
+
+    env_path = tmp_path / "new-env"
+    (env_path / "bin").mkdir(parents=True)
+    (env_path / "bin" / "python").write_text("", encoding="utf-8")
+    environment = Environment(
+        id=uuid4(),
+        workspace_id=workspace.id,
+        name="new-env",
+        path=env_path,
+        python_version="3.13",
+        python_executable=env_path / "bin" / "python",
+        pip_executable=env_path / "bin" / "pip",
+        created_at=workspace.created_at,
+        is_active=True,
+    )
+    await context.set_active_environment(environment)
+
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge(  # type: ignore[arg-type]
+            {
+                "ExcelSage": {
+                    "available": True,
+                    "name": "ExcelSage",
+                    "keywords": ["Open Workbook"],
+                    "keyword_info": {
+                        "open workbook": {
+                            "name": "Open Workbook",
+                            "documentation": "Opens an Excel workbook.",
+                            "parameters": [
+                                {"label": "workbook_name: str", "documentation": ""},
+                                {
+                                    "label": "alias: str | None = None",
+                                    "documentation": "default: None",
+                                },
+                            ],
+                        },
+                    },
+                },
+            },
+        ),
+    )
+
+    content = """*** Settings ***
+Library    ExcelSage
+
+*** Test Cases ***
+Demo
+    Open Workbook    report.xlsx
+"""
+    result = await service.signature_help(
+        {
+            "file_path": "demo.robot",
+            "line": 6,
+            "column": 20,
+            "content": content,
+        },
+    )
+    assert result is not None
+    assert result["keyword"] == "Open Workbook"
+    assert result["documentation"] == "Opens an Excel workbook."
+    assert [p["label"] for p in result["parameters"]] == [
+        "workbook_name: str",
+        "alias: str | None = None",
+    ]
 
 
 @pytest.mark.asyncio

@@ -412,38 +412,43 @@ def completion_context(
     return {"prefix": prefix, "context": "keyword_call", "section": section}
 
 
+def _robot_cells(row: str) -> list[str]:
+    """Split a Robot Framework row into cells (2+ spaces or tabs)."""
+    return [cell for cell in re.split(r"[ \t]{2,}|\t+", row.strip()) if cell]
+
+
 def signature_help(
     content: str,
     file_path: str,
     line: int,
     column: int,
 ) -> dict[str, Any] | None:
+    _ = file_path
     lines = content.splitlines()
     if line < 1 or line > len(lines):
         return None
     row = lines[line - 1]
     if not (row.startswith(" ") or row.startswith("\t")):
         return None
-    tokens = row.strip().split()
-    if not tokens:
+    cells = _robot_cells(row)
+    if not cells:
         return None
-    keyword = tokens[0]
-    arg_index = 0
-    consumed = 0
-    for token in tokens[1:]:
-        consumed += 1
-        if token.startswith("${") or token.startswith("@{") or token.startswith("&{"):
-            arg_index = consumed
-        elif not token.startswith("$") and not token.startswith("="):
-            arg_index = consumed
+    keyword_index = 0
+    if re.match(r"^[\$@&%]", cells[0]) and len(cells) > 1:
+        keyword_index = 1
+    if keyword_index >= len(cells):
+        return None
+    keyword = cells[keyword_index]
+    arguments = cells[keyword_index + 1 :]
     col_in_row = max(0, min(column - 1, len(row)))
-    before = row[:col_in_row].strip().split()
+    before = _robot_cells(row[:col_in_row])
+    arg_index = 0
     if before:
-        arg_index = max(0, len(before) - 1)
+        arg_index = max(0, len(before) - 1 - keyword_index)
     return {
         "keyword": keyword,
         "active_parameter": arg_index,
-        "arguments": tokens[1:],
+        "arguments": arguments,
     }
 
 
@@ -451,22 +456,37 @@ def resolve_library(name: str) -> dict:
     """Resolve a Library import against this environment via Robot libdoc."""
     cleaned = (name or "").strip()
     if not cleaned:
-        return {"available": False, "name": "", "keywords": []}
+        return {"available": False, "name": "", "keywords": [], "keyword_info": {}}
     try:
         from robot.libdoc import LibraryDocumentation
 
         doc = LibraryDocumentation(cleaned)
-        keywords = [str(kw.name) for kw in doc.keywords]
+        keywords: list[str] = []
+        keyword_info: dict[str, dict] = {}
+        for kw in doc.keywords:
+            kw_name = str(kw.name)
+            keywords.append(kw_name)
+            parameters: list[dict[str, str]] = []
+            for arg in getattr(kw, "args", []) or []:
+                label = str(arg)
+                parameters.append({"label": label, "documentation": ""})
+            keyword_info[kw_name.casefold()] = {
+                "name": kw_name,
+                "documentation": str(getattr(kw, "short_doc", None) or ""),
+                "parameters": parameters,
+            }
         return {
             "available": True,
             "name": str(doc.name or cleaned),
             "keywords": keywords,
+            "keyword_info": keyword_info,
         }
     except Exception as exc:  # noqa: BLE001 — import / libdoc failures
         return {
             "available": False,
             "name": cleaned,
             "keywords": [],
+            "keyword_info": {},
             "error": str(exc),
         }
 

@@ -273,7 +273,27 @@ class RobotLanguageService(LanguageService):
         if not parameters and keyword in _BUILTIN_KEYWORDS:
             parameters = [{"label": "message", "documentation": ""}]
 
+        # Library keywords live in the active env, not the workspace index.
+        if not parameters or not documentation:
+            env_info = await self._lookup_keyword_signature(content, keyword)
+            if env_info is not None:
+                if not parameters:
+                    parameters = list(env_info.get("parameters") or [])
+                if not documentation:
+                    documentation = str(env_info.get("documentation") or "")
+                if not detail and parameters:
+                    detail = ", ".join(
+                        str(item.get("label") or "")
+                        for item in parameters
+                        if item.get("label")
+                    )
+
+        if not parameters and not documentation:
+            return None
+
         active = int(parsed.get("active_parameter") or 0)
+        if parameters:
+            active = max(0, min(active, len(parameters) - 1))
         return {
             "keyword": keyword,
             "documentation": documentation,
@@ -281,6 +301,32 @@ class RobotLanguageService(LanguageService):
             "active_parameter": active,
             "parameters": parameters,
         }
+
+    async def _lookup_keyword_signature(
+        self,
+        content: str,
+        keyword: str,
+    ) -> dict[str, Any] | None:
+        key = keyword.casefold()
+        for library_name in [*self._imported_libraries(content), "BuiltIn"]:
+            resolved = await self._resolve_library(library_name)
+            if not resolved.get("available"):
+                continue
+            info = (resolved.get("keyword_info") or {}).get(key)
+            if isinstance(info, dict):
+                return info
+        return None
+
+    @staticmethod
+    def _imported_libraries(content: str) -> list[str]:
+        libraries: list[str] = []
+        for raw in content.splitlines():
+            line = raw.strip()
+            if line.lower().startswith("library "):
+                token = line.split(None, 1)[1].strip().split("    ")[0].strip()
+                if token:
+                    libraries.append(token)
+        return libraries
 
     async def _resolve(self, request: dict) -> dict | None:
         symbol_id = request.get("symbol_id")
@@ -340,13 +386,7 @@ class RobotLanguageService(LanguageService):
 
         # Resolve Library imports against the active env (site-packages), not only
         # the workspace index — Environments/ is excluded from discovery.
-        imported_libraries: list[str] = []
-        for raw in lines:
-            line = raw.strip()
-            if line.lower().startswith("library "):
-                token = line.split(None, 1)[1].strip().split("    ")[0].strip()
-                if token:
-                    imported_libraries.append(token)
+        imported_libraries = self._imported_libraries(content)
 
         for library_name in imported_libraries:
             resolved = await self._resolve_library(library_name)

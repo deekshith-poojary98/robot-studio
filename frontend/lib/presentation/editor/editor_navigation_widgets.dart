@@ -73,38 +73,43 @@ class SignatureHelpOverlay extends StatelessWidget {
       elevation: 4,
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(6),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              signature.keyword,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-            ),
-            if (signature.parameters.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                children: [
-                  for (var i = 0; i < signature.parameters.length; i++)
-                    _ParameterChip(
-                      parameter: signature.parameters[i],
-                      active: i == signature.activeParameter,
-                    ),
-                ],
-              ),
-            ],
-            if (signature.documentation.isNotEmpty) ...[
-              const SizedBox(height: 6),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Text(
-                signature.documentation,
-                style: Theme.of(context).textTheme.bodySmall,
+                signature.keyword,
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
               ),
+              if (signature.parameters.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: [
+                    for (var i = 0; i < signature.parameters.length; i++)
+                      _ParameterChip(
+                        parameter: signature.parameters[i],
+                        active: i == signature.activeParameter,
+                      ),
+                  ],
+                ),
+              ],
+              if (signature.documentation.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  signature.documentation,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
