@@ -17,6 +17,7 @@ import '../environment/environment_details_panel.dart';
 import '../environment/environment_manager_page.dart';
 import '../environment/import_environment_dialog.dart';
 import '../editor/editor_page.dart';
+import '../editor/editor_tabs_bar.dart';
 import '../execution/execution_page.dart';
 import '../git/source_control_page.dart';
 import '../packages/package_details_panel.dart';
@@ -2220,6 +2221,69 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Future<void> _closeTabsByPaths(Iterable<String> paths) async {
+    for (final path in paths.toList()) {
+      if (!_editorTabs.any((tab) => tab.path == path)) continue;
+      await _closeTab(path);
+      // User cancelled discard for a dirty tab — stop the batch.
+      if (_editorTabs.any((tab) => tab.path == path)) return;
+    }
+  }
+
+  Future<void> _closeOtherTabs(String keepPath) async {
+    final paths = _editorTabs
+        .where((tab) => tab.path != keepPath)
+        .map((tab) => tab.path)
+        .toList();
+    await _closeTabsByPaths(paths);
+  }
+
+  Future<void> _closeAllTabs() async {
+    await _closeTabsByPaths(_editorTabs.map((tab) => tab.path).toList());
+  }
+
+  Future<void> _closeSavedTabs() async {
+    final paths = _editorTabs
+        .where((tab) => !tab.isDirty)
+        .map((tab) => tab.path)
+        .toList();
+    for (final path in paths) {
+      await _closeTabWithoutDirtyPrompt(path);
+    }
+  }
+
+  Future<void> _closeTabsToTheRight(String path) async {
+    final index = _editorTabs.indexWhere((tab) => tab.path == path);
+    if (index < 0) return;
+    final paths =
+        _editorTabs.skip(index + 1).map((tab) => tab.path).toList();
+    await _closeTabsByPaths(paths);
+  }
+
+  Future<void> _handleTabContextAction(
+    String path,
+    EditorTabContextAction action,
+  ) async {
+    switch (action) {
+      case EditorTabContextAction.close:
+        await _closeTab(path);
+      case EditorTabContextAction.closeOthers:
+        await _closeOtherTabs(path);
+      case EditorTabContextAction.closeAll:
+        await _closeAllTabs();
+      case EditorTabContextAction.closeSaved:
+        await _closeSavedTabs();
+      case EditorTabContextAction.closeToTheRight:
+        await _closeTabsToTheRight(path);
+      case EditorTabContextAction.revealInOs:
+        await _revealPathInOs(path);
+      case EditorTabContextAction.copyRelativePath:
+        await _copyRelativePath(path);
+      case EditorTabContextAction.copyAbsolutePath:
+        await _copyAbsolutePath(path);
+    }
+  }
+
   Future<void> _selectTab(String path) async {
     if (_editor.activePath == path) {
       await _checkExternalChanges(path);
@@ -4202,6 +4266,7 @@ class _AppShellState extends State<AppShell> {
         jumpToColumn: _jumpToColumn,
         onSelectTab: _selectTab,
         onCloseTab: _closeTab,
+        onTabContextAction: _handleTabContextAction,
         onContentChanged: _onContentChanged,
         onSave: _saveActive,
         onSaveAll: _saveAll,

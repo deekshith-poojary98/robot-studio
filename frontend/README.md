@@ -101,7 +101,7 @@ column that says “open in the main view”.
 - Explorer stays synchronized via `/api/v1/workspace/events` (incremental parent refresh — expanded folders and selection are preserved). Open editors detect external modify/delete without polling. File rows highlight the active editor path; long names truncate to one line; expand chevrons animate (~160ms). The Explorer / Tests / Reports side column is drag-resizable (200–480px, default 280).
 - Empty states use shared `EmptyState` across explorer/files, Source Control, Search, Problems, Tests, Environments, and Plugins. List loads use `SkeletonList` instead of a bare spinner where practical.
 - Errors use `showFriendlyErrorDialog`: a plain sentence, a suggested fix, and **Show details** for the raw exception (with Copy details). Timeouts say “taking longer than expected” rather than dumping `TimeoutException`. Dialog widths come from `AppDialogWidth.form` (420) / `AppDialogWidth.wide` (480).
-- Editor tabs: hover highlight, full-path tooltip, Semantics on close.
+- Editor tabs: hover highlight, full-path tooltip, Semantics on close. Right-click a tab for Close / Close Others / Close All / Close Saved / Close to the Right, plus Reveal in Finder/Explorer and Copy Relative/Absolute Path.
 - Git action rows (source control header, commit bar) wrap instead of scrolling horizontally, so nothing hides off-screen on small windows. Source Control lists untracked new files (not only modified tracked ones); paths ignored by `.gitignore` stay hidden. The loading skeleton mirrors the real layout (changes + commit | history) and only appears on first load — refreshes keep the current content.
 - Activity rail: selected/hover highlight uses square corners (no rounded pill).
 - Activity rail tooltips describe each panel (e.g. Reports — run history and HTML reports).
@@ -128,6 +128,7 @@ Notable suites under `test/`:
 
 | File | Covers |
 |------|--------|
+| `editor_tabs_context_menu_test.dart` | Editor tab right-click Close/Others/All/Saved/Right + path actions |
 | `widget_test.dart` | Welcome, dialogs, managers, toolbar, editor shells |
 | `editor_syntax_test.dart` | File-extension → re_highlight / custom Robot theme mapping |
 | `virtual_file_tree_test.dart` | Virtualized explorer, context menus, inline rename, silent `.robot` append, shortcuts |

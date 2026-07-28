@@ -26,6 +26,7 @@ class EditorPage extends StatefulWidget {
     required this.peekDefinition,
     required this.onSelectTab,
     required this.onCloseTab,
+    this.onTabContextAction,
     required this.onContentChanged,
     required this.onSave,
     required this.onSaveAll,
@@ -61,6 +62,8 @@ class EditorPage extends StatefulWidget {
   final IndexedSymbolInfo? peekDefinition;
   final ValueChanged<String> onSelectTab;
   final ValueChanged<String> onCloseTab;
+  final void Function(String path, EditorTabContextAction action)?
+      onTabContextAction;
   final void Function(String path, String content) onContentChanged;
   final VoidCallback onSave;
   final VoidCallback onSaveAll;
@@ -124,6 +127,7 @@ class _EditorPageState extends State<EditorPage> {
             activePath: widget.activePath,
             onSelect: widget.onSelectTab,
             onClose: widget.onCloseTab,
+            onContextAction: widget.onTabContextAction,
           ),
           EditorBreadcrumbBar(breadcrumb: widget.breadcrumb),
           Container(
