@@ -447,6 +447,30 @@ def signature_help(
     }
 
 
+def resolve_library(name: str) -> dict:
+    """Resolve a Library import against this environment via Robot libdoc."""
+    cleaned = (name or "").strip()
+    if not cleaned:
+        return {"available": False, "name": "", "keywords": []}
+    try:
+        from robot.libdoc import LibraryDocumentation
+
+        doc = LibraryDocumentation(cleaned)
+        keywords = [str(kw.name) for kw in doc.keywords]
+        return {
+            "available": True,
+            "name": str(doc.name or cleaned),
+            "keywords": keywords,
+        }
+    except Exception as exc:  # noqa: BLE001 — import / libdoc failures
+        return {
+            "available": False,
+            "name": cleaned,
+            "keywords": [],
+            "error": str(exc),
+        }
+
+
 def main() -> None:
     request = json.load(sys.stdin)
     op = request.get("op")
@@ -454,6 +478,7 @@ def main() -> None:
     file_path = str(request.get("file_path") or "")
     line = int(request.get("line") or 1)
     column = int(request.get("column") or 1)
+    library = str(request.get("library") or "")
 
     try:
         if op == "diagnostics":
@@ -466,6 +491,8 @@ def main() -> None:
             result = completion_context(content, file_path, line, column)
         elif op == "signature_help":
             result = signature_help(content, file_path, line, column)
+        elif op == "resolve_library":
+            result = resolve_library(library)
         else:
             raise ValueError(f"Unknown op: {op}")
         json.dump({"ok": True, "result": result}, sys.stdout)

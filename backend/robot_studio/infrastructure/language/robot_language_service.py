@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
-from robot_studio.core.events import EventBus, IndexUpdated
+from robot_studio.core.events import EventBus, EnvironmentActivated, IndexUpdated
 from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.domain.interfaces.language import LanguageService
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
@@ -44,15 +44,22 @@ class RobotLanguageService(LanguageService):
     event_bus: EventBus | None = None
     _cache_generation: int = field(default=0, init=False)
     _subscribed: bool = field(default=False, init=False)
+    _library_cache: dict[str, dict[str, Any]] = field(default_factory=dict, init=False)
 
     def start(self) -> None:
         if self._subscribed or self.event_bus is None:
             return
         self.event_bus.subscribe(IndexUpdated, self._on_index_updated)
+        self.event_bus.subscribe(EnvironmentActivated, self._on_environment_activated)
         self._subscribed = True
 
     async def _on_index_updated(self, event: IndexUpdated) -> None:
         _ = event
+        self._cache_generation += 1
+
+    async def _on_environment_activated(self, event: EnvironmentActivated) -> None:
+        _ = event
+        self._library_cache.clear()
         self._cache_generation += 1
 
     def _python_executable(self) -> Path:
@@ -317,21 +324,37 @@ class RobotLanguageService(LanguageService):
     ) -> None:
         lines = content.splitlines()
         known_keywords = {
-            item["name"].lower()
+            item["name"].casefold()
             for item in await self.store.search_symbols("", kind=SymbolKind.KEYWORD, limit=500)
         }
-        known_keywords.update(name.lower() for name in _BUILTIN_KEYWORDS)
+        known_keywords.update(name.casefold() for name in _BUILTIN_KEYWORDS)
         known_resources = {
-            item["name"].lower()
+            item["name"].casefold()
             for item in await self.store.search_symbols("", kind=SymbolKind.RESOURCE, limit=200)
         }
         known_libraries = {
-            item["name"].lower()
+            item["name"].casefold()
             for item in await self.store.search_symbols("", kind=SymbolKind.LIBRARY, limit=200)
         }
         declared_variables: set[str] = set()
-        imported_resources: set[str] = set()
-        imported_libraries: set[str] = set()
+
+        # Resolve Library imports against the active env (site-packages), not only
+        # the workspace index — Environments/ is excluded from discovery.
+        imported_libraries: list[str] = []
+        for raw in lines:
+            line = raw.strip()
+            if line.lower().startswith("library "):
+                token = line.split(None, 1)[1].strip().split("    ")[0].strip()
+                if token:
+                    imported_libraries.append(token)
+
+        for library_name in imported_libraries:
+            resolved = await self._resolve_library(library_name)
+            if resolved.get("available"):
+                known_libraries.add(library_name.casefold())
+                known_libraries.add(str(resolved.get("name") or library_name).casefold())
+                for keyword in resolved.get("keywords") or []:
+                    known_keywords.add(str(keyword).casefold())
 
         for idx, raw in enumerate(lines, start=1):
             line = raw.strip()
@@ -343,8 +366,10 @@ class RobotLanguageService(LanguageService):
                 continue
             if line.lower().startswith("resource "):
                 token = line.split(None, 1)[1].strip().split("    ")[0]
-                imported_resources.add(Path(token).stem.lower())
-                if token.lower() not in known_resources and Path(token).stem.lower() not in known_resources:
+                if (
+                    token.casefold() not in known_resources
+                    and Path(token).stem.casefold() not in known_resources
+                ):
                     diagnostics.append(
                         self._diag(
                             file_path,
@@ -355,9 +380,8 @@ class RobotLanguageService(LanguageService):
                     )
                 continue
             if line.lower().startswith("library "):
-                token = line.split(None, 1)[1].strip().split("    ")[0]
-                imported_libraries.add(token.lower())
-                if token.lower() not in known_libraries:
+                token = line.split(None, 1)[1].strip().split("    ")[0].strip()
+                if token.casefold() not in known_libraries:
                     diagnostics.append(
                         self._diag(
                             file_path,
@@ -368,20 +392,19 @@ class RobotLanguageService(LanguageService):
                     )
                 continue
             if raw.startswith(" ") or raw.startswith("\t"):
-                token = raw.strip().split()[0] if raw.strip() else ""
-                # Local settings ([Documentation], [Tags], …) are not keyword calls.
-                if token.startswith("[") and token.endswith("]"):
+                keyword = self._keyword_cell(raw)
+                if keyword.startswith("[") and keyword.endswith("]"):
                     continue
                 if (
-                    token
-                    and not token.startswith("$")
-                    and token.lower() not in known_keywords
+                    keyword
+                    and not keyword.startswith("$")
+                    and keyword.casefold() not in known_keywords
                 ):
                     diagnostics.append(
                         self._diag(
                             file_path,
                             idx,
-                            f"Unknown keyword '{token}'",
+                            f"Unknown keyword '{keyword}'",
                             "warning",
                         ),
                     )
@@ -400,6 +423,41 @@ class RobotLanguageService(LanguageService):
                                     "information",
                                 ),
                             )
+
+    async def _resolve_library(self, name: str) -> dict[str, Any]:
+        cleaned = name.strip()
+        if not cleaned:
+            return {"available": False, "keywords": []}
+        try:
+            python = self._python_executable()
+        except RobotParsingError:
+            return {"available": False, "keywords": []}
+        cache_key = f"{python}::{cleaned.casefold()}"
+        cached = self._library_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        try:
+            result = await self.parsing.run(
+                python,
+                op="resolve_library",
+                library=cleaned,
+            )
+            if not isinstance(result, dict):
+                result = {"available": False, "keywords": []}
+        except RobotParsingError:
+            result = {"available": False, "keywords": []}
+        self._library_cache[cache_key] = result
+        return result
+
+    @staticmethod
+    def _keyword_cell(raw: str) -> str:
+        """Return the keyword cell from an indented Robot row (supports multi-word)."""
+        cells = [cell for cell in re.split(r"[ \t]{2,}|\t+", raw.strip()) if cell]
+        if not cells:
+            return ""
+        if re.match(r"^[\$@&%]", cells[0]) and len(cells) > 1:
+            return cells[1].strip()
+        return cells[0].strip()
 
     @staticmethod
     def _diag(file_path: str, line: int, message: str, severity: str) -> dict:

@@ -1,3 +1,4 @@
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:robot_studio/presentation/editor/editor_syntax.dart';
 
@@ -26,5 +27,16 @@ void main() {
   test('codeThemeForPath returns null for unknown types', () {
     expect(codeThemeForPath('notes.txt'), isNull);
     expect(codeThemeForPath('binary.bin'), isNull);
+  });
+
+  test('Robot theme uses VS Code Dark+ token colors', () {
+    final theme = codeThemeForPath('/ws/a.robot')!.theme;
+    expect(theme['section']?.color, const Color(0xFF9CDCFE));
+    expect(theme['keyword']?.color, const Color(0xFFC586C0));
+    expect(theme['built_in']?.color, const Color(0xFF4EC9B0));
+    expect(theme['variable']?.color, const Color(0xFF9CDCFE));
+    expect(theme['template-variable']?.color, const Color(0xFF9CDCFE));
+    expect(theme['title']?.color, const Color(0xFFDCDCAA));
+    expect(theme['attr']?.color, const Color(0xFFDCDCAA));
   });
 }

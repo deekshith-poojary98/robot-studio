@@ -514,7 +514,7 @@ PluginState: enabled, loaded_at, error…
 
 ### Language DTOs
 
-Completion, hover, diagnostics, definition/references locations, format edits, signature help, document/workspace symbols — exposed via `/language/*`.
+Completion, hover, diagnostics, definition/references locations, format edits, signature help, document/workspace symbols — exposed via `/language/*`. Semantic diagnostics resolve `Library` imports (and their keywords) against the **active environment** via Robot `libdoc` in the parsing worker (`resolve_library`), because workspace indexing skips `Environments/` / venv trees.
 
 ---
 
