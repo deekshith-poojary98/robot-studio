@@ -31,7 +31,7 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 | **Environments** | Create / import / clone / activate; non-blocking prompt on open; detects `.venv` / `venv` / `env` / `Environments/*` |
 | **Packages** | List installed packages, search PyPI, install / update / uninstall |
 | **Editor** | Multi-tab Robot editor, find/replace, live diagnostics (venv `Library` imports via active env); document outline under Explorer |
-| **Language intelligence** | Completions, hover, go-to-definition, references, document symbols |
+| **Language intelligence** | Completions, pointer hover tooltips (args + docs), go-to-definition, references, document symbols |
 | **Problems** | Bottom Problems panel synced while editing; jump to line/column; status-bar ERRORS/WARNINGS shortcut |
 | **Command palette** | ⌘K / Ctrl+K (toolbar search) for commands, recent files, project files, and symbols |
 | **Indexing** | Background on open (incremental); full rebuild on demand; excludes `.venv` / `node_modules` / `.git` |

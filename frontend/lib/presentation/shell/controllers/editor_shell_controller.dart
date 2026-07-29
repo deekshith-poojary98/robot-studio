@@ -36,12 +36,14 @@ class EditorShellController {
   List<CompletionItemInfo> completionItems = [];
   List<DiagnosticInfo> diagnostics = [];
   List<DiagnosticInfo> workspaceProblems = [];
-  SignatureHelpInfo? signatureHelp;
+  SignatureHelpInfo? hoverTooltip;
   IndexedSymbolInfo? peekDefinition;
   bool loadingLanguageFeatures = false;
   bool loadingFileTree = false;
 
   Timer? languageDebounce;
+  Timer? hoverDebounce;
+  int _hoverRequestId = 0;
 
   EditorTabInfo? get activeTab {
     final path = activePath;
@@ -54,6 +56,7 @@ class EditorShellController {
 
   void dispose() {
     languageDebounce?.cancel();
+    hoverDebounce?.cancel();
   }
 
   void reset() {
@@ -64,7 +67,7 @@ class EditorShellController {
     completionItems = [];
     diagnostics = [];
     workspaceProblems = [];
-    signatureHelp = null;
+    hoverTooltip = null;
     peekDefinition = null;
     statusMessage = null;
     jumpToLine = null;
@@ -76,6 +79,7 @@ class EditorShellController {
     loadingFileTree = false;
     recentFiles = [];
     languageDebounce?.cancel();
+    hoverDebounce?.cancel();
   }
 
   void trackRecentFile(String path) {
@@ -89,6 +93,9 @@ class EditorShellController {
     final tabIndex = tabs.indexWhere((tab) => tab.path == path);
     if (tabIndex < 0) return;
     tabs[tabIndex].content = content;
+    if (hoverTooltip != null) {
+      hoverTooltip = null;
+    }
     notify();
     scheduleLanguageRefresh();
   }
@@ -100,6 +107,9 @@ class EditorShellController {
     if (tab != null) {
       tab.cursorLine = line;
       tab.cursorColumn = column;
+    }
+    if (hoverTooltip != null) {
+      hoverTooltip = null;
     }
     notify();
     scheduleLanguageRefresh();
@@ -121,7 +131,7 @@ class EditorShellController {
       if (!isMounted()) return;
       completionItems = [];
       diagnostics = [];
-      signatureHelp = null;
+      hoverTooltip = null;
       notify();
       return;
     }
@@ -143,17 +153,10 @@ class EditorShellController {
           filePath: tab.path,
           content: tab.content,
         ),
-        gateway.languageSignatureHelp(
-          filePath: tab.path,
-          line: cursorLine,
-          column: cursorColumn,
-          content: tab.content,
-        ),
       ]);
       if (!isMounted()) return;
       completionItems = results[0] as List<CompletionItemInfo>;
       diagnostics = results[1] as List<DiagnosticInfo>;
-      signatureHelp = results[2] as SignatureHelpInfo?;
       // Keep Problems panel in sync with the active file immediately.
       workspaceProblems = [
         ...workspaceProblems.where((item) => item.filePath != tab.path),
@@ -167,6 +170,75 @@ class EditorShellController {
       loadingLanguageFeatures = false;
       notify();
       AppLogger.debug('Language refresh failed', tag: 'Shell', data: '$error');
+    }
+  }
+
+  void clearHoverTooltip() {
+    hoverDebounce?.cancel();
+    if (hoverTooltip == null) return;
+    hoverTooltip = null;
+    notify();
+  }
+
+  Future<void> requestHoverTooltip({
+    required int line,
+    required int column,
+  }) async {
+    final tab = activeTab;
+    if (tab == null || workspace() == null) return;
+    final isRobot =
+        tab.path.endsWith('.robot') || tab.path.endsWith('.resource');
+    if (!isRobot) {
+      clearHoverTooltip();
+      return;
+    }
+
+    final requestId = ++_hoverRequestId;
+    try {
+      final signature = await gateway.languageSignatureHelp(
+        filePath: tab.path,
+        line: line,
+        column: column,
+        content: tab.content,
+      );
+      if (!isMounted() || requestId != _hoverRequestId) return;
+      if (signature != null) {
+        hoverTooltip = signature;
+        notify();
+        return;
+      }
+
+      final token = extractRobotTokenAt(tab.content, line, column);
+      if (token == null || token.isEmpty) {
+        hoverTooltip = null;
+        notify();
+        return;
+      }
+      final hover = await gateway.languageHover(
+        name: token,
+        filePath: tab.path,
+        line: line,
+        column: column,
+        content: tab.content,
+      );
+      if (!isMounted() || requestId != _hoverRequestId) return;
+      if (hover == null) {
+        hoverTooltip = null;
+        notify();
+        return;
+      }
+      hoverTooltip = SignatureHelpInfo(
+        keyword: hover.name,
+        documentation: hover.documentation,
+        detail: hover.detail.isNotEmpty ? hover.detail : hover.kind.label,
+        parameters: parametersFromDetail(hover.detail),
+      );
+      notify();
+    } catch (error) {
+      if (!isMounted() || requestId != _hoverRequestId) return;
+      AppLogger.debug('Hover tooltip failed', tag: 'Shell', data: '$error');
+      hoverTooltip = null;
+      notify();
     }
   }
 
@@ -421,5 +493,60 @@ class EditorShellController {
     final right = RegExp(r'^[\w${}@&.]+').firstMatch(after)?.group(0) ?? '';
     final token = '$left$right'.trim();
     return token.isEmpty ? null : token;
+  }
+
+  /// Prefer Robot cell under the caret (multi-word keywords), else word token.
+  static String? extractRobotTokenAt(String content, int line, int column) {
+    final lines = content.split('\n');
+    if (line < 1 || line > lines.length) return null;
+    final row = lines[line - 1];
+    if (row.startsWith(' ') || row.startsWith('\t')) {
+      final cells = row
+          .trim()
+          .split(RegExp(r'[ \t]{2,}|\t+'))
+          .where((cell) => cell.isNotEmpty)
+          .toList();
+      if (cells.isNotEmpty) {
+        var keywordIndex = 0;
+        if (RegExp(r'^[\$@&%]').hasMatch(cells.first) && cells.length > 1) {
+          keywordIndex = 1;
+        }
+        // Locate cell by scanning separators from the left of the caret.
+        final prefix = row.substring(0, (column - 1).clamp(0, row.length));
+        final beforeCells = prefix
+            .trim()
+            .split(RegExp(r'[ \t]{2,}|\t+'))
+            .where((cell) => cell.isNotEmpty)
+            .toList();
+        final cellIndex = beforeCells.isEmpty
+            ? keywordIndex
+            : (beforeCells.length - 1).clamp(0, cells.length - 1);
+        final cell = cells[cellIndex];
+        if (cell.isNotEmpty) return cell;
+      }
+    }
+    return extractWordAtCursor(content, line, column);
+  }
+
+  static List<SignatureParameterInfo> parametersFromDetail(String detail) {
+    if (detail.trim().isEmpty) return const [];
+    return detail
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .map((part) {
+          var label = part;
+          var documentation = '';
+          final eq = part.indexOf('=');
+          if (eq > 0) {
+            label = part.substring(0, eq).trim();
+            documentation = 'default: ${part.substring(eq + 1).trim()}';
+          }
+          return SignatureParameterInfo(
+            label: label,
+            documentation: documentation,
+          );
+        })
+        .toList();
   }
 }

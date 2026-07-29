@@ -280,7 +280,7 @@ abstract class TransportGateway {
 | Hover | Shipped |
 | Go to definition / references | Shipped |
 | Document / workspace symbols | Shipped |
-| Format / signature help | Shipped (multi-word cells; env libdoc args/docs) |
+| Format / signature help | Shipped (hover tooltip near pointer; env libdoc args/docs) |
 | robotframework-lsp swap | Optional future via PluginHost |
 
 Implementation uses IndexStore plus a **Robot parsing bridge** (workspace-venv worker) for fidelity with Robot Framework parsing.

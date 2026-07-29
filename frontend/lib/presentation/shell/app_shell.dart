@@ -213,7 +213,7 @@ class _AppShellState extends State<AppShell> {
   List<CompletionItemInfo> get _completionItems => _editor.completionItems;
   List<DiagnosticInfo> get _editorDiagnostics => _editor.diagnostics;
   List<DiagnosticInfo> get _workspaceProblems => _editor.workspaceProblems;
-  SignatureHelpInfo? get _signatureHelp => _editor.signatureHelp;
+  SignatureHelpInfo? get _hoverTooltip => _editor.hoverTooltip;
   IndexedSymbolInfo? get _peekDefinition => _editor.peekDefinition;
   bool get _loadingLanguageFeatures => _editor.loadingLanguageFeatures;
 
@@ -4260,7 +4260,7 @@ class _AppShellState extends State<AppShell> {
         breadcrumb: _buildBreadcrumb(),
         completionItems: _completionItems,
         diagnostics: _editorDiagnostics,
-        signatureHelp: _signatureHelp,
+        hoverTooltip: _hoverTooltip,
         peekDefinition: _peekDefinition,
         jumpToLine: _jumpToLine,
         jumpToColumn: _jumpToColumn,
@@ -4276,6 +4276,10 @@ class _AppShellState extends State<AppShell> {
         onPeekDefinition: _editorPeekDefinition,
         onFindReferences: _editorFindReferences,
         onHover: _editorHoverLookup,
+        onHoverRequest: (line, column) => unawaited(
+          _editor.requestHoverTooltip(line: line, column: column),
+        ),
+        onHoverExit: _editor.clearHoverTooltip,
         onFormatDocument: _editorFormatDocument,
         onFormatSelection: _editorFormatSelection,
         onOpenSymbol: _editorOpenSymbol,

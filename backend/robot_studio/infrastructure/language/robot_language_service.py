@@ -134,17 +134,73 @@ class RobotLanguageService(LanguageService):
 
     async def hover(self, request: dict) -> dict | None:
         symbol = await self._resolve(request)
-        if symbol is None:
+        if symbol is not None:
+            return {
+                "name": symbol["name"],
+                "kind": symbol["kind"],
+                "file_path": symbol["file_path"],
+                "line": symbol["line"],
+                "documentation": symbol.get("documentation") or "",
+                "detail": symbol.get("detail") or "",
+                "id": symbol["id"],
+            }
+
+        # Env / library keywords are not in the workspace index.
+        name = str(request.get("name") or request.get("symbol") or "").strip()
+        content = str(request.get("content") or "")
+        file_path = str(request.get("file_path") or "")
+        line = int(request.get("line") or 1)
+        if not name and content:
+            try:
+                ctx = await self.parsing.run(
+                    self._python_executable(),
+                    op="completion_context",
+                    content=content,
+                    file_path=file_path,
+                    line=line,
+                    column=int(request.get("column") or 1),
+                )
+                name = str(ctx.get("prefix") or "").strip()
+            except RobotParsingError:
+                name = ""
+        if not name:
             return None
-        return {
-            "name": symbol["name"],
-            "kind": symbol["kind"],
-            "file_path": symbol["file_path"],
-            "line": symbol["line"],
-            "documentation": symbol.get("documentation") or "",
-            "detail": symbol.get("detail") or "",
-            "id": symbol["id"],
-        }
+
+        env_info = await self._lookup_keyword_signature(content or "", name)
+        if env_info is not None:
+            parameters = list(env_info.get("parameters") or [])
+            detail = ", ".join(
+                str(item.get("label") or "")
+                for item in parameters
+                if item.get("label")
+            )
+            return {
+                "name": str(env_info.get("name") or name),
+                "kind": SymbolKind.KEYWORD.value,
+                "file_path": file_path,
+                "line": line,
+                "documentation": str(env_info.get("documentation") or ""),
+                "detail": detail,
+                "id": "",
+            }
+
+        for library_name in self._imported_libraries(content):
+            if library_name.casefold() != name.casefold():
+                continue
+            resolved = await self._resolve_library(library_name)
+            if not resolved.get("available"):
+                continue
+            return {
+                "name": str(resolved.get("name") or library_name),
+                "kind": SymbolKind.LIBRARY.value,
+                "file_path": file_path,
+                "line": line,
+                "documentation": f"Library available in the active environment "
+                f"({len(resolved.get('keywords') or [])} keywords).",
+                "detail": str(resolved.get("name") or library_name),
+                "id": "",
+            }
+        return None
 
     async def diagnostics(self, request: dict) -> list[dict]:
         file_path = str(request.get("file_path") or "")

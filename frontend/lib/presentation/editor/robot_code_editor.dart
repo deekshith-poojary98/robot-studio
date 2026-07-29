@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,12 +22,14 @@ class RobotCodeEditor extends StatefulWidget {
     required this.onContentChanged,
     this.onCursorChanged,
     this.onCtrlClick,
+    this.onHoverRequest,
+    this.onHoverExit,
     this.wordWrap = true,
     this.jumpToLine,
     this.jumpToColumn,
     this.completionItems = const [],
     this.diagnostics = const [],
-    this.signatureHelp,
+    this.hoverTooltip,
     this.peekDefinition,
     this.onClosePeek,
   });
@@ -34,12 +39,15 @@ class RobotCodeEditor extends StatefulWidget {
   final ValueChanged<String> onContentChanged;
   final void Function(int line, int column)? onCursorChanged;
   final VoidCallback? onCtrlClick;
+  /// Fired after the pointer rests over a code position (VS Code-style hover).
+  final void Function(int line, int column)? onHoverRequest;
+  final VoidCallback? onHoverExit;
   final bool wordWrap;
   final int? jumpToLine;
   final int? jumpToColumn;
   final List<CompletionItemInfo> completionItems;
   final List<DiagnosticInfo> diagnostics;
-  final SignatureHelpInfo? signatureHelp;
+  final SignatureHelpInfo? hoverTooltip;
   final IndexedSymbolInfo? peekDefinition;
   final VoidCallback? onClosePeek;
 
@@ -48,11 +56,22 @@ class RobotCodeEditor extends StatefulWidget {
 }
 
 class RobotCodeEditorState extends State<RobotCodeEditor> {
+  static const _fontSize = 13.0;
+  static const _fontHeight = 1.45;
+  static const _chunkWidth = 14.0;
+  static const _hoverDelay = Duration(milliseconds: 400);
+
   late CodeLineEditingController _controller;
   late CodeFindController _findController;
+  late CodeScrollController _scrollController;
   late final RobotAutocompletePromptsBuilder _promptsBuilder;
   List<DiagnosticInfo> _diagnostics = [];
   bool _listening = false;
+  Timer? _hoverTimer;
+  Offset? _hoverLocal;
+  int? _hoverLine;
+  int? _hoverColumn;
+  double _charWidth = 7.8;
 
   CodeLineEditingController get controller => _controller;
 
@@ -82,18 +101,38 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
   CodeFindController get findController => _findController;
 
+  double get _lineHeight => _fontSize * _fontHeight;
+
+  double get _gutterWidth {
+    final digits = math.max(3, _controller.lineCount.toString().length);
+    return digits * _charWidth + 16 + _chunkWidth;
+  }
+
   @override
   void initState() {
     super.initState();
     _diagnostics = widget.diagnostics;
     _createController(widget.initialContent);
     _findController = CodeFindController(_controller);
+    _scrollController = CodeScrollController();
     _promptsBuilder = RobotAutocompletePromptsBuilder(widget.completionItems);
     _controller.addListener(_onChanged);
     _listening = true;
+    _measureCharWidth();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _jumpIfNeeded(widget.jumpToLine, widget.jumpToColumn);
     });
+  }
+
+  void _measureCharWidth() {
+    final painter = TextPainter(
+      text: const TextSpan(
+        text: 'M',
+        style: TextStyle(fontSize: _fontSize, fontFamily: 'Menlo'),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    _charWidth = painter.width;
   }
 
   @override
@@ -103,6 +142,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       _controller.removeListener(_onChanged);
       _controller.text = widget.initialContent;
       _controller.addListener(_onChanged);
+      _dismissHover();
     } else if (oldWidget.initialContent != widget.initialContent &&
         widget.initialContent != _controller.text) {
       final selection = _controller.selection;
@@ -129,10 +169,12 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
   @override
   void dispose() {
+    _hoverTimer?.cancel();
     if (_listening) {
       _controller.removeListener(_onChanged);
     }
     _findController.dispose();
+    _scrollController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -183,6 +225,63 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     return sel.endIndex + 1;
   }
 
+  void _dismissHover() {
+    _hoverTimer?.cancel();
+    _hoverTimer = null;
+    final hadTooltip = widget.hoverTooltip != null || _hoverLocal != null;
+    _hoverLocal = null;
+    _hoverLine = null;
+    _hoverColumn = null;
+    if (hadTooltip) {
+      widget.onHoverExit?.call();
+      if (mounted) setState(() {});
+    }
+  }
+
+  (int, int)? _lineColumnAt(Offset local) {
+    final vertical = _scrollController.verticalScroller.hasClients
+        ? _scrollController.verticalScroller.offset
+        : 0.0;
+    final horizontal = _scrollController.horizontalScroller.hasClients
+        ? _scrollController.horizontalScroller.offset
+        : 0.0;
+    final dy = local.dy + vertical;
+    final dx = local.dx - _gutterWidth + horizontal;
+    if (dx < -2) return null;
+    final lineIndex = (dy / _lineHeight).floor();
+    if (lineIndex < 0 || lineIndex >= _controller.lineCount) return null;
+    final column = math.max(1, (dx / _charWidth).floor() + 1);
+    return (lineIndex + 1, column);
+  }
+
+  void _onPointerHover(PointerHoverEvent event) {
+    final local = event.localPosition;
+    final hit = _lineColumnAt(local);
+    if (hit == null) {
+      _dismissHover();
+      return;
+    }
+    final (line, column) = hit;
+    final movedFar = _hoverLocal == null ||
+        (local - _hoverLocal!).distance > 6 ||
+        line != _hoverLine ||
+        column != _hoverColumn;
+    _hoverLocal = local;
+    _hoverLine = line;
+    _hoverColumn = column;
+    if (movedFar) {
+      if (widget.hoverTooltip != null) {
+        widget.onHoverExit?.call();
+      }
+      _hoverTimer?.cancel();
+      _hoverTimer = Timer(_hoverDelay, () {
+        if (!mounted) return;
+        widget.onHoverRequest?.call(line, column);
+        setState(() {});
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isRobot =
@@ -192,11 +291,12 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     final editor = CodeEditor(
       controller: _controller,
       findController: _findController,
+      scrollController: _scrollController,
       wordWrap: widget.wordWrap,
       style: CodeEditorStyle(
-        fontSize: 13,
+        fontSize: _fontSize,
         fontFamily: 'Menlo',
-        fontHeight: 1.45,
+        fontHeight: _fontHeight,
         backgroundColor: AppColors.background,
         textColor: AppColors.textPrimary,
         cursorColor: AppColors.accent,
@@ -212,7 +312,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
               notifier: notifier,
             ),
             DefaultCodeChunkIndicator(
-              width: 14,
+              width: _chunkWidth,
               controller: chunkController,
               notifier: notifier,
             ),
@@ -237,6 +337,9 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
             child: editor,
           )
         : editor;
+
+    final tooltip = widget.hoverTooltip;
+    final tooltipPos = _hoverLocal;
 
     return Shortcuts(
       shortcuts: const {
@@ -285,38 +388,46 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
             },
           ),
         },
-        child: Listener(
-          onPointerDown: (event) {
-            final pressed = HardwareKeyboard.instance.logicalKeysPressed;
-            final ctrl = pressed.contains(LogicalKeyboardKey.controlLeft) ||
-                pressed.contains(LogicalKeyboardKey.controlRight) ||
-                pressed.contains(LogicalKeyboardKey.metaLeft) ||
-                pressed.contains(LogicalKeyboardKey.metaRight);
-            if (ctrl && event.buttons == kPrimaryMouseButton) {
-              widget.onCtrlClick?.call();
-            }
-          },
-          child: Stack(
-            children: [
-              wrappedEditor,
-              if (widget.signatureHelp != null)
-                Positioned(
-                  left: 12,
-                  bottom: 12,
-                  child: SignatureHelpOverlay(signature: widget.signatureHelp!),
-                ),
-              if (widget.peekDefinition != null)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: PeekDefinitionPanel(
-                    symbol: widget.peekDefinition!,
-                    onOpen: widget.onCtrlClick ?? () {},
-                    onClose: widget.onClosePeek ?? () {},
+        child: MouseRegion(
+          onExit: (_) => _dismissHover(),
+          child: Listener(
+            onPointerHover: _onPointerHover,
+            onPointerDown: (event) {
+              _dismissHover();
+              final pressed = HardwareKeyboard.instance.logicalKeysPressed;
+              final ctrl = pressed.contains(LogicalKeyboardKey.controlLeft) ||
+                  pressed.contains(LogicalKeyboardKey.controlRight) ||
+                  pressed.contains(LogicalKeyboardKey.metaLeft) ||
+                  pressed.contains(LogicalKeyboardKey.metaRight);
+              if (ctrl && event.buttons == kPrimaryMouseButton) {
+                widget.onCtrlClick?.call();
+              }
+            },
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                wrappedEditor,
+                if (tooltip != null && tooltipPos != null)
+                  Positioned(
+                    left: math.max(8, tooltipPos.dx + 12),
+                    top: math.max(8, tooltipPos.dy + _lineHeight + 4),
+                    child: IgnorePointer(
+                      child: EditorHoverTooltip(signature: tooltip),
+                    ),
                   ),
-                ),
-            ],
+                if (widget.peekDefinition != null)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: PeekDefinitionPanel(
+                      symbol: widget.peekDefinition!,
+                      onOpen: widget.onCtrlClick ?? () {},
+                      onClose: widget.onClosePeek ?? () {},
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

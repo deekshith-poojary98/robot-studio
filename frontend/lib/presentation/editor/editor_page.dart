@@ -22,7 +22,7 @@ class EditorPage extends StatefulWidget {
     required this.breadcrumb,
     required this.completionItems,
     required this.diagnostics,
-    required this.signatureHelp,
+    required this.hoverTooltip,
     required this.peekDefinition,
     required this.onSelectTab,
     required this.onCloseTab,
@@ -35,6 +35,8 @@ class EditorPage extends StatefulWidget {
     required this.onPeekDefinition,
     required this.onFindReferences,
     required this.onHover,
+    required this.onHoverRequest,
+    required this.onHoverExit,
     required this.onFind,
     required this.onReplace,
     required this.onReveal,
@@ -58,7 +60,7 @@ class EditorPage extends StatefulWidget {
   final EditorBreadcrumbInfo breadcrumb;
   final List<CompletionItemInfo> completionItems;
   final List<DiagnosticInfo> diagnostics;
-  final SignatureHelpInfo? signatureHelp;
+  final SignatureHelpInfo? hoverTooltip;
   final IndexedSymbolInfo? peekDefinition;
   final ValueChanged<String> onSelectTab;
   final ValueChanged<String> onCloseTab;
@@ -72,6 +74,8 @@ class EditorPage extends StatefulWidget {
   final VoidCallback onPeekDefinition;
   final VoidCallback onFindReferences;
   final VoidCallback onHover;
+  final void Function(int line, int column) onHoverRequest;
+  final VoidCallback onHoverExit;
   final VoidCallback onFind;
   final VoidCallback onReplace;
   final VoidCallback onReveal;
@@ -215,10 +219,12 @@ class _EditorPageState extends State<EditorPage> {
                           jumpToColumn: widget.jumpToColumn,
                           completionItems: widget.completionItems,
                           diagnostics: widget.diagnostics,
-                          signatureHelp: widget.signatureHelp,
+                          hoverTooltip: widget.hoverTooltip,
                           peekDefinition: widget.peekDefinition,
                           onClosePeek: widget.onClosePeek,
                           onCtrlClick: widget.onCtrlClick,
+                          onHoverRequest: widget.onHoverRequest,
+                          onHoverExit: widget.onHoverExit,
                           onContentChanged: (content) =>
                               widget.onContentChanged(active.path, content),
                           onCursorChanged: widget.onCursorChanged,
