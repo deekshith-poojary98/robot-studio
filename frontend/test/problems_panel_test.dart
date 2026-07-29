@@ -54,6 +54,32 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('ProblemsPanel keeps rows when not loading', (tester) async {
+    const diagnostics = [
+      DiagnosticInfo(
+        severity: DiagnosticSeverity.warning,
+        filePath: '/tmp/demo.robot',
+        line: 2,
+        column: 1,
+        message: 'Missing resource',
+      ),
+    ];
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: ProblemsPanel(
+            diagnostics: diagnostics,
+            isLoading: false,
+            onSelect: _noop,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Missing resource'), findsOneWidget);
+  });
 }
 
 void _noop(DiagnosticInfo _) {}

@@ -432,3 +432,30 @@ ROBOT_FILE_EXTENSIONS: tuple[str, ...] = (".robot", ".resource")
 SPECIAL_SUITE_FILES: tuple[str, ...] = ("__init__.robot",)
 CONTINUATION_MARKER = "..."
 VARIABLE_PREFIXES: tuple[str, ...] = ("${", "@{", "&{", "%{")
+
+# Robot Framework automatic / built-in variables (not user-declared).
+# Matched case-insensitively on the name inside ${...} / @{...} / &{...}.
+# %{ENV} environment variables are always treated as known separately.
+# Number literals (${10}, ${3.14}, ${0xFF}, …) are recognized in code.
+AUTOMATIC_VARIABLE_NAMES: set[str] = {
+    "true",
+    "false",
+    "none",
+    "null",
+    "empty",
+    "space",
+    "tempdir",
+    "execdir",
+    "curdir",
+    "/",
+    ":",
+    "\\n",
+    "output_dir",
+    "output_file",
+    "report_file",
+    "log_file",
+    "debug_file",
+    "log_level",
+    "options",
+    # Common TEST_/SUITE_/PREV_TEST_/KEYWORD_ prefixes handled in code.
+}

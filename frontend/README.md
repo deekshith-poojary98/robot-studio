@@ -17,6 +17,16 @@ Integration tests: [integration_test/README.md](./integration_test/README.md)
 
 ## Run
 
+From the repo root (starts Flutter against a backend you already have on `:8765`):
+
+```bash
+make setup             # once
+make backend           # terminal 1
+make run               # terminal 2 — DEVICE defaults to macos|linux
+```
+
+Or manually:
+
 ```bash
 cd frontend
 flutter pub get
@@ -92,7 +102,7 @@ column that says “open in the main view”.
 - Bottom panel tabs are Console · Execution Logs · Problems only; the Output and Terminal stubs were removed.
 - Welcome: **New Project** + **Open Project** + **Recent Projects** first; **Open/New Workspace** + **Recent Workspaces** under Advanced. New Project asks only for a name (empty `tests/` / `resources/` / `variables/` folders — no Browser/API/Selenium template picker). Opening a project initializes `.robotstudio/` in-place (no wrapper dirs) and does not block on environment creation. Folders that don’t look like Robot projects show a warning with **Continue anyways** (opens via `force=true`) instead of a hard block. Missing-env prompts and short notifications appear as dark **bottom-right** toasts (not a white bottom banner). **Recent Workspaces** only lists classic multi-project containers (with a `Projects/` folder) — in-project opens stay under **Recent Projects**.
 - Opening a workspace/project auto-selects a recent/first project when possible; **Recent Projects** and command palette **Open Project** use `POST /projects/open-path`. **New Project** from welcome uses `POST /projects/standalone`. Indexing and git refresh run in the background after open (status shows “Indexing…”). Explorer uses a VS Code-style **lazy file tree**: root loads depth 0 (immediate children), folders expand via follow-up `GET /files/tree?path=…&depth=0`, and the UI renders a virtualized flat list (`ListView.builder`) so only visible rows are built. Dotfiles like `.gitignore` are shown; heavy/noise entries (`.git`, `.venv`, `node_modules`, `.DS_Store`, …) stay hidden. Switching to Environments / Packages / Search / etc. keeps the active project selected so Run still works after creating an env. If the active env’s Python folder was deleted, the toolbar shows `venv · missing` (still “active” in metadata) instead of looking healthy.
-- Explorer file ops (context menu + project-header New File/Folder + shortcuts when the tree is focused): **New File** / **New Folder** (inline name entry; names without an extension get `.robot` appended on submit), **Rename** (F2, inline), **Delete** (confirmation), **Duplicate**, **Copy Relative/Absolute Path**, **Reveal in Finder/Explorer/File Manager**, and drag-and-drop move. New `*.robot` files open with a full suite scaffold (`Settings` / `Variables` / `Test Cases` / `Keywords` + example test & keyword); other extensions stay empty. Mutations go through `FileService` → EventBus → `/workspace/events` (no full tree rebuild).
+- Explorer file ops (context menu + project-header New File/Folder + shortcuts when the tree is focused): **New File** / **New Folder** (inline name entry; names without an extension get `.robot` appended on submit), **Rename** (F2, inline; case-only renames like `libs` → `Libs` work on macOS), **Delete** (confirmation), **Duplicate**, **Copy Relative/Absolute Path**, **Reveal in Finder/Explorer/File Manager**, and drag-and-drop move. New `*.robot` files open with a full suite scaffold (`Settings` / `Variables` / `Test Cases` / `Keywords` + example test & keyword); other extensions stay empty. Mutations go through `FileService` → EventBus → `/workspace/events` (no full tree rebuild).
 - Explorer is file-focused (project header + file tree). File/folder rows use VS Code **Material Icon Theme** glyphs via `vscode_material_icon_theme` (`fileToIcon` / `directoryToIcon`; `.resource` → Robot glyph). A collapsible **OUTLINE** pane sits under the tree (VS Code-style; collapsed by default) for the active editor’s document symbols. Environments, Packages, and Reports live on their dedicated activity-rail views / toolbar — not duplicated under Explorer.
 - **Run** is the only primary-styled run control; **Run Project** and **Stop** are quiet icon buttons (Stop stays muted when idle).
 - Run status badge shows `Last: Failed` (etc.) and opens **Execution Logs**; Idle badge is hidden.
@@ -106,8 +116,8 @@ column that says “open in the main view”.
 - Activity rail: selected/hover highlight uses square corners (no rounded pill).
 - Activity rail tooltips describe each panel (e.g. Reports — run history and HTML reports).
 - Plugin rows show **Enable** or **Disable** (not both); built-ins don’t offer a disabled Enable control.
-- Reports: rail panel lists recent runs (tap to open details); main Reports page shows dashboard + details only (no duplicate run list). Artifact filenames are hyperlinks; Reveal Folder remains.
-- Problems: live diagnostics while editing; click a problem (or status-bar ERRORS/WARNINGS) to jump to file:line:column; panel auto-opens when issues appear. Local settings like `[Documentation]` / `[Tags]` are not flagged as unknown keywords. `Library` imports and their keywords are resolved from the **active environment** (via Robot libdoc), not only the workspace file index — so packages installed in the project venv (e.g. `robotframework-excelsage` → `ExcelSage`) are recognized.
+- Reports: rail panel **Runs** lists recent runs by run number from `Reports/Run-*` (e.g. `Run 20260101-120000 · FAIL`; tap to open details); main Reports page shows dashboard + details only (no duplicate run list). Artifact filenames are hyperlinks; Reveal Folder remains.
+- Problems: live diagnostics while editing; click a problem (or status-bar ERRORS/WARNINGS) to jump to file:line:column; panel auto-opens when issues appear. The list updates in place while typing — no skeleton flash on every keystroke. Local settings like `[Documentation]` / `[Tags]` are not flagged as unknown keywords. Continuation (`...`), RF automatic variables (`${TRUE}` / `${FALSE}` / …), number variables (`${10}` / `${3.14}` / `${0xFF}`), and variables from `FOR` / `VAR` / `[Arguments]` / assignments are recognized. Missing `Resource` / `Variables` imports are checked on disk (not the symbol index — import lines used to hide missing resources). `Library` imports and their keywords are resolved from the **active environment** (via Robot libdoc), not only the workspace file index — so packages installed in the project venv (e.g. `robotframework-excelsage` → `ExcelSage`) are recognized.
 - Completions and highlighting separate **RF DSL** (section headers, suite/local settings, `IF`/`FOR`/`TRY`/`VAR`/…) from **BuiltIn library** keywords (`Log`, `Should Be Equal`, … — kind `keyword`, detail BuiltIn). DSL completions use kind `dsl`.
 - Hover tooltip (VS Code-style): rest the pointer on a keyword call and a floating card appears near the cursor with argument chips + short docs from the **active environment** (Robot libdoc). Moves away / click dismisses it — no bottom-left signature chip.- Command palette: toolbar search / ⌘K / Ctrl+K opens commands + file/symbol search; sidebar **Search** opens the full symbol search page (filter by kind, including keywords).
 - **Test Explorer** (Tests rail): tree of workspace → projects → suites → tests/tasks with PASS/FAIL/SKIP/NOT RUN/RUNNING dots; toolbar Run All / Run Current File / Run Failed / Refresh / Expand / Collapse; live filter by suite, test, tag, or file.
@@ -120,6 +130,10 @@ column that says “open in the main view”.
 ### Widget / unit
 
 ```bash
+# From repository root
+make test-frontend
+make analyze
+# or:
 cd frontend
 flutter test
 flutter analyze
@@ -157,6 +171,9 @@ Prefer the repo script so macOS sandbox can reach Python:
 
 ```bash
 # From repository root
+make test-integration
+make test-integration SUITE=startup_test.dart
+# or:
 ./scripts/run_integration_tests.sh
 ./scripts/run_integration_tests.sh startup_test.dart
 ```

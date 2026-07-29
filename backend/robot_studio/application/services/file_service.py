@@ -83,6 +83,24 @@ class FileService:
             raise FileValidationError("Path is outside the active workspace") from exc
         return resolved
 
+    def _assert_under_workspace(self, path: Path) -> None:
+        """Validate containment without returning a case-normalized path."""
+        self._resolve_under_workspace(path)
+
+    @staticmethod
+    def _rename_case_only(source: Path, new_name: str) -> Path:
+        """Two-step rename so case-insensitive volumes record the new spelling."""
+        destination = source.parent / new_name
+        parent = source.parent
+        for i in range(1000):
+            tmp = parent / f".__rs_case_rename_{i}__"
+            if tmp.exists():
+                continue
+            source.rename(tmp)
+            tmp.rename(destination)
+            return destination
+        raise FileValidationError("Could not complete case-only rename")
+
     @staticmethod
     def validate_entry_name(name: str) -> str:
         cleaned = name.strip()
@@ -196,23 +214,34 @@ class FileService:
         if not source.exists():
             raise FileValidationError(f"Path not found: {path}")
         cleaned = self.validate_entry_name(new_name)
-        destination = source.with_name(cleaned)
-        destination = self._resolve_under_workspace(destination)
-        # Same-name rename (Enter without changing) is a no-op — destination
-        # already "exists" because it is the source path.
-        if source.resolve() == destination.resolve() or (
-            destination.exists() and source.samefile(destination)
-        ):
+        # Keep the requested spelling. Calling resolve() on the destination
+        # would collapse Libs → libs on case-insensitive volumes (macOS default)
+        # and make case-only renames look like no-ops.
+        destination = source.parent / cleaned
+        self._assert_under_workspace(destination)
+
+        # Same-name rename (Enter without changing) is a no-op.
+        if source.name == cleaned:
             return {
                 "path": str(source),
                 "old_path": str(source),
                 "is_dir": source.is_dir(),
                 "name": source.name,
             }
+
         if destination.exists():
-            raise FileValidationError(f"'{cleaned}' already exists")
-        is_dir = source.is_dir()
-        source.rename(destination)
+            try:
+                same = source.samefile(destination)
+            except OSError:
+                same = False
+            if not same:
+                raise FileValidationError(f"'{cleaned}' already exists")
+            # Case-only rename on a case-insensitive filesystem.
+            destination = self._rename_case_only(source, cleaned)
+        else:
+            source.rename(destination)
+
+        is_dir = destination.is_dir()
         kind = "DIRECTORY_RENAMED" if is_dir else "FILE_RENAMED"
         await self._publish_fs(
             kind,

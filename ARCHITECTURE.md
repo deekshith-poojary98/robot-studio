@@ -514,7 +514,7 @@ PluginState: enabled, loaded_at, error…
 
 ### Language DTOs
 
-Completion, hover, diagnostics, definition/references locations, format edits, signature help, document/workspace symbols — exposed via `/language/*`. Completions and catalogs **separate RF DSL** (section headers, suite/local settings, control-flow: `IF`/`FOR`/`TRY`/`VAR`/… — completion kind `dsl`) from **BuiltIn library** keywords (`Log`, `Should Be Equal`, … — kind `keyword`). Semantic diagnostics resolve `Library` imports (and their keywords) against the **active environment** via Robot `libdoc` in the parsing worker (`resolve_library`), because workspace indexing skips `Environments/` / venv trees. Signature help is shown as a pointer hover tooltip.
+Completion, hover, diagnostics, definition/references locations, format edits, signature help, document/workspace symbols — exposed via `/language/*`. Completions and catalogs **separate RF DSL** (section headers, suite/local settings, control-flow: `IF`/`FOR`/`TRY`/`VAR`/… — completion kind `dsl`) from **BuiltIn library** keywords (`Log`, `Should Be Equal`, … — kind `keyword`). Semantic diagnostics resolve `Library` imports (and their keywords) against the **active environment** via Robot `libdoc`, skip continuation rows (`...`), treat RF automatic variables as known, and track variables declared by assignments / `FOR` / `VAR` / `[Arguments]` plus same-file user keywords. Signature help is shown as a pointer hover tooltip.
 
 ---
 

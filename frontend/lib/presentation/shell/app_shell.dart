@@ -215,7 +215,6 @@ class _AppShellState extends State<AppShell> {
   List<DiagnosticInfo> get _workspaceProblems => _editor.workspaceProblems;
   SignatureHelpInfo? get _hoverTooltip => _editor.hoverTooltip;
   IndexedSymbolInfo? get _peekDefinition => _editor.peekDefinition;
-  bool get _loadingLanguageFeatures => _editor.loadingLanguageFeatures;
 
   EnvironmentInfo? get _activeEnvironment => _workspace.activeEnvironment;
   EditorTabInfo? get _activeEditorTab => _editor.activeTab;
@@ -2213,6 +2212,10 @@ class _AppShellState extends State<AppShell> {
           _editor.activePath = nextPath;
         }
       }
+      _editor.workspaceProblems = [
+        for (final item in _editor.workspaceProblems)
+          if (item.filePath != path) item,
+      ];
       _editorHover = null;
       _editorReferences = [];
     });
@@ -3188,6 +3191,10 @@ class _AppShellState extends State<AppShell> {
           _editor.activePath = nextPath;
         }
       }
+      _editor.workspaceProblems = [
+        for (final item in _editor.workspaceProblems)
+          if (item.filePath != path) item,
+      ];
       _editorHover = null;
       _editorReferences = [];
     });
@@ -3988,7 +3995,7 @@ class _AppShellState extends State<AppShell> {
                       logLines: _logLines,
                       executionLines: _executionLines,
                       problems: _workspaceProblems,
-                      isLoadingProblems: _loadingLanguageFeatures,
+                      isLoadingProblems: false,
                       problemCount: _workspaceProblems.length,
                       forceExecutionTab: _executionStatus.isActive,
                       revealExecutionLogsToken: _revealExecutionLogsToken,

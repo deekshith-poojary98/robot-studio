@@ -228,13 +228,14 @@ class SidePanel extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
           ToolSection(
-            title: 'Recent',
+            title: 'Runs',
             children: [
               for (final run in recentRuns)
                 ExplorerTreeItem(
                   icon: Icons.assessment_outlined,
-                  label:
-                      '${run.projectName.isEmpty ? run.suite : run.projectName} · ${run.status.passFailLabel}',
+                  label: run.sidebarLabel,
+                  semanticLabel:
+                      '${run.runNumberLabel}, ${run.resultBadge}, ${run.suite.isEmpty ? run.projectName : run.suite}',
                   indent: 1,
                   onTap: onSelectReport == null
                       ? null

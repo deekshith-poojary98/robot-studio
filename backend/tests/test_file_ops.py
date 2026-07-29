@@ -87,6 +87,31 @@ async def test_rename_delete_duplicate(file_stack) -> None:
 
 
 @pytest.mark.asyncio
+async def test_case_only_rename(file_stack) -> None:
+    """libs → Libs must stick (macOS/Windows case-insensitive volumes)."""
+    service, root, _events = file_stack
+    folder = root / "libs"
+    folder.mkdir()
+    (folder / "marker.txt").write_text("ok", encoding="utf-8")
+
+    renamed = await service.rename_path(str(folder), "Libs")
+    assert Path(renamed["path"]).name == "Libs"
+    assert renamed["old_path"] == str(folder.resolve())
+    assert (Path(renamed["path"]) / "marker.txt").read_text(encoding="utf-8") == "ok"
+
+    # Directory listing should show the new spelling when the FS stores it.
+    listed = {p.name for p in root.iterdir()}
+    assert "Libs" in listed or "libs" in listed  # case-sensitive Linux may differ in listing API
+    # Re-open via the returned path — name component must be Libs.
+    assert Path(renamed["path"]).as_posix().endswith("/Libs")
+
+    file_path = Path(renamed["path"]) / "marker.txt"
+    file_renamed = await service.rename_path(str(file_path), "Marker.txt")
+    assert Path(file_renamed["path"]).name == "Marker.txt"
+    assert Path(file_renamed["path"]).as_posix().endswith("/Marker.txt")
+
+
+@pytest.mark.asyncio
 async def test_move_and_validation(file_stack) -> None:
     service, root, _events = file_stack
     folder = root / "dest"

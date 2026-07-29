@@ -136,8 +136,8 @@ class EditorShellController {
       return;
     }
 
-    loadingLanguageFeatures = true;
-    notify();
+    // Keep showing the current Problems list while refresh runs — never flash
+    // a skeleton on every keystroke.
     try {
       final token =
           extractWordAtCursor(tab.content, cursorLine, cursorColumn) ?? '';
@@ -157,14 +157,13 @@ class EditorShellController {
       if (!isMounted()) return;
       completionItems = results[0] as List<CompletionItemInfo>;
       diagnostics = results[1] as List<DiagnosticInfo>;
-      // Keep Problems panel in sync with the active file immediately.
+      // Update Problems for the active file in place (no full-workspace rescan).
       workspaceProblems = [
         ...workspaceProblems.where((item) => item.filePath != tab.path),
         ...diagnostics,
       ];
       loadingLanguageFeatures = false;
       notify();
-      await refreshWorkspaceProblems();
     } catch (error) {
       if (!isMounted()) return;
       loadingLanguageFeatures = false;

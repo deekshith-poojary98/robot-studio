@@ -37,7 +37,7 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 | **Indexing** | Background on open (incremental); full rebuild on demand; excludes `.venv` / `node_modules` / `.git` |
 | **Test Explorer** | Browse suites/tests/tasks/tags; run test, suite, tag, failed; live filter + status |
 | **Execution** | Run file or project; live WebSocket logs; stop; history |
-| **Explorer file ops** | New file/folder (`.robot` files seeded with Settings/Variables/Test Cases/Keywords scaffold), inline rename, delete, duplicate, copy path, reveal in OS, drag-move via live events |
+| **Explorer file ops** | New file/folder (`.robot` files seeded with Settings/Variables/Test Cases/Keywords scaffold), inline rename (including case-only like `libs` → `Libs`), delete, duplicate, copy path, reveal in OS, drag-move via live events |
 | **Live workspace** | FS/index/git/env events over `/workspace/events`; explorer incremental refresh; external edit / deleted-file dialogs; auto Git + Test Explorer refresh |
 | **Reports** | Recent runs, pass/fail stats; open `report.html` / `log.html` / `output.xml` from run details |
 | **Git** | Status (incl. untracked), stage, commit, branches, history, diff; remote actions when a repo exists |
@@ -61,6 +61,24 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 ## Getting Started
 
 Run the backend and frontend in two terminals. The app connects to `http://127.0.0.1:8765` on launch.
+
+### Makefile (recommended)
+
+From the **repository root**:
+
+```bash
+make help              # list targets
+make setup             # backend/.venv + flutter pub get
+make backend           # start API on :8765 (foreground)
+make run               # flutter run -d macos|linux|windows
+make build             # flutter build <device>
+make test              # pytest + flutter test
+make test-integration  # E2E (or: make test-integration SUITE=startup_test.dart)
+make health            # curl /api/v1/health
+make backend-stop      # kill listener on PORT (default 8765)
+```
+
+Override device/port: `make run DEVICE=linux` · `make backend PORT=8766`.
 
 ### 1. Backend
 
@@ -154,6 +172,7 @@ Integration tests may also set `ROBOT_STUDIO_PYTHON` / `INTEGRATION_PYTHON` so e
 robot-studio/
 ├── ARCHITECTURE.md              # Design: layers, modules, milestones
 ├── README.md                    # This file (repo overview)
+├── Makefile                     # setup / backend / run / build / test shortcuts
 ├── scripts/
 │   └── run_integration_tests.sh # Live backend + Flutter integration suites
 ├── backend/
@@ -221,6 +240,8 @@ robot-studio/
 ### Backend tests
 
 ```bash
+make test-backend
+# or:
 cd backend
 source .venv/bin/activate
 pip install -e ".[dev]"          # if needed
@@ -240,6 +261,8 @@ pytest tests/test_execution_api.py tests/test_git_api.py -q
 ### Frontend unit / widget tests
 
 ```bash
+make test-frontend
+# or:
 cd frontend
 flutter pub get
 flutter test
@@ -254,9 +277,10 @@ These launch the real desktop UI against a live backend. Prefer the helper scrip
 
 ```bash
 # From repo root; requires backend/.venv
+make test-integration
+make test-integration SUITE=startup_test.dart
+# or:
 ./scripts/run_integration_tests.sh
-
-# Single suite
 ./scripts/run_integration_tests.sh startup_test.dart
 ```
 

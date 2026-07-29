@@ -18,7 +18,9 @@ from robot_studio.infrastructure.language.robot_parsing_bridge import (
 )
 
 from robot_studio.infrastructure.language.builtin_keywords import (
+    AUTOMATIC_VARIABLE_NAMES,
     BUILTIN_KEYWORDS,
+    CONTINUATION_MARKER,
     CONTROL_MARKERS,
     CONTROL_STRUCTURES,
     LOCAL_SETTINGS,
@@ -32,6 +34,8 @@ _LOCAL_SETTINGS = LOCAL_SETTINGS
 _CONTROL_STRUCTURES = CONTROL_STRUCTURES
 _CONTROL_MARKERS = CONTROL_MARKERS
 _SECTION_HEADERS = SECTION_HEADERS
+_AUTOMATIC_VARIABLE_NAMES = AUTOMATIC_VARIABLE_NAMES
+_CONTINUATION_MARKER = CONTINUATION_MARKER
 
 
 @dataclass
@@ -505,15 +509,12 @@ class RobotLanguageService(LanguageService):
         known_keywords.update(name.casefold() for name in _BUILTIN_KEYWORDS)
         known_keywords.update(name.casefold() for name in _CONTROL_MARKERS)
         known_keywords.update(name.casefold() for name in _LOCAL_SETTINGS)
-        known_resources = {
-            item["name"].casefold()
-            for item in await self.store.search_symbols("", kind=SymbolKind.RESOURCE, limit=200)
-        }
+        known_keywords.update(name.casefold() for name in self._collect_local_keyword_names(lines))
         known_libraries = {
             item["name"].casefold()
             for item in await self.store.search_symbols("", kind=SymbolKind.LIBRARY, limit=200)
         }
-        declared_variables: set[str] = set()
+        declared_variables = self._collect_declared_variables(lines)
 
         # Resolve Library imports against the active env (site-packages), not only
         # the workspace index — Environments/ is excluded from discovery.
@@ -531,21 +532,29 @@ class RobotLanguageService(LanguageService):
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
-            var_match = re.match(r"^(\$\{[^}]+\}|@\{[^}]+\}|&\{[^}]+\})", line)
-            if var_match:
-                declared_variables.add(var_match.group(1))
+            # Continuation rows (`...    arg`) are RF syntax, not keyword calls.
+            if line.startswith(_CONTINUATION_MARKER):
                 continue
             if line.lower().startswith("resource "):
                 token = line.split(None, 1)[1].strip().split("    ")[0]
-                if (
-                    token.casefold() not in known_resources
-                    and Path(token).stem.casefold() not in known_resources
-                ):
+                if not self._import_path_exists(file_path, token):
                     diagnostics.append(
                         self._diag(
                             file_path,
                             idx,
                             f"Missing resource '{token}'",
+                            "warning",
+                        ),
+                    )
+                continue
+            if line.lower().startswith("variables "):
+                token = line.split(None, 1)[1].strip().split("    ")[0]
+                if not self._import_path_exists(file_path, token):
+                    diagnostics.append(
+                        self._diag(
+                            file_path,
+                            idx,
+                            f"Missing variables file '{token}'",
                             "warning",
                         ),
                     )
@@ -564,11 +573,16 @@ class RobotLanguageService(LanguageService):
                 continue
             if raw.startswith(" ") or raw.startswith("\t"):
                 keyword = self._keyword_cell(raw)
-                if keyword.startswith("[") and keyword.endswith("]"):
+                if keyword == _CONTINUATION_MARKER:
                     continue
-                if (
+                if keyword.startswith("[") and keyword.endswith("]"):
+                    # Still scan argument variables on local-setting rows.
+                    pass
+                elif (
                     keyword
                     and not keyword.startswith("$")
+                    and not keyword.startswith("@")
+                    and not keyword.startswith("&")
                     and keyword.casefold() not in known_keywords
                 ):
                     diagnostics.append(
@@ -579,21 +593,164 @@ class RobotLanguageService(LanguageService):
                             "warning",
                         ),
                     )
-                for var_token in re.findall(r"\$\{[^}]+\}|@\{[^}]+\}|&\{[^}]+\}", raw):
-                    if var_token not in declared_variables:
-                        definition = await self.store.find_definition(
-                            var_token,
-                            kind=SymbolKind.VARIABLE,
+                for var_token in re.findall(r"\$\{[^}]+\}|@\{[^}]+\}|&\{[^}]+\}|%\{[^}]+\}", raw):
+                    normalized = self._normalize_variable_token(var_token)
+                    if self._is_known_variable(normalized, declared_variables):
+                        continue
+                    definition = await self.store.find_definition(
+                        normalized,
+                        kind=SymbolKind.VARIABLE,
+                    )
+                    if definition is None:
+                        diagnostics.append(
+                            self._diag(
+                                file_path,
+                                idx,
+                                f"Unknown variable '{normalized}'",
+                                "information",
+                            ),
                         )
-                        if definition is None:
-                            diagnostics.append(
-                                self._diag(
-                                    file_path,
-                                    idx,
-                                    f"Unknown variable '{var_token}'",
-                                    "information",
-                                ),
-                            )
+
+    @staticmethod
+    def _path_beside_file(file_path: str, relative: str) -> Path:
+        base = Path(file_path).expanduser().resolve().parent
+        return (base / relative).resolve()
+
+    @classmethod
+    def _import_path_exists(cls, file_path: str, token: str) -> bool:
+        """True when a Resource/Variables import resolves to a real file on disk.
+
+        Do **not** trust the symbol index here: ResourceImport lines are indexed as
+        ``kind=resource`` even when the target file is missing, which previously
+        suppressed ``Missing resource`` warnings.
+        """
+        cleaned = token.strip().strip("'\"")
+        if not cleaned:
+            return False
+        candidate = Path(cleaned).expanduser()
+        if candidate.is_file():
+            return True
+        return cls._path_beside_file(file_path, cleaned).is_file()
+
+    @classmethod
+    def _collect_local_keyword_names(cls, lines: list[str]) -> set[str]:
+        """User-keyword names declared in this file's Keywords section."""
+        names: set[str] = set()
+        in_keywords = False
+        for raw in lines:
+            stripped = raw.strip()
+            if stripped.startswith("*") and stripped.endswith("*"):
+                label = stripped.strip("*").strip().casefold()
+                in_keywords = label in {"keywords", "keyword"}
+                continue
+            if not in_keywords or not stripped or stripped.startswith("#"):
+                continue
+            if raw.startswith(" ") or raw.startswith("\t"):
+                continue
+            if stripped.startswith("["):
+                continue
+            names.add(stripped)
+        return names
+
+    @classmethod
+    def _collect_declared_variables(cls, lines: list[str]) -> set[str]:
+        declared: set[str] = set()
+        for raw in lines:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            cells = cls._robot_cells(line)
+            if not cells:
+                continue
+            head = cells[0]
+            head_upper = head.upper()
+
+            if head.casefold() == "[arguments]":
+                for cell in cells[1:]:
+                    match = re.match(r"([\$@&%]\{[^}]+\})", cell)
+                    if match:
+                        declared.add(match.group(1))
+                continue
+
+            if head_upper == "VAR" and len(cells) > 1:
+                match = re.match(r"^([\$@&%]\{[^}]+\})$", cells[1])
+                if match:
+                    declared.add(match.group(1))
+                continue
+
+            if head_upper == "FOR":
+                for cell in cells[1:]:
+                    if cell.upper() in {
+                        "IN",
+                        "IN RANGE",
+                        "IN ENUMERATE",
+                        "IN ZIP",
+                    }:
+                        break
+                    match = re.match(r"^([\$@&%]\{[^}]+\})$", cell)
+                    if match:
+                        declared.add(match.group(1))
+                continue
+
+            # ${x}=    Keyword   /   ${x}    value   /   ${x}=value-in-one-cell
+            assign = re.match(r"^([\$@&%]\{[^}]+\})\s*=?\s*$", head)
+            if assign:
+                declared.add(assign.group(1))
+                continue
+            assign_inline = re.match(r"^([\$@&%]\{[^}]+\})=", head)
+            if assign_inline:
+                declared.add(assign_inline.group(1))
+        return declared
+
+    @staticmethod
+    def _robot_cells(line: str) -> list[str]:
+        return [cell for cell in re.split(r"[ \t]{2,}|\t+", line.strip()) if cell]
+
+    @staticmethod
+    def _normalize_variable_token(token: str) -> str:
+        cleaned = token.strip()
+        if cleaned.endswith("="):
+            cleaned = cleaned[:-1]
+        return cleaned
+
+    @classmethod
+    def _is_known_variable(cls, token: str, declared: set[str]) -> bool:
+        normalized = cls._normalize_variable_token(token)
+        if normalized in declared:
+            return True
+        match = re.match(r"^([\$@&%])\{(.+)\}$", normalized)
+        if not match:
+            return False
+        sigil, name = match.group(1), match.group(2)
+        if sigil == "%":
+            return True  # %{ENV} — environment variables
+        folded = name.casefold()
+        if folded in _AUTOMATIC_VARIABLE_NAMES:
+            return True
+        # Number variables: ${10}, ${3.14}, ${0xFF}, ${1_000}, …
+        if sigil == "$" and cls._is_number_variable_name(name):
+            return True
+        upper = name.upper()
+        if upper.startswith(("TEST_", "SUITE_", "PREV_TEST_", "KEYWORD_")):
+            return True
+        return False
+
+    @staticmethod
+    def _is_number_variable_name(name: str) -> bool:
+        """True when RF would accept the body of ``${…}`` as a number literal."""
+        cleaned = name.strip().replace("_", "")
+        if not cleaned:
+            return False
+        try:
+            int(cleaned, 0)
+            return True
+        except ValueError:
+            pass
+        try:
+            float(cleaned)
+            return True
+        except ValueError:
+            return False
 
     async def _resolve_library(self, name: str) -> dict[str, Any]:
         cleaned = name.strip()

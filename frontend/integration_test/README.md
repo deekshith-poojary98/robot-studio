@@ -28,14 +28,16 @@ pip install -e ".[dev]"
 
 ## Running
 
-### Recommended (repo script)
+### Recommended (repo script or Make)
 
 From the **repository root**. Starts an isolated backend on a free port (required on macOS — the app sandbox cannot spawn Python), passes `--dart-define` values, and tears down after each suite:
 
 ```bash
-./scripts/run_integration_tests.sh
+make test-integration
+make test-integration SUITE=startup_test.dart
 
-# Single suite (filename under integration_test/)
+# Equivalent:
+./scripts/run_integration_tests.sh
 ./scripts/run_integration_tests.sh startup_test.dart
 ```
 

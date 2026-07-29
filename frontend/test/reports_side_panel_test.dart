@@ -22,9 +22,10 @@ void main() {
     suite: 'tests/sample.robot',
     status: ExecutionStatus.failed,
     startedAt: DateTime.utc(2026, 1, 1),
+    outputDir: '/tmp/robot-files/Reports/Run-20260101-120000-123456',
   );
 
-  testWidgets('reports side panel lists recent runs without Open Reports', (
+  testWidgets('reports side panel lists runs with run number', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -35,13 +36,13 @@ void main() {
             workspace: workspace,
             recentRuns: [run],
             onSelectReport: (_) {},
-            onOpenReports: () {},
           ),
         ),
       ),
     );
 
-    expect(find.textContaining('Amazon'), findsOneWidget);
+    expect(find.text('Runs'), findsOneWidget);
+    expect(find.textContaining('Run 20260101-120000'), findsOneWidget);
     expect(find.text('Open Reports'), findsNothing);
     expect(find.text('No reports yet'), findsNothing);
   });

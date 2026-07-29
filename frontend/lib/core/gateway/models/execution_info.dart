@@ -139,6 +139,28 @@ class ExecutionInfo {
     final rem = seconds % 60;
     return '${minutes}m ${rem.toStringAsFixed(0)}s';
   }
+
+  /// Label derived from `Reports/Run-*` output folder (or a short id fallback).
+  String get runNumberLabel {
+    final dir = outputDir;
+    if (dir != null && dir.isNotEmpty) {
+      final name = dir.replaceAll('\\', '/').split('/').last;
+      if (name.startsWith('Run-')) {
+        // Run-YYYYMMDD-HHMMSS-ffffff → Run YYYYMMDD-HHMMSS
+        final parts = name.split('-');
+        if (parts.length >= 3) {
+          return 'Run ${parts[1]}-${parts[2]}';
+        }
+        return name.replaceFirst('Run-', 'Run ');
+      }
+      if (name.isNotEmpty) return name;
+    }
+    final short = id.length > 8 ? id.substring(0, 8) : id;
+    return 'Run $short';
+  }
+
+  /// Compact sidebar / list title: run number + result.
+  String get sidebarLabel => '$runNumberLabel · $resultBadge';
 }
 
 class ExecutionStatusInfo {
