@@ -3,12 +3,13 @@ import 'package:re_highlight/re_highlight.dart';
 
 /// Lightweight Robot Framework highlight.js Mode for re_editor / re_highlight.
 ///
-/// Aimed at VS Code Dark+ / Robot Framework extension coloring:
-/// - sky blue: section headers + ${variables}
-/// - teal: keyword *calls* (Create Dictionary, Log, …)
-/// - magenta: settings names (Library, Documentation, [Tags], IF/…)
-/// - yellow: test/keyword *names* + named-arg keys
-/// - white: plain arguments / library names
+/// Token categories (DSL vs library):
+/// - section: `*** Settings ***` (language)
+/// - keyword / meta: suite settings, local `[…]` settings, control-flow DSL
+/// - built_in: library keyword *calls* (Log, Create Dictionary, user libs)
+/// - variable: `${}` `@{}` `&{}` `%{}`
+/// - title: test / user-keyword names
+/// - comment / string / number / attr / continuation
 final Mode langRobot = Mode(
   name: 'robot',
   aliases: ['robotframework', 'robot'],
@@ -16,44 +17,58 @@ final Mode langRobot = Mode(
   contains: <Mode>[
     Mode(className: 'comment', begin: '#', end: r'$'),
 
-    // *** Settings *** / *** Test Cases ***
+    // Continuation `...`
+    Mode(
+      className: 'meta',
+      begin: r'^\s*\.\.\.',
+      relevance: 5,
+    ),
+
+    // *** Settings *** / legacy singular / Comments
     Mode(
       className: 'section',
-      begin: r'^\*{3}\s*(Settings|Variables|Test Cases|Tasks|Keywords)\s*\*{3}',
+      begin: r'^\*{3}\s*('
+          r'Settings?|Variables?|Test Cases?|Tasks?|Keywords?|Comments?'
+          r')\s*\*{3}',
       end: r'$',
       relevance: 10,
     ),
 
-    // ${x} @{x} &{x} %{x} — match early + high relevance so keyword rules
-    // never swallow assignment cells like `${source}    Create Dictionary`.
+    // ${x} @{x} &{x} %{x} — match early so keyword rules never swallow
+    // assignment cells like `${source}    Create Dictionary`.
     Mode(
       className: 'variable',
       begin: r'[\$@&%]\{[^{}\n]+\}',
       relevance: 10,
     ),
 
-    // [Documentation] / [Tags] / … — bracket token only
+    // Local settings: [Documentation] / [Tags] / …
     Mode(
       className: 'meta',
       begin:
           r'\[(Documentation|Tags|Setup|Teardown|Timeout|Arguments|Template|Return)\]',
     ),
 
-    // Settings-table names at column 0
+    // Suite / import settings at column 0
     Mode(
       className: 'keyword',
       begin:
-          r'^(Library|Resource|Variables|Documentation|Metadata|Suite Setup|'
-          r'Suite Teardown|Test Setup|Test Teardown|Test Timeout|Force Tags|'
-          r'Default Tags|Test Tags)\b',
+          r'^(Library|Resource|Variables|Documentation|Metadata|Name|'
+          r'Suite Setup|Suite Teardown|Test Setup|Test Teardown|'
+          r'Test Timeout|Test Template|Test Tags|Force Tags|Default Tags|'
+          r'Keyword Tags|Task Setup|Task Teardown|Task Template|Task Timeout)\b',
     ),
 
-    // Control flow
+    // Control-flow DSL (NOT BuiltIn library keywords)
     Mode(
       className: 'keyword',
-      begin:
-          r'\b(IF|ELSE IF|ELSE|END|FOR|WHILE|BREAK|CONTINUE|RETURN|TRY|EXCEPT|'
-          r'FINALLY)\b',
+      begin: r'\b('
+          r'IF|ELSE IF|ELSE|END|FOR|WHILE|BREAK|CONTINUE|RETURN|'
+          r'TRY|EXCEPT|FINALLY|GROUP|VAR|'
+          r'IN RANGE|IN ENUMERATE|IN ZIP|IN|'
+          r'WITH NAME|AS|AND'
+          r')\b',
+      relevance: 8,
     ),
 
     // Named arguments: user=
@@ -63,11 +78,14 @@ final Mode langRobot = Mode(
       relevance: 0,
     ),
 
-    // Indented keyword call (no leading ${assignment} — that is colored above).
+    // Indented library / user keyword *calls* (BuiltIn + others)
     Mode(
       className: 'built_in',
       begin:
           r'^\s{2,}(?!\[|#|[\$@&%])'
+          r'(?!IF\b|ELSE IF\b|ELSE\b|END\b|FOR\b|WHILE\b|BREAK\b|CONTINUE\b|'
+          r'RETURN\b|TRY\b|EXCEPT\b|FINALLY\b|GROUP\b|VAR\b|'
+          r'IN RANGE\b|IN ENUMERATE\b|IN ZIP\b|IN\b|WITH NAME\b|AS\b|AND\b)'
           r'[A-Za-z_][\w]*(?: [A-Za-z_][\w]*)*'
           r'(?=\s{2,}|\t|$)',
       relevance: 0,
@@ -79,6 +97,8 @@ final Mode langRobot = Mode(
       begin:
           r'(?<=^\s{2,}[\$@&%]\{[^{}\n]+\}\s{2,})'
           r'(?!\[|#)'
+          r'(?!IF\b|ELSE IF\b|ELSE\b|END\b|FOR\b|WHILE\b|BREAK\b|CONTINUE\b|'
+          r'RETURN\b|TRY\b|EXCEPT\b|FINALLY\b|GROUP\b|VAR\b)'
           r'[A-Za-z_][\w]*(?: [A-Za-z_][\w]*)*'
           r'(?=\s{2,}|\t|$)',
       relevance: 0,
@@ -89,9 +109,11 @@ final Mode langRobot = Mode(
       className: 'title',
       begin:
           r'^(?!\*|\#|\[)'
-          r'(?!Library\b|Resource\b|Variables\b|Documentation\b|Metadata\b|'
+          r'(?!Library\b|Resource\b|Variables\b|Documentation\b|Metadata\b|Name\b|'
           r'Suite Setup\b|Suite Teardown\b|Test Setup\b|Test Teardown\b|'
-          r'Test Timeout\b|Force Tags\b|Default Tags\b|Test Tags\b)'
+          r'Test Timeout\b|Test Template\b|Force Tags\b|Default Tags\b|'
+          r'Test Tags\b|Keyword Tags\b|'
+          r'Task Setup\b|Task Teardown\b|Task Template\b|Task Timeout\b)'
           r'[A-Za-z_].*$',
       relevance: 0,
     ),
@@ -113,6 +135,8 @@ final Mode langRobot = Mode(
 );
 
 /// VS Code Dark+ / Robot Framework extension palette.
+/// Magenta = DSL (sections handled separately; settings + control flow).
+/// Teal = library keyword calls (BuiltIn + user libraries).
 final Map<String, TextStyle> robotStudioHighlightTheme = {
   'root': const TextStyle(color: Color(0xFFD4D4D4)),
   'comment': const TextStyle(
@@ -124,16 +148,17 @@ final Map<String, TextStyle> robotStudioHighlightTheme = {
     color: Color(0xFF9CDCFE),
     fontWeight: FontWeight.w700,
   ),
-  // Library / Documentation / IF — magenta
+  // Suite settings / control-flow DSL — magenta
   'keyword': const TextStyle(
     color: Color(0xFFC586C0),
     fontWeight: FontWeight.w700,
   ),
+  // Local [Documentation] / continuation — magenta
   'meta': const TextStyle(
     color: Color(0xFFC586C0),
     fontWeight: FontWeight.w700,
   ),
-  // Create Dictionary / Log / … — teal
+  // Log / Create Dictionary / user library calls — teal
   'built_in': const TextStyle(
     color: Color(0xFF4EC9B0),
     fontWeight: FontWeight.w700,

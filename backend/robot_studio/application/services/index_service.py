@@ -409,7 +409,8 @@ class IndexService:
                 }
             )
             seen.add(name.lower())
-        merged = [*extras, *results]
+        # Project / index hits first so empty keyword searches aren't all BuiltIns.
+        merged = [*results, *extras]
         if needle:
             merged.sort(
                 key=lambda item: (

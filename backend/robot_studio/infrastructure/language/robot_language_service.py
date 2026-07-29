@@ -17,23 +17,21 @@ from robot_studio.infrastructure.language.robot_parsing_bridge import (
     RobotParsingError,
 )
 
-from robot_studio.infrastructure.language.builtin_keywords import BUILTIN_KEYWORDS
+from robot_studio.infrastructure.language.builtin_keywords import (
+    BUILTIN_KEYWORDS,
+    CONTROL_MARKERS,
+    CONTROL_STRUCTURES,
+    LOCAL_SETTINGS,
+    SECTION_HEADERS,
+    SETTING_NAMES,
+)
 
 _BUILTIN_KEYWORDS = BUILTIN_KEYWORDS
-_SETTING_NAMES = [
-    "Library",
-    "Resource",
-    "Variables",
-    "Documentation",
-    "Suite Setup",
-    "Suite Teardown",
-    "Test Setup",
-    "Test Teardown",
-    "Test Timeout",
-    "Force Tags",
-    "Default Tags",
-    "Metadata",
-]
+_SETTING_NAMES = SETTING_NAMES
+_LOCAL_SETTINGS = LOCAL_SETTINGS
+_CONTROL_STRUCTURES = CONTROL_STRUCTURES
+_CONTROL_MARKERS = CONTROL_MARKERS
+_SECTION_HEADERS = SECTION_HEADERS
 
 
 @dataclass
@@ -93,13 +91,20 @@ class RobotLanguageService(LanguageService):
 
         prefix = str(ctx.get("prefix") or query).strip()
         context = str(ctx.get("context") or "keyword")
+        section = str(ctx.get("section") or "")
         kind = self._kind_for_context(context)
         results = await self.store.search_symbols(prefix, kind=kind, limit=80)
 
         items: list[dict] = []
         seen: set[str] = set()
 
-        def add(label: str, item_kind: str, detail: str = "", insert: str | None = None) -> None:
+        def add(
+            label: str,
+            item_kind: str,
+            detail: str = "",
+            insert: str | None = None,
+            documentation: str = "",
+        ) -> None:
             key = f"{item_kind}:{label.lower()}"
             if key in seen:
                 return
@@ -109,19 +114,87 @@ class RobotLanguageService(LanguageService):
                     "label": label,
                     "kind": item_kind,
                     "detail": detail,
-                    "documentation": "",
+                    "documentation": documentation,
                     "insert_text": insert or label,
                 },
             )
 
-        if context in {"setting", "library", "resource"}:
+        def matches(label: str) -> bool:
+            if not prefix:
+                return True
+            return prefix.casefold() in label.casefold()
+
+        # Section headers when typing at column 0 with *** …
+        if prefix.startswith("*") or context == "section":
+            for header in _SECTION_HEADERS:
+                if matches(header):
+                    add(header, "section", detail="Section header")
+
+        if context in {"setting", "library", "resource"} or section == "settings":
             for name in _SETTING_NAMES:
-                if not prefix or name.lower().startswith(prefix.lower()):
-                    add(name, "setting")
-        if context in {"library", "keyword_call", "keyword"}:
-            for name in _BUILTIN_KEYWORDS:
-                if not prefix or prefix.lower() in name.lower():
-                    add(name, "keyword", detail="BuiltIn")
+                if matches(name):
+                    add(name, "setting", detail="Suite setting")
+
+        if context == "local_setting" or prefix.startswith("["):
+            for name in _LOCAL_SETTINGS:
+                if matches(name):
+                    add(name, "setting", detail="Local setting")
+
+        if context in {"library", "keyword_call", "keyword", "control"}:
+            for marker in _CONTROL_STRUCTURES:
+                label = marker["label"]
+                if matches(label) or matches(marker.get("insert_text") or label):
+                    add(
+                        label,
+                        "dsl",
+                        detail=marker.get("detail") or "RF DSL",
+                        insert=marker.get("insert_text") or label,
+                        documentation=marker.get("documentation") or "",
+                    )
+            # Avoid flooding the dropdown with every BuiltIn when the prefix is empty.
+            builtin_source = _BUILTIN_KEYWORDS
+            if len(prefix) < 1:
+                builtin_source = [
+                    "Log",
+                    "Log To Console",
+                    "Should Be Equal",
+                    "Should Be True",
+                    "Set Variable",
+                    "Create List",
+                    "Create Dictionary",
+                    "Fail",
+                    "Sleep",
+                    "No Operation",
+                    "Run Keyword",
+                    "Evaluate",
+                    "Get Length",
+                    "Get Variable Value",
+                    "Wait Until Keyword Succeeds",
+                ]
+            for name in builtin_source:
+                if matches(name):
+                    add(
+                        name,
+                        "keyword",
+                        detail="BuiltIn library",
+                        documentation="BuiltIn library keyword (not RF DSL).",
+                    )
+            # Prefer live BuiltIn names from the active env when available.
+            if len(prefix) >= 1:
+                try:
+                    resolved = await self._resolve_library("BuiltIn")
+                    if resolved.get("available"):
+                        for name in resolved.get("keywords") or []:
+                            if matches(str(name)):
+                                add(
+                                    str(name),
+                                    "keyword",
+                                    detail="BuiltIn library",
+                                    documentation="BuiltIn library keyword (not RF DSL).",
+                                )
+                except Exception:  # noqa: BLE001 — completion must stay resilient
+                    pass
+
         for item in results:
             add(
                 item["name"],
@@ -430,6 +503,8 @@ class RobotLanguageService(LanguageService):
             for item in await self.store.search_symbols("", kind=SymbolKind.KEYWORD, limit=500)
         }
         known_keywords.update(name.casefold() for name in _BUILTIN_KEYWORDS)
+        known_keywords.update(name.casefold() for name in _CONTROL_MARKERS)
+        known_keywords.update(name.casefold() for name in _LOCAL_SETTINGS)
         known_resources = {
             item["name"].casefold()
             for item in await self.store.search_symbols("", kind=SymbolKind.RESOURCE, limit=200)
@@ -575,6 +650,9 @@ class RobotLanguageService(LanguageService):
             "keyword": SymbolKind.KEYWORD,
             "keyword_call": SymbolKind.KEYWORD,
             "setting": SymbolKind.SETTING,
+            "local_setting": SymbolKind.SETTING,
+            "section": SymbolKind.SETTING,
+            "control": SymbolKind.KEYWORD,
         }
         return mapping.get(context)
 

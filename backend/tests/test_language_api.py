@@ -92,6 +92,74 @@ async def test_language_completion_api(api_client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_language_completion_suggests_dsl_and_builtin(api_client) -> None:
+    client, _fresh, tmp_path = api_client
+    suite = await _open_workspace_with_suite(client, tmp_path)
+    content = """*** Test Cases ***
+Demo
+    Sho
+"""
+    response = await client.post(
+        "/api/v1/language/completion",
+        json={
+            "file_path": str(suite),
+            "line": 3,
+            "column": 8,
+            "content": content,
+            "query": "Sho",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()["items"]
+    labels = [item["label"] for item in body]
+    assert "Should Be Equal" in labels
+    should_items = [item for item in body if item["label"] == "Should Be Equal"]
+    assert should_items[0]["kind"] == "keyword"
+    assert "BuiltIn" in should_items[0]["detail"]
+
+    for_content = """*** Test Cases ***
+Demo
+    FO
+"""
+    response = await client.post(
+        "/api/v1/language/completion",
+        json={
+            "file_path": str(suite),
+            "line": 3,
+            "column": 7,
+            "content": for_content,
+            "query": "FO",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()["items"]
+    labels = [item["label"] for item in body]
+    assert any(label.startswith("FOR") for label in labels)
+    for_items = [item for item in body if item["label"] == "FOR"]
+    assert for_items
+    assert for_items[0]["kind"] == "dsl"
+    assert "BuiltIn" not in for_items[0]["detail"]
+
+    local = """*** Test Cases ***
+Demo
+    [Doc
+"""
+    response = await client.post(
+        "/api/v1/language/completion",
+        json={
+            "file_path": str(suite),
+            "line": 3,
+            "column": 9,
+            "content": local,
+            "query": "[Doc",
+        },
+    )
+    assert response.status_code == 200
+    labels = [item["label"] for item in response.json()["items"]]
+    assert "[Documentation]" in labels
+
+
+@pytest.mark.asyncio
 async def test_language_diagnostics_api(api_client) -> None:
     client, _fresh, tmp_path = api_client
     suite = await _open_workspace_with_suite(client, tmp_path)

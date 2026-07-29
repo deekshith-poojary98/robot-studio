@@ -383,6 +383,7 @@ def completion_context(
     line: int,
     column: int,
 ) -> dict[str, Any]:
+    _ = file_path
     lines = content.splitlines()
     if line < 1 or line > len(lines):
         return {"prefix": "", "context": "unknown"}
@@ -397,6 +398,20 @@ def completion_context(
             section = candidate.strip("*").strip().lower()
             break
 
+    # Local settings: "    [Doc…" inside Test Cases / Keywords / Tasks.
+    local_setting = re.match(r"^(\s*)(\[[^\]]*)\]?", row)
+    if local_setting and (row.startswith(" ") or row.startswith("\t")):
+        bracket_prefix = local_setting.group(2)
+        if bracket_prefix.startswith("["):
+            return {
+                "prefix": bracket_prefix if column > len(local_setting.group(1)) else prefix,
+                "context": "local_setting",
+                "section": section,
+            }
+
+    if stripped.startswith("***") or (not stripped and prefix.startswith("*")):
+        return {"prefix": prefix or stripped, "context": "section", "section": section}
+
     if stripped.startswith("Library ") or "Library" in stripped[:20]:
         return {"prefix": prefix, "context": "library", "section": section}
     if stripped.startswith("Resource ") or "Resource" in stripped[:20]:
@@ -407,6 +422,7 @@ def completion_context(
         return {"prefix": prefix, "context": "variable", "section": section}
     if section in {"keywords", "test cases", "tasks"}:
         if row.startswith(" ") or row.startswith("\t"):
+            # Control markers are typed like keywords inside bodies.
             return {"prefix": prefix, "context": "keyword_call", "section": section}
         return {"prefix": prefix, "context": "keyword", "section": section}
     return {"prefix": prefix, "context": "keyword_call", "section": section}
