@@ -26,7 +26,7 @@ class RobotAutocompletePromptsBuilder implements CodeAutocompletePromptsBuilder 
     if (prefix.isEmpty && items.length > 20) return null;
 
     final prompts = items
-        .where((item) => prefix.isEmpty || item.label.startsWith(prefix))
+        .where((item) => prefix.isEmpty || _labelMatches(item, prefix))
         .map(
           (item) => CodeFieldPrompt(
             word: item.insertText,
@@ -47,6 +47,19 @@ class RobotAutocompletePromptsBuilder implements CodeAutocompletePromptsBuilder 
       prompts: prompts,
       index: 0,
     );
+  }
+
+  /// Case-insensitive match: starts-with, contains, or any word starts-with.
+  static bool _labelMatches(CompletionItemInfo item, String prefix) {
+    final p = prefix.toLowerCase();
+    final label = item.label.toLowerCase();
+    final insert = item.insertText.toLowerCase();
+    if (label.startsWith(p) || insert.startsWith(p)) return true;
+    if (label.contains(p) || insert.contains(p)) return true;
+    for (final part in label.split(RegExp(r'[\s.]+'))) {
+      if (part.startsWith(p)) return true;
+    }
+    return false;
   }
 
   String _prefixAt(String line, int offset) {

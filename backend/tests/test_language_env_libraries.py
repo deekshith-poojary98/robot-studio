@@ -42,6 +42,12 @@ class _FakeBridge:
     ):
         if op == "signature_help":
             return signature_help(content, file_path, line, column)
+        if op == "completion_context":
+            from robot_studio.infrastructure.language.robot_parsing_worker import (
+                completion_context,
+            )
+
+            return completion_context(content, file_path, line, column)
         assert op == "resolve_library"
         return self._libraries.get(
             library.casefold(),
@@ -238,3 +244,108 @@ Demo
     messages = [item["message"] for item in diagnostics]
     assert any("Missing library 'MissingLib'" in msg for msg in messages)
     assert any("Unknown keyword 'Open Workbook'" in msg for msg in messages)
+
+
+@pytest.mark.asyncio
+async def test_completion_suggests_imported_library_keywords(tmp_path: Path) -> None:
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").UTC,
+        ),
+    )
+    await context.open(workspace)
+
+    env_path = tmp_path / "new-env"
+    (env_path / "bin").mkdir(parents=True)
+    (env_path / "bin" / "python").write_text("", encoding="utf-8")
+    await context.set_active_environment(
+        Environment(
+            id=uuid4(),
+            workspace_id=workspace.id,
+            name="new-env",
+            path=env_path,
+            python_version="3.13",
+            python_executable=env_path / "bin" / "python",
+            pip_executable=env_path / "bin" / "pip",
+            created_at=workspace.created_at,
+            is_active=True,
+        ),
+    )
+
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge(  # type: ignore[arg-type]
+            {
+                "ExcelSage": {
+                    "available": True,
+                    "name": "ExcelSage",
+                    "keywords": ["Open Workbook", "Fetch Sheet Data"],
+                    "keyword_info": {
+                        "open workbook": {
+                            "name": "Open Workbook",
+                            "documentation": "Opens an Excel workbook.",
+                            "parameters": [],
+                        },
+                    },
+                },
+                "Collections": {
+                    "available": True,
+                    "name": "Collections",
+                    "keywords": ["Append To List", "Get From List"],
+                    "keyword_info": {},
+                },
+            },
+        ),
+    )
+
+    content = """*** Settings ***
+Library    ExcelSage
+Library    Collections    WITH NAME    Col
+
+*** Test Cases ***
+Demo
+    Open
+"""
+    items = await service.completion(
+        {
+            "file_path": "demo.robot",
+            "line": 7,
+            "column": 9,
+            "content": content,
+            "query": "Open",
+        },
+    )
+    labels = [item["label"] for item in items]
+    assert "Open Workbook" in labels
+    open_items = [item for item in items if item["label"] == "Open Workbook"]
+    assert open_items[0]["kind"] == "keyword"
+    assert "ExcelSage" in open_items[0]["detail"]
+
+    alias_content = """*** Settings ***
+Library    ExcelSage
+Library    Collections    WITH NAME    Col
+
+*** Test Cases ***
+Demo
+    Col.App
+"""
+    alias_items = await service.completion(
+        {
+            "file_path": "demo.robot",
+            "line": 7,
+            "column": 12,
+            "content": alias_content,
+            "query": "Col.App",
+        },
+    )
+    alias_labels = [item["label"] for item in alias_items]
+    assert "Col.Append To List" in alias_labels

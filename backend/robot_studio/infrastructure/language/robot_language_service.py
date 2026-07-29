@@ -199,6 +199,49 @@ class RobotLanguageService(LanguageService):
                 except Exception:  # noqa: BLE001 — completion must stay resilient
                     pass
 
+            # Keywords from Library imports in this file (active env via libdoc).
+            if content and len(prefix) >= 1:
+                try:
+                    for lib_name, alias in self._imported_library_entries(content):
+                        if lib_name.casefold() == "builtin":
+                            continue
+                        resolved = await self._resolve_library(lib_name)
+                        if not resolved.get("available"):
+                            continue
+                        display = str(resolved.get("name") or lib_name)
+                        for kw in resolved.get("keywords") or []:
+                            kw_name = str(kw)
+                            if alias:
+                                qualified = f"{alias}.{kw_name}"
+                                if matches(qualified) or matches(kw_name):
+                                    add(
+                                        qualified,
+                                        "keyword",
+                                        detail=f"{display} (as {alias})",
+                                        documentation=str(
+                                            ((resolved.get("keyword_info") or {}).get(
+                                                kw_name.casefold(),
+                                            )
+                                            or {}).get("documentation")
+                                            or "",
+                                        ),
+                                    )
+                            elif matches(kw_name):
+                                add(
+                                    kw_name,
+                                    "keyword",
+                                    detail=f"{display} library",
+                                    documentation=str(
+                                        ((resolved.get("keyword_info") or {}).get(
+                                            kw_name.casefold(),
+                                        )
+                                        or {}).get("documentation")
+                                        or "",
+                                    ),
+                                )
+                except Exception:  # noqa: BLE001 — completion must stay resilient
+                    pass
+
         for item in results:
             add(
                 item["name"],
@@ -451,15 +494,35 @@ class RobotLanguageService(LanguageService):
         return None
 
     @staticmethod
-    def _imported_libraries(content: str) -> list[str]:
-        libraries: list[str] = []
+    def _imported_library_entries(content: str) -> list[tuple[str, str | None]]:
+        """Parse ``Library`` settings → ``(name, WITH NAME alias | None)``."""
+        entries: list[tuple[str, str | None]] = []
         for raw in content.splitlines():
             line = raw.strip()
-            if line.lower().startswith("library "):
-                token = line.split(None, 1)[1].strip().split("    ")[0].strip()
-                if token:
-                    libraries.append(token)
-        return libraries
+            if not line.lower().startswith("library "):
+                continue
+            rest = line.split(None, 1)[1].strip()
+            cells = [cell for cell in re.split(r"[ \t]{2,}|\t+", rest) if cell]
+            if not cells:
+                # Single-space fallback: first token is the library name.
+                tokens = rest.split()
+                if not tokens:
+                    continue
+                entries.append((tokens[0], None))
+                continue
+            lib_name = cells[0].strip()
+            alias: str | None = None
+            for index, cell in enumerate(cells):
+                if cell.upper() == "WITH NAME" and index + 1 < len(cells):
+                    alias = cells[index + 1].strip() or None
+                    break
+            if lib_name:
+                entries.append((lib_name, alias))
+        return entries
+
+    @staticmethod
+    def _imported_libraries(content: str) -> list[str]:
+        return [name for name, _alias in RobotLanguageService._imported_library_entries(content)]
 
     async def _resolve(self, request: dict) -> dict | None:
         symbol_id = request.get("symbol_id")
