@@ -40,7 +40,7 @@ void main() {
       },
     );
 
-    await openBottomTab(tester, 'Execution Logs');
+    await tapSidebarPanel(tester, 'Tests');
     await pumpUntilFound(tester, find.textContaining('integration test'));
 
     await tapSidebarPanel(tester, 'Tests');

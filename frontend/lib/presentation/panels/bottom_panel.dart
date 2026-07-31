@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
-import '../execution/execution_console.dart';
 import '../panels/problems_panel.dart';
+import '../panels/terminal_panel.dart';
 
 enum BottomPanelTab {
   console('Console'),
-  executionLogs('Execution Logs'),
+  terminal('Terminal'),
   problems('Problems');
 
   const BottomPanelTab(this.label);
@@ -18,23 +18,21 @@ class BottomPanel extends StatefulWidget {
   const BottomPanel({
     super.key,
     this.logLines = const [],
-    this.executionLines = const [],
     this.problems = const [],
     this.isLoadingProblems = false,
     this.problemCount = 0,
-    this.forceExecutionTab = false,
-    this.revealExecutionLogsToken,
+    this.workingDirectory,
+    this.revealTerminalToken,
     this.revealProblemsToken,
     this.onProblemSelected,
   });
 
   final List<String> logLines;
-  final List<String> executionLines;
   final List<DiagnosticInfo> problems;
   final bool isLoadingProblems;
   final int problemCount;
-  final bool forceExecutionTab;
-  final int? revealExecutionLogsToken;
+  final String? workingDirectory;
+  final int? revealTerminalToken;
   final int? revealProblemsToken;
   final ValueChanged<DiagnosticInfo>? onProblemSelected;
 
@@ -48,17 +46,23 @@ class _BottomPanelState extends State<BottomPanel> {
   double _height = 180;
 
   @override
-  void didUpdateWidget(covariant BottomPanel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.forceExecutionTab &&
-        widget.executionLines.length > oldWidget.executionLines.length) {
-      _activeTab = BottomPanelTab.executionLogs;
+  void initState() {
+    super.initState();
+    if (widget.revealTerminalToken != null) {
+      _activeTab = BottomPanelTab.terminal;
+      _expanded = true;
+    } else if (widget.revealProblemsToken != null) {
+      _activeTab = BottomPanelTab.problems;
       _expanded = true;
     }
-    if (widget.revealExecutionLogsToken != null &&
-        widget.revealExecutionLogsToken !=
-            oldWidget.revealExecutionLogsToken) {
-      _activeTab = BottomPanelTab.executionLogs;
+  }
+
+  @override
+  void didUpdateWidget(covariant BottomPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.revealTerminalToken != null &&
+        widget.revealTerminalToken != oldWidget.revealTerminalToken) {
+      _activeTab = BottomPanelTab.terminal;
       _expanded = true;
     }
     if (widget.revealProblemsToken != null &&
@@ -132,37 +136,35 @@ class _BottomPanelState extends State<BottomPanel> {
                 onTabSelected: (tab) => setState(() => _activeTab = tab),
                 onCollapse: () => setState(() => _expanded = false),
               ),
-              Expanded(child: _buildBody()),
+              // Keep Terminal mounted so the shell survives tab switches.
+              Expanded(
+                child: IndexedStack(
+                  index: _activeTab.index,
+                  sizing: StackFit.expand,
+                  children: [
+                    _LogView(
+                      lines: widget.logLines.isEmpty
+                          ? const [
+                              '[info] Robot Studio ready.',
+                              '[info] Open a project to get started.',
+                            ]
+                          : widget.logLines,
+                    ),
+                    TerminalPanel(
+                      workingDirectory: widget.workingDirectory,
+                    ),
+                    ProblemsPanel(
+                      diagnostics: widget.problems,
+                      isLoading: widget.isLoadingProblems,
+                      onSelect: widget.onProblemSelected ?? (_) {},
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildBody() {
-    if (_activeTab == BottomPanelTab.console) {
-      return _LogView(
-        lines: widget.logLines.isEmpty
-            ? const [
-                '[info] Robot Studio ready.',
-                '[info] Open a project to get started.',
-              ]
-            : widget.logLines,
-      );
-    }
-
-    if (_activeTab == BottomPanelTab.executionLogs) {
-      return ColoredBox(
-        color: AppColors.rail,
-        child: ExecutionConsole(lines: widget.executionLines),
-      );
-    }
-
-    return ProblemsPanel(
-      diagnostics: widget.problems,
-      isLoading: widget.isLoadingProblems,
-      onSelect: widget.onProblemSelected ?? (_) {},
     );
   }
 }

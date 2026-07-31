@@ -357,7 +357,8 @@ class _ExplorerTreeItemState extends State<ExplorerTreeItem> {
     if (tip == null || tip.isEmpty) return row;
     return Tooltip(
       message: tip,
-      waitDuration: const Duration(milliseconds: 400),
+      // Brief pause so path doesn't flash on every pass-through hover.
+      waitDuration: const Duration(milliseconds: 700),
       child: row,
     );
   }

@@ -349,3 +349,74 @@ Demo
     )
     alias_labels = [item["label"] for item in alias_items]
     assert "Col.Append To List" in alias_labels
+
+
+@pytest.mark.asyncio
+async def test_completion_letter_a_does_not_flood_dsl(tmp_path: Path) -> None:
+    """Typing ``A`` must not match FOR/IF via letters inside RANGE / ${a}."""
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").UTC,
+        ),
+    )
+    await context.open(workspace)
+    env_path = tmp_path / "env"
+    (env_path / "bin").mkdir(parents=True)
+    (env_path / "bin" / "python").write_text("", encoding="utf-8")
+    await context.set_active_environment(
+        Environment(
+            id=uuid4(),
+            workspace_id=workspace.id,
+            name="env",
+            path=env_path,
+            python_version="3.13",
+            python_executable=env_path / "bin" / "python",
+            pip_executable=env_path / "bin" / "pip",
+            created_at=workspace.created_at,
+            is_active=True,
+        ),
+    )
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge(  # type: ignore[arg-type]
+            {
+                "MathLib": {
+                    "available": True,
+                    "name": "MathLib",
+                    "keywords": ["Add Two Numbers"],
+                    "keyword_info": {},
+                },
+            },
+        ),
+    )
+    content = """*** Settings ***
+Library    MathLib
+
+*** Test Cases ***
+Demo
+    A
+"""
+    items = await service.completion(
+        {
+            "file_path": "demo.robot",
+            "line": 6,
+            "column": 6,
+            "content": content,
+            "query": "A",
+        },
+    )
+    labels = [item["label"] for item in items]
+    assert "Add Two Numbers" in labels
+    assert "FOR" not in labels
+    assert "IF" not in labels
+    assert "TRY" not in labels
+    assert "FINALLY" not in labels
+    assert "BREAK" not in labels

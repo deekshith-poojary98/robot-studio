@@ -180,14 +180,14 @@ void main() {
   testWidgets('bottom panel exposes only implemented tabs', (tester) async {
     expect(
       BottomPanelTab.values.map((tab) => tab.label),
-      ['Console', 'Execution Logs', 'Problems'],
+      ['Console', 'Terminal', 'Problems'],
     );
 
     await tester.pumpWidget(
       const MaterialApp(home: Scaffold(body: BottomPanel())),
     );
     expect(find.text('OUTPUT'), findsNothing);
-    expect(find.text('TERMINAL'), findsNothing);
+    expect(find.text('EXECUTION LOGS'), findsNothing);
   });
 
   testWidgets('sidebar omits Settings until it is wired up', (tester) async {

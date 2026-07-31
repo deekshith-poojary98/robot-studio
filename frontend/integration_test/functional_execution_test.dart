@@ -75,7 +75,7 @@ void main() {
       isTrue,
     );
 
-    await openBottomTab(tester, 'Execution Logs');
+    await tapSidebarPanel(tester, 'Tests');
     await pumpUntilFound(
       tester,
       find.textContaining('integration test'),
@@ -102,7 +102,7 @@ void main() {
       ['finished', 'failed', 'cancelled'].contains(status['status']),
       isTrue,
     );
-    await openBottomTab(tester, 'Execution Logs');
+    await tapSidebarPanel(tester, 'Tests');
     expect(find.textContaining('integration test'), findsWidgets);
 
     harness.expectNoFlutterErrors();
@@ -334,7 +334,7 @@ Will Fail
       await tester.tap(last.first);
       await tester.pump(const Duration(milliseconds: 500));
     } else {
-      await openBottomTab(tester, 'Execution Logs');
+      await tapSidebarPanel(tester, 'Tests');
     }
     await pumpUntilFound(
       tester,

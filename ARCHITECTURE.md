@@ -74,7 +74,8 @@ Persistent state lives in **SQLite** under `~/.robot-studio` (configurable). Sym
 | Git source control | **Shipped** |
 | Plugin manager + builtin/user load | **Shipped** (sandboxing still evolving) |
 | Settings / AI assistant UI | **Not shipped** (both hidden from the rail until ready — no stub surfaces) |
-| Desktop packaging: auto-start bundled backend sidecar | **Deferred** (end-of-ship) — freeze Python backend, spawn from app / native launcher, stop on quit; macOS sandbox/spawn entitlements TBD |
+| Integrated Terminal (bottom panel PTY) | **Shipped** — `xterm` + `flutter_pty`, cwd = project folder; macOS App Sandbox disabled so shells can spawn |
+| Desktop packaging: auto-start bundled backend sidecar | **Deferred** (end-of-ship) — freeze Python backend, spawn from app / native launcher, stop on quit; macOS entitlements already unsandboxed for shell/subprocess spawn |
 | gRPC Language Service sidecar | **Planned** |
 | Full plugin subprocess sandbox (P2) | **Planned** |
 
@@ -648,7 +649,7 @@ Not domain architecture, but product-facing constraints that affect shell design
 - **Status chrome**: project name; `ROBOT` / full `PYTHON major.minor.micro` from the active environment in the status bar (no CONNECTED/OFFLINE label); toolbar context shows **project name** (plus branch • environment), not the workspace name unless multiple projects are open. Health is probed on launch, then every 2s while offline and 15s while connected; three consecutive failures are required before disconnecting the execution stream.
 - **Toolbar layout**: left context (project chip / environment / branch, with git Fetch·Pull·Push in a ⋯ menu shown only for repositories), centered command search, right **Run** (primary, labelled) plus icon-only Run Project and Stop. No product wordmark; profile and notifications deferred.
 - **Editor chrome**: the permanent strip carries editing verbs only (Save, Save All, Format, Find) plus a word-wrap toggle. Language navigation (Definition, Peek, References, Hover, Go to Symbol in File, Find Symbol in Project, Replace, Format Selection, Reveal) is reachable through the editor ⋯ menu and the command palette, matching VS Code / PyCharm chrome discipline.
-- **Rail ownership**: only Explorer, Tests, and Reports render side-rail content (`SidePanel.hasSideContent`); Search, Packages, Plugins, and Source Control own the main view and the rail collapses. Bottom panel exposes Console / Execution Logs / Problems only.
+- **Rail ownership**: only Explorer, Tests, and Reports render side-rail content (`SidePanel.hasSideContent`); Search, Packages, Plugins, and Source Control own the main view and the rail collapses. Bottom panel exposes Console / Terminal / Problems. Run output is on the Tests view; Terminal is a real PTY (`xterm` + `flutter_pty`) rooted at the project folder, so the macOS app ships **unsandboxed** (App Sandbox blocks spawning a shell).
 - **Empty and error surfaces**: `EmptyState` gives every empty view an icon, a reason, and one action; `showFriendlyErrorDialog` maps transport/OS exceptions to a plain sentence plus a suggested fix, hiding raw text behind **Show details**. Dialog widths are limited to `AppDialogWidth.form` / `.wide`.
 - **Reports**: Rail Recent list selects a run; main Reports view shows dashboard + details (no second run list). Artifact hyperlinks open output.xml / log.html / report.html.
 - **Problems loop**: Diagnostics refresh while editing `.robot` files; Problems panel + status-bar ERRORS/WARNINGS jump to file:line:column.

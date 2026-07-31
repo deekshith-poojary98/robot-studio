@@ -49,15 +49,13 @@ class RobotAutocompletePromptsBuilder implements CodeAutocompletePromptsBuilder 
     );
   }
 
-  /// Case-insensitive match: starts-with, contains, or any word starts-with.
+  /// Case-insensitive prefix / word-start match (not substring — ``a`` ≠ ``RANGE``).
   static bool _labelMatches(CompletionItemInfo item, String prefix) {
     final p = prefix.toLowerCase();
     final label = item.label.toLowerCase();
-    final insert = item.insertText.toLowerCase();
-    if (label.startsWith(p) || insert.startsWith(p)) return true;
-    if (label.contains(p) || insert.contains(p)) return true;
+    if (label.startsWith(p)) return true;
     for (final part in label.split(RegExp(r'[\s.]+'))) {
-      if (part.startsWith(p)) return true;
+      if (part.isNotEmpty && part.startsWith(p)) return true;
     }
     return false;
   }

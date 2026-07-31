@@ -162,8 +162,8 @@ class AppToolbar extends StatelessWidget {
                             executionStatusLabel != 'Idle')) ...[
                       Tooltip(
                         message: isExecutionRunning
-                            ? 'Open execution logs'
-                            : 'Last run: $executionStatusLabel — open execution logs',
+                            ? 'Open Tests (run output)'
+                            : 'Last run: $executionStatusLabel — open Tests',
                         child: InkWell(
                           onTap: onExecutionStatusTap,
                           borderRadius: BorderRadius.circular(AppRadii.sm),

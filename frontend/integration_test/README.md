@@ -139,8 +139,8 @@ Tests avoid arbitrary `sleep()` and wait for visible UI states instead.
 
 After the pre-M14 UX polish pass, suites reach language navigation through the editor
 overflow menu (`tapEditorMenuAction(tester, 'definition' | 'peek' | 'references' | 'hover' | …)`)
-rather than permanent toolbar buttons, and the bottom panel only has Console / Execution
-Logs / Problems — SH-08 and UX-05 now assert that no "coming soon" surface is reachable.
+rather than permanent toolbar buttons, and the bottom panel has Console / Terminal /
+Problems — run output is on the Tests view; SH-08 asserts Execution Logs is gone.
 
 ---
 
@@ -148,7 +148,7 @@ Logs / Problems — SH-08 and UX-05 now assert that no "coming soon" surface is 
 
 - Widget / unit tests live in `frontend/test/` and run separately: `flutter test` (see [../README.md](../README.md)).
 - Git suites need the system `git` CLI (same as production Source Control).
-- After UX polish / project-type removal: connection chrome is not asserted as CONNECTED/OFFLINE; New Project is name-only (no template picker); language actions use `editor.more` + `tapEditorMenuAction`; Settings/Output/Terminal stubs are expected absent.
+- After UX polish / project-type removal: connection chrome is not asserted as CONNECTED/OFFLINE; New Project is name-only (no template picker); language actions use `editor.more` + `tapEditorMenuAction`; Settings/Output stubs are expected absent (Terminal is a real bottom-panel tab).
 
 ---
 

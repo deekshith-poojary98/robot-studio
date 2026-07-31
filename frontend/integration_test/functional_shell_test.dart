@@ -178,9 +178,9 @@ void main() {
 
     await openBottomTab(tester, 'Problems');
     await openBottomTab(tester, 'Console');
-    await openBottomTab(tester, 'Execution Logs');
+    await openBottomTab(tester, 'Terminal');
     expect(find.text('OUTPUT'), findsNothing);
-    expect(find.text('TERMINAL'), findsNothing);
+    expect(find.text('EXECUTION LOGS'), findsNothing);
 
     harness.expectNoFlutterErrors();
   });

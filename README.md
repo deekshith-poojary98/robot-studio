@@ -39,11 +39,12 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 | **Execution** | Run file or project; live WebSocket logs; stop; history |
 | **Explorer file ops** | New file/folder (`.robot` files seeded with Settings/Variables/Test Cases/Keywords scaffold), inline rename (including case-only like `libs` → `Libs`), delete, duplicate, copy path, reveal in OS, drag-move via live events |
 | **Live workspace** | FS/index/git/env events over `/workspace/events`; explorer incremental refresh; external edit / deleted-file dialogs; auto Git + Test Explorer refresh |
-| **Reports** | Recent runs, pass/fail stats; open `report.html` / `log.html` / `output.xml` from run details |
+| **Reports** | Runs listed by run number, pass/fail stats; open `report.html` / `log.html` / `output.xml` from run details |
+| **Terminal** | Bottom-panel PTY (login shell) rooted at the project folder; restart / kill from the tab chrome |
 | **Git** | Status (incl. untracked), stage, commit, branches, history, diff; remote actions when a repo exists |
 | **Plugins** | Builtin capabilities + plugin manager UI (load / enable / details) |
 | **Status** | Project context, `ROBOT` / `PYTHON` versions (backend connection is not shown) |
-| **UX guidance** | Actionable dialogs for missing project/env; gated CTAs; clickable run status → Execution Logs; shared EmptyState + skeleton loaders; friendly timeout copy |
+| **UX guidance** | Actionable dialogs for missing project/env; gated CTAs; clickable run status → Tests; shared EmptyState + skeleton loaders; friendly timeout copy |
 | **Chrome** | Quiet toolbar (project · environment · branch · Run / Run Project / Stop, git remotes behind ⋯); editor strip keeps Save / Save All / Format / Find / Wrap and moves language navigation to its ⋯ menu |
 | **Errors** | Failure dialogs state what happened and how to fix it; raw exception text stays behind **Show details** |
 
@@ -160,7 +161,7 @@ Integration tests may also set `ROBOT_STUDIO_PYTHON` / `INTEGRATION_PYTHON` so e
 2. Opening a project is immediate; environment setup, indexing, and git refresh continue in the background. If no Python environment is registered, a non-blocking bottom-right toast titled **Python environment required** offers Create Environment / Select Existing (dismiss with ✕), and suggests an existing `.venv` when found.
 3. Create or activate a **Python environment**; install Robot Framework and libraries via the package manager.
 4. Open `.robot` files in the editor; rebuild the **index** if keyword search looks empty (BuiltIn keywords such as `Log` are always searchable).
-5. **Run** from the toolbar or **Tests** explorer (suite / test / tag / failed); watch **Execution Logs** in the bottom panel (click the run status badge to jump there).
+5. **Run** from the toolbar or **Tests** explorer (suite / test / tag / failed); watch output on the **Tests** view (click the run status badge to jump there). Use the bottom **Terminal** for an interactive shell in the project folder.
 6. Open **Reports** for history and HTML output; use **Source Control** if the project is a Git repo.
 7. If a run fails on a missing known library (Browser, SeleniumLibrary, …), use the Install snackbar or Package Manager.
 
@@ -338,6 +339,7 @@ After feature or UX implementations, update **all three** READMEs when behavior,
 | Run disabled / guidance dialog | Select a project (and activate an environment) — Run stays gated until prerequisites exist |
 | Run fails on missing library | Install via Package Manager (or use the post-run Install snackbar for known libraries) |
 | Git Fetch/Pull/Push hidden | The project is not a Git repository (the toolbar ⋯ menu only appears for repos) |
+| Terminal shows `[process exited with code 255]` | The macOS app was built with App Sandbox on, which blocks spawning a shell. `macos/Runner/*.entitlements` must not set `com.apple.security.app-sandbox`; then do a full `flutter run` (hot reload does not re-sign the app) |
 | Integration tests can’t start Python (macOS) | Use `./scripts/run_integration_tests.sh` so the backend is started outside the app sandbox |
 
 ---

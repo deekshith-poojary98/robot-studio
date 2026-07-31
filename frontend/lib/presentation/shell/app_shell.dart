@@ -140,7 +140,7 @@ class _AppShellState extends State<AppShell> {
   ProjectInfo? _selectedProject;
   EnvironmentInfo? _selectedEnvironment;
   bool _showExecutionPage = false;
-  int _revealExecutionLogsToken = 0;
+  int _revealTerminalToken = 0;
   int _revealProblemsToken = 0;
   bool _showReportsPage = false;
   String _searchQuery = '';
@@ -1480,10 +1480,15 @@ class _AppShellState extends State<AppShell> {
     await _handleSelectProject(pick);
   }
 
-  Future<void> _revealExecutionLogs() async {
+  Future<void> _revealTests() async {
     setState(() {
       _showExecutionPage = true;
-      _revealExecutionLogsToken++;
+    });
+  }
+
+  Future<void> _revealTerminal() async {
+    setState(() {
+      _revealTerminalToken++;
     });
   }
 
@@ -3481,11 +3486,20 @@ class _AppShellState extends State<AppShell> {
           onSelect: _revealProblemsPanel,
         ),
         PaletteItem(
-          id: 'editor.logs',
-          title: 'Show Execution Logs',
+          id: 'view.terminal',
+          title: 'Show Terminal',
           icon: Icons.terminal,
           kind: PaletteItemKind.command,
-          onSelect: () => unawaited(_revealExecutionLogs()),
+          keywords: const ['shell', 'console'],
+          onSelect: () => unawaited(_revealTerminal()),
+        ),
+        PaletteItem(
+          id: 'view.tests',
+          title: 'Show Tests',
+          icon: Icons.play_circle_outline,
+          kind: PaletteItemKind.command,
+          keywords: const ['execution', 'run', 'logs'],
+          onSelect: () => unawaited(_revealTests()),
         ),
       ],
       for (final path in _recentFiles.take(8))
@@ -3817,7 +3831,7 @@ class _AppShellState extends State<AppShell> {
                       isExecutionRunning: _executionStatus.isActive,
                       executionStatusLabel: _executionStatus.label,
                       executionElapsedLabel: _elapsedLabel,
-                      onExecutionStatusTap: _revealExecutionLogs,
+                      onExecutionStatusTap: _revealTests,
                       canRun: _selectedProject != null,
                       canRunProject: _selectedProject != null,
                       onOpenWorkspace: _handleOpenWorkspace,
@@ -3993,12 +4007,12 @@ class _AppShellState extends State<AppShell> {
                     ),
                     BottomPanel(
                       logLines: _logLines,
-                      executionLines: _executionLines,
                       problems: _workspaceProblems,
                       isLoadingProblems: false,
                       problemCount: _workspaceProblems.length,
-                      forceExecutionTab: _executionStatus.isActive,
-                      revealExecutionLogsToken: _revealExecutionLogsToken,
+                      workingDirectory:
+                          _activeWorkspace?.path ?? _selectedProject?.path,
+                      revealTerminalToken: _revealTerminalToken,
                       revealProblemsToken: _revealProblemsToken,
                       onProblemSelected: _handleProblemSelected,
                     ),

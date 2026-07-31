@@ -124,9 +124,18 @@ class RobotLanguageService(LanguageService):
             )
 
         def matches(label: str) -> bool:
+            """Prefix / word-start match — not substring (``a`` must not hit ``RANGE``)."""
             if not prefix:
                 return True
-            return prefix.casefold() in label.casefold()
+            needle = prefix.casefold()
+            hay = label.casefold()
+            if hay.startswith(needle):
+                return True
+            return any(
+                part.startswith(needle)
+                for part in re.split(r"[\s.]+", hay)
+                if part
+            )
 
         # Section headers when typing at column 0 with *** …
         if prefix.startswith("*") or context == "section":
@@ -147,7 +156,9 @@ class RobotLanguageService(LanguageService):
         if context in {"library", "keyword_call", "keyword", "control"}:
             for marker in _CONTROL_STRUCTURES:
                 label = marker["label"]
-                if matches(label) or matches(marker.get("insert_text") or label):
+                # Match the short DSL label only — insert templates contain
+                # incidental letters (RANGE, ${a}, …) that must not match.
+                if matches(label):
                     add(
                         label,
                         "dsl",
