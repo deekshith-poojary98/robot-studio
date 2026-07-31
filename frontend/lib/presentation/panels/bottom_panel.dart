@@ -23,6 +23,7 @@ class BottomPanel extends StatefulWidget {
     this.problemCount = 0,
     this.workingDirectory,
     this.revealTerminalToken,
+    this.toggleTerminalToken,
     this.revealProblemsToken,
     this.onProblemSelected,
   });
@@ -33,6 +34,8 @@ class BottomPanel extends StatefulWidget {
   final int problemCount;
   final String? workingDirectory;
   final int? revealTerminalToken;
+  /// Flip Terminal open/closed (⌘` / Ctrl+`).
+  final int? toggleTerminalToken;
   final int? revealProblemsToken;
   final ValueChanged<DiagnosticInfo>? onProblemSelected;
 
@@ -48,7 +51,8 @@ class _BottomPanelState extends State<BottomPanel> {
   @override
   void initState() {
     super.initState();
-    if (widget.revealTerminalToken != null) {
+    if (widget.revealTerminalToken != null ||
+        widget.toggleTerminalToken != null) {
       _activeTab = BottomPanelTab.terminal;
       _expanded = true;
     } else if (widget.revealProblemsToken != null) {
@@ -64,6 +68,15 @@ class _BottomPanelState extends State<BottomPanel> {
         widget.revealTerminalToken != oldWidget.revealTerminalToken) {
       _activeTab = BottomPanelTab.terminal;
       _expanded = true;
+    }
+    if (widget.toggleTerminalToken != null &&
+        widget.toggleTerminalToken != oldWidget.toggleTerminalToken) {
+      if (_activeTab == BottomPanelTab.terminal && _expanded) {
+        _expanded = false;
+      } else {
+        _activeTab = BottomPanelTab.terminal;
+        _expanded = true;
+      }
     }
     if (widget.revealProblemsToken != null &&
         widget.revealProblemsToken != oldWidget.revealProblemsToken) {

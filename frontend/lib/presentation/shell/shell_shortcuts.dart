@@ -1,0 +1,152 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+
+/// Shell-level intents (palette, tabs, layout) — not editor text editing.
+class OpenCommandPaletteIntent extends Intent {
+  const OpenCommandPaletteIntent();
+}
+
+class QuickOpenIntent extends Intent {
+  const QuickOpenIntent();
+}
+
+class SaveFileIntent extends Intent {
+  const SaveFileIntent();
+}
+
+class SaveAllFilesIntent extends Intent {
+  const SaveAllFilesIntent();
+}
+
+class CloseActiveTabIntent extends Intent {
+  const CloseActiveTabIntent();
+}
+
+class ReopenClosedTabIntent extends Intent {
+  const ReopenClosedTabIntent();
+}
+
+class NextEditorTabIntent extends Intent {
+  const NextEditorTabIntent();
+}
+
+class PreviousEditorTabIntent extends Intent {
+  const PreviousEditorTabIntent();
+}
+
+class ToggleSidebarIntent extends Intent {
+  const ToggleSidebarIntent();
+}
+
+class ToggleTerminalIntent extends Intent {
+  const ToggleTerminalIntent();
+}
+
+class FindInProjectIntent extends Intent {
+  const FindInProjectIntent();
+}
+
+class FormatDocumentIntent extends Intent {
+  const FormatDocumentIntent();
+}
+
+class ShowProblemsIntent extends Intent {
+  const ShowProblemsIntent();
+}
+
+/// Platform-aware activators for Robot Studio chrome shortcuts.
+///
+/// Both macOS (⌘) and Win/Linux (Ctrl) chords are registered; the inactive
+/// modifier simply never matches on that platform.
+abstract final class ShellShortcutActivators {
+  static bool get isMac =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+
+  static Map<ShortcutActivator, Intent> get map =>
+      <ShortcutActivator, Intent>{
+        // Command Palette — VS Code ⌘/Ctrl+Shift+P; keep ⌘/Ctrl+K as alias.
+        const SingleActivator(LogicalKeyboardKey.keyP, meta: true, shift: true):
+            const OpenCommandPaletteIntent(),
+        const SingleActivator(
+          LogicalKeyboardKey.keyP,
+          control: true,
+          shift: true,
+        ): const OpenCommandPaletteIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+            const OpenCommandPaletteIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+            const OpenCommandPaletteIntent(),
+
+        // Quick Open (same palette — files are listed there).
+        const SingleActivator(LogicalKeyboardKey.keyP, meta: true):
+            const QuickOpenIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyP, control: true):
+            const QuickOpenIntent(),
+
+        // Save
+        const SingleActivator(LogicalKeyboardKey.keyS, meta: true):
+            const SaveFileIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyS, control: true):
+            const SaveFileIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyS, meta: true, shift: true):
+            const SaveAllFilesIntent(),
+        const SingleActivator(
+          LogicalKeyboardKey.keyS,
+          control: true,
+          shift: true,
+        ): const SaveAllFilesIntent(),
+
+        // Tabs
+        const SingleActivator(LogicalKeyboardKey.keyW, meta: true):
+            const CloseActiveTabIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyW, control: true):
+            const CloseActiveTabIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyT, meta: true, shift: true):
+            const ReopenClosedTabIntent(),
+        const SingleActivator(
+          LogicalKeyboardKey.keyT,
+          control: true,
+          shift: true,
+        ): const ReopenClosedTabIntent(),
+        const SingleActivator(LogicalKeyboardKey.tab, control: true):
+            const NextEditorTabIntent(),
+        const SingleActivator(
+          LogicalKeyboardKey.tab,
+          control: true,
+          shift: true,
+        ): const PreviousEditorTabIntent(),
+
+        // Layout
+        const SingleActivator(LogicalKeyboardKey.keyB, meta: true):
+            const ToggleSidebarIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyB, control: true):
+            const ToggleSidebarIntent(),
+        const SingleActivator(LogicalKeyboardKey.backquote, meta: true):
+            const ToggleTerminalIntent(),
+        const SingleActivator(LogicalKeyboardKey.backquote, control: true):
+            const ToggleTerminalIntent(),
+
+        // Search / Problems / Format
+        const SingleActivator(LogicalKeyboardKey.keyF, meta: true, shift: true):
+            const FindInProjectIntent(),
+        const SingleActivator(
+          LogicalKeyboardKey.keyF,
+          control: true,
+          shift: true,
+        ): const FindInProjectIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyM, meta: true, shift: true):
+            const ShowProblemsIntent(),
+        const SingleActivator(
+          LogicalKeyboardKey.keyM,
+          control: true,
+          shift: true,
+        ): const ShowProblemsIntent(),
+        // Shift+Option/Alt+F — Format Document
+        const SingleActivator(LogicalKeyboardKey.keyF, shift: true, alt: true):
+            const FormatDocumentIntent(),
+      };
+
+  /// Human-readable label for docs / palette (macOS vs Win/Linux).
+  static String label(String mac, String other) => isMac ? mac : other;
+}

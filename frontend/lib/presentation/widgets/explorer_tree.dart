@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
+import 'always_delayed_tooltip.dart';
 
 class ToolSection extends StatefulWidget {
   const ToolSection({
@@ -355,9 +356,10 @@ class _ExplorerTreeItemState extends State<ExplorerTreeItem> {
     if (widget.isEditing) return row;
     final tip = widget.tooltip;
     if (tip == null || tip.isEmpty) return row;
-    return Tooltip(
+    // Always wait — Material Tooltip skips waitDuration when moving between
+    // open tip targets, which flashes the full path on every row hop.
+    return AlwaysDelayedTooltip(
       message: tip,
-      // Brief pause so path doesn't flash on every pass-through hover.
       waitDuration: const Duration(milliseconds: 700),
       child: row,
     );

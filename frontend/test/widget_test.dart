@@ -270,7 +270,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final result = await future;
-    expect(result, 'robot-3.12');
+    expect(result?.name, 'robot-3.12');
     expect(result?.pythonInterpreter, '/usr/bin/python3');
     expect(result?.installRobot, isTrue);
   });
@@ -315,7 +315,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final result = await future;
-    expect(result, 'custom-env');
+    expect(result?.name, 'custom-env');
     expect(result?.pythonInterpreter, '/custom/python3');
   });
 

@@ -33,7 +33,8 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 | **Editor** | Multi-tab Robot editor, find/replace, live diagnostics (venv `Library` imports via active env); document outline under Explorer |
 | **Language intelligence** | Completions split RF DSL vs BuiltIn library keywords; hover tooltips; go-to-definition; references; document symbols |
 | **Problems** | Bottom Problems panel synced while editing; jump to line/column; status-bar ERRORS/WARNINGS shortcut |
-| **Command palette** | ⌘K / Ctrl+K (toolbar search) for commands, recent files, project files, and symbols |
+| **Command palette** | ⌘⇧P / Ctrl+Shift+P (also ⌘P / Ctrl+P, ⌘K / Ctrl+K) for commands, recent files, project files, and symbols |
+| **Keyboard shortcuts** | VS Code–style chrome + editor chords (save, tabs, sidebar, terminal, find/replace, comment, move/copy/delete line, format, Problems) — see `frontend/README.md` |
 | **Indexing** | Background on open (incremental); full rebuild on demand; excludes `.venv` / `node_modules` / `.git` |
 | **Test Explorer** | Browse suites/tests/tasks/tags; run test, suite, tag, failed; live filter + status |
 | **Execution** | Run file or project; live WebSocket logs; stop; history |

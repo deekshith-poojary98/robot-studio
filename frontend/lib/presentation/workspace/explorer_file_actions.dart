@@ -108,6 +108,33 @@ Example Keyword
     return parts.isEmpty ? path : parts.last;
   }
 
+  /// Short path for UI tips: `/Users/me/proj/a.robot` → `~/proj/a.robot`.
+  /// Leaves paths outside the home directory unchanged.
+  static String homeRelativePath(String path, {String? home}) {
+    final normalized = path.replaceAll('\\', '/');
+    if (normalized.isEmpty) return normalized;
+    final homeRaw = home ??
+        Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'];
+    if (homeRaw == null || homeRaw.isEmpty) return normalized;
+    var homeNorm = homeRaw.replaceAll('\\', '/');
+    if (homeNorm.endsWith('/') && homeNorm.length > 1) {
+      homeNorm = homeNorm.substring(0, homeNorm.length - 1);
+    }
+    if (normalized == homeNorm ||
+        normalized.toLowerCase() == homeNorm.toLowerCase()) {
+      return '~';
+    }
+    final prefix = '$homeNorm/';
+    if (normalized.startsWith(prefix)) {
+      return '~/${normalized.substring(prefix.length)}';
+    }
+    if (normalized.toLowerCase().startsWith(prefix.toLowerCase())) {
+      return '~/${normalized.substring(prefix.length)}';
+    }
+    return normalized;
+  }
+
   static String revealLabel() {
     if (Platform.isMacOS) return 'Reveal in Finder';
     if (Platform.isWindows) return 'Reveal in Explorer';

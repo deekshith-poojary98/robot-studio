@@ -72,6 +72,38 @@ void main() {
     expect(ExplorerFileActions.initialContentFor('lib.resource'), isEmpty);
   });
 
+  test('ExplorerFileActions shortens paths under home', () {
+    expect(
+      ExplorerFileActions.homeRelativePath(
+        '/Users/me/Desktop/OrangeHRM/tests/a.robot',
+        home: '/Users/me',
+      ),
+      '~/Desktop/OrangeHRM/tests/a.robot',
+    );
+    expect(
+      ExplorerFileActions.homeRelativePath('/Users/me', home: '/Users/me'),
+      '~',
+    );
+    expect(
+      ExplorerFileActions.homeRelativePath(
+        '/Users/me/.robotstudio',
+        home: '/Users/me',
+      ),
+      '~/.robotstudio',
+    );
+    expect(
+      ExplorerFileActions.homeRelativePath('/tmp/other', home: '/Users/me'),
+      '/tmp/other',
+    );
+    expect(
+      ExplorerFileActions.homeRelativePath(
+        r'C:\Users\me\proj\a.robot',
+        home: r'C:\Users\me',
+      ),
+      '~/proj/a.robot',
+    );
+  });
+
   testWidgets('VirtualFileTree builds only visible rows', (tester) async {
     final rows = List.generate(
       200,

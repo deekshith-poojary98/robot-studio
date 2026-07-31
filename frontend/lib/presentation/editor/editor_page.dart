@@ -19,6 +19,7 @@ class EditorPage extends StatefulWidget {
     required this.hover,
     required this.references,
     required this.statusMessage,
+    this.onDismissStatusMessage,
     required this.breadcrumb,
     required this.completionItems,
     required this.diagnostics,
@@ -57,6 +58,8 @@ class EditorPage extends StatefulWidget {
   final HoverInfo? hover;
   final List<SymbolReferenceInfo> references;
   final String? statusMessage;
+  /// Dismisses the notice before its auto-expiry.
+  final VoidCallback? onDismissStatusMessage;
   final EditorBreadcrumbInfo breadcrumb;
   final List<CompletionItemInfo> completionItems;
   final List<DiagnosticInfo> diagnostics;
@@ -191,11 +194,30 @@ class _EditorPageState extends State<EditorPage> {
           if (widget.statusMessage != null)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.only(left: 12, right: 6, top: 4, bottom: 4),
               color: AppColors.accentSoft,
-              child: Text(
-                widget.statusMessage!,
-                style: const TextStyle(fontSize: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.statusMessage!,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  if (widget.onDismissStatusMessage != null)
+                    InkWell(
+                      onTap: widget.onDismissStatusMessage,
+                      borderRadius: BorderRadius.circular(4),
+                      child: const Padding(
+                        padding: EdgeInsets.all(3),
+                        child: Icon(
+                          Icons.close,
+                          size: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           Expanded(
@@ -225,6 +247,7 @@ class _EditorPageState extends State<EditorPage> {
                           onCtrlClick: widget.onCtrlClick,
                           onHoverRequest: widget.onHoverRequest,
                           onHoverExit: widget.onHoverExit,
+                          onSave: widget.onSave,
                           onContentChanged: (content) =>
                               widget.onContentChanged(active.path, content),
                           onCursorChanged: widget.onCursorChanged,

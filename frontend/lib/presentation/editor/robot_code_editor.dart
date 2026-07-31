@@ -13,6 +13,7 @@ import 'editor_find_panel.dart';
 import 'editor_language_widgets.dart';
 import 'editor_navigation_widgets.dart';
 import 'editor_syntax.dart';
+import 'robot_code_shortcuts.dart';
 
 class RobotCodeEditor extends StatefulWidget {
   const RobotCodeEditor({
@@ -24,6 +25,7 @@ class RobotCodeEditor extends StatefulWidget {
     this.onCtrlClick,
     this.onHoverRequest,
     this.onHoverExit,
+    this.onSave,
     this.wordWrap = true,
     this.jumpToLine,
     this.jumpToColumn,
@@ -42,6 +44,8 @@ class RobotCodeEditor extends StatefulWidget {
   /// Fired after the pointer rests over a code position (VS Code-style hover).
   final void Function(int line, int column)? onHoverRequest;
   final VoidCallback? onHoverExit;
+  /// Wired to ⌘S / Ctrl+S via re_editor save intent override.
+  final VoidCallback? onSave;
   final bool wordWrap;
   final int? jumpToLine;
   final int? jumpToColumn;
@@ -215,6 +219,42 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   void undo() => _controller.undo();
   void redo() => _controller.redo();
 
+  /// Duplicate selected lines above or below (VS Code Shift+Opt/Alt+↑/↓).
+  void copyLines(VerticalDirection direction) {
+    final selection = _controller.selection;
+    final start = selection.startIndex;
+    final end = selection.endIndex;
+    final copies = <CodeLine>[
+      for (var i = start; i <= end; i++)
+        CodeLine(_controller.codeLines[i].text),
+    ];
+    final insertAt =
+        direction == VerticalDirection.down ? end + 1 : start;
+    final all = <CodeLine>[];
+    for (var i = 0; i < _controller.lineCount; i++) {
+      if (i == insertAt) {
+        all.addAll(copies);
+      }
+      all.add(CodeLine(_controller.codeLines[i].text));
+    }
+    if (insertAt >= _controller.lineCount) {
+      all.addAll(copies);
+    }
+    final newStart = insertAt;
+    final newEnd = insertAt + copies.length - 1;
+    _controller.runRevocableOp(() {
+      _controller.value = _controller.value.copyWith(
+        codeLines: CodeLines.of(all),
+        selection: CodeLineSelection(
+          baseIndex: newStart,
+          baseOffset: 0,
+          extentIndex: newEnd,
+          extentOffset: copies.last.length,
+        ),
+      );
+    });
+  }
+
   int? get selectionStartLine {
     final sel = _controller.selection;
     return sel.startIndex + 1;
@@ -293,6 +333,19 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       findController: _findController,
       scrollController: _scrollController,
       wordWrap: widget.wordWrap,
+      commentFormatter: DefaultCodeCommentFormatter(
+        singleLinePrefix: '#',
+      ),
+      shortcutsActivatorsBuilder:
+          const RobotCodeShortcutsActivatorsBuilder(),
+      shortcutOverrideActions: {
+        CodeShortcutSaveIntent: CallbackAction<CodeShortcutSaveIntent>(
+          onInvoke: (_) {
+            widget.onSave?.call();
+            return null;
+          },
+        ),
+      },
       style: CodeEditorStyle(
         fontSize: _fontSize,
         fontFamily: 'Menlo',
@@ -342,18 +395,33 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     final tooltipPos = _hoverLocal;
 
     return Shortcuts(
-      shortcuts: const {
-        SingleActivator(LogicalKeyboardKey.keyF, meta: true): _FindIntent(),
-        SingleActivator(LogicalKeyboardKey.keyF, control: true): _FindIntent(),
-        SingleActivator(LogicalKeyboardKey.keyH, meta: true): _ReplaceIntent(),
+      shortcuts: {
+        SingleActivator(LogicalKeyboardKey.keyF, meta: true):
+            const _FindIntent(),
+        SingleActivator(LogicalKeyboardKey.keyF, control: true):
+            const _FindIntent(),
+        SingleActivator(LogicalKeyboardKey.keyH, meta: true):
+            const _ReplaceIntent(),
         SingleActivator(LogicalKeyboardKey.keyH, control: true):
-            _ReplaceIntent(),
-        SingleActivator(LogicalKeyboardKey.keyZ, meta: true): _UndoIntent(),
-        SingleActivator(LogicalKeyboardKey.keyZ, control: true): _UndoIntent(),
+            const _ReplaceIntent(),
+        SingleActivator(LogicalKeyboardKey.keyZ, meta: true):
+            const _UndoIntent(),
+        SingleActivator(LogicalKeyboardKey.keyZ, control: true):
+            const _UndoIntent(),
         SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true):
-            _RedoIntent(),
-        SingleActivator(LogicalKeyboardKey.keyY, control: true): _RedoIntent(),
-        SingleActivator(LogicalKeyboardKey.f12): _DefinitionIntent(),
+            const _RedoIntent(),
+        SingleActivator(LogicalKeyboardKey.keyY, control: true):
+            const _RedoIntent(),
+        const SingleActivator(LogicalKeyboardKey.f12):
+            const _DefinitionIntent(),
+        // Copy line — VS Code Shift+Option/Alt+↑/↓
+        const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true, alt: true):
+            const CopyLineIntent(VerticalDirection.up),
+        const SingleActivator(
+          LogicalKeyboardKey.arrowDown,
+          shift: true,
+          alt: true,
+        ): const CopyLineIntent(VerticalDirection.down),
       },
       child: Actions(
         actions: {
@@ -384,6 +452,12 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
           _DefinitionIntent: CallbackAction<_DefinitionIntent>(
             onInvoke: (_) {
               widget.onCtrlClick?.call();
+              return null;
+            },
+          ),
+          CopyLineIntent: CallbackAction<CopyLineIntent>(
+            onInvoke: (intent) {
+              copyLines(intent.direction);
               return null;
             },
           ),

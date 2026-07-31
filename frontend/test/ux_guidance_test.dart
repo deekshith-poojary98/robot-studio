@@ -3,7 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:robot_studio/core/gateway/models/project_info.dart';
 import 'package:robot_studio/core/gateway/models/workspace_info.dart';
 import 'package:robot_studio/presentation/widgets/guidance_dialog.dart';
+import 'package:robot_studio/presentation/widgets/always_delayed_tooltip.dart';
 import 'package:robot_studio/presentation/workspace/welcome_screen.dart';
+
+Finder pathTip(String message) => find.byWidgetPredicate(
+      (widget) => widget is AlwaysDelayedTooltip && widget.message == message,
+    );
 
 void main() {
   testWidgets('guidance dialog offers primary next step', (tester) async {
@@ -73,12 +78,14 @@ void main() {
       ),
     );
 
+    // Recent rows use AlwaysDelayedTooltip (Material's shared tooltip skips the
+    // wait when hopping between rows).
     expect(
-      find.byTooltip('robot-files-very-long-name\n/Users/demo/robot-files-very-long-name'),
+      pathTip('robot-files-very-long-name\n/Users/demo/robot-files-very-long-name'),
       findsOneWidget,
     );
     expect(
-      find.byTooltip('Amazon\n/Users/demo/robot-files/Amazon'),
+      pathTip('Amazon\n/Users/demo/robot-files/Amazon'),
       findsOneWidget,
     );
   });

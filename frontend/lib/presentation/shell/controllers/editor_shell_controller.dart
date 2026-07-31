@@ -43,7 +43,28 @@ class EditorShellController {
 
   Timer? languageDebounce;
   Timer? hoverDebounce;
+  Timer? statusTimer;
   int _hoverRequestId = 0;
+
+  static const statusMessageTtl = Duration(seconds: 4);
+
+  /// Show a transient notice above the editor (Saved…, Copied path, …).
+  ///
+  /// The strip pushes editor content down, so it always expires — callers used
+  /// to assign [statusMessage] directly and the notice stayed until the next
+  /// file open. Set synchronously so an enclosing `setState` paints it at once;
+  /// the clear notifies on its own.
+  void setStatusMessage(String? message, {Duration ttl = statusMessageTtl}) {
+    statusTimer?.cancel();
+    statusTimer = null;
+    statusMessage = message;
+    if (message == null) return;
+    statusTimer = Timer(ttl, () {
+      statusTimer = null;
+      statusMessage = null;
+      if (isMounted()) notify();
+    });
+  }
 
   EditorTabInfo? get activeTab {
     final path = activePath;
@@ -57,6 +78,7 @@ class EditorShellController {
   void dispose() {
     languageDebounce?.cancel();
     hoverDebounce?.cancel();
+    statusTimer?.cancel();
   }
 
   void reset() {
@@ -69,6 +91,8 @@ class EditorShellController {
     workspaceProblems = [];
     hoverTooltip = null;
     peekDefinition = null;
+    statusTimer?.cancel();
+    statusTimer = null;
     statusMessage = null;
     jumpToLine = null;
     jumpToColumn = null;

@@ -292,8 +292,8 @@ class _SearchField extends StatelessWidget {
   final VoidCallback? onTap;
 
   static String get _shortcutLabel {
-    if (kIsWeb) return 'Ctrl+K';
-    return Platform.isMacOS ? '⌘K' : 'Ctrl+K';
+    if (kIsWeb) return 'Ctrl+Shift+P';
+    return Platform.isMacOS ? '⌘⇧P' : 'Ctrl+Shift+P';
   }
 
   @override

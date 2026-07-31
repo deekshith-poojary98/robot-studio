@@ -39,6 +39,7 @@ import '../search/search_page.dart';
 import '../sidebar/app_sidebar.dart';
 import '../sidebar/sidebar_panel.dart';
 import '../toolbar/app_toolbar.dart';
+import 'shell_shortcuts.dart';
 import '../widgets/side_panel_resize_handle.dart';
 import '../widgets/environment_prompt_toast.dart';
 import '../widgets/app_toast.dart';
@@ -140,8 +141,10 @@ class _AppShellState extends State<AppShell> {
   ProjectInfo? _selectedProject;
   EnvironmentInfo? _selectedEnvironment;
   bool _showExecutionPage = false;
-  int _revealTerminalToken = 0;
+  int _toggleTerminalToken = 0;
   int _revealProblemsToken = 0;
+  bool _sidePanelCollapsed = false;
+  final List<String> _recentlyClosedPaths = [];
   bool _showReportsPage = false;
   String _searchQuery = '';
   SymbolKind? _searchKind;
@@ -1255,7 +1258,7 @@ class _AppShellState extends State<AppShell> {
       _editor.documentOutline = [];
       _editorHover = null;
       _editorReferences = [];
-      _editor.statusMessage = null;
+      _editor.setStatusMessage(null);
       _editor.jumpToLine = null;
       _editor.jumpToColumn = null;
       _editor.fileTree = [];
@@ -1486,9 +1489,52 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
-  Future<void> _revealTerminal() async {
+  void _toggleTerminal() {
+    setState(() => _toggleTerminalToken++);
+  }
+
+  void _toggleSidebar() {
+    setState(() => _sidePanelCollapsed = !_sidePanelCollapsed);
+  }
+
+  void _cycleEditorTab({required bool forward}) {
+    final tabs = _editorTabs;
+    if (tabs.length < 2) return;
+    final active = _editor.activePath;
+    final index = tabs.indexWhere((tab) => tab.path == active);
+    if (index < 0) return;
+    final next = forward
+        ? (index + 1) % tabs.length
+        : (index - 1 + tabs.length) % tabs.length;
+    unawaited(_selectTab(tabs[next].path));
+  }
+
+  Future<void> _reopenClosedTab() async {
+    while (_recentlyClosedPaths.isNotEmpty) {
+      final path = _recentlyClosedPaths.removeLast();
+      if (_editorTabs.any((tab) => tab.path == path)) continue;
+      await _openFile(path);
+      return;
+    }
+  }
+
+  Future<void> _closeActiveTab() async {
+    final path = _editor.activePath;
+    if (path == null) return;
+    await _closeTab(path);
+  }
+
+  void _openProjectSearch() {
     setState(() {
-      _revealTerminalToken++;
+      _activePanel = SidebarPanel.search;
+      _showSearchPage = true;
+      _clearExecutionPageUnlessTests();
+      _showEditorPage = false;
+      _showReportsPage = false;
+      _showSourceControl = false;
+      _showPluginManager = false;
+      _showPackageManager = false;
+      _showEnvironmentManager = false;
     });
   }
 
@@ -2121,7 +2167,7 @@ class _AppShellState extends State<AppShell> {
         _editor.jumpToColumn = column;
         _editorHover = null;
         _editorReferences = [];
-        _editor.statusMessage = null;
+        _editor.setStatusMessage(null);
       });
       _trackRecentFile(path);
       await _selectTab(path);
@@ -2150,7 +2196,7 @@ class _AppShellState extends State<AppShell> {
         _editor.jumpToColumn = column;
         _editorHover = null;
         _editorReferences = [];
-        _editor.statusMessage = null;
+        _editor.setStatusMessage(null);
         _busy = false;
       });
       _trackRecentFile(file.path);
@@ -2192,6 +2238,14 @@ class _AppShellState extends State<AppShell> {
     return parts.isEmpty ? path : parts.last;
   }
 
+  void _pushRecentlyClosed(String path) {
+    _recentlyClosedPaths.remove(path);
+    _recentlyClosedPaths.add(path);
+    if (_recentlyClosedPaths.length > 20) {
+      _recentlyClosedPaths.removeAt(0);
+    }
+  }
+
   Future<void> _closeTab(String path) async {
     final tabIndex = _editorTabs.indexWhere((tab) => tab.path == path);
     if (tabIndex < 0) return;
@@ -2205,6 +2259,7 @@ class _AppShellState extends State<AppShell> {
     final updated = [..._editorTabs]..removeAt(tabIndex);
     String? nextPath;
     setState(() {
+      _pushRecentlyClosed(path);
       _editor.tabs = updated;
       if (_editor.activePath == path) {
         if (updated.isEmpty) {
@@ -2305,7 +2360,7 @@ class _AppShellState extends State<AppShell> {
       _editor.jumpToColumn = null;
       _editorHover = null;
       _editorReferences = [];
-      _editor.statusMessage = null;
+      _editor.setStatusMessage(null);
     });
     await _checkExternalChanges(path);
     await _loadOutline(path);
@@ -2719,7 +2774,7 @@ class _AppShellState extends State<AppShell> {
       if (!mounted) return;
       setState(() {
         tab.content = formatted;
-        _editor.statusMessage = 'Formatted document';
+        _editor.setStatusMessage('Formatted document');
       });
       _scheduleLanguageRefresh();
     } catch (error) {
@@ -2742,7 +2797,7 @@ class _AppShellState extends State<AppShell> {
       if (!mounted) return;
       setState(() {
         tab.content = formatted;
-        _editor.statusMessage = 'Formatted selection';
+        _editor.setStatusMessage('Formatted selection');
       });
       _scheduleLanguageRefresh();
     } catch (error) {
@@ -2924,7 +2979,7 @@ class _AppShellState extends State<AppShell> {
       setState(() {
         tab.savedContent = tab.content;
         tab.mtime = result.mtime;
-        _editor.statusMessage = 'Saved ${_fileNameFromPath(path)}';
+        _editor.setStatusMessage('Saved ${_fileNameFromPath(path)}');
       });
       _appendLog('[info] Saved "$path"');
       await _loadGitStatus();
@@ -2958,14 +3013,15 @@ class _AppShellState extends State<AppShell> {
     final token = _editorTokenName();
     if (token == null) {
       setState(() {
-        _editor.statusMessage =
-            'Place the cursor on a symbol or select one in the outline.';
+        _editor.setStatusMessage(
+          'Place the cursor on a symbol or select one in the outline.',
+        );
       });
       return;
     }
 
     setState(() {
-      _editor.statusMessage = null;
+      _editor.setStatusMessage(null);
       _editorHover = null;
       _editorReferences = [];
     });
@@ -2977,7 +3033,7 @@ class _AppShellState extends State<AppShell> {
         await _openFile(definition.filePath, line: definition.line);
       } else {
         setState(() {
-          _editor.statusMessage = 'No definition found for "$token".';
+          _editor.setStatusMessage('No definition found for "$token".');
         });
       }
     } catch (error) {
@@ -2990,14 +3046,15 @@ class _AppShellState extends State<AppShell> {
     final token = _editorTokenName();
     if (token == null) {
       setState(() {
-        _editor.statusMessage =
-            'Place the cursor on a symbol or select one in the outline.';
+        _editor.setStatusMessage(
+          'Place the cursor on a symbol or select one in the outline.',
+        );
       });
       return;
     }
 
     setState(() {
-      _editor.statusMessage = null;
+      _editor.setStatusMessage(null);
       _editorReferences = [];
       _editorHover = null;
     });
@@ -3008,7 +3065,7 @@ class _AppShellState extends State<AppShell> {
       setState(() {
         _editorReferences = refs;
         if (refs.isEmpty) {
-          _editor.statusMessage = 'No references found for "$token".';
+          _editor.setStatusMessage('No references found for "$token".');
         }
       });
     } catch (error) {
@@ -3021,14 +3078,15 @@ class _AppShellState extends State<AppShell> {
     final token = _editorTokenName();
     if (token == null) {
       setState(() {
-        _editor.statusMessage =
-            'Place the cursor on a symbol or select one in the outline.';
+        _editor.setStatusMessage(
+          'Place the cursor on a symbol or select one in the outline.',
+        );
       });
       return;
     }
 
     setState(() {
-      _editor.statusMessage = null;
+      _editor.setStatusMessage(null);
       _editorHover = null;
       _editorReferences = [];
     });
@@ -3039,7 +3097,7 @@ class _AppShellState extends State<AppShell> {
       setState(() {
         _editorHover = hover;
         if (hover == null) {
-          _editor.statusMessage = 'No hover info for "$token".';
+          _editor.setStatusMessage('No hover info for "$token".');
         }
       });
     } catch (error) {
@@ -3059,8 +3117,9 @@ class _AppShellState extends State<AppShell> {
       await ExplorerFileActions.revealInOs(path);
       if (!mounted) return;
       setState(() {
-        _editor.statusMessage =
-            '${ExplorerFileActions.revealLabel()}: ${ExplorerFileActions.basename(path)}';
+        _editor.setStatusMessage(
+          '${ExplorerFileActions.revealLabel()}: ${ExplorerFileActions.basename(path)}',
+        );
       });
     } catch (error) {
       await _showError(ExplorerFileActions.revealLabel(), error);
@@ -3071,7 +3130,7 @@ class _AppShellState extends State<AppShell> {
     await Clipboard.setData(ClipboardData(text: path));
     if (!mounted) return;
     setState(() {
-      _editor.statusMessage = 'Copied absolute path';
+      _editor.setStatusMessage('Copied absolute path');
     });
   }
 
@@ -3089,7 +3148,7 @@ class _AppShellState extends State<AppShell> {
     await Clipboard.setData(ClipboardData(text: relative));
     if (!mounted) return;
     setState(() {
-      _editor.statusMessage = 'Copied relative path';
+      _editor.setStatusMessage('Copied relative path');
     });
   }
 
@@ -3184,6 +3243,7 @@ class _AppShellState extends State<AppShell> {
     final updated = [..._editorTabs]..removeAt(tabIndex);
     String? nextPath;
     setState(() {
+      _pushRecentlyClosed(path);
       _editor.tabs = updated;
       if (_editor.activePath == path) {
         if (updated.isEmpty) {
@@ -3466,6 +3526,7 @@ class _AppShellState extends State<AppShell> {
         PaletteItem(
           id: 'file.save',
           title: 'Save File',
+          subtitle: ShellShortcutActivators.label('⌘S', 'Ctrl+S'),
           icon: Icons.save_outlined,
           kind: PaletteItemKind.command,
           onSelect: () => unawaited(_saveActive()),
@@ -3473,13 +3534,31 @@ class _AppShellState extends State<AppShell> {
         PaletteItem(
           id: 'file.saveAll',
           title: 'Save All',
+          subtitle: ShellShortcutActivators.label('⌘⇧S', 'Ctrl+Shift+S'),
           icon: Icons.save_as_outlined,
           kind: PaletteItemKind.command,
           onSelect: () => unawaited(_saveAll()),
         ),
         PaletteItem(
+          id: 'file.closeTab',
+          title: 'Close Editor Tab',
+          subtitle: ShellShortcutActivators.label('⌘W', 'Ctrl+W'),
+          icon: Icons.close,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_closeActiveTab()),
+        ),
+        PaletteItem(
+          id: 'editor.format',
+          title: 'Format Document',
+          subtitle: ShellShortcutActivators.label('⇧⌥F', 'Shift+Alt+F'),
+          icon: Icons.format_align_left,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_editorFormatDocument()),
+        ),
+        PaletteItem(
           id: 'editor.problems',
           title: 'Show Problems',
+          subtitle: ShellShortcutActivators.label('⌘⇧M', 'Ctrl+Shift+M'),
           icon: Icons.error_outline,
           kind: PaletteItemKind.command,
           keywords: const ['diagnostics'],
@@ -3487,11 +3566,28 @@ class _AppShellState extends State<AppShell> {
         ),
         PaletteItem(
           id: 'view.terminal',
-          title: 'Show Terminal',
+          title: 'Toggle Terminal',
+          subtitle: ShellShortcutActivators.label('⌘`', 'Ctrl+`'),
           icon: Icons.terminal,
           kind: PaletteItemKind.command,
           keywords: const ['shell', 'console'],
-          onSelect: () => unawaited(_revealTerminal()),
+          onSelect: _toggleTerminal,
+        ),
+        PaletteItem(
+          id: 'view.sidebar',
+          title: 'Toggle Side Bar',
+          subtitle: ShellShortcutActivators.label('⌘B', 'Ctrl+B'),
+          icon: Icons.view_sidebar_outlined,
+          kind: PaletteItemKind.command,
+          onSelect: _toggleSidebar,
+        ),
+        PaletteItem(
+          id: 'view.search',
+          title: 'Search in Project',
+          subtitle: ShellShortcutActivators.label('⌘⇧F', 'Ctrl+Shift+F'),
+          icon: Icons.search,
+          kind: PaletteItemKind.command,
+          onSelect: _openProjectSearch,
         ),
         PaletteItem(
           id: 'view.tests',
@@ -3501,6 +3597,15 @@ class _AppShellState extends State<AppShell> {
           keywords: const ['execution', 'run', 'logs'],
           onSelect: () => unawaited(_revealTests()),
         ),
+        if (_recentlyClosedPaths.isNotEmpty)
+          PaletteItem(
+            id: 'file.reopenClosed',
+            title: 'Reopen Closed Editor',
+            subtitle: ShellShortcutActivators.label('⌘⇧T', 'Ctrl+Shift+T'),
+            icon: Icons.restore,
+            kind: PaletteItemKind.command,
+            onSelect: () => unawaited(_reopenClosedTab()),
+          ),
       ],
       for (final path in _recentFiles.take(8))
         PaletteItem(
@@ -3790,17 +3895,85 @@ class _AppShellState extends State<AppShell> {
     final activeEnvironment = _activeEnvironment;
 
     return Shortcuts(
-      shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.keyK, meta: true):
-            _OpenCommandPaletteIntent(),
-        SingleActivator(LogicalKeyboardKey.keyK, control: true):
-            _OpenCommandPaletteIntent(),
-      },
+      shortcuts: ShellShortcutActivators.map,
       child: Actions(
         actions: <Type, Action<Intent>>{
-          _OpenCommandPaletteIntent: CallbackAction<_OpenCommandPaletteIntent>(
+          OpenCommandPaletteIntent:
+              CallbackAction<OpenCommandPaletteIntent>(
             onInvoke: (_) {
               unawaited(_openCommandPalette());
+              return null;
+            },
+          ),
+          QuickOpenIntent: CallbackAction<QuickOpenIntent>(
+            onInvoke: (_) {
+              unawaited(_openCommandPalette());
+              return null;
+            },
+          ),
+          SaveFileIntent: CallbackAction<SaveFileIntent>(
+            onInvoke: (_) {
+              unawaited(_saveActive());
+              return null;
+            },
+          ),
+          SaveAllFilesIntent: CallbackAction<SaveAllFilesIntent>(
+            onInvoke: (_) {
+              unawaited(_saveAll());
+              return null;
+            },
+          ),
+          CloseActiveTabIntent: CallbackAction<CloseActiveTabIntent>(
+            onInvoke: (_) {
+              unawaited(_closeActiveTab());
+              return null;
+            },
+          ),
+          ReopenClosedTabIntent: CallbackAction<ReopenClosedTabIntent>(
+            onInvoke: (_) {
+              unawaited(_reopenClosedTab());
+              return null;
+            },
+          ),
+          NextEditorTabIntent: CallbackAction<NextEditorTabIntent>(
+            onInvoke: (_) {
+              _cycleEditorTab(forward: true);
+              return null;
+            },
+          ),
+          PreviousEditorTabIntent: CallbackAction<PreviousEditorTabIntent>(
+            onInvoke: (_) {
+              _cycleEditorTab(forward: false);
+              return null;
+            },
+          ),
+          ToggleSidebarIntent: CallbackAction<ToggleSidebarIntent>(
+            onInvoke: (_) {
+              _toggleSidebar();
+              return null;
+            },
+          ),
+          ToggleTerminalIntent: CallbackAction<ToggleTerminalIntent>(
+            onInvoke: (_) {
+              _toggleTerminal();
+              return null;
+            },
+          ),
+          FindInProjectIntent: CallbackAction<FindInProjectIntent>(
+            onInvoke: (_) {
+              _openProjectSearch();
+              return null;
+            },
+          ),
+          FormatDocumentIntent: CallbackAction<FormatDocumentIntent>(
+            onInvoke: (_) {
+              unawaited(_editorFormatDocument());
+              return null;
+            },
+          ),
+          ShowProblemsIntent: CallbackAction<ShowProblemsIntent>(
+            onInvoke: (_) {
+              _revealProblemsPanel();
               return null;
             },
           ),
@@ -3861,6 +4034,9 @@ class _AppShellState extends State<AppShell> {
                             onPanelSelected: (panel) {
                               setState(() {
                                 _activePanel = panel;
+                                if (SidePanel.hasSideContent(panel)) {
+                                  _sidePanelCollapsed = false;
+                                }
                                 if (panel == SidebarPanel.tests) {
                                   _showExecutionPage = true;
                                   _showEditorPage = false;
@@ -3917,7 +4093,8 @@ class _AppShellState extends State<AppShell> {
                               }
                             },
                           ),
-                          SidePanel(
+                          if (!_sidePanelCollapsed)
+                            SidePanel(
                             panel: _activePanel,
                             width: _sidePanelWidth,
                             workspace: _activeWorkspace,
@@ -3989,7 +4166,8 @@ class _AppShellState extends State<AppShell> {
                               });
                             },
                           ),
-                          if (SidePanel.hasSideContent(_activePanel))
+                          if (SidePanel.hasSideContent(_activePanel) &&
+                              !_sidePanelCollapsed)
                             SidePanelResizeHandle(
                               onDragDelta: (dx) {
                                 setState(() {
@@ -4012,7 +4190,7 @@ class _AppShellState extends State<AppShell> {
                       problemCount: _workspaceProblems.length,
                       workingDirectory:
                           _activeWorkspace?.path ?? _selectedProject?.path,
-                      revealTerminalToken: _revealTerminalToken,
+                      toggleTerminalToken: _toggleTerminalToken,
                       revealProblemsToken: _revealProblemsToken,
                       onProblemSelected: _handleProblemSelected,
                     ),
@@ -4278,6 +4456,8 @@ class _AppShellState extends State<AppShell> {
         hover: _editorHover,
         references: _editorReferences,
         statusMessage: _editorStatusMessage,
+        onDismissStatusMessage: () =>
+            setState(() => _editor.setStatusMessage(null)),
         breadcrumb: _buildBreadcrumb(),
         completionItems: _completionItems,
         diagnostics: _editorDiagnostics,
@@ -4399,6 +4579,3 @@ class _WorkspaceOpenPlaceholder extends StatelessWidget {
   }
 }
 
-class _OpenCommandPaletteIntent extends Intent {
-  const _OpenCommandPaletteIntent();
-}
