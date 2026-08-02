@@ -1,8 +1,11 @@
 from fastapi import APIRouter
 
 from robot_studio.api.routes import (
+    analysis,
+    doctor,
     environments,
     execution,
+    execution_knowledge,
     files,
     health,
     index,
@@ -29,6 +32,9 @@ api_router.include_router(tests.router)
 api_router.include_router(reports.router)
 api_router.include_router(index.router)
 api_router.include_router(index.search_router)
+api_router.include_router(analysis.router)
+api_router.include_router(execution_knowledge.router)
+api_router.include_router(doctor.router)
 api_router.include_router(language.router)
 api_router.include_router(files.router)
 api_router.include_router(plugins.router)

@@ -20,6 +20,8 @@ from robot_studio.infrastructure.workspace.filesystem import (
     is_workspace,
     load_manifest,
     manifest_path,
+    studio_environments_root,
+    studio_reports_root,
 )
 
 
@@ -62,6 +64,11 @@ async def test_create_workspace_structure(tmp_path: Path) -> None:
 
     for relative in STANDARD_DIRECTORIES:
         assert (root / relative).is_dir()
+
+    assert studio_environments_root(root).is_dir()
+    assert studio_reports_root(root).is_dir()
+    assert not (root / "Environments").exists()
+    assert not (root / "Reports").exists()
 
     loaded = load_manifest(root)
     assert loaded.name == "Demo"

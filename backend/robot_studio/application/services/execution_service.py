@@ -26,6 +26,7 @@ from robot_studio.infrastructure.execution.subprocess_runner import (
 from robot_studio.infrastructure.repositories.execution_repository import (
     SqliteExecutionRepository,
 )
+from robot_studio.infrastructure.workspace.filesystem import studio_reports_root
 
 
 class ExecutionValidationError(Exception):
@@ -207,7 +208,7 @@ class ExecutionService:
 
         run_id = uuid4()
         stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
-        output_dir = workspace_path / "Reports" / f"Run-{stamp}"
+        output_dir = studio_reports_root(workspace_path) / f"Run-{stamp}"
         output_dir.mkdir(parents=True, exist_ok=True)
 
         display_suite = run_label or suite

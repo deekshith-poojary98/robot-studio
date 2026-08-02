@@ -61,19 +61,19 @@ class WorkspaceExplorer extends StatelessWidget {
     required String parentPath,
     required String name,
     required bool isDirectory,
-  })? onCreateEntry;
-  final Future<void> Function({
-    required String path,
-    required String newName,
-  })? onRenameEntry;
-  final Future<void> Function(String path)? onDeleteEntry;
+  })?
+  onCreateEntry;
+  final Future<void> Function({required String path, required String newName})?
+  onRenameEntry;
+  final Future<void> Function(List<String> paths)? onDeleteEntry;
   final Future<void> Function(String path)? onDuplicateEntry;
   final Future<void> Function({
-    required String sourcePath,
+    required List<String> sourcePaths,
     required String destinationParentPath,
-  })? onMoveEntry;
-  final ValueChanged<String>? onCopyRelativePath;
-  final ValueChanged<String>? onCopyAbsolutePath;
+  })?
+  onMoveEntry;
+  final ValueChanged<List<String>>? onCopyRelativePath;
+  final ValueChanged<List<String>>? onCopyAbsolutePath;
   final ValueChanged<String>? onRevealInOs;
   final VoidCallback? onCollapseAllFolders;
   final List<IndexedSymbolInfo> outline;

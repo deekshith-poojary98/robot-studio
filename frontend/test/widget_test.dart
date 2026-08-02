@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:robot_studio/core/gateway/models/language_info.dart';
 import 'package:robot_studio/core/gateway/transport_gateway.dart';
 import 'package:robot_studio/main.dart';
 import 'package:robot_studio/presentation/editor/editor_page.dart';
@@ -75,6 +74,7 @@ void main() {
     expect(find.text('Open Project'), findsOneWidget);
     expect(find.text('Advanced'), findsOneWidget);
     expect(find.text('New Workspace'), findsOneWidget);
+    expect(find.byKey(const Key('welcome.backend-unavailable')), findsNothing);
 
     // Recent Projects appear before Recent Workspaces in the welcome layout.
     final projectsOffset = tester.getTopLeft(find.text('Recent Projects')).dy;
@@ -82,6 +82,34 @@ void main() {
         .getTopLeft(find.text('Recent Workspaces'))
         .dy;
     expect(projectsOffset < workspacesOffset, isTrue);
+  });
+
+  testWidgets('Welcome screen shows backend unavailable hint', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: WelcomeScreen(
+            recentWorkspaces: const [],
+            recentProjects: const [],
+            isLoadingRecent: false,
+            onNewWorkspace: () {},
+            onOpenWorkspace: () {},
+            onOpenProject: () {},
+            onOpenRecentWorkspace: (_) {},
+            onOpenRecentProject: (_) {},
+            backendUnavailable: true,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('welcome.backend-unavailable')), findsOneWidget);
+    expect(find.textContaining('python -m robot_studio.main'), findsOneWidget);
   });
 
   testWidgets('Welcome screen fits short window heights', (
@@ -139,6 +167,39 @@ void main() {
 
     final result = await future;
     expect(result, 'My Project');
+  });
+
+  testWidgets('New Project dialog collects name and location', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: SizedBox())),
+    );
+
+    final future = showNewStandaloneProjectDialog(
+      tester.element(find.byType(SizedBox)),
+      initialLocation: '/Users/demo/robot-files',
+    );
+    await tester.pumpAndSettle();
+
+    // Location is prefilled and browsable — no bare folder picker up front.
+    expect(find.text('/Users/demo/robot-files'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Browse…'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Project name'),
+      'Amazon',
+    );
+    await tester.pump();
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+
+    final result = await future;
+    expect(result?.name, 'Amazon');
+    expect(result?.location, '/Users/demo/robot-files');
   });
 
   testWidgets('Import Project dialog validates path', (
@@ -1300,23 +1361,10 @@ void main() {
             onCloseTab: (_) {},
             onContentChanged: (_, _) {},
             onSave: () {},
-            onSaveAll: () {},
-            onToggleWordWrap: () {},
-            onGoToDefinition: () {},
-            onPeekDefinition: () {},
-            onFindReferences: () {},
-            onHover: () {},
             onHoverRequest: (_, _) {},
             onHoverExit: () {},
-            onFormatDocument: () {},
-            onFormatSelection: () {},
-            onOpenSymbol: () {},
-            onWorkspaceSymbol: () {},
             onCtrlClick: () {},
             onClosePeek: () {},
-            onFind: () {},
-            onReplace: () {},
-            onReveal: () {},
             onCursorChanged: (_, _) {},
           ),
         ),
@@ -1367,23 +1415,10 @@ void main() {
             onCloseTab: (_) {},
             onContentChanged: (_, _) {},
             onSave: () {},
-            onSaveAll: () {},
-            onToggleWordWrap: () {},
-            onGoToDefinition: () {},
-            onPeekDefinition: () {},
-            onFindReferences: () {},
-            onHover: () {},
             onHoverRequest: (_, _) {},
             onHoverExit: () {},
-            onFormatDocument: () {},
-            onFormatSelection: () {},
-            onOpenSymbol: () {},
-            onWorkspaceSymbol: () {},
             onCtrlClick: () {},
             onClosePeek: () {},
-            onFind: () {},
-            onReplace: () {},
-            onReveal: () {},
             onCursorChanged: (_, _) {},
           ),
         ),
@@ -1399,16 +1434,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
   });
 
-  testWidgets('EditorPage Find Replace Definition and Hover actions', (
+  testWidgets('EditorPage shows hover/references side panel without toolbar', (
     WidgetTester tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 700));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    var findTaps = 0;
-    var replaceTaps = 0;
-    var definitionTaps = 0;
-    var hoverTaps = 0;
 
     final tabs = [
       EditorTabInfo(
@@ -1452,23 +1482,10 @@ void main() {
             onCloseTab: (_) {},
             onContentChanged: (_, _) {},
             onSave: () {},
-            onSaveAll: () {},
-            onToggleWordWrap: () {},
-            onGoToDefinition: () => definitionTaps++,
-            onPeekDefinition: () {},
-            onFindReferences: () {},
-            onHover: () => hoverTaps++,
             onHoverRequest: (_, _) {},
             onHoverExit: () {},
-            onFormatDocument: () {},
-            onFormatSelection: () {},
-            onOpenSymbol: () {},
-            onWorkspaceSymbol: () {},
             onCtrlClick: () {},
             onClosePeek: () {},
-            onFind: () => findTaps++,
-            onReplace: () => replaceTaps++,
-            onReveal: () {},
             onCursorChanged: (_, _) {},
           ),
         ),
@@ -1479,28 +1496,10 @@ void main() {
     expect(find.text('Hover'), findsWidgets);
     expect(find.textContaining('Login With Credentials'), findsWidgets);
     expect(find.textContaining('checkout.robot:8'), findsOneWidget);
-    expect(find.byKey(const Key('editor.find')), findsOneWidget);
-    // Language navigation moved out of the permanent strip into the overflow
-    // menu, so only editing verbs stay visible.
-    expect(find.byKey(const Key('editor.replace')), findsNothing);
-    expect(find.byKey(const Key('editor.definition')), findsNothing);
-    expect(find.byKey(const Key('editor.more')), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('editor.more')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('editor.menu.definition')));
-    await tester.pumpAndSettle();
-    expect(definitionTaps, 1);
-
-    tester.widget<EditorPage>(find.byType(EditorPage)).onHover();
-    expect(hoverTaps, 1);
-
-    // Exercise Find/Replace toolbar callbacks without opening re_editor find
-    // mode (avoids CodeFindController / cursor blink timer leaks in tests).
-    tester.widget<EditorPage>(find.byType(EditorPage)).onFind();
-    tester.widget<EditorPage>(find.byType(EditorPage)).onReplace();
-    expect(findTaps, 1);
-    expect(replaceTaps, 1);
+    // Editor action strip moved to the window menu bar.
+    expect(find.byKey(const Key('editor.find')), findsNothing);
+    expect(find.byKey(const Key('editor.save')), findsNothing);
+    expect(find.byKey(const Key('editor.more')), findsNothing);
 
     await tester.pump(const Duration(milliseconds: 200));
   });
@@ -2402,6 +2401,177 @@ class _FakeTransportGateway implements TransportGateway {
         GitDiffLineInfo(kind: 'added', right: 'new line', rightLine: 1),
       ],
     );
+  }
+
+  @override
+  Future<DoctorProfilesBundle> getDoctorProfiles() async {
+    return const DoctorProfilesBundle(
+      profiles: [
+        DoctorProfileInfo(
+          id: 'quick',
+          title: 'Quick',
+          description: 'Correctness + dependency blockers only.',
+          providerIds: ['missing_import', 'circular_dependency', 'duplicate_keyword'],
+        ),
+        DoctorProfileInfo(
+          id: 'default',
+          title: 'Default',
+          description: 'All static semantic inspections.',
+          providerIds: ['unused_keyword', 'missing_import'],
+        ),
+        DoctorProfileInfo(
+          id: 'full',
+          title: 'Full',
+          description: 'Static + execution knowledge.',
+          providerIds: ['unused_keyword', 'flaky_test'],
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<DoctorReport> runDoctor({
+    String profile = 'default',
+    String? projectId,
+    List<String>? providerIds,
+  }) async {
+    return DoctorReport(
+      id: 'report-1',
+      projectId: projectId ?? 'proj',
+      profile: profile,
+      createdAt: DateTime.utc(2026, 8, 3),
+      graphVersion: 'gv1',
+      summary: const DoctorHealthSummary(
+        totalFindings: 2,
+        bySeverity: {'error': 1, 'warning': 1},
+        byCategory: {'dependencies': 1, 'maintainability': 1},
+        criticalIssues: 1,
+      ),
+      findings: const [
+        DoctorFinding(
+          id: 'f1',
+          inspectionId: 'missing_import',
+          severity: 'error',
+          message: "Unresolved import '../resources/missing.resource'",
+          confidence: 'low',
+          category: 'dependencies',
+          rationale: 'A Resource import path could not be resolved on disk.',
+          supportsFix: true,
+          fixId: 'fix_missing_import',
+          estimatedRisk: 'medium',
+          filePath: 'tests/login.robot',
+          line: 3,
+        ),
+        DoctorFinding(
+          id: 'f2',
+          inspectionId: 'unused_keyword',
+          severity: 'warning',
+          message: "Keyword 'Dead Keyword' is never called",
+          confidence: 'high',
+          category: 'maintainability',
+          rationale: 'No bound callers exist in the semantic call graph.',
+          supportsFix: true,
+          fixId: 'remove_unused_keyword',
+          estimatedRisk: 'medium',
+          filePath: 'resources/common.resource',
+          line: 5,
+        ),
+      ],
+      grouped: const [
+        DoctorCategoryGroup(
+          category: 'dependencies',
+          findings: [
+            DoctorFinding(
+              id: 'f1',
+              inspectionId: 'missing_import',
+              severity: 'error',
+              message: "Unresolved import '../resources/missing.resource'",
+              confidence: 'low',
+              category: 'dependencies',
+              rationale: 'A Resource import path could not be resolved on disk.',
+              supportsFix: true,
+              fixId: 'fix_missing_import',
+              filePath: 'tests/login.robot',
+              line: 3,
+            ),
+          ],
+        ),
+        DoctorCategoryGroup(
+          category: 'maintainability',
+          findings: [
+            DoctorFinding(
+              id: 'f2',
+              inspectionId: 'unused_keyword',
+              severity: 'warning',
+              message: "Keyword 'Dead Keyword' is never called",
+              confidence: 'high',
+              category: 'maintainability',
+              rationale: 'No bound callers exist in the semantic call graph.',
+              supportsFix: true,
+              filePath: 'resources/common.resource',
+              line: 5,
+            ),
+          ],
+        ),
+      ],
+      topRecommendations: const [
+        DoctorRecommendation(
+          rank: 1,
+          findingId: 'f1',
+          reason: 'Critical correctness / dependency issue — fix before shipping.',
+          finding: DoctorFinding(
+            id: 'f1',
+            inspectionId: 'missing_import',
+            severity: 'error',
+            message: "Unresolved import '../resources/missing.resource'",
+            confidence: 'low',
+            category: 'dependencies',
+            rationale: 'A Resource import path could not be resolved on disk.',
+            supportsFix: true,
+            filePath: 'tests/login.robot',
+            line: 3,
+          ),
+        ),
+      ],
+      executionSnapshot: const DoctorExecutionSnapshot(
+        projectId: 'proj',
+        linkedRuns: 0,
+      ),
+    );
+  }
+
+  @override
+  Future<DoctorReport> getDoctorReport(String reportId) async {
+    final report = await runDoctor();
+    return DoctorReport(
+      id: reportId,
+      projectId: report.projectId,
+      profile: report.profile,
+      createdAt: report.createdAt,
+      graphVersion: report.graphVersion,
+      summary: report.summary,
+      findings: report.findings,
+      grouped: report.grouped,
+      topRecommendations: report.topRecommendations,
+      executionSnapshot: report.executionSnapshot,
+    );
+  }
+
+  @override
+  Future<List<DoctorReportSummary>> getDoctorHistory({
+    String? projectId,
+    int limit = 20,
+  }) async {
+    return [
+      DoctorReportSummary(
+        id: 'report-1',
+        projectId: projectId ?? 'proj',
+        profile: 'default',
+        createdAt: DateTime.utc(2026, 8, 3),
+        totalFindings: 2,
+        criticalIssues: 1,
+      ),
+    ];
   }
 
   @override

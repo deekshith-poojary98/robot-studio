@@ -2,8 +2,8 @@
 
 > A cross-platform desktop IDE for Robot Framework development.
 
-**Status:** Core IDE shipped (workspaces → execution → reports → indexing → language → Git → plugins). Active **usability hardening** against the public-beta review backlog.  
-**Last updated:** 2026-07-21 — aligned with implemented codebase and [README.md](./README.md)
+**Status:** Core IDE shipped (workspaces → execution → reports → indexing → **analysis engine** → **Robot Doctor** → language → Git → plugins). Active **usability hardening** against the public-beta review backlog.  
+**Last updated:** 2026-08-03 — Robot Analysis Engine (`/api/v1/analysis/*`)
 
 Product snapshot / how to run: [README.md](./README.md)  
 Flutter layout: [frontend/README.md](./frontend/README.md)  
@@ -73,7 +73,9 @@ Persistent state lives in **SQLite** under `~/.robot-studio` (configurable). Sym
 | Reports | **Shipped** |
 | Git source control | **Shipped** |
 | Plugin manager + builtin/user load | **Shipped** (sandboxing still evolving) |
+| **Robot Analysis Engine** (semantic graphs + query APIs) | **Shipped** (backend infrastructure — no UI) |
 | Settings / AI assistant UI | **Not shipped** (both hidden from the rail until ready — no stub surfaces) |
+| Robot Doctor / Impact Analysis / Safe Rename (UI) | **Doctor shipped** (Project Health Center); Impact / Safe Rename **Planned** |
 | Integrated Terminal (bottom panel PTY) | **Shipped** — `xterm` + `flutter_pty`, cwd = project folder; macOS App Sandbox disabled so shells can spawn |
 | Desktop packaging: auto-start bundled backend sidecar | **Deferred** (end-of-ship) — freeze Python backend, spawn from app / native launcher, stop on quit; macOS entitlements already unsandboxed for shell/subprocess spawn |
 | gRPC Language Service sidecar | **Planned** |
@@ -131,6 +133,8 @@ Explorer (incremental) · Editor conflict UX · Git (300ms debounce) · Tests ·
 ```
 
 Wire event types: `FILE_CREATED|DELETED|MODIFIED|RENAMED`, `DIRECTORY_CREATED|DELETED|RENAMED`, `PROJECT_CHANGED`, `WORKSPACE_CHANGED`, `INDEX_UPDATED`, `GIT_CHANGED`, `ENVIRONMENT_CHANGED`.
+
+**Root liveness**: deleting the watched root itself yields no watcher events (watchdog loses the directory it observes; the poller skips absent roots), so `WorkspaceEventService` also polls the workspace/project roots every ~2s and emits `WORKSPACE_CHANGED` / `PROJECT_CHANGED` with `reason: "missing"`. A missing workspace suppresses the project event so standalone projects raise one dialog, not two. Complementing this, `FileService` mutations refuse to run when the root is gone — writes create missing parents, so without that guard the next save would silently resurrect an externally deleted project.
 
 ---
 
@@ -200,7 +204,95 @@ Central store for **symbol intelligence**. Keyword Explorer, search, and Languag
 
 ---
 
-### 2.4 Transport Layer (REST vs gRPC)
+### 2.4 Robot Analysis Engine (semantic platform)
+
+A **backend-only** semantic layer sits beside IndexStore. It builds a queryable workspace model for future Robot Doctor, Impact Analysis, Safe Rename/Delete, dependency views, Replay, Metrics, and grounded AI — **without UI**.
+
+```
+IndexService / FilesystemIndexer (incremental)
+        ↓ robot.api.parsing ModelVisitor (semantic_extractor)
+SqliteAnalysisStore  (entities + edges + graph version)
+        ↓ SemanticBinder (confidence: exact|high|medium|low)
+RobotAnalysisEngine  (graph queries)
+        ↓
+InspectionEngine     (pluggable inspections → Finding[])
+        ↓
+AnalysisService ← REST /api/v1/analysis/*
+```
+
+**Entities (stable IDs):** keyword, test_case, variable, resource, library, suite, tag, file — each with file/line/column/docs.
+
+**Edges:** `calls`, `imports_resource`, `imports_library`, `imports_variables`, `references_variable`, `tagged`, `contains` — every edge carries **`confidence`**: `exact` | `high` | `medium` | `low` (Safe Rename should refuse `low`).
+
+**Graph versioning:** snapshot exposes `graph_version` (new on full rebuild), `incremental_revision` / `epoch` (bumps on ingest/rebind), and `timestamp`. Replay / AI / Impact can pin which graph a run belonged to.
+
+**Inspection Engine (Doctor-ready):** inspections return uniform **`Finding`** rows — not feature-specific DTOs. Built-ins: `unused_keyword`, `unused_resource`, `duplicate_keyword`, `missing_import`, `circular_dependency`, `large_keyword`. Register more without new REST shapes.
+
+**REST surface:**
+- Lifecycle: `GET /analysis/snapshot`, `POST /analysis/rebuild`
+- Inspections: `GET /analysis/inspections`, `POST /analysis/inspect`, `GET /analysis/inspect/{id}`
+- Graph queries (Impact/Rename/AI): `/analysis/graph/*` (callers, callees, dependency, affected-tests, variable-references, library-usage, keyword-usage-statistics)
+
+**Performance:** facts update per changed `.robot`/`.resource` during indexing; bulk rebuilds defer binder finalize once per project; query results cache until revision bump.
+
+**Extension points:** new `Inspection` classes; **Execution Knowledge Layer** (below); Finding severity policies for Doctor UI.
+
+---
+
+### 2.4.1 Execution Knowledge Layer
+
+Links `output.xml` (+ run history) onto **existing** semantic entity IDs — never duplicates symbols.
+
+```
+RunIndexed / POST /analysis/execution/link/{run_id}
+        ↓
+parse_execution_trace(output.xml)   # suite → test → kw tree + elapsed/status
+        ↓
+ExecutionLinker  (bind test/kw/suite → AnalysisStore entities)
+        ↓
+SqliteExecutionKnowledgeStore
+  · execution_entity_stats   (counts, durations, last_*)
+  · execution_history        (per run × entity)
+  · execution_edges          (executed_keyword, failed_keyword, suite_execution, execution_graph)
+  · execution_linked_runs    (run ↔ graph_version)
+        ↓
+ExecutionKnowledgeService ← REST /analysis/execution/*
+```
+
+**Queries:** keyword/test history, last failures, slowest keywords/tests, most-executed keywords, never-executed keywords, heat map, flaky candidates (deterministic heuristics + confidence).
+
+**FindingProviders (Doctor):** `flaky_test`, `slow_keyword`, `never_executed_keyword` — registered under Full profile; consume this service only.
+
+---
+
+### 2.4.2 Robot Doctor (Project Health Center)
+
+Orchestration + presentation over Analysis / Inspections / Execution Knowledge. Doctor **does not** re-analyze sources.
+
+```
+POST /doctor/run (profile: quick|default|full)
+        ↓
+DoctorService
+  · select FindingProviders for profile
+  · collect Findings (adapters over Inspections + execution providers)
+  · merge / prioritize / group by category
+  · health summary (counts + optional improvement trend)
+  · persist report → SqliteDoctorStore
+        ↓
+GET /doctor/report/{id} · GET /doctor/history · GET /doctor/profiles
+        ↓
+Flutter DoctorPage (activity rail — not Problems panel)
+```
+
+**Categories:** correctness · maintainability · performance · dependencies · execution · style  
+**Severity:** error · warning · info · hint  
+**Quick Fix metadata** on every finding (`supports_fix`, `fix_id`, `estimated_risk`, `confidence`) — fixes themselves are **not** implemented yet.
+
+**Health summary:** total findings, by severity, by category, critical issues, improvement trend vs previous report — **no invented percentage score**.
+
+---
+
+### 2.5 Transport Layer (REST vs gRPC)
 
 #### Current (Phase 1 — **active**)
 
@@ -242,6 +334,8 @@ abstract class TransportGateway {
 | **packages** | PyPI search, install/update/uninstall | `PackageRegistry`, `Installer` | Shipped |
 | **search** | Symbol search UI (keywords, variables, libraries, …) | reads `IndexStore` | Shipped |
 | **indexing** | Rebuild, status, incremental index | `IndexStore`, indexers | Shipped |
+| **analysis** | Semantic graphs + inspections + execution knowledge | `AnalysisStore`, `InspectionEngine`, `ExecutionLinker` | Shipped |
+| **doctor** | Project Health Center (FindingProviders → report) | `DoctorService`, `FindingProvider` | Shipped |
 | **language** | Editor intelligence | `LanguageService` | Shipped |
 | **execution** | Run file/project, stop, history, stream | `Runner`, execution service | Shipped |
 | **tests** | Test Explorer discover/run (suite/test/tag/failed) | `TestExplorerService` + IndexStore + Runner | Shipped |
@@ -443,6 +537,8 @@ robot-studio/
 │       ├── infrastructure/
 │       │   ├── repositories/
 │       │   ├── indexing/            # FileWatcher (index + live FS channels)
+│       │   ├── analysis/            # Semantic extractor, binder, graph store, engine
+│       │   ├── language/            # Robot parsing bridge / language service
 │       │   ├── language/            # RobotLanguageService, parsing bridge/worker
 │       │   ├── execution/
 │       │   ├── environment/
@@ -548,6 +644,14 @@ Paths below are relative to `/api/v1`. Workspace context is typically **session-
 | POST | `/reports/{id}/open-log`, `open-report`, `open-xml`, `reveal` | reports |
 | POST/GET | `/index/rebuild`, `/index/status` | index |
 | GET | `/search` | search |
+| GET/POST | `/analysis/snapshot`, `/rebuild` | analysis lifecycle + graph version |
+| GET/POST | `/analysis/inspections`, `/inspect`, `/inspect/{id}` | Inspection Engine → Finding[] |
+| GET/POST | `/analysis/graph/*` | callers, callees, dependency, affected-tests, variable-references, library-usage, keyword-usage-statistics |
+| GET/POST | `/analysis/execution/*` | execution knowledge (history, slowest, heat-map, flaky-candidates, link run) |
+| GET | `/doctor/profiles` | Doctor profiles + FindingProvider catalog |
+| POST | `/doctor/run` | Run Doctor (profile / optional provider override) |
+| GET | `/doctor/report/{id}` | Fetch persisted Doctor report |
+| GET | `/doctor/history` | Prior Doctor reports for active project |
 | GET/POST | `/language/definition`, `hover`, `references`, `completion`, `diagnostics`, `format`, `signature-help`, `document-symbols`, `workspace-symbols` | language |
 | GET/POST | `/git/status`, `init`, `commit`, `branches`, `checkout`, `diff`, `fetch`, `pull`, `push`, `seed-local-remote`, … | git |
 | GET/POST | `/plugins`, `/plugins/refresh`, `enable`, `disable`, `reload` | plugins |
@@ -590,7 +694,7 @@ Language hot paths and optional event streams. REST language endpoints remain un
 | Plugin misbehavior | Evolve toward P2 sandbox; validate manifests |
 | REST latency for completion | Cache IndexStore; optional gRPC later |
 | Dual parsing (index vs robot.api) | Prefer parsing bridge for diagnostics; keep index for search |
-| Large file trees / venv noise | Explorer filters (e.g. skip site-packages under Environments) |
+| Large file trees / venv noise | Explorer filters (e.g. skip site-packages outside `.robotstudio/`) + lazy depth-0 expand |
 | Circular event loops | Subscribers publish *new* event types only |
 
 Engineering audit notes: [audit.md](./audit.md).
@@ -639,10 +743,10 @@ Engineering audit notes: [audit.md](./audit.md).
 
 Not domain architecture, but product-facing constraints that affect shell design:
 
-- **Project-first UX, workspace-backed domain**: `WorkspaceContext` still owns workspace + project + environment. **Open Project** / **New Project** initialize `.robotstudio/` inside the selected folder (the folder *is* the workspace root). No companion `project-workspaces/` wrappers. Classic multi-project workspaces remain available under Advanced (**Open/New Workspace**).
-- **Fast open**: open-path returns as soon as metadata is ready; environment creation is never awaited on the critical path. Missing envs surface a compact bottom-right toast titled **Python environment required** (Create Environment / Select Existing; dismiss with ✕), with detection for `.venv` / `venv` / `env` / `Environments/*`.
-- **Background indexing**: `WorkspaceOpened` schedules an incremental index rebuild and returns immediately (VS Code-style). Explicit **Rebuild Index** still runs a full rebuild and waits. Discovery prunes `.venv` / `node_modules` / `.git` / etc. Robot parsing runs off the event loop; bulk rebuilds do not emit per-file `FileIndexed` events.
-- **Large projects**: explorer uses VS Code-style lazy expand (`GET /files/tree` default `depth=0` + `has_children`) and a virtualized flat list so only visible rows are built. Heavy dirs (`.venv`, `.git`, `node_modules`, …) are skipped; other dotfiles (`.gitignore`, `.robotstudio`, …) are shown. Git status includes untracked files (`-uall` so files inside new folders appear; `.gitignore` still hides ignored paths like `.venv`).
+- **Project-first UX, workspace-backed domain**: `WorkspaceContext` still owns workspace + project + environment. **Open Project** / **New Project** initialize `.robotstudio/` inside the selected folder (the folder *is* the workspace root). Studio-managed envs and run output live under `.robotstudio/environments/` and `.robotstudio/reports/` (legacy root `Environments/` / `Reports/` remain readable for older projects). No companion `project-workspaces/` wrappers. Classic multi-project workspaces remain available under Advanced (**Open/New Workspace**).
+- **Fast open**: open-path returns as soon as metadata is ready; environment creation is never awaited on the critical path. Missing envs surface a compact bottom-right toast titled **Python environment required** (Create Environment / Select Existing; dismiss with ✕), with detection for `.venv` / `venv` / `env` / `.robotstudio/environments/*` (and legacy `Environments/*`).
+- **Background indexing**: `WorkspaceOpened` schedules an incremental index rebuild and returns immediately (VS Code-style). Explicit **Rebuild Index** still runs a full rebuild and waits. Discovery prunes `.venv` / `node_modules` / `.git` / `.robotstudio` / etc. Robot parsing runs off the event loop; bulk rebuilds do not emit per-file `FileIndexed` events.
+- **Large projects**: explorer uses VS Code-style lazy expand (`GET /files/tree` default `depth=0` + `has_children`) and a virtualized flat list so only visible rows are built. Heavy dirs (`.venv`, `.git`, `node_modules`, …) are skipped; other dotfiles (`.gitignore`, …) are shown, and `.robotstudio/` is fully browsable (no filtering inside it, so envs and run output can be inspected in-tree). Git status includes untracked files (`-uall` so files inside new folders appear; `.gitignore` still hides ignored paths like `.venv`).
 - **Explorer mutations**: create/rename/delete/duplicate/move publish `FilesystemChanged` from `FileService`; UI updates via the live workspace pipeline (parent-only refresh). Inline rename and create avoid dialogs except delete confirmation.
 - **Test Explorer** (Tests rail): hierarchical workspace → project → suite → test/task tree with status, live filter, and run actions (all / current file / failed / node). Discovery uses IndexStore + `robot.api` document symbols; runs reuse `ExecutionService` / `Runner`.
 - **Actionable guidance** for missing project/environment (primary buttons prefer Open/New Project).

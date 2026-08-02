@@ -11,13 +11,40 @@ WORKSPACE_META_DIR = ".robotstudio"
 WORKSPACE_MANIFEST = "workspace.json"
 WORKSPACE_MARKER = Path(WORKSPACE_META_DIR) / WORKSPACE_MANIFEST
 
+# Studio-owned artifacts live under .robotstudio/ to avoid colliding with
+# user folders named Environments/ or Reports/ at the project root.
+STUDIO_ENVIRONMENTS_DIR = "environments"
+STUDIO_REPORTS_DIR = "reports"
+LEGACY_ENVIRONMENTS_DIR = "Environments"
+LEGACY_REPORTS_DIR = "Reports"
+
 STANDARD_DIRECTORIES = (
     "Projects",
     "Shared/Resources",
     "Shared/Variables",
-    "Environments",
-    "Reports",
+    f"{WORKSPACE_META_DIR}/{STUDIO_ENVIRONMENTS_DIR}",
+    f"{WORKSPACE_META_DIR}/{STUDIO_REPORTS_DIR}",
 )
+
+
+def studio_environments_root(workspace_root: Path) -> Path:
+    """Canonical location for Studio-managed virtualenvs."""
+    return workspace_root / WORKSPACE_META_DIR / STUDIO_ENVIRONMENTS_DIR
+
+
+def studio_reports_root(workspace_root: Path) -> Path:
+    """Canonical location for Robot Framework run output."""
+    return workspace_root / WORKSPACE_META_DIR / STUDIO_REPORTS_DIR
+
+
+def legacy_environments_root(workspace_root: Path) -> Path:
+    """Pre-migration project-root Environments/ folder."""
+    return workspace_root / LEGACY_ENVIRONMENTS_DIR
+
+
+def legacy_reports_root(workspace_root: Path) -> Path:
+    """Pre-migration project-root Reports/ folder."""
+    return workspace_root / LEGACY_REPORTS_DIR
 
 
 class WorkspaceValidationError(Exception):

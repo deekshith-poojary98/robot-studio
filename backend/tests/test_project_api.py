@@ -212,6 +212,10 @@ async def test_create_standalone_project(api_client) -> None:
     assert body["workspace"]["path"] == str(project_path.resolve())
     assert (project_path / ".robotstudio" / "workspace.json").is_file()
     assert not (project_path / "Projects").exists()
+    gitignore = (project_path / ".gitignore").read_text(encoding="utf-8")
+    assert ".robotstudio/" in gitignore
+    assert "Environments/" not in gitignore
+    assert "Reports/" not in gitignore
 
 
 @pytest.mark.asyncio

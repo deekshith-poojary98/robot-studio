@@ -83,7 +83,7 @@ void main() {
     );
     await pumpUntilFound(
       tester,
-      find.byKey(const Key('editor.format')),
+      find.byKey(const Key('editor.page')),
       timeout: const Duration(seconds: 30),
     );
 

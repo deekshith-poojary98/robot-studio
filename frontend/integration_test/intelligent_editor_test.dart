@@ -27,7 +27,7 @@ void main() {
 
     await harness.launchAppWithWorkspace(tester, workspaceName: 'Language Flow WS');
     await openRobotFileInExplorer(tester, 'language.robot');
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
 
     final diagnostics = await harness.api.languageDiagnostics(
       filePath: suitePath,
@@ -41,14 +41,13 @@ void main() {
     );
     expect(formatted['content'], isNotEmpty);
 
-    await tapText(tester, 'Format');
+    await tapEditorFormat(tester);
     await tester.pump(const Duration(milliseconds: 500));
 
     await openBottomTab(tester, 'Problems');
     await pumpUntilFound(tester, find.textContaining('UnknownKeyword'));
 
-    expect(find.byKey(const Key('editor.more')), findsOneWidget);
-    expect(find.byKey(const Key('editor.find')), findsOneWidget);
+    expect(find.byKey(const Key('editor.page')), findsOneWidget);
 
     harness.expectNoFlutterErrors();
   });

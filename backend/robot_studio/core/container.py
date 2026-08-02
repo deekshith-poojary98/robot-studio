@@ -5,7 +5,12 @@ Wires domain interfaces to infrastructure implementations as modules are added.
 
 from dataclasses import dataclass, field
 
+from robot_studio.application.services.analysis_service import AnalysisService
+from robot_studio.application.services.doctor_service import DoctorService
 from robot_studio.application.services.environment_service import EnvironmentService
+from robot_studio.application.services.execution_knowledge_service import (
+    ExecutionKnowledgeService,
+)
 from robot_studio.application.services.execution_service import ExecutionService
 from robot_studio.application.services.file_service import FileService
 from robot_studio.application.services.git_service import GitService
@@ -23,6 +28,11 @@ from robot_studio.core.config import settings
 from robot_studio.core.events import EventBus, InMemoryEventBus
 from robot_studio.core.plugins import PluginHost
 from robot_studio.domain.interfaces.plugins import Capability
+from robot_studio.infrastructure.analysis.engine import RobotAnalysisEngine
+from robot_studio.infrastructure.analysis.execution_store import SqliteExecutionKnowledgeStore
+from robot_studio.infrastructure.analysis.inspections_engine import InspectionEngine
+from robot_studio.infrastructure.analysis.sqlite_analysis_store import SqliteAnalysisStore
+from robot_studio.infrastructure.doctor.store import SqliteDoctorStore
 from robot_studio.infrastructure.environment.filesystem import (
     FilesystemEnvironmentProvider,
 )
@@ -89,6 +99,20 @@ class Container:
     test_explorer_service: TestExplorerService | None = field(default=None, init=False)
     report_service: ReportService | None = field(default=None, init=False)
     index_store: SqliteIndexStore | None = field(default=None, init=False)
+    analysis_store: SqliteAnalysisStore | None = field(default=None, init=False)
+    analysis_engine: RobotAnalysisEngine | None = field(default=None, init=False)
+    inspection_engine: InspectionEngine | None = field(default=None, init=False)
+    analysis_service: AnalysisService | None = field(default=None, init=False)
+    execution_knowledge_store: SqliteExecutionKnowledgeStore | None = field(
+        default=None,
+        init=False,
+    )
+    execution_knowledge_service: ExecutionKnowledgeService | None = field(
+        default=None,
+        init=False,
+    )
+    doctor_store: SqliteDoctorStore | None = field(default=None, init=False)
+    doctor_service: DoctorService | None = field(default=None, init=False)
     index_service: IndexService | None = field(default=None, init=False)
     language_service: RobotLanguageService | None = field(default=None, init=False)
     language_facade: LanguageFacade | None = field(default=None, init=False)
@@ -195,7 +219,16 @@ class Container:
         self.report_service.start()
 
         self.index_store = SqliteIndexStore(settings.database_path)
-        indexer = FilesystemIndexer(store=self.index_store)
+        self.analysis_store = SqliteAnalysisStore(settings.database_path)
+        self.analysis_engine = RobotAnalysisEngine(store=self.analysis_store)
+        self.inspection_engine = InspectionEngine(
+            analysis_engine=self.analysis_engine,
+            store=self.analysis_store,
+        )
+        indexer = FilesystemIndexer(
+            store=self.index_store,
+            analysis_engine=self.analysis_engine,
+        )
         watcher = NativeFileWatcher()
         self.index_service = IndexService(
             context=self.workspace_context,
@@ -206,6 +239,33 @@ class Container:
             project_repository=self.project_repository,
         )
         self.index_service.start()
+        self.analysis_service = AnalysisService(
+            context=self.workspace_context,
+            engine=self.analysis_engine,
+            inspection_engine=self.inspection_engine,
+            project_repository=self.project_repository,
+        )
+        self.execution_knowledge_store = SqliteExecutionKnowledgeStore(
+            settings.database_path,
+        )
+        self.execution_knowledge_service = ExecutionKnowledgeService(
+            context=self.workspace_context,
+            event_bus=self.event_bus,
+            analysis_store=self.analysis_store,
+            execution_store=self.execution_knowledge_store,
+            execution_repository=self.execution_repository,
+        )
+        self.execution_knowledge_service.start()
+
+        self.doctor_store = SqliteDoctorStore(settings.database_path)
+        self.doctor_service = DoctorService(
+            context=self.workspace_context,
+            analysis_engine=self.analysis_engine,
+            analysis_store=self.analysis_store,
+            store=self.doctor_store,
+            project_repository=self.project_repository,
+            execution_knowledge=self.execution_knowledge_service,
+        )
 
         self.workspace_event_service = WorkspaceEventService(
             context=self.workspace_context,
@@ -286,12 +346,18 @@ class Container:
         assert self.environment_repository is not None
         assert self.execution_repository is not None
         assert self.index_store is not None
+        assert self.analysis_store is not None
+        assert self.execution_knowledge_store is not None
+        assert self.doctor_store is not None
         assert self.plugin_manager is not None
         await self.workspace_repository.initialize()
         await self.project_repository.initialize()
         await self.environment_repository.initialize()
         await self.execution_repository.initialize()
         await self.index_store.initialize()
+        await self.analysis_store.initialize()
+        await self.execution_knowledge_store.initialize()
+        await self.doctor_store.initialize()
         await self.plugin_manager.initialize()
 
     async def shutdown(self) -> None:
@@ -299,6 +365,8 @@ class Container:
 
         Safe to call more than once, and safe to call when nothing was opened.
         """
+        if self.execution_knowledge_service is not None:
+            await self.execution_knowledge_service.stop()
         if self.git_service is not None:
             await self.git_service.stop()
         if self.workspace_event_service is not None:

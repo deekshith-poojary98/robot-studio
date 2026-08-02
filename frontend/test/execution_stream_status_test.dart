@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:robot_studio/core/gateway/models/execution_info.dart';
 import 'package:robot_studio/core/gateway/transport_gateway.dart';
 import 'package:robot_studio/presentation/shell/controllers/execution_shell_controller.dart';
 

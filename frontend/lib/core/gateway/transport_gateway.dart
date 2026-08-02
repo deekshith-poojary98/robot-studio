@@ -1,3 +1,4 @@
+import 'models/doctor_info.dart';
 import 'models/environment_info.dart';
 import 'models/file_info.dart';
 import 'models/git_info.dart';
@@ -11,6 +12,7 @@ import 'models/report_info.dart';
 import 'models/test_explorer_info.dart';
 import 'models/workspace_info.dart';
 
+export 'models/doctor_info.dart';
 export 'models/environment_info.dart';
 export 'models/execution_info.dart';
 export 'models/file_info.dart';
@@ -291,6 +293,21 @@ abstract class TransportGateway {
   Future<GitRemoteResultInfo> pushGit();
 
   Future<GitDiffInfo> getGitDiff({String? filePath, String? commit});
+
+  Future<DoctorProfilesBundle> getDoctorProfiles();
+
+  Future<DoctorReport> runDoctor({
+    String profile = 'default',
+    String? projectId,
+    List<String>? providerIds,
+  });
+
+  Future<DoctorReport> getDoctorReport(String reportId);
+
+  Future<List<DoctorReportSummary>> getDoctorHistory({
+    String? projectId,
+    int limit = 20,
+  });
 }
 
 class GatewayException implements Exception {

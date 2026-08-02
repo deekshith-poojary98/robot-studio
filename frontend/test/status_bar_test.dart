@@ -32,6 +32,21 @@ void main() {
       barWidth - tester.getTopRight(find.text('PYTHON 3.13.9')).dx,
       lessThan(24),
     );
+    expect(find.text('BACKEND UNAVAILABLE'), findsNothing);
+  });
+
+  testWidgets('status bar shows backend unavailable when offline', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: StatusBar(backendUnavailable: true),
+        ),
+      ),
+    );
+
+    expect(find.text('BACKEND UNAVAILABLE'), findsOneWidget);
+    expect(find.text('OFFLINE'), findsNothing);
+    expect(find.text('CONNECTED'), findsNothing);
   });
 
   testWidgets('status bar hides version slots when no environment is active', (

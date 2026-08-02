@@ -15,12 +15,22 @@ FsChangeHandler = Callable[..., Awaitable[None]]
 
 _SKIP_PARTS = {"__pycache__", ".venv", "venv", "node_modules", ".git"}
 
+_STUDIO_META_DIR = ".robotstudio"
+_STUDIO_ENVIRONMENTS = "environments"
+
 
 def _is_skipped(path: Path) -> bool:
-    parts = {part.lower() for part in path.parts}
-    if parts & _SKIP_PARTS:
+    parts = path.parts
+    if {part.lower() for part in parts} & _SKIP_PARTS:
         return True
-    if "Environments" in path.parts:
+    # Studio venvs churn heavily during pip installs; ``.robotstudio/reports``
+    # stays watched so finished runs show up in the explorer without a refresh.
+    if _STUDIO_META_DIR in parts:
+        index = parts.index(_STUDIO_META_DIR)
+        if len(parts) > index + 1 and parts[index + 1] == _STUDIO_ENVIRONMENTS:
+            return True
+    # Legacy Studio env root (pre-.robotstudio/environments).
+    if "Environments" in parts:
         return True
     return False
 

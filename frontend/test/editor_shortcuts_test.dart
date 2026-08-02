@@ -36,6 +36,14 @@ void main() {
     }
   });
 
+  test('flutter Shortcuts only keep Ctrl+Tab cycling (menu owns the rest)', () {
+    final flutter = ShellShortcutActivators.flutterShortcuts;
+    expect(flutter.values.whereType<NextEditorTabIntent>(), isNotEmpty);
+    expect(flutter.values.whereType<PreviousEditorTabIntent>(), isNotEmpty);
+    expect(flutter.values.whereType<SaveFileIntent>(), isEmpty);
+    expect(flutter.values.whereType<ToggleTerminalIntent>(), isEmpty);
+  });
+
   test('robot editor shortcuts use VS Code delete-line chord', () {
     final builder = const RobotCodeShortcutsActivatorsBuilder();
     final deleteLine = builder.build(CodeShortcutType.lineDelete)!;

@@ -3,26 +3,24 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/environment_info.dart';
 import '../../core/theme/app_theme.dart';
+import 'python_install_guidance.dart';
 
 Future<({String name, String pythonInterpreter, bool installRobot})?>
-    showCreateEnvironmentDialog(
+showCreateEnvironmentDialog(
   BuildContext context, {
   Future<List<PythonInterpreterInfo>> Function()? loadInterpreters,
 }) {
   return showDialog<
-      ({String name, String pythonInterpreter, bool installRobot})>(
+    ({String name, String pythonInterpreter, bool installRobot})
+  >(
     context: context,
-    builder: (context) => CreateEnvironmentDialog(
-      loadInterpreters: loadInterpreters,
-    ),
+    builder: (context) =>
+        CreateEnvironmentDialog(loadInterpreters: loadInterpreters),
   );
 }
 
 class CreateEnvironmentDialog extends StatefulWidget {
-  const CreateEnvironmentDialog({
-    super.key,
-    this.loadInterpreters,
-  });
+  const CreateEnvironmentDialog({super.key, this.loadInterpreters});
 
   final Future<List<PythonInterpreterInfo>> Function()? loadInterpreters;
 
@@ -39,6 +37,7 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
   bool _installRobot = true;
   String? _error;
   bool _loadingInterpreters = false;
+  bool _interpretersLoaded = false;
   List<PythonInterpreterInfo> _interpreters = const [];
   String? _selectedDropdownValue;
 
@@ -57,7 +56,10 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
 
   Future<void> _loadInterpreters() async {
     final loader = widget.loadInterpreters;
-    if (loader == null) return;
+    if (loader == null) {
+      setState(() => _interpretersLoaded = true);
+      return;
+    }
 
     setState(() {
       _loadingInterpreters = true;
@@ -69,6 +71,7 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
       setState(() {
         _interpreters = items;
         _loadingInterpreters = false;
+        _interpretersLoaded = true;
         if (items.isNotEmpty && _pythonController.text.trim().isEmpty) {
           _selectedDropdownValue = items.first.path;
           _pythonController.text = items.first.path;
@@ -78,6 +81,7 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
       if (!mounted) return;
       setState(() {
         _loadingInterpreters = false;
+        _interpretersLoaded = true;
         _error = 'Could not load interpreters: $error';
       });
     }
@@ -97,8 +101,9 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
   void _syncDropdownToPath(String path) {
     final match = _interpreters.where((item) => item.path == path);
     setState(() {
-      _selectedDropdownValue =
-          match.isEmpty ? (_interpreters.isEmpty ? null : _customValue) : path;
+      _selectedDropdownValue = match.isEmpty
+          ? (_interpreters.isEmpty ? null : _customValue)
+          : path;
       _error = null;
     });
   }
@@ -130,24 +135,33 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
       return;
     }
     if (python.isEmpty) {
-      setState(() => _error = 'Python interpreter is required');
+      setState(() {
+        _error = _interpretersLoaded && _interpreters.isEmpty
+            ? PythonInstallGuidance.summary
+            : 'Python interpreter is required';
+      });
       return;
     }
-    Navigator.of(context).pop((
-      name: name,
-      pythonInterpreter: python,
-      installRobot: _installRobot,
-    ));
+    Navigator.of(
+      context,
+    ).pop((name: name, pythonInterpreter: python, installRobot: _installRobot));
   }
 
   @override
   Widget build(BuildContext context) {
-    final showCustomPath = _selectedDropdownValue == _customValue ||
+    final theme = Theme.of(context);
+    final showCustomPath =
+        _selectedDropdownValue == _customValue ||
         _interpreters.isEmpty ||
         _selectedDropdownValue == null;
+    final noPython =
+        _interpretersLoaded && !_loadingInterpreters && _interpreters.isEmpty;
 
     return AlertDialog(
-      title: const Text('Create Environment'),
+      titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+      title: Text('Create Environment', style: theme.textTheme.titleLarge),
       content: SizedBox(
         width: AppDialogWidth.wide,
         child: Column(
@@ -175,13 +189,53 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
                   ),
                 ),
               )
-            else if (_interpreters.isNotEmpty) ...[
+            else if (noPython) ...[
+              Container(
+                key: const Key('create-env.no-python'),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.45),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      PythonInstallGuidance.summary,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      PythonInstallGuidance.createDialogBanner,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        key: const Key('create-env.refresh-interpreters'),
+                        onPressed: _loadInterpreters,
+                        icon: const Icon(Icons.refresh, size: 15),
+                        label: const Text('Refresh'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ] else if (_interpreters.isNotEmpty) ...[
               DropdownButtonFormField<String>(
                 // ignore: deprecated_member_use
                 value: _selectedDropdownValue ?? _customValue,
                 isExpanded: true,
                 isDense: true,
-                style: const TextStyle(fontSize: 12.5),
+                style: theme.textTheme.bodyMedium,
                 decoration: const InputDecoration(
                   labelText: 'Available interpreters',
                 ),
@@ -214,7 +268,9 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
                     decoration: InputDecoration(
                       labelText: 'Python interpreter',
                       hintText: '/usr/bin/python3',
-                      helperText: showCustomPath
+                      helperText: noPython
+                          ? 'Browse to python3 after installing, or enter a path'
+                          : showCustomPath
                           ? 'Enter a path or use Browse'
                           : 'Selected from the list above',
                     ),
@@ -224,23 +280,49 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                SizedBox(
+                  height: 36,
                   child: OutlinedButton(
                     onPressed: _browsePython,
-                    child: const Text('Browse'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    child: const Text('Browse…'),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Install Robot Framework'),
-              value: _installRobot,
-              onChanged: (value) {
-                setState(() => _installRobot = value ?? false);
-              },
+            const SizedBox(height: 14),
+            InkWell(
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              onTap: () => setState(() => _installRobot = !_installRobot),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: Checkbox(
+                        value: _installRobot,
+                        onChanged: (value) {
+                          setState(() => _installRobot = value ?? false);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Install Robot Framework',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
             ),
             if (_error != null) ...[
               const SizedBox(height: 8),
@@ -255,10 +337,24 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
+          style: TextButton.styleFrom(
+            textStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           child: const Text('Cancel'),
         ),
         FilledButton(
           onPressed: _submit,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(76, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            textStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           child: const Text('Create'),
         ),
       ],

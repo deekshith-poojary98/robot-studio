@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -115,6 +116,44 @@ async def test_missing_project_emits_project_changed(live_stack) -> None:
         for item in messages
     )
     await service.unsubscribe(queue)
+
+
+@pytest.mark.asyncio
+async def test_deleted_workspace_root_detected_without_fs_events(tmp_path: Path) -> None:
+    """Deleting the watched root emits no watcher events — the poll must catch it."""
+    container = Container()
+    container.initialize()
+    service = container.workspace_event_service
+    assert service is not None
+    service.root_poll_seconds = 0.05
+
+    root = tmp_path / "Standalone"
+    root.mkdir()
+    workspace = Workspace(
+        id=uuid4(),
+        name="Standalone",
+        path=root,
+        created_at=datetime.now(UTC),
+    )
+    try:
+        assert container.workspace_context is not None
+        await container.workspace_context.open(workspace)
+        queue = await service.subscribe()
+        shutil.rmtree(root)
+
+        missing = None
+        deadline = asyncio.get_running_loop().time() + 3
+        while asyncio.get_running_loop().time() < deadline:
+            message = await asyncio.wait_for(queue.get(), timeout=3)
+            if message.get("reason") == "missing":
+                missing = message
+                break
+        assert missing is not None, "no missing event emitted for deleted root"
+        assert missing["type"] == "WORKSPACE_CHANGED"
+        assert missing["path"] == str(root)
+        await service.unsubscribe(queue)
+    finally:
+        await container.shutdown()
 
 
 @pytest.mark.asyncio

@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'integration_fixtures.dart';
-import 'backend_process.dart';
 
 /// Tracks operation durations and logs them for integration test analysis.
 class PerformanceTracker {

@@ -64,7 +64,9 @@ async def test_reports_api_list_get_dashboard_delete(api_client, monkeypatch) ->
     client, fresh, tmp_path = api_client
     workspace_path = await _open_workspace(client, tmp_path)
 
-    run_dir = workspace_path / "Reports" / "Run-20260719-140000"
+    # Legacy root Reports/ still works for indexed runs (absolute output_dir).
+    # New runs write under .robotstudio/reports — exercise that layout here.
+    run_dir = workspace_path / ".robotstudio" / "reports" / "Run-20260719-140000"
     run_dir.mkdir(parents=True)
     (run_dir / "output.xml").write_text(SAMPLE_OUTPUT_XML, encoding="utf-8")
     (run_dir / "log.html").write_text("<html>log</html>", encoding="utf-8")

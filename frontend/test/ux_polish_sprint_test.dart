@@ -7,6 +7,7 @@ import 'package:robot_studio/presentation/sidebar/app_sidebar.dart';
 import 'package:robot_studio/presentation/sidebar/sidebar_panel.dart';
 import 'package:robot_studio/presentation/widgets/environment_prompt_toast.dart';
 import 'package:robot_studio/presentation/widgets/error_dialog.dart';
+import 'package:robot_studio/presentation/environment/python_install_guidance.dart';
 
 void main() {
   final workspace = WorkspaceInfo(
@@ -61,8 +62,90 @@ void main() {
       'Robot Studio is not allowed to use that file or folder.',
     );
     expect(
+      friendlyErrorSummary(
+        "Path does not exist: '/Users/demo/Desktop/OrangeHRM/Projects/test-project'",
+      ),
+      'Robot Studio could not find that project or folder.',
+    );
+    expect(
       friendlyErrorRecovery('FileNotFoundError: No such file or directory'),
-      'It may have been moved or deleted. Refresh and try again.',
+      contains('deleted, moved, or renamed'),
+    );
+    expect(
+      friendlyErrorRecovery(
+        "Path does not exist: '/Users/demo/Desktop/OrangeHRM/Projects/test-project'",
+      ),
+      contains('deleted, moved, or renamed'),
+    );
+
+    expect(
+      friendlyErrorSummary(
+        'Workspace folder is no longer on disk: /Users/demo/MyProject. '
+        'Reopen or restore it before saving.',
+      ),
+      'The folder for this workspace was deleted outside Robot Studio.',
+    );
+    expect(
+      friendlyErrorRecovery(
+        'Project folder is no longer on disk: /Users/demo/MyProject. '
+        'Reopen or restore it before saving.',
+      ),
+      contains('not recreated'),
+    );
+
+    expect(
+      friendlyErrorSummary('Not a Git repository'),
+      'This folder is not a Git repository.',
+    );
+    expect(
+      friendlyErrorRecovery('Commit message is required'),
+      contains('commit box'),
+    );
+    expect(
+      friendlyErrorSummary('Open a project before running tests'),
+      'Open a project first to continue.',
+    );
+    expect(
+      friendlyErrorSummary(
+        'Exception: No Python interpreter found on this machine.',
+      ),
+      PythonInstallGuidance.summary,
+    );
+    expect(
+      friendlyErrorRecovery(
+        'Exception: No Python interpreter found on this machine.',
+      ),
+      PythonInstallGuidance.shortRecovery,
+    );
+    expect(
+      friendlyErrorSummary("Name cannot contain path separators"),
+      "Name cannot contain path separators",
+    );
+    expect(
+      friendlyErrorSummary('Request failed (500)'),
+      'The backend rejected that request.',
+    );
+    // Unknown but human backend detail should surface, not the generic line.
+    expect(
+      friendlyErrorSummary('Suite filter matched no tests'),
+      'Suite filter matched no tests',
+    );
+    expect(
+      friendlyErrorSummary('That action did not finish.'),
+      isNot(equals('')), // sanity
+    );
+  });
+
+  test('cleanErrorMessage strips exception wrappers', () {
+    expect(
+      cleanErrorMessage(
+        "GatewayException: Path does not exist: '/tmp/gone'",
+      ),
+      "Path does not exist: '/tmp/gone'",
+    );
+    expect(
+      cleanErrorMessage('Exception: Commit message is required'),
+      'Commit message is required',
     );
   });
 

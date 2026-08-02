@@ -52,8 +52,17 @@ class PythonEnvironmentProvider:
 
         # Prefer the selected interpreter so the venv matches the chosen version.
         if Path(python).resolve() == Path(sys.executable).resolve():
-            builder = venv.EnvBuilder(with_pip=True, clear=False, upgrade_deps=False)
-            builder.create(target_dir)
+            try:
+                builder = venv.EnvBuilder(
+                    with_pip=True,
+                    clear=False,
+                    upgrade_deps=False,
+                )
+                builder.create(target_dir)
+            except Exception as exc:  # noqa: BLE001 — surface to API layer
+                raise EnvironmentValidationError(
+                    f"Failed to create virtual environment: {exc}",
+                ) from exc
             return
 
         result = subprocess.run(

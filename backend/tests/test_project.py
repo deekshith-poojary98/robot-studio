@@ -83,6 +83,10 @@ async def test_create_project_scaffolds_folders_only(services) -> None:
     assert not (project.path / "requirements.txt").exists()
     assert not (project.path / "tests" / "sample.robot").exists()
     assert (project.path / ".robotstudio" / "project.json").is_file()
+    gitignore = (project.path / ".gitignore").read_text(encoding="utf-8")
+    assert ".robotstudio/" in gitignore
+    assert "Environments/" not in gitignore
+    assert "Reports/" not in gitignore
     assert services["context"].project_id == project.id
     assert any(isinstance(e, ProjectCreated) for e in events)
     assert any(isinstance(e, ProjectOpened) for e in events)

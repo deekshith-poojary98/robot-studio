@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:robot_studio/core/gateway/transport_gateway.dart';
-import 'package:robot_studio/presentation/editor/editor_navigation_widgets.dart';
 import 'package:robot_studio/presentation/editor/editor_page.dart';
 import 'package:robot_studio/presentation/shell/controllers/editor_shell_controller.dart';
 
@@ -93,23 +92,10 @@ void main() {
             onCloseTab: (_) {},
             onContentChanged: (_, _) {},
             onSave: () {},
-            onSaveAll: () {},
-            onToggleWordWrap: () {},
-            onGoToDefinition: () {},
-            onPeekDefinition: () {},
-            onFindReferences: () {},
-            onHover: () {},
             onHoverRequest: (_, _) {},
             onHoverExit: () {},
-            onFormatDocument: () {},
-            onFormatSelection: () {},
-            onOpenSymbol: () {},
-            onWorkspaceSymbol: () {},
             onCtrlClick: () {},
             onClosePeek: () {},
-            onFind: () {},
-            onReplace: () {},
-            onReveal: () {},
             onCursorChanged: (_, _) {},
           ),
         ),

@@ -72,6 +72,20 @@ void main() {
     expect(ExplorerFileActions.initialContentFor('lib.resource'), isEmpty);
   });
 
+  test('ExplorerFileActions prunes nested multi-select paths', () {
+    expect(
+      ExplorerFileActions.pruneNestedPaths([
+        '/tmp/tests',
+        '/tmp/tests/a.robot',
+        '/tmp/resources',
+        '/tmp/resources/kw.resource',
+        '/tmp/readme.md',
+      ]),
+      ['/tmp/readme.md', '/tmp/resources', '/tmp/tests'],
+    );
+    expect(ExplorerFileActions.pruneNestedPaths(const []), isEmpty);
+  });
+
   test('ExplorerFileActions shortens paths under home', () {
     expect(
       ExplorerFileActions.homeRelativePath(
@@ -105,10 +119,7 @@ void main() {
   });
 
   testWidgets('VirtualFileTree builds only visible rows', (tester) async {
-    final rows = List.generate(
-      200,
-      (i) => _file('suite_$i.robot'),
-    );
+    final rows = List.generate(200, (i) => _file('suite_$i.robot'));
 
     await tester.pumpWidget(
       MaterialApp(
@@ -288,13 +299,14 @@ void main() {
             rootPath: '/tmp',
             onOpenFile: (_) {},
             onToggleDirectory: (_) {},
-            onCreateEntry: ({
-              required parentPath,
-              required name,
-              required isDirectory,
-            }) async {
-              createdName = name;
-            },
+            onCreateEntry:
+                ({
+                  required parentPath,
+                  required name,
+                  required isDirectory,
+                }) async {
+                  createdName = name;
+                },
           ),
         ),
       ),
@@ -364,5 +376,127 @@ void main() {
     await tester.tap(find.text('Delete'));
     await tester.pumpAndSettle();
     expect(deleteCalled, isTrue);
+  });
+
+  testWidgets('cmd/ctrl click builds a multi-selection', (tester) async {
+    List<String>? deleted;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.macOS),
+        home: Scaffold(
+          body: VirtualFileTree(
+            rows: [_file('a.robot'), _file('b.robot'), _file('c.robot')],
+            rootPath: '/tmp',
+            onOpenFile: (_) {},
+            onToggleDirectory: (_) {},
+            onDeleteEntry: (paths) async {
+              deleted = paths;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('a.robot'));
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+    await tester.tap(find.text('c.robot'));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+    await tester.pump();
+
+    await tester.tap(find.text('c.robot'), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Delete 2 Items'), findsOneWidget);
+    await tester.tap(find.text('Delete 2 Items'));
+    await tester.pumpAndSettle();
+    expect(deleted, ['/tmp/a.robot', '/tmp/c.robot']);
+  });
+
+  testWidgets('shift click selects a contiguous range', (tester) async {
+    List<String>? copied;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: VirtualFileTree(
+            rows: [_file('a.robot'), _file('b.robot'), _file('c.robot')],
+            rootPath: '/tmp',
+            onOpenFile: (_) {},
+            onToggleDirectory: (_) {},
+            onCopyRelativePath: (paths) {
+              copied = paths;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('a.robot'));
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
+    await tester.tap(find.text('c.robot'));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
+    await tester.pump();
+
+    await tester.tap(find.text('b.robot'), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Copy Relative Paths'), findsOneWidget);
+    await tester.tap(find.text('Copy Relative Paths'));
+    await tester.pumpAndSettle();
+    expect(copied, ['/tmp/a.robot', '/tmp/b.robot', '/tmp/c.robot']);
+  });
+
+  testWidgets('clicking outside clears multi-selection', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    List<String>? deleted;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.macOS),
+        home: Scaffold(
+          body: Row(
+            children: [
+              SizedBox(
+                width: 280,
+                child: VirtualFileTree(
+                  rows: [_file('a.robot'), _file('b.robot'), _file('c.robot')],
+                  rootPath: '/tmp',
+                  onOpenFile: (_) {},
+                  onToggleDirectory: (_) {},
+                  onDeleteEntry: (paths) async {
+                    deleted = paths;
+                  },
+                ),
+              ),
+              const Expanded(
+                child: ColoredBox(
+                  key: Key('outside-pane'),
+                  color: Colors.black,
+                  child: SizedBox.expand(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('a.robot'));
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+    await tester.tap(find.text('c.robot'));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('outside-pane')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('a.robot'), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Delete 2 Items'), findsNothing);
+    expect(find.text('Delete'), findsOneWidget);
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(deleted, ['/tmp/a.robot']);
   });
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -132,6 +133,35 @@ async def test_move_and_validation(file_stack) -> None:
 
 
 @pytest.mark.asyncio
+async def test_writes_refuse_to_recreate_deleted_workspace(tmp_path: Path) -> None:
+    bus = InMemoryEventBus()
+    ctx = WorkspaceContext(bus)
+    root = tmp_path / "MyProject"
+    root.mkdir()
+    await ctx.open(
+        Workspace(
+            id=uuid4(),
+            name="MyProject",
+            path=root,
+            created_at=datetime.now(UTC),
+        )
+    )
+    service = FileService(context=ctx, event_bus=bus)
+
+    shutil.rmtree(root)
+
+    operations = (
+        lambda: service.write_file(str(root / "tests" / "a.robot"), "x"),
+        lambda: service.create_file(str(root / "tests" / "b.robot"), ""),
+        lambda: service.create_directory(str(root / "resources")),
+    )
+    for operation in operations:
+        with pytest.raises(FileValidationError, match="no longer on disk"):
+            await operation()
+    assert not root.exists()
+
+
+@pytest.mark.asyncio
 async def test_list_tree_shows_dotfiles_except_heavy(file_stack) -> None:
     service, root, _events = file_stack
     (root / ".gitignore").write_text("*.pyc\n", encoding="utf-8")
@@ -147,3 +177,28 @@ async def test_list_tree_shows_dotfiles_except_heavy(file_stack) -> None:
     assert ".git" not in names
     assert ".venv" not in names
     assert ".DS_Store" not in names
+
+
+@pytest.mark.asyncio
+async def test_list_tree_shows_robotstudio_contents(file_stack) -> None:
+    """Studio's own folder is fully browsable — envs and reports included."""
+    service, root, _events = file_stack
+    meta = root / ".robotstudio"
+    run_dir = meta / "reports" / "Run-20260801-120000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "report.html").write_text("<html/>", encoding="utf-8")
+    site_packages = meta / "environments" / "default" / "lib" / "site-packages"
+    site_packages.mkdir(parents=True)
+    (site_packages / "robot").mkdir()
+
+    top = {item["name"] for item in await service.list_tree(None, depth=0)}
+    assert ".robotstudio" in top
+
+    reports = await service.list_tree(str(meta / "reports"), depth=0)
+    assert {item["name"] for item in reports} == {"Run-20260801-120000"}
+
+    # Nothing inside .robotstudio is filtered, not even venv internals.
+    env_root = await service.list_tree(str(meta / "environments"), depth=0)
+    assert {item["name"] for item in env_root} == {"default"}
+    lib = await service.list_tree(str(site_packages.parent), depth=0)
+    assert {item["name"] for item in lib} == {"site-packages"}

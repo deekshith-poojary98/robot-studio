@@ -32,9 +32,9 @@ void main() {
     await harness.launchAppWithWorkspace(tester, workspaceName: 'Editor Flow WS');
 
     await openRobotFileInExplorer(tester, 'sample.robot');
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
 
-    await tapText(tester, 'Format');
+    await tapEditorFormat(tester);
     await tester.pump(const Duration(milliseconds: 500));
 
     await tapText(tester, 'Save');

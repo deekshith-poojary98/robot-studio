@@ -24,6 +24,8 @@ _SKIP_NAMES = {
 }
 
 _VENV_INTERNAL = {"bin", "lib", "include", "share", "scripts", "lib64"}
+_STUDIO_META_DIR = ".robotstudio"
+_LEGACY_ENV_SEGMENT = "Environments"
 
 _INVALID_CHARS = re.compile(r'[<>:"|?*\x00-\x1f]')
 _WINDOWS_RESERVED = {
@@ -68,6 +70,26 @@ class FileService:
         workspace = self.context.workspace
         if workspace is None:
             raise FileValidationError("Open a workspace before accessing files")
+        return workspace
+
+    def _require_live_workspace(self):
+        """Reject work when the workspace root vanished from disk.
+
+        Writes create missing parents, so without this an externally deleted
+        workspace/project would be silently resurrected by the next save.
+        """
+        workspace = self._require_workspace()
+        if not Path(workspace.path).is_dir():
+            raise FileValidationError(
+                f"Workspace folder is no longer on disk: {workspace.path}. "
+                "Reopen or restore it before saving."
+            )
+        project = self.context.project
+        if project is not None and not Path(project.path).is_dir():
+            raise FileValidationError(
+                f"Project folder is no longer on disk: {project.path}. "
+                "Reopen or restore it before saving."
+            )
         return workspace
 
     def _resolve_under_workspace(self, path: str | Path) -> Path:
@@ -157,6 +179,7 @@ class FileService:
         }
 
     async def write_file(self, path: str, content: str) -> dict:
+        self._require_live_workspace()
         target = self._resolve_under_workspace(path)
         created = not target.exists()
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -176,6 +199,7 @@ class FileService:
         }
 
     async def create_file(self, path: str, content: str = "") -> dict:
+        self._require_live_workspace()
         target = self._resolve_under_workspace(path)
         self.validate_entry_name(target.name)
         if target.exists():
@@ -197,6 +221,7 @@ class FileService:
         }
 
     async def create_directory(self, path: str) -> dict:
+        self._require_live_workspace()
         target = self._resolve_under_workspace(path)
         self.validate_entry_name(target.name)
         if target.exists():
@@ -363,18 +388,28 @@ class FileService:
             raise FileValidationError(f"Path not found: {root}")
         return await asyncio.to_thread(self._walk, root, depth, workspace.path)
 
+    def _legacy_env_index(self, rel_parts: tuple[str, ...]) -> int | None:
+        """Index of a legacy project-root ``Environments/<name>/…`` segment."""
+        if _LEGACY_ENV_SEGMENT in rel_parts:
+            return rel_parts.index(_LEGACY_ENV_SEGMENT)
+        return None
+
     def _should_skip(self, child: Path, relative_to: Path) -> bool:
+        try:
+            rel_parts = child.relative_to(relative_to).parts
+        except ValueError:
+            rel_parts = child.parts
+        # Studio's own folder is browsable in full, environments and run output
+        # included — nothing inside it is filtered.
+        if rel_parts and rel_parts[0] == _STUDIO_META_DIR:
+            return False
         # Skip known heavy/noise dirs only — show normal dotfiles (.gitignore, etc.).
         if child.name in _SKIP_NAMES:
             return True
         if child.name.endswith(".dist-info"):
             return True
-        try:
-            rel_parts = child.relative_to(relative_to).parts
-        except ValueError:
-            rel_parts = child.parts
-        if "Environments" in rel_parts:
-            env_index = rel_parts.index("Environments")
+        env_index = self._legacy_env_index(rel_parts)
+        if env_index is not None:
             if (
                 len(rel_parts) >= env_index + 3
                 and rel_parts[env_index + 2].lower() in _VENV_INTERNAL
@@ -423,9 +458,10 @@ class FileService:
                 "children": [],
             }
             if is_dir:
+                env_index = self._legacy_env_index(rel_parts)
                 stop_at_env = (
-                    "Environments" in rel_parts
-                    and len(rel_parts) == rel_parts.index("Environments") + 2
+                    env_index is not None
+                    and len(rel_parts) == env_index + 2
                 )
                 if stop_at_env:
                     item["has_children"] = False

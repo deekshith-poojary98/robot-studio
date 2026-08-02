@@ -37,6 +37,7 @@ class WelcomeScreen extends StatelessWidget {
     this.openEditors = const [],
     this.onOpenRecentFile,
     this.onContinueWorking,
+    this.backendUnavailable = false,
   });
 
   final List<WorkspaceInfo> recentWorkspaces;
@@ -63,6 +64,7 @@ class WelcomeScreen extends StatelessWidget {
   final List<String> openEditors;
   final ValueChanged<String>? onOpenRecentFile;
   final VoidCallback? onContinueWorking;
+  final bool backendUnavailable;
 
   bool get _showDashboardSection => dashboard != null || workspaceOpen;
   bool get _showEditorSections =>
@@ -88,6 +90,30 @@ class WelcomeScreen extends StatelessWidget {
               'Robot Framework development, project first.',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
             ),
+            if (backendUnavailable) ...[
+              const SizedBox(height: 16),
+              Container(
+                key: const Key('welcome.backend-unavailable'),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border.all(color: AppColors.borderSubtle),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Backend unavailable. Start it with: '
+                  'python -m robot_studio.main',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12.5,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             Text(
               'Projects',

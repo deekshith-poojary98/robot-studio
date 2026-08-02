@@ -50,7 +50,7 @@ void main() {
       'sample.robot',
       projectName: 'EdOpen',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
     expect(find.textContaining('Sample'), findsWidgets);
 
     harness.expectNoFlutterErrors();
@@ -68,8 +68,8 @@ void main() {
       'sample.robot',
       projectName: 'EdFind',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.find')));
-    await tester.tap(find.byKey(const Key('editor.find')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
+    await tapEditorFind(tester);
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(TextField), findsWidgets);
 
@@ -88,7 +88,7 @@ void main() {
       'sample.robot',
       projectName: 'EdOutline',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
 
     final symbols = await harness.api.documentSymbols(files.sample);
     expect(symbols, isA<List<dynamic>>());
@@ -143,8 +143,8 @@ void main() {
       'sample.robot',
       projectName: 'EdSave',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
-    await tapText(tester, 'Format');
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
+    await tapEditorFormat(tester);
     await tester.pump(const Duration(milliseconds: 400));
     await tapText(tester, 'Save');
     await tester.pump(const Duration(milliseconds: 500));
@@ -174,7 +174,7 @@ void main() {
     );
     await pumpUntilFound(
       tester,
-      find.byKey(const Key('editor.format')),
+      find.byKey(const Key('editor.page')),
       timeout: const Duration(seconds: 30),
     );
 
@@ -195,7 +195,7 @@ void main() {
       'sample.robot',
       projectName: 'EdJump',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
     await tester.pump(const Duration(milliseconds: 800));
 
     await pumpUntilFound(
@@ -212,7 +212,7 @@ void main() {
     await tester.tap(find.textContaining('UnknownKeyword').first);
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.byKey(const Key('editor.format')), findsOneWidget);
+    expect(find.byKey(const Key('editor.page')), findsOneWidget);
     harness.expectNoFlutterErrors();
   });
 
@@ -228,7 +228,7 @@ void main() {
       'sample.robot',
       projectName: 'EdReopen',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
     await openRobotFileInExplorer(
       tester,
       'second.robot',
@@ -264,11 +264,11 @@ void main() {
     );
     // re_editor paints highlighted section headers; assert shell + outline
     // symbol and that the on-disk suite still has standard section markers.
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
     await pumpUntilFound(tester, find.textContaining('Sample'));
     final persisted = await harness.api.readFile(files.sample);
     expect(persisted['content'], contains('*** Test Cases ***'));
-    expect(find.byKey(const Key('editor.format')), findsOneWidget);
+    expect(find.byKey(const Key('editor.page')), findsOneWidget);
 
     harness.expectNoFlutterErrors();
   });

@@ -5,7 +5,6 @@ import '../../core/gateway/models/index_info.dart';
 import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
-import '../widgets/app_menu.dart';
 import 'editor_navigation_widgets.dart';
 import 'editor_tabs_bar.dart';
 import 'robot_code_editor.dart';
@@ -30,21 +29,8 @@ class EditorPage extends StatefulWidget {
     this.onTabContextAction,
     required this.onContentChanged,
     required this.onSave,
-    required this.onSaveAll,
-    required this.onToggleWordWrap,
-    required this.onGoToDefinition,
-    required this.onPeekDefinition,
-    required this.onFindReferences,
-    required this.onHover,
     required this.onHoverRequest,
     required this.onHoverExit,
-    required this.onFind,
-    required this.onReplace,
-    required this.onReveal,
-    required this.onFormatDocument,
-    required this.onFormatSelection,
-    required this.onOpenSymbol,
-    required this.onWorkspaceSymbol,
     required this.onCtrlClick,
     required this.onClosePeek,
     required this.onCursorChanged,
@@ -58,6 +44,7 @@ class EditorPage extends StatefulWidget {
   final HoverInfo? hover;
   final List<SymbolReferenceInfo> references;
   final String? statusMessage;
+
   /// Dismisses the notice before its auto-expiry.
   final VoidCallback? onDismissStatusMessage;
   final EditorBreadcrumbInfo breadcrumb;
@@ -71,21 +58,8 @@ class EditorPage extends StatefulWidget {
       onTabContextAction;
   final void Function(String path, String content) onContentChanged;
   final VoidCallback onSave;
-  final VoidCallback onSaveAll;
-  final VoidCallback onToggleWordWrap;
-  final VoidCallback onGoToDefinition;
-  final VoidCallback onPeekDefinition;
-  final VoidCallback onFindReferences;
-  final VoidCallback onHover;
   final void Function(int line, int column) onHoverRequest;
   final VoidCallback onHoverExit;
-  final VoidCallback onFind;
-  final VoidCallback onReplace;
-  final VoidCallback onReveal;
-  final VoidCallback onFormatDocument;
-  final VoidCallback onFormatSelection;
-  final VoidCallback onOpenSymbol;
-  final VoidCallback onWorkspaceSymbol;
   final VoidCallback onCtrlClick;
   final VoidCallback onClosePeek;
   final void Function(int line, int column) onCursorChanged;
@@ -93,10 +67,10 @@ class EditorPage extends StatefulWidget {
   final int? jumpToColumn;
 
   @override
-  State<EditorPage> createState() => _EditorPageState();
+  State<EditorPage> createState() => EditorPageState();
 }
 
-class _EditorPageState extends State<EditorPage> {
+class EditorPageState extends State<EditorPage> {
   final _editorKey = GlobalKey<RobotCodeEditorState>();
 
   EditorTabInfo? get _active {
@@ -108,24 +82,16 @@ class _EditorPageState extends State<EditorPage> {
     return null;
   }
 
-  void _handleFind() {
-    _editorKey.currentState?.showFind();
-    widget.onFind();
-  }
-
-  void _handleReplace() {
-    _editorKey.currentState?.showFind(replace: true);
-    widget.onReplace();
-  }
-
-  void _handleFormatSelection() {
-    widget.onFormatSelection();
+  /// Open find / replace — used by the window menu bar and command palette.
+  void showFind({bool replace = false}) {
+    _editorKey.currentState?.showFind(replace: replace);
   }
 
   @override
   Widget build(BuildContext context) {
     final active = _active;
     return Container(
+      key: const Key('editor.page'),
       color: AppColors.background,
       child: Column(
         children: [
@@ -137,64 +103,15 @@ class _EditorPageState extends State<EditorPage> {
             onContextAction: widget.onTabContextAction,
           ),
           EditorBreadcrumbBar(breadcrumb: widget.breadcrumb),
-          Container(
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              border: Border(bottom: BorderSide(color: AppColors.borderSubtle)),
-            ),
-            child: Row(
-              children: [
-                _EditorAction(
-                  buttonKey: const Key('editor.save'),
-                  icon: Icons.save_outlined,
-                  label: 'Save',
-                  onPressed: active == null ? null : widget.onSave,
-                ),
-                _EditorAction(
-                  buttonKey: const Key('editor.save-all'),
-                  icon: Icons.save_as_outlined,
-                  label: 'Save All',
-                  onPressed: widget.tabs.isEmpty ? null : widget.onSaveAll,
-                ),
-                _EditorAction(
-                  buttonKey: const Key('editor.format'),
-                  icon: Icons.format_align_left,
-                  label: 'Format',
-                  onPressed: active == null ? null : widget.onFormatDocument,
-                ),
-                _EditorAction(
-                  buttonKey: const Key('editor.find'),
-                  icon: Icons.search,
-                  label: 'Find',
-                  onPressed: active == null ? null : _handleFind,
-                ),
-                const Spacer(),
-                _WrapToggle(
-                  wordWrap: widget.wordWrap,
-                  onToggle: widget.onToggleWordWrap,
-                ),
-                const SizedBox(width: 4),
-                _EditorOverflowMenu(
-                  hasActiveFile: active != null,
-                  onReplace: _handleReplace,
-                  onFormatSelection: _handleFormatSelection,
-                  onGoToDefinition: widget.onGoToDefinition,
-                  onPeekDefinition: widget.onPeekDefinition,
-                  onFindReferences: widget.onFindReferences,
-                  onHover: widget.onHover,
-                  onOpenSymbol: widget.onOpenSymbol,
-                  onWorkspaceSymbol: widget.onWorkspaceSymbol,
-                  onReveal: widget.onReveal,
-                ),
-              ],
-            ),
-          ),
           if (widget.statusMessage != null)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.only(left: 12, right: 6, top: 4, bottom: 4),
+              padding: const EdgeInsets.only(
+                left: 12,
+                right: 6,
+                top: 4,
+                bottom: 4,
+              ),
               color: AppColors.accentSoft,
               child: Row(
                 children: [
@@ -226,8 +143,8 @@ class _EditorPageState extends State<EditorPage> {
                     icon: Icons.description_outlined,
                     title: 'No file open',
                     message:
-                        'Pick a .robot file in the Explorer, or press the '
-                        'search box in the toolbar to jump to one.',
+                        'Pick a .robot file in the Explorer, or press ⌘P / '
+                        'Ctrl+P to jump to one.',
                   )
                 : Row(
                     children: [
@@ -266,163 +183,6 @@ class _EditorPageState extends State<EditorPage> {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Compact icon action for the editor strip. Editing verbs only.
-class _EditorAction extends StatelessWidget {
-  const _EditorAction({
-    required this.buttonKey,
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
-
-  final Key buttonKey;
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      key: buttonKey,
-      onPressed: onPressed,
-      tooltip: label,
-      icon: Icon(icon, size: 16),
-      visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-      padding: const EdgeInsets.all(6),
-    );
-  }
-}
-
-class _WrapToggle extends StatelessWidget {
-  const _WrapToggle({required this.wordWrap, required this.onToggle});
-
-  final bool wordWrap;
-  final VoidCallback onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      key: const Key('editor.wrap'),
-      onPressed: onToggle,
-      tooltip: wordWrap ? 'Word wrap: on' : 'Word wrap: off',
-      icon: Icon(
-        Icons.wrap_text,
-        size: 16,
-        color: wordWrap ? AppColors.accent : AppColors.textMuted,
-      ),
-      visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-      padding: const EdgeInsets.all(6),
-    );
-  }
-}
-
-/// Language navigation lives here instead of the permanent strip, matching how
-/// VS Code / PyCharm keep Definition, Peek, and References out of the chrome.
-class _EditorOverflowMenu extends StatelessWidget {
-  const _EditorOverflowMenu({
-    required this.hasActiveFile,
-    required this.onReplace,
-    required this.onFormatSelection,
-    required this.onGoToDefinition,
-    required this.onPeekDefinition,
-    required this.onFindReferences,
-    required this.onHover,
-    required this.onOpenSymbol,
-    required this.onWorkspaceSymbol,
-    required this.onReveal,
-  });
-
-  final bool hasActiveFile;
-  final VoidCallback onReplace;
-  final VoidCallback onFormatSelection;
-  final VoidCallback onGoToDefinition;
-  final VoidCallback onPeekDefinition;
-  final VoidCallback onFindReferences;
-  final VoidCallback onHover;
-  final VoidCallback onOpenSymbol;
-  final VoidCallback onWorkspaceSymbol;
-  final VoidCallback onReveal;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      key: const Key('editor.more'),
-      tooltip: 'More editor actions',
-      position: PopupMenuPosition.under,
-      icon: const Icon(Icons.more_horiz, size: 16),
-      iconSize: 16,
-      onSelected: (value) => switch (value) {
-        'replace' => onReplace(),
-        'format-selection' => onFormatSelection(),
-        'definition' => onGoToDefinition(),
-        'peek' => onPeekDefinition(),
-        'references' => onFindReferences(),
-        'hover' => onHover(),
-        'open-symbol' => onOpenSymbol(),
-        'project-symbol' => onWorkspaceSymbol(),
-        'reveal' => onReveal(),
-        _ => null,
-      },
-      itemBuilder: (context) => [
-        _item('replace', Icons.find_replace, 'Replace…', hasActiveFile),
-        _item(
-          'format-selection',
-          Icons.format_indent_increase,
-          'Format Selection',
-          hasActiveFile,
-        ),
-        const AppPopupMenuDivider(),
-        _item(
-          'definition',
-          Icons.subdirectory_arrow_right,
-          'Go to Definition',
-          hasActiveFile,
-        ),
-        _item(
-          'peek',
-          Icons.visibility_outlined,
-          'Peek Definition',
-          hasActiveFile,
-        ),
-        _item('references', Icons.link, 'Find References', hasActiveFile),
-        _item('hover', Icons.info_outline, 'Show Hover Info', hasActiveFile),
-        const AppPopupMenuDivider(),
-        _item(
-          'open-symbol',
-          Icons.list_alt,
-          'Go to Symbol in File',
-          hasActiveFile,
-        ),
-        _item(
-          'project-symbol',
-          Icons.travel_explore,
-          'Find Symbol in Project',
-          true,
-        ),
-        const AppPopupMenuDivider(),
-        _item('reveal', Icons.folder_open, 'Reveal in Folder', hasActiveFile),
-      ],
-    );
-  }
-
-  PopupMenuItem<String> _item(
-    String value,
-    IconData icon,
-    String label,
-    bool enabled,
-  ) {
-    return AppPopupMenuItem.icon(
-      key: Key('editor.menu.$value'),
-      value: value,
-      icon: icon,
-      label: label,
-      enabled: enabled,
     );
   }
 }

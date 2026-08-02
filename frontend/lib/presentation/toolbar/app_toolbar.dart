@@ -188,7 +188,9 @@ class AppToolbar extends StatelessWidget {
                       label: 'Run',
                       primary: true,
                       showLabel: true,
-                      tooltip: !canRun
+                      tooltip: environmentBroken
+                          ? 'Active environment is missing on disk — recreate or select another'
+                          : !canRun
                           ? 'Open a project to run the current file'
                           : isExecutionRunning
                           ? 'Stop the current run first'
@@ -200,7 +202,9 @@ class AppToolbar extends StatelessWidget {
                       key: const Key('toolbar.run-project'),
                       icon: Icons.playlist_play_rounded,
                       label: 'Run Project',
-                      tooltip: !canRunProject
+                      tooltip: environmentBroken
+                          ? 'Active environment is missing on disk — recreate or select another'
+                          : !canRunProject
                           ? 'Open a project to run'
                           : isExecutionRunning
                           ? 'Stop the current run first'

@@ -62,12 +62,11 @@ class EnvironmentService:
     ) -> Environment:
         workspace = self._require_workspace()
         cleaned = self._fs.validate_name(name)
-        env_root = self._fs.environment_root_for_name(workspace.path, cleaned)
-
-        if env_root.exists():
+        if self._fs.find_existing_environment_root(workspace.path, cleaned) is not None:
             raise EnvironmentValidationError(
                 f"An environment named '{cleaned}' already exists",
             )
+        env_root = self._fs.environment_root_for_name(workspace.path, cleaned)
 
         base_python = Path(python_interpreter).expanduser().resolve()
         self._python.create_venv(base_python, env_root)
@@ -254,11 +253,11 @@ class EnvironmentService:
             )
 
         cleaned = self._fs.validate_name(name)
-        target_root = self._fs.environment_root_for_name(workspace.path, cleaned)
-        if target_root.exists():
+        if self._fs.find_existing_environment_root(workspace.path, cleaned) is not None:
             raise EnvironmentValidationError(
                 f"An environment named '{cleaned}' already exists",
             )
+        target_root = self._fs.environment_root_for_name(workspace.path, cleaned)
 
         # Create empty venv using the same Python major.minor when possible.
         base_python = source.python_executable

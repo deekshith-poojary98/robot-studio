@@ -84,6 +84,8 @@ async def test_create_environment(services) -> None:
     )
 
     assert environment.name == "robot-3"
+    assert ".robotstudio" in Path(environment.path).parts
+    assert "environments" in Path(environment.path).parts
     assert (environment.path / "pyvenv.cfg").is_file()
     assert (environment.path / "environment.json").is_file()
     assert environment.python_executable.is_file()
@@ -94,7 +96,30 @@ async def test_create_environment(services) -> None:
 
 
 @pytest.mark.asyncio
-async def test_import_validation(services) -> None:
+async def test_discover_legacy_environments_root(services) -> None:
+    """Existing project-root Environments/ venvs are still discovered."""
+    workspace = services["workspace"]
+    legacy_root = workspace.path / "Environments" / "legacy-env"
+    PythonEnvironmentProvider().create_venv(Path(sys.executable), legacy_root)
+
+    discovered = FilesystemEnvironmentProvider().discover(workspace.path)
+    assert any(path.name == "legacy-env" for path in discovered)
+
+    listed = await services["environment_service"].list_environments()
+    assert any(item.name == "legacy-env" for item in listed)
+
+
+@pytest.mark.asyncio
+async def test_create_blocks_legacy_name_collision(services) -> None:
+    workspace = services["workspace"]
+    legacy_root = workspace.path / "Environments" / "taken"
+    PythonEnvironmentProvider().create_venv(Path(sys.executable), legacy_root)
+
+    with pytest.raises(EnvironmentValidationError, match="already exists"):
+        await services["environment_service"].create_environment(
+            "taken",
+            sys.executable,
+        )
     tmp_path = services["tmp_path"]
     missing = tmp_path / "not-a-venv"
     missing.mkdir()

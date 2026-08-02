@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -39,11 +40,13 @@ class WorkspaceEventService:
     context: WorkspaceContext
     event_bus: EventBus
     watcher: object  # Native/PollingFileWatcher with optional on_fs_change
+    root_poll_seconds: float = 2.0
     _subscribers: list[_Subscriber] = field(default_factory=list, init=False)
     _unsubscribes: list[Subscription] = field(default_factory=list, init=False)
     _subscribed: bool = field(default=False, init=False)
     _missing_workspace_sent: bool = field(default=False, init=False)
     _missing_project_sent: bool = field(default=False, init=False)
+    _root_poll_task: asyncio.Task | None = field(default=None, init=False)
 
     def start(self) -> None:
         if self._subscribed:
@@ -64,6 +67,35 @@ class WorkspaceEventService:
         if hasattr(self.watcher, "on_fs_change"):
             self.watcher.on_fs_change = self._on_watcher_fs_change  # type: ignore[attr-defined]
         self._subscribed = True
+        self._start_root_poll()
+
+    def _start_root_poll(self) -> None:
+        """Poll the roots directly.
+
+        Deleting the watched root itself produces no watcher events (watchdog
+        loses the directory it observes, and the poller skips absent roots), so
+        fs-event-driven checks alone never notice a removed workspace/project.
+        """
+        if self._root_poll_task is not None and not self._root_poll_task.done():
+            return
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._root_poll_task = asyncio.create_task(
+            self._poll_roots(),
+            name="workspace-root-liveness",
+        )
+
+    async def _poll_roots(self) -> None:
+        while self._subscribed:
+            await asyncio.sleep(self.root_poll_seconds)
+            try:
+                await self._check_roots_missing()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - liveness poll must never die
+                logger.debug("Root liveness check failed", exc_info=True)
 
     async def stop(self) -> None:
         for subscription in self._unsubscribes:
@@ -72,11 +104,19 @@ class WorkspaceEventService:
         self._subscribed = False
         if hasattr(self.watcher, "on_fs_change"):
             self.watcher.on_fs_change = None  # type: ignore[attr-defined]
+        task = self._root_poll_task
+        self._root_poll_task = None
+        if task is not None and not task.done():
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
         self._subscribers.clear()
 
     async def subscribe(self) -> asyncio.Queue[dict]:
         queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=1000)
         self._subscribers.append(_Subscriber(queue=queue))
+        # Covers start() having run without a loop to schedule the poll on.
+        self._start_root_poll()
         return queue
 
     async def unsubscribe(self, queue: asyncio.Queue[dict]) -> None:
@@ -197,30 +237,40 @@ class WorkspaceEventService:
         await self._broadcast(payload)
 
     async def _check_roots_missing(self) -> None:
+        workspace_missing = False
         workspace = self.context.workspace
-        if workspace is not None and not self._missing_workspace_sent:
-            if not Path(workspace.path).is_dir():
+        if workspace is not None:
+            present = Path(workspace.path).is_dir()
+            workspace_missing = not present
+            if not present and not self._missing_workspace_sent:
                 self._missing_workspace_sent = True
                 await self._broadcast(
                     {
                         "type": "WORKSPACE_CHANGED",
                         "workspace_id": str(workspace.id),
-                        "path": workspace.path,
+                        "path": str(workspace.path),
                         "reason": "missing",
                     }
                 )
+            elif present:
+                self._missing_workspace_sent = False
         project = self.context.project
-        if project is not None and not self._missing_project_sent:
-            if not Path(project.path).is_dir():
+        if project is not None:
+            present = Path(project.path).is_dir()
+            # A missing workspace already covers everything inside it; emitting
+            # both would stack two dialogs for standalone projects.
+            if not present and not workspace_missing and not self._missing_project_sent:
                 self._missing_project_sent = True
                 await self._broadcast(
                     {
                         "type": "PROJECT_CHANGED",
                         "project_id": str(project.id),
-                        "path": project.path,
+                        "path": str(project.path),
                         "reason": "missing",
                     }
                 )
+            elif present:
+                self._missing_project_sent = False
 
     def _display_path(self, absolute: str) -> str:
         workspace = self.context.workspace

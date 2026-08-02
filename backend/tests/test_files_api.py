@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -72,6 +73,30 @@ async def test_files_tree_lazy_depth_zero(api_client) -> None:
     assert "suite_0.robot" in names
     assert "suite_4.robot" in names
     assert all(item["children"] == [] for item in tests_tree.json()["entries"])
+
+
+@pytest.mark.asyncio
+async def test_save_does_not_resurrect_externally_deleted_workspace(api_client) -> None:
+    """Deleting the workspace in Finder must not be undone by the next save."""
+    client, _fresh, tmp_path = api_client
+    location = tmp_path / "homes"
+    location.mkdir()
+    ws = await client.post(
+        "/api/v1/workspaces",
+        json={"name": "GoneWS", "location": str(location)},
+    )
+    assert ws.status_code == 201
+    root = Path(ws.json()["path"])
+
+    shutil.rmtree(root)
+
+    written = await client.put(
+        "/api/v1/files/content",
+        json={"path": str(root / "tests" / "new.robot"), "content": "*** Test Cases ***\n"},
+    )
+    assert written.status_code == 400
+    assert "no longer on disk" in written.json()["detail"]
+    assert not root.exists()
 
 
 @pytest.mark.asyncio

@@ -256,6 +256,7 @@ class IndexService:
                         root=root,
                         project_id=project_id,
                         force=full,
+                        analysis_rebind=False,
                     ),
                 )
 
@@ -265,6 +266,8 @@ class IndexService:
                     await self.event_bus.publish(
                         FileRemoved(path=existing, workspace_id=workspace_id),
                     )
+
+            await self.indexer.finalize_analysis()
 
             self._last_indexed_at = datetime.now(UTC)
             self._state = "ready"
@@ -289,6 +292,7 @@ class IndexService:
                 root=Path(project.path),
                 project_id=project.id,
                 force=True,
+                analysis_rebind=False,
             )
             for existing in await self.store.list_indexed_files(
                 workspace_id,
@@ -299,6 +303,8 @@ class IndexService:
                     await self.event_bus.publish(
                         FileRemoved(path=existing, workspace_id=workspace_id),
                     )
+
+            await self.indexer.finalize_analysis()
 
             self._last_indexed_at = datetime.now(UTC)
             self._state = "ready"
@@ -324,6 +330,7 @@ class IndexService:
         root: Path,
         project_id: UUID | None,
         force: bool = False,
+        analysis_rebind: bool = True,
     ) -> set[str]:
         indexed_paths: set[str] = set()
         self.watcher.watch_path(root)
@@ -337,6 +344,7 @@ class IndexService:
                     workspace_id=workspace_id,
                     project_id=project_id,
                     force=force,
+                    analysis_rebind=analysis_rebind,
                 )
                 indexed_paths.add(str(path))
                 # Intentionally no per-file FileIndexed during bulk rebuild.

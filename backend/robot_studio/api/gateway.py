@@ -5,7 +5,12 @@ from uuid import UUID
 
 from robot_studio import __version__
 from robot_studio.api.schemas.health import HealthResponse
+from robot_studio.application.services.analysis_service import AnalysisService
+from robot_studio.application.services.doctor_service import DoctorService
 from robot_studio.application.services.environment_service import EnvironmentService
+from robot_studio.application.services.execution_knowledge_service import (
+    ExecutionKnowledgeService,
+)
 from robot_studio.application.services.execution_service import ExecutionService
 from robot_studio.application.services.file_service import FileService
 from robot_studio.application.services.index_service import IndexService
@@ -36,6 +41,31 @@ from robot_studio.domain.models import (
     Project,
     ProjectType,
     Workspace,
+)
+from robot_studio.domain.models.analysis import (
+    AnalysisSnapshot,
+    DependencyNode,
+    EdgeRef,
+    EntityRef,
+    InspectionInfo,
+    InspectionReport,
+    UsageStat,
+)
+from robot_studio.domain.models.doctor import (
+    DoctorProfile,
+    DoctorProfileId,
+    DoctorReport,
+    DoctorReportSummary,
+    FindingProviderInfo,
+)
+from robot_studio.domain.models.execution_knowledge import (
+    EntityExecutionStats,
+    ExecutionHistoryEntry,
+    ExecutionKnowledgeSnapshot,
+    FlakyCandidate,
+    HeatMapEntry,
+    LinkedRunInfo,
+    SlowEntity,
 )
 
 
@@ -113,6 +143,27 @@ class RestGateway:
         service = self._container.file_service
         if service is None:
             raise RuntimeError("FileService is not initialized")
+        return service
+
+    @property
+    def _analysis_service(self) -> AnalysisService:
+        service = self._container.analysis_service
+        if service is None:
+            raise RuntimeError("AnalysisService is not initialized")
+        return service
+
+    @property
+    def _execution_knowledge_service(self) -> ExecutionKnowledgeService:
+        service = self._container.execution_knowledge_service
+        if service is None:
+            raise RuntimeError("ExecutionKnowledgeService is not initialized")
+        return service
+
+    @property
+    def _doctor_service(self) -> DoctorService:
+        service = self._container.doctor_service
+        if service is None:
+            raise RuntimeError("DoctorService is not initialized")
         return service
 
     async def health(self) -> HealthResponse:
@@ -696,3 +747,220 @@ class RestGateway:
 
     async def git_diff(self, *, file_path: str | None = None, commit: str | None = None):
         return await self._git_service.diff(file_path=file_path, commit=commit)
+
+    async def analysis_snapshot(self, project_id: UUID | None = None) -> AnalysisSnapshot:
+        return await self._analysis_service.snapshot(project_id)
+
+    async def analysis_rebuild(self, project_id: UUID | None = None) -> AnalysisSnapshot:
+        return await self._analysis_service.rebuild(project_id)
+
+    def analysis_list_inspections(self) -> list[InspectionInfo]:
+        return self._analysis_service.list_inspections()
+
+    async def analysis_inspect(
+        self,
+        *,
+        inspection_ids: list[str] | None = None,
+        project_id: UUID | None = None,
+    ) -> InspectionReport:
+        return await self._analysis_service.inspect(
+            inspection_ids=inspection_ids,
+            project_id=project_id,
+        )
+
+    async def analysis_inspect_one(
+        self,
+        inspection_id: str,
+        project_id: UUID | None = None,
+    ) -> InspectionReport:
+        return await self._analysis_service.inspect_one(inspection_id, project_id)
+
+    async def analysis_keyword_callers(
+        self,
+        keyword: str,
+        project_id: UUID | None = None,
+    ) -> list[EdgeRef]:
+        return await self._analysis_service.find_keyword_callers(keyword, project_id)
+
+    async def analysis_keyword_callees(
+        self,
+        keyword: str,
+        project_id: UUID | None = None,
+    ) -> list[EdgeRef]:
+        return await self._analysis_service.find_keyword_callees(keyword, project_id)
+
+    async def analysis_dependency_graph(
+        self,
+        project_id: UUID | None = None,
+    ) -> list[DependencyNode]:
+        return await self._analysis_service.dependency_graph(project_id)
+
+    async def analysis_affected_tests(
+        self,
+        *,
+        changed_files: list[str] | None = None,
+        changed_symbols: list[str] | None = None,
+        project_id: UUID | None = None,
+    ) -> list[EntityRef]:
+        return await self._analysis_service.affected_tests(
+            changed_files=changed_files,
+            changed_symbols=changed_symbols,
+            project_id=project_id,
+        )
+
+    async def analysis_variable_references(
+        self,
+        variable: str,
+        project_id: UUID | None = None,
+    ) -> list[EdgeRef]:
+        return await self._analysis_service.variable_references(variable, project_id)
+
+    async def analysis_library_usage(
+        self,
+        library: str | None = None,
+        project_id: UUID | None = None,
+    ) -> list[EdgeRef]:
+        return await self._analysis_service.library_usage(library, project_id)
+
+    async def analysis_keyword_usage_statistics(
+        self,
+        project_id: UUID | None = None,
+    ) -> list[UsageStat]:
+        return await self._analysis_service.keyword_usage_statistics(project_id)
+
+    async def execution_knowledge_snapshot(
+        self,
+        project_id: UUID | None = None,
+    ) -> ExecutionKnowledgeSnapshot:
+        return await self._execution_knowledge_service.snapshot(project_id)
+
+    async def execution_knowledge_link_run(self, run_id: UUID) -> LinkedRunInfo | None:
+        return await self._execution_knowledge_service.link_run(run_id)
+
+    async def execution_keyword_history(
+        self,
+        keyword: str,
+        project_id: UUID | None = None,
+        *,
+        limit: int = 50,
+    ) -> list[ExecutionHistoryEntry]:
+        return await self._execution_knowledge_service.history_for_keyword(
+            keyword,
+            project_id,
+            limit=limit,
+        )
+
+    async def execution_test_history(
+        self,
+        test: str,
+        project_id: UUID | None = None,
+        *,
+        limit: int = 50,
+    ) -> list[ExecutionHistoryEntry]:
+        return await self._execution_knowledge_service.history_for_test(
+            test,
+            project_id,
+            limit=limit,
+        )
+
+    async def execution_last_failures(
+        self,
+        project_id: UUID | None = None,
+        *,
+        limit: int = 50,
+    ) -> list[ExecutionHistoryEntry]:
+        return await self._execution_knowledge_service.last_failures(
+            project_id,
+            limit=limit,
+        )
+
+    async def execution_slowest_keywords(
+        self,
+        project_id: UUID | None = None,
+        *,
+        limit: int = 20,
+    ) -> list[SlowEntity]:
+        return await self._execution_knowledge_service.slowest_keywords(
+            project_id,
+            limit=limit,
+        )
+
+    async def execution_slowest_tests(
+        self,
+        project_id: UUID | None = None,
+        *,
+        limit: int = 20,
+    ) -> list[SlowEntity]:
+        return await self._execution_knowledge_service.slowest_tests(
+            project_id,
+            limit=limit,
+        )
+
+    async def execution_most_executed_keywords(
+        self,
+        project_id: UUID | None = None,
+        *,
+        limit: int = 20,
+    ) -> list[EntityExecutionStats]:
+        return await self._execution_knowledge_service.most_executed_keywords(
+            project_id,
+            limit=limit,
+        )
+
+    async def execution_never_executed_keywords(
+        self,
+        project_id: UUID | None = None,
+    ) -> list[EntityRef]:
+        return await self._execution_knowledge_service.never_executed_keywords(project_id)
+
+    async def execution_heat_map(
+        self,
+        project_id: UUID | None = None,
+        *,
+        limit: int = 100,
+    ) -> list[HeatMapEntry]:
+        return await self._execution_knowledge_service.execution_heat_map(
+            project_id,
+            limit=limit,
+        )
+
+    async def execution_flaky_candidates(
+        self,
+        project_id: UUID | None = None,
+        *,
+        limit: int = 50,
+    ) -> list[FlakyCandidate]:
+        return await self._execution_knowledge_service.flaky_candidates(
+            project_id,
+            limit=limit,
+        )
+
+    def doctor_list_profiles(self) -> list[DoctorProfile]:
+        return self._doctor_service.list_profiles()
+
+    def doctor_list_providers(self) -> list[FindingProviderInfo]:
+        return self._doctor_service.list_providers()
+
+    async def doctor_run(
+        self,
+        *,
+        profile: DoctorProfileId = DoctorProfileId.DEFAULT,
+        project_id: UUID | None = None,
+        provider_ids: list[str] | None = None,
+    ) -> DoctorReport:
+        return await self._doctor_service.run(
+            profile=profile,
+            project_id=project_id,
+            provider_ids=provider_ids,
+        )
+
+    async def doctor_get_report(self, report_id: str) -> DoctorReport:
+        return await self._doctor_service.get_report(report_id)
+
+    async def doctor_history(
+        self,
+        project_id: UUID | None = None,
+        *,
+        limit: int = 20,
+    ) -> list[DoctorReportSummary]:
+        return await self._doctor_service.history(project_id, limit=limit)

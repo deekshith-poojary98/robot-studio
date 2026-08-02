@@ -35,6 +35,11 @@ enum SidebarPanel {
     'Reports',
     Icons.bar_chart_outlined,
     'Reports — run history, logs, and HTML reports',
+  ),
+  doctor(
+    'Doctor',
+    Icons.health_and_safety_outlined,
+    'Robot Doctor — project health and prioritized findings',
   );
 
   const SidebarPanel(this.label, this.icon, this.tooltip);

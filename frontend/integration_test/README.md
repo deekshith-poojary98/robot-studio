@@ -128,7 +128,7 @@ Some suites (environment creation with `installRobot: true`, package install, ex
 | `helpers/integration_api_client.dart` | REST setup, verification, async polling |
 | `helpers/integration_harness.dart` | Shared lifecycle, app launch, seed helpers (`openRecentWorkspace` waits for welcome to dismiss — not the workspace title, which disappears when a project auto-opens) |
 | `helpers/integration_fixtures.dart` | Shared fixture paths / seed data |
-| `helpers/ui_helpers.dart` | UI interaction and condition-based waits (incl. `tapEditorMenuAction` for the editor ⋯ menu) |
+| `helpers/ui_helpers.dart` | UI interaction and condition-based waits (incl. `tapEditorFormat` / `tapEditorFind` / `tapEditorMenuAction` via the command palette) |
 | `helpers/performance_tracker.dart` | Timing logs (no pass/fail thresholds) |
 | `fixtures/sample.robot` | Sample suite |
 | `fixtures/test_plugin/` | Fake plugin (`plugin.json` + `plugin.py`) |
@@ -138,7 +138,7 @@ Live workspace events (`/api/v1/workspace/events`) are covered by backend `tests
 Tests avoid arbitrary `sleep()` and wait for visible UI states instead.
 
 After the pre-M14 UX polish pass, suites reach language navigation through the editor
-overflow menu (`tapEditorMenuAction(tester, 'definition' | 'peek' | 'references' | 'hover' | …)`)
+overflow menu is gone — use `tapEditorMenuAction(tester, 'definition' | 'peek' | 'references' | 'hover' | …)` (command palette) or the window **Go** / **Edit** menus
 rather than permanent toolbar buttons, and the bottom panel has Console / Terminal /
 Problems — run output is on the Tests view; SH-08 asserts Execution Logs is gone.
 
@@ -148,7 +148,7 @@ Problems — run output is on the Tests view; SH-08 asserts Execution Logs is go
 
 - Widget / unit tests live in `frontend/test/` and run separately: `flutter test` (see [../README.md](../README.md)).
 - Git suites need the system `git` CLI (same as production Source Control).
-- After UX polish / project-type removal: connection chrome is not asserted as CONNECTED/OFFLINE; New Project is name-only (no template picker); language actions use `editor.more` + `tapEditorMenuAction`; Settings/Output stubs are expected absent (Terminal is a real bottom-panel tab).
+- After UX polish / project-type removal: connection chrome is not asserted as CONNECTED/OFFLINE (offline uses **BACKEND UNAVAILABLE**); New Project is name-only (no template picker); editor actions use the window menu bar / command palette (`wait` on `editor.page`, `tapEditorFormat` / `tapEditorFind` / `tapEditorMenuAction`); Settings/Output stubs are expected absent (Terminal is a real bottom-panel tab).
 
 ---
 

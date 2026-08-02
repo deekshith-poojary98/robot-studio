@@ -591,7 +591,8 @@ class RobotLanguageService(LanguageService):
         declared_variables = self._collect_declared_variables(lines)
 
         # Resolve Library imports against the active env (site-packages), not only
-        # the workspace index — Environments/ is excluded from discovery.
+        # the workspace index — .robotstudio/ (and legacy Environments/) are
+        # excluded from discovery.
         imported_libraries = self._imported_libraries(content)
 
         for library_name in imported_libraries:

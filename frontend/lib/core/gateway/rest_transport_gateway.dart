@@ -982,6 +982,47 @@ class RestTransportGateway implements TransportGateway {
     return GitDiffInfo.fromJson(response);
   }
 
+  @override
+  Future<DoctorProfilesBundle> getDoctorProfiles() async {
+    final response = await _get('/doctor/profiles');
+    return DoctorProfilesBundle.fromJson(response);
+  }
+
+  @override
+  Future<DoctorReport> runDoctor({
+    String profile = 'default',
+    String? projectId,
+    List<String>? providerIds,
+  }) async {
+    final body = <String, dynamic>{'profile': profile};
+    if (projectId != null) body['project_id'] = projectId;
+    if (providerIds != null) body['provider_ids'] = providerIds;
+    final response = await _post('/doctor/run', body: body);
+    return DoctorReport.fromJson(response);
+  }
+
+  @override
+  Future<DoctorReport> getDoctorReport(String reportId) async {
+    final response = await _get('/doctor/report/$reportId');
+    return DoctorReport.fromJson(response);
+  }
+
+  @override
+  Future<List<DoctorReportSummary>> getDoctorHistory({
+    String? projectId,
+    int limit = 20,
+  }) async {
+    final buffer = StringBuffer('/doctor/history?limit=$limit');
+    if (projectId != null) {
+      buffer.write('&project_id=${Uri.encodeQueryComponent(projectId)}');
+    }
+    final response = await _get(buffer.toString());
+    final items = response['items'] as List<dynamic>? ?? [];
+    return items
+        .map((e) => DoctorReportSummary.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<Map<String, dynamic>> _get(String path, {bool quiet = false}) {
     return _send(
       'GET',

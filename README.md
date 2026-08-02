@@ -26,9 +26,9 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 
 | Area | What you get |
 |------|----------------|
-| **Projects** | Primary entry: New / Open / Recent Projects; open any Robot Framework folder (`.robotstudio/` in-place); new projects get empty `tests/` / `resources/` / `variables/` folders — no template types |
+| **Projects** | Primary entry: New / Open / Recent Projects; open any Robot Framework folder (`.robotstudio/` in-place); new projects get empty `tests/` / `resources/` / `variables/` folders plus a seeded `.gitignore` (ignores `.robotstudio/` and common Python noise) — no template types |
 | **Workspaces** | Advanced multi-project containers (Open / New / Recent); still the domain container behind the scenes |
-| **Environments** | Create / import / clone / activate; non-blocking prompt on open; detects `.venv` / `venv` / `env` / `Environments/*` |
+| **Environments** | Create / import / clone / activate; non-blocking prompt on open; Studio venvs live under `.robotstudio/environments/` (legacy root `Environments/` still discovered); also detects `.venv` / `venv` / `env` |
 | **Packages** | List installed packages, search PyPI, install / update / uninstall |
 | **Editor** | Multi-tab Robot editor, find/replace, live diagnostics (venv `Library` imports via active env); document outline under Explorer |
 | **Language intelligence** | Completions split RF DSL vs BuiltIn library keywords; hover tooltips; go-to-definition; references; document symbols |
@@ -38,15 +38,15 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 | **Indexing** | Background on open (incremental); full rebuild on demand; excludes `.venv` / `node_modules` / `.git` |
 | **Test Explorer** | Browse suites/tests/tasks/tags; run test, suite, tag, failed; live filter + status |
 | **Execution** | Run file or project; live WebSocket logs; stop; history |
-| **Explorer file ops** | New file/folder (`.robot` files seeded with Settings/Variables/Test Cases/Keywords scaffold), inline rename (including case-only like `libs` → `Libs`), delete, duplicate, copy path, reveal in OS, drag-move via live events |
+| **Explorer file ops** | Multi-select (⌘/Ctrl / Shift), new file/folder (`.robot` files seeded with Settings/Variables/Test Cases/Keywords scaffold), inline rename (including case-only like `libs` → `Libs`), bulk delete, duplicate, copy path(s), reveal in OS, drag-move via live events |
 | **Live workspace** | FS/index/git/env events over `/workspace/events`; explorer incremental refresh; external edit / deleted-file dialogs; auto Git + Test Explorer refresh |
-| **Reports** | Runs listed by run number, pass/fail stats; open `report.html` / `log.html` / `output.xml` from run details |
+| **Reports** | Runs listed by run number from `.robotstudio/reports/Run-*` (legacy root `Reports/` still readable via stored paths); pass/fail stats; open `report.html` / `log.html` / `output.xml` from run details |
 | **Terminal** | Bottom-panel PTY (login shell) rooted at the project folder; restart / kill from the tab chrome |
 | **Git** | Status (incl. untracked), stage, commit, branches, history, diff; remote actions when a repo exists |
 | **Plugins** | Builtin capabilities + plugin manager UI (load / enable / details) |
 | **Status** | Project context, `ROBOT` / `PYTHON` versions (backend connection is not shown) |
 | **UX guidance** | Actionable dialogs for missing project/env; gated CTAs; clickable run status → Tests; shared EmptyState + skeleton loaders; friendly timeout copy |
-| **Chrome** | Quiet toolbar (project · environment · branch · Run / Run Project / Stop, git remotes behind ⋯); editor strip keeps Save / Save All / Format / Find / Wrap and moves language navigation to its ⋯ menu |
+| **Chrome** | Quiet toolbar (project · environment · branch · Run / Run Project / Stop, git remotes behind ⋯); native window menu bar (File / Edit / View / Go / Run / Terminal) replaces the old editor action strip |
 | **Errors** | Failure dialogs state what happened and how to fix it; raw exception text stays behind **Show details** |
 
 ---
@@ -133,7 +133,7 @@ flutter pub get
 flutter run -d macos    # or: linux / windows
 ```
 
-The status bar shows the active project name and `ROBOT` / `PYTHON` versions from the environment — not backend CONNECTED/OFFLINE chrome. Health is rechecked every ~2s while offline and ~15s while connected (three consecutive failures before marking offline), so the shell recovers without restarting the UI. Open or create a **project** first — environments and runs are scoped to it. Create Project / Manage Environments are disabled on the welcome screen until a project is open.
+The status bar shows the active project name and `ROBOT` / `PYTHON` versions from the environment. When the backend is unreachable it shows **BACKEND UNAVAILABLE** (connected state stays quiet). Health is rechecked every ~2s while offline and ~15s while connected (three consecutive failures before marking offline), so the shell recovers without restarting the UI. Open or create a **project** first — environments and runs are scoped to it. Create Project / Manage Environments are disabled on the welcome screen until a project is open.
 
 More frontend detail: [frontend/README.md](./frontend/README.md).
 
@@ -158,9 +158,9 @@ Integration tests may also set `ROBOT_STUDIO_PYTHON` / `INTEGRATION_PYTHON` so e
 
 ## Typical workflow
 
-1. **New Project** or **Open Project** (any folder — Studio initializes `.robotstudio/` inside it; no wrapper workspace. Non-Robot-looking folders warn first with **Continue anyways**). **Open Workspace** / **New Workspace** remain under Advanced for multi-project containers.
-2. Opening a project is immediate; environment setup, indexing, and git refresh continue in the background. If no Python environment is registered, a non-blocking bottom-right toast titled **Python environment required** offers Create Environment / Select Existing (dismiss with ✕), and suggests an existing `.venv` when found.
-3. Create or activate a **Python environment**; install Robot Framework and libraries via the package manager.
+1. **New Project** or **Open Project** (any folder — Studio initializes `.robotstudio/` inside it; no wrapper workspace. Non-Robot-looking folders warn first with **Continue anyways**). **New Project** opens one dialog for name + location (prefilled, with **Browse…**), then always creates a standalone project and opens it fresh, even if another project is already open; adding to a multi-project container is the separate **New Project in Workspace** command. **Open Workspace** / **New Workspace** remain under Advanced for multi-project containers.
+2. Opening a project is immediate; environment setup, indexing, and git refresh continue in the background. If no Python environment is registered, a non-blocking bottom-right toast titled **Python environment required** offers Create Environment / Select Existing (dismiss with ✕), and suggests an existing `.venv` when found. **Create Environment** from that toast installs Robot Framework (same default as the Create dialog). If **no Python interpreter** is installed on the machine, that toast becomes **Python is not installed** with **How to Install** (Homebrew / python.org / apt) instead of a dead-end Create button. If interpreter discovery itself fails (backend error/offline), the toast becomes **Could not detect Python** with install / create / select actions — it does not assume Python is present.
+3. Create or activate a **Python environment**; install Robot Framework and libraries via the package manager. Run is blocked when the active environment is **missing on disk** (`available: false`) — recreate or select another before running.
 4. Open `.robot` files in the editor; rebuild the **index** if keyword search looks empty (BuiltIn keywords such as `Log` are always searchable).
 5. **Run** from the toolbar or **Tests** explorer (suite / test / tag / failed); watch output on the **Tests** view (click the run status badge to jump there). Use the bottom **Terminal** for an interactive shell in the project folder.
 6. Open **Reports** for history and HTML output; use **Source Control** if the project is a Git repo.
@@ -230,6 +230,8 @@ robot-studio/
 | `/workspace/events` | Live FS / index / git / environment WebSocket fan-out |
 | `/reports` | Runs, dashboard, artifacts |
 | `/index`, `/search` | Rebuild, status, symbol search |
+| `/analysis` | Semantic engine + Inspection Engine (`Finding`s); graph queries under `/analysis/graph/*`; execution knowledge under `/analysis/execution/*` |
+| `/doctor` | Robot Doctor Project Health Center (`profiles`, `run`, `report/{id}`, `history`) |
 | `/language` | Definition, hover, references, completion, diagnostics |
 | `/files` | Read/write, tree listing (lazy `depth=0` + `has_children`, workspace-scoped) |
 | `/git` | Status, stage, commit, branches, history, remotes |
@@ -257,6 +259,9 @@ Focused examples:
 
 ```bash
 pytest tests/test_workspace_api.py tests/test_indexing.py -q
+pytest tests/test_analysis_engine.py -q
+pytest tests/test_execution_knowledge.py -q
+pytest tests/test_doctor.py -q
 pytest tests/test_execution_api.py tests/test_git_api.py -q
 ```
 
@@ -303,6 +308,8 @@ Core IDE milestones through execution, reports, indexing, language features, Git
 | **M4** | Environment manager | Done |
 | **M5** | Package manager | Done |
 | **M6** | Indexing + language service (completion, hover, …) | Done |
+| **M6.5** | Robot Analysis Engine (semantic graphs + `/analysis` APIs) | Done (infrastructure) |
+| **M6.6** | Robot Doctor (Project Health Center + `/doctor` APIs + UI) | Done |
 | **M7** | Test execution + WebSocket logs | Done |
 | **M8** | Reports | Done |
 | **M9+** | Settings / AI / packaging polish | Partial (Settings hidden until implemented; AI deferred; bundled backend auto-start deferred to end) |
@@ -340,6 +347,7 @@ After feature or UX implementations, update **all three** READMEs when behavior,
 | Run disabled / guidance dialog | Select a project (and activate an environment) — Run stays gated until prerequisites exist |
 | Run fails on missing library | Install via Package Manager (or use the post-run Install snackbar for known libraries) |
 | Git Fetch/Pull/Push hidden | The project is not a Git repository (the toolbar ⋯ menu only appears for repos) |
+| Project/workspace folder deleted in Finder | Within ~2s the app shows a **no longer exists** dialog (Dismiss / Locate / Close). Saving into a deleted root is refused rather than silently recreating the folder — restore it from Trash, or close and reopen |
 | Terminal shows `[process exited with code 255]` | The macOS app was built with App Sandbox on, which blocks spawning a shell. `macos/Runner/*.entitlements` must not set `com.apple.security.app-sandbox`; then do a full `flutter run` (hot reload does not re-sign the app) |
 | Integration tests can’t start Python (macOS) | Use `./scripts/run_integration_tests.sh` so the backend is started outside the app sandbox |
 

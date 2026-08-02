@@ -16,6 +16,7 @@ import '../environment/delete_environment_dialog.dart';
 import '../environment/environment_details_panel.dart';
 import '../environment/environment_manager_page.dart';
 import '../environment/import_environment_dialog.dart';
+import '../environment/python_install_guidance.dart';
 import '../editor/editor_page.dart';
 import '../editor/editor_tabs_bar.dart';
 import '../execution/execution_page.dart';
@@ -32,6 +33,7 @@ import '../plugins/plugin_manager_page.dart';
 import '../project/import_project_dialog.dart';
 import '../project/new_project_dialog.dart';
 import '../project/project_details_panel.dart';
+import '../doctor/doctor_page.dart';
 import '../reports/delete_run_dialog.dart';
 import '../reports/reports_page.dart';
 import '../search/command_palette.dart';
@@ -39,6 +41,7 @@ import '../search/search_page.dart';
 import '../sidebar/app_sidebar.dart';
 import '../sidebar/sidebar_panel.dart';
 import '../toolbar/app_toolbar.dart';
+import 'app_menu_bar.dart';
 import 'shell_shortcuts.dart';
 import '../widgets/side_panel_resize_handle.dart';
 import '../widgets/environment_prompt_toast.dart';
@@ -67,6 +70,7 @@ enum _CenterView {
   packageDetail,
   execution,
   reports,
+  doctor,
   search,
   editor,
 }
@@ -98,6 +102,8 @@ class _AppShellState extends State<AppShell> {
   bool _missingWorkspaceDialogOpen = false;
   final GlobalKey<VirtualFileTreeState> _fileTreeKey =
       GlobalKey<VirtualFileTreeState>();
+  final GlobalKey<EditorPageState> _editorPageKey =
+      GlobalKey<EditorPageState>();
 
   void _notify() {
     if (mounted) setState(() {});
@@ -146,6 +152,7 @@ class _AppShellState extends State<AppShell> {
   bool _sidePanelCollapsed = false;
   final List<String> _recentlyClosedPaths = [];
   bool _showReportsPage = false;
+  bool _showDoctorPage = false;
   String _searchQuery = '';
   SymbolKind? _searchKind;
   List<IndexedSymbolInfo> _searchResults = [];
@@ -499,6 +506,7 @@ class _AppShellState extends State<AppShell> {
       _showPluginManager = true;
       _showSourceControl = false;
       _showReportsPage = false;
+      _showDoctorPage = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
       _showSearchPage = false;
@@ -611,6 +619,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _showSourceControl = true;
       _showReportsPage = false;
+      _showDoctorPage = false;
       _showPluginManager = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
@@ -830,6 +839,7 @@ class _AppShellState extends State<AppShell> {
     }
     setState(() {
       _showReportsPage = true;
+      _showDoctorPage = false;
       _showSourceControl = false;
       _showPluginManager = false;
       _showPackageManager = false;
@@ -848,10 +858,34 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Future<void> _openDoctor() async {
+    if (!await _ensureWorkspace(
+      message: 'Open a project before running Robot Doctor.',
+    )) {
+      return;
+    }
+    setState(() {
+      _showDoctorPage = true;
+      _showReportsPage = false;
+      _showSourceControl = false;
+      _showPluginManager = false;
+      _showPackageManager = false;
+      _showEnvironmentManager = false;
+      _showSearchPage = false;
+      _showEditorPage = false;
+      _selectedEnvironment = null;
+      _selectedPackage = null;
+      _execution.selectedReport = null;
+      _activePanel = SidebarPanel.doctor;
+      _clearExecutionPageUnlessTests();
+    });
+  }
+
   Future<void> _selectReport(ExecutionInfo run) async {
     setState(() {
       _execution.selectedReport = run;
       _showReportsPage = true;
+      _showDoctorPage = false;
       _showSourceControl = false;
       _showPluginManager = false;
       _showPackageManager = false;
@@ -1103,7 +1137,7 @@ class _AppShellState extends State<AppShell> {
         setState(() => _activePanel = SidebarPanel.explorer);
       },
       secondaryLabel: 'New Project…',
-      onSecondary: () => unawaited(_handleNewProject()),
+      onSecondary: () => unawaited(_handleNewStandaloneProject()),
     );
     return false;
   }
@@ -1111,7 +1145,21 @@ class _AppShellState extends State<AppShell> {
   Future<bool> _ensureEnvironment({
     String message = 'Activate a Python environment before running tests.',
   }) async {
-    if (_activeEnvironment != null) return true;
+    final env = _activeEnvironment;
+    if (env != null && env.available) return true;
+    if (env != null && !env.available) {
+      if (!mounted) return false;
+      await showGuidanceDialog(
+        context: context,
+        title: 'Environment missing on disk',
+        message:
+            'The active environment "${env.name}" is no longer available. '
+            'Recreate it or select another environment before running tests.',
+        primaryLabel: 'Manage Environments…',
+        onPrimary: () => unawaited(_handleManageEnvironments()),
+      );
+      return false;
+    }
     if (_workspace.activeWorkspace == null) {
       return _ensureWorkspace(
         message: 'Open a project, then activate an environment to continue.',
@@ -1241,6 +1289,7 @@ class _AppShellState extends State<AppShell> {
       _showEnvironmentManager = false;
       _showPackageManager = false;
       _showReportsPage = false;
+      _showDoctorPage = false;
       _showSearchPage = false;
       _execution.selectedReport = null;
       _execution.reportRuns = [];
@@ -1306,19 +1355,32 @@ class _AppShellState extends State<AppShell> {
     }());
   }
 
+  /// Folder to prefill as the parent for a new project: sibling of whatever is
+  /// currently open, else the user's home directory.
+  String? _defaultNewProjectLocation() {
+    final current = _selectedProject?.path ?? _activeWorkspace?.path;
+    if (current != null && current.isNotEmpty) {
+      return ExplorerFileActions.parentPath(current);
+    }
+    final home =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+    return (home == null || home.isEmpty) ? null : home;
+  }
+
   Future<void> _handleNewStandaloneProject() async {
-    final location = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'Choose parent folder for New Project',
+    // Ask for name + location in one dialog. Opening a bare folder picker first
+    // read as "open an existing project" instead of creating a new one.
+    final created = await showNewStandaloneProjectDialog(
+      context,
+      initialLocation: _defaultNewProjectLocation(),
     );
-    if (location == null) return;
-    final name = await showNewProjectDialog(context);
-    if (name == null) return;
+    if (created == null) return;
     if (_busy) return;
     setState(() => _busy = true);
     try {
       final opened = await _gateway.createStandaloneProject(
-        name: name,
-        location: location,
+        name: created.name,
+        location: created.location,
       );
       if (!mounted) return;
       await _applyOpenedWorkspace(
@@ -1335,6 +1397,12 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  /// Adds a project to a classic multi-project container and opens it.
+  ///
+  /// Only reachable from the explicit "New Project in Workspace" command —
+  /// every other New Project affordance creates a standalone project, because
+  /// creating one while a project was open used to nest it in the current
+  /// workspace and leave the Explorer on the old tree.
   Future<void> _handleNewProject() async {
     if (!await _ensureWorkspace(
       message: 'Open a workspace to add another project to it.',
@@ -1373,6 +1441,60 @@ class _AppShellState extends State<AppShell> {
       return;
     }
 
+    // Probe host Python before offering Create — otherwise users hit a dead end
+    // on machines with no interpreter installed.
+    late final bool hasPython;
+    try {
+      final interpreters = await _gateway.listPythonInterpreters();
+      hasPython = interpreters.isNotEmpty;
+    } catch (_) {
+      // Discovery failed (offline, 5xx, …) — do not pretend Python exists.
+      if (!mounted) return;
+      setState(() {
+        _envPromptTitle = 'Could not detect Python';
+        _envPromptMessage =
+            'Robot Studio could not list Python interpreters. Install Python 3 '
+            'if needed, start the backend if it is offline, then try creating '
+            'an environment.';
+        _envPromptActions = [
+          EnvironmentPromptAction(
+            label: 'How to Install',
+            primary: true,
+            onPressed: () => unawaited(_showNoPythonInstallGuide()),
+          ),
+          EnvironmentPromptAction(
+            label: 'Create Environment',
+            onPressed: () => unawaited(_createDefaultEnvironmentInBackground()),
+          ),
+          EnvironmentPromptAction(
+            label: 'Select Existing…',
+            onPressed: () => unawaited(_selectExistingEnvironment()),
+          ),
+        ];
+      });
+      return;
+    }
+    if (!mounted) return;
+
+    if (!hasPython) {
+      setState(() {
+        _envPromptTitle = PythonInstallGuidance.toastTitle;
+        _envPromptMessage = PythonInstallGuidance.toastMessage;
+        _envPromptActions = [
+          EnvironmentPromptAction(
+            label: 'How to Install',
+            primary: true,
+            onPressed: () => unawaited(_showNoPythonInstallGuide()),
+          ),
+          EnvironmentPromptAction(
+            label: 'Select Existing…',
+            onPressed: () => unawaited(_selectExistingEnvironment()),
+          ),
+        ];
+      });
+      return;
+    }
+
     setState(() {
       _envPromptTitle = 'Python environment required';
       _envPromptMessage =
@@ -1390,6 +1512,20 @@ class _AppShellState extends State<AppShell> {
         ),
       ];
     });
+  }
+
+  Future<void> _showNoPythonInstallGuide() async {
+    if (!mounted) return;
+    await showGuidanceDialog(
+      context: context,
+      title: 'Install Python 3',
+      message: PythonInstallGuidance.detailedInstructions,
+      primaryLabel: "I've Installed Python",
+      onPrimary: () => unawaited(_createDefaultEnvironmentInBackground()),
+      secondaryLabel: 'Select Existing…',
+      onSecondary: () => unawaited(_selectExistingEnvironment()),
+      dismissLabel: 'Close',
+    );
   }
 
   void _dismissEnvironmentPrompt() {
@@ -1419,20 +1555,27 @@ class _AppShellState extends State<AppShell> {
     try {
       final interpreters = await _gateway.listPythonInterpreters();
       if (interpreters.isEmpty) {
-        throw Exception('No Python interpreter found on this machine.');
+        if (!mounted) return;
+        await _showNoPythonInstallGuide();
+        return;
       }
       await _gateway.createEnvironment(
         name: 'default',
         pythonInterpreter: interpreters.first.path,
-        installRobotFramework: false,
+        // Match Create Environment dialog default (Robot Framework on).
+        installRobotFramework: true,
       );
       await _loadEnvironments();
+      _dismissEnvironmentPrompt();
       _appendLog('[info] Environment "default" is ready');
     } catch (error) {
       _appendLog('[error] $error');
-      if (mounted) {
-        await _showError('Could not create environment', error);
+      if (!mounted) return;
+      if (PythonInstallGuidance.matchesError(error)) {
+        await _showNoPythonInstallGuide();
+        return;
       }
+      await _showError('Could not create environment', error);
     }
   }
 
@@ -1531,6 +1674,7 @@ class _AppShellState extends State<AppShell> {
       _clearExecutionPageUnlessTests();
       _showEditorPage = false;
       _showReportsPage = false;
+      _showDoctorPage = false;
       _showSourceControl = false;
       _showPluginManager = false;
       _showPackageManager = false;
@@ -1602,6 +1746,7 @@ class _AppShellState extends State<AppShell> {
       _showSourceControl = false;
       _showPluginManager = false;
       _showReportsPage = false;
+      _showDoctorPage = false;
       _showEnvironmentManager = false;
       _showSearchPage = false;
       _showEditorPage = false;
@@ -2318,8 +2463,7 @@ class _AppShellState extends State<AppShell> {
   Future<void> _closeTabsToTheRight(String path) async {
     final index = _editorTabs.indexWhere((tab) => tab.path == path);
     if (index < 0) return;
-    final paths =
-        _editorTabs.skip(index + 1).map((tab) => tab.path).toList();
+    final paths = _editorTabs.skip(index + 1).map((tab) => tab.path).toList();
     await _closeTabsByPaths(paths);
   }
 
@@ -2341,9 +2485,9 @@ class _AppShellState extends State<AppShell> {
       case EditorTabContextAction.revealInOs:
         await _revealPathInOs(path);
       case EditorTabContextAction.copyRelativePath:
-        await _copyRelativePath(path);
+        await _copyRelativePath([path]);
       case EditorTabContextAction.copyAbsolutePath:
-        await _copyAbsolutePath(path);
+        await _copyAbsolutePath([path]);
     }
   }
 
@@ -2706,6 +2850,7 @@ class _AppShellState extends State<AppShell> {
       _showEnvironmentManager = false;
       _showPackageManager = false;
       _showReportsPage = false;
+      _showDoctorPage = false;
       _showSearchPage = false;
       _showEditorPage = false;
       _showSourceControl = false;
@@ -2945,6 +3090,41 @@ class _AppShellState extends State<AppShell> {
     setState(() => _revealProblemsToken++);
   }
 
+  void _showSidebarPanel(SidebarPanel panel) {
+    setState(() {
+      _activePanel = panel;
+      _sidePanelCollapsed = false;
+      if (panel == SidebarPanel.tests) {
+        _showExecutionPage = true;
+      } else if (panel == SidebarPanel.search) {
+        _showSearchPage = true;
+      } else if (panel == SidebarPanel.sourceControl) {
+        _showSourceControl = true;
+        unawaited(_refreshGit());
+      } else if (panel == SidebarPanel.reports) {
+        _showReportsPage = true;
+        _showDoctorPage = false;
+        unawaited(_loadReports());
+      } else if (panel == SidebarPanel.doctor) {
+        _showDoctorPage = true;
+        _showReportsPage = false;
+      } else if (panel == SidebarPanel.explorer) {
+        _showExecutionPage = false;
+        _showSearchPage = false;
+        _showSourceControl = false;
+        _showReportsPage = false;
+        _showDoctorPage = false;
+        _showPackageManager = false;
+        _showPluginManager = false;
+        _showEnvironmentManager = false;
+      }
+    });
+  }
+
+  void _menuFind({bool replace = false}) {
+    _editorPageKey.currentState?.showFind(replace: replace);
+  }
+
   Future<void> _saveActive() async {
     final path = _activeEditorPath;
     if (path == null) return;
@@ -3126,29 +3306,43 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Future<void> _copyAbsolutePath(String path) async {
-    await Clipboard.setData(ClipboardData(text: path));
+  Future<void> _copyAbsolutePath(List<String> paths) async {
+    if (paths.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: paths.join('\n')));
     if (!mounted) return;
     setState(() {
-      _editor.setStatusMessage('Copied absolute path');
+      _editor.setStatusMessage(
+        paths.length == 1
+            ? 'Copied absolute path'
+            : 'Copied ${paths.length} absolute paths',
+      );
     });
   }
 
-  Future<void> _copyRelativePath(String path) async {
+  Future<void> _copyRelativePath(List<String> paths) async {
+    if (paths.isEmpty) return;
     final root = (_selectedProject?.path ?? _activeWorkspace?.path ?? '')
         .replaceAll('\\', '/');
-    final normalized = path.replaceAll('\\', '/');
-    var relative = normalized;
-    if (root.isNotEmpty &&
-        (normalized == root || normalized.startsWith('$root/'))) {
-      relative = normalized == root
-          ? '.'
-          : normalized.substring(root.length + 1);
+    final relatives = <String>[];
+    for (final path in paths) {
+      final normalized = path.replaceAll('\\', '/');
+      var relative = normalized;
+      if (root.isNotEmpty &&
+          (normalized == root || normalized.startsWith('$root/'))) {
+        relative = normalized == root
+            ? '.'
+            : normalized.substring(root.length + 1);
+      }
+      relatives.add(relative);
     }
-    await Clipboard.setData(ClipboardData(text: relative));
+    await Clipboard.setData(ClipboardData(text: relatives.join('\n')));
     if (!mounted) return;
     setState(() {
-      _editor.setStatusMessage('Copied relative path');
+      _editor.setStatusMessage(
+        paths.length == 1
+            ? 'Copied relative path'
+            : 'Copied ${paths.length} relative paths',
+      );
     });
   }
 
@@ -3191,14 +3385,21 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Future<void> _explorerDeleteEntry(String path) async {
-    final name = ExplorerFileActions.basename(path);
+  Future<void> _explorerDeleteEntry(List<String> paths) async {
+    final targets = ExplorerFileActions.pruneNestedPaths(paths);
+    if (targets.isEmpty) return;
+    final title = targets.length == 1
+        ? 'Delete ${ExplorerFileActions.basename(targets.first)}?'
+        : 'Delete ${targets.length} items?';
+    final content = targets.length == 1
+        ? 'This action cannot be undone.'
+        : 'These ${targets.length} items will be permanently deleted.';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         key: const Key('explorer-delete-dialog'),
-        title: Text('Delete $name?'),
-        content: const Text('This action cannot be undone.'),
+        title: Text(title),
+        content: Text(content),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -3213,13 +3414,30 @@ class _AppShellState extends State<AppShell> {
       ),
     );
     if (confirmed != true) return;
-    try {
-      await _gateway.deletePath(path: path);
-      await _closeTabsUnder(path);
-      _editor.removePathFromTree(path);
-      await _editor.refreshParentOf(path);
-    } catch (error) {
-      await _showError('Delete', error);
+
+    Object? firstError;
+    var deleted = 0;
+    for (final path in targets) {
+      try {
+        await _gateway.deletePath(path: path);
+        await _closeTabsUnder(path);
+        _editor.removePathFromTree(path);
+        await _editor.refreshParentOf(path);
+        deleted += 1;
+      } catch (error) {
+        firstError ??= error;
+      }
+    }
+    if (!mounted) return;
+    if (deleted > 0) {
+      setState(() {
+        _editor.setStatusMessage(
+          deleted == 1 ? 'Deleted 1 item' : 'Deleted $deleted items',
+        );
+      });
+    }
+    if (firstError != null) {
+      await _showError('Delete', firstError);
     }
   }
 
@@ -3281,61 +3499,78 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _explorerMoveEntry({
-    required String sourcePath,
+    required List<String> sourcePaths,
     required String destinationParentPath,
   }) async {
-    try {
-      final result = await _gateway.movePath(
-        path: sourcePath,
-        destinationDir: destinationParentPath,
-      );
-      _editor.removePathFromTree(sourcePath);
-      final root = (_selectedProject?.path ?? _activeWorkspace?.path ?? '')
-          .replaceAll('\\', '/');
-      final destNorm = destinationParentPath.replaceAll('\\', '/');
-      final destIsRoot = root.isNotEmpty && destNorm == root;
-      if (!destIsRoot) {
-        await _editor.ensureExpanded(destinationParentPath);
-      }
-      await _editor.refreshParentOf(sourcePath);
-      await _editor.refreshParentOf(result.path);
-      // Keep open tabs pointing at the new path.
-      final normalized = sourcePath.replaceAll('\\', '/');
-      final movedTabs = <int>[];
-      for (var i = 0; i < _editorTabs.length; i++) {
-        final tabPath = _editorTabs[i].path.replaceAll('\\', '/');
-        if (tabPath == normalized || tabPath.startsWith('$normalized/')) {
-          movedTabs.add(i);
+    final sources = ExplorerFileActions.pruneNestedPaths(sourcePaths);
+    if (sources.isEmpty) return;
+
+    Object? firstError;
+    var moved = 0;
+    for (final sourcePath in sources) {
+      try {
+        final result = await _gateway.movePath(
+          path: sourcePath,
+          destinationDir: destinationParentPath,
+        );
+        _editor.removePathFromTree(sourcePath);
+        final root = (_selectedProject?.path ?? _activeWorkspace?.path ?? '')
+            .replaceAll('\\', '/');
+        final destNorm = destinationParentPath.replaceAll('\\', '/');
+        final destIsRoot = root.isNotEmpty && destNorm == root;
+        if (!destIsRoot) {
+          await _editor.ensureExpanded(destinationParentPath);
         }
-      }
-      if (movedTabs.isNotEmpty) {
-        setState(() {
-          final next = [..._editorTabs];
-          for (final i in movedTabs) {
-            final tab = next[i];
-            final oldPath = tab.path;
-            final tabPath = oldPath.replaceAll('\\', '/');
-            final suffix = tabPath == normalized
-                ? ''
-                : tabPath.substring(normalized.length);
-            final newPath = '${result.path.replaceAll('\\', '/')}$suffix';
-            next[i] = EditorTabInfo(
-              path: newPath,
-              content: tab.content,
-              savedContent: tab.savedContent,
-              mtime: tab.mtime,
-              cursorLine: tab.cursorLine,
-              cursorColumn: tab.cursorColumn,
-            );
-            if (_editor.activePath == oldPath) {
-              _editor.activePath = newPath;
-            }
+        await _editor.refreshParentOf(sourcePath);
+        await _editor.refreshParentOf(result.path);
+        // Keep open tabs pointing at the new path.
+        final normalized = sourcePath.replaceAll('\\', '/');
+        final movedTabs = <int>[];
+        for (var i = 0; i < _editorTabs.length; i++) {
+          final tabPath = _editorTabs[i].path.replaceAll('\\', '/');
+          if (tabPath == normalized || tabPath.startsWith('$normalized/')) {
+            movedTabs.add(i);
           }
-          _editor.tabs = next;
-        });
+        }
+        if (movedTabs.isNotEmpty) {
+          setState(() {
+            final next = [..._editorTabs];
+            for (final i in movedTabs) {
+              final tab = next[i];
+              final oldPath = tab.path;
+              final tabPath = oldPath.replaceAll('\\', '/');
+              final suffix = tabPath == normalized
+                  ? ''
+                  : tabPath.substring(normalized.length);
+              final newPath = '${result.path.replaceAll('\\', '/')}$suffix';
+              next[i] = EditorTabInfo(
+                path: newPath,
+                content: tab.content,
+                savedContent: tab.savedContent,
+                mtime: tab.mtime,
+                cursorLine: tab.cursorLine,
+                cursorColumn: tab.cursorColumn,
+              );
+              if (_editor.activePath == oldPath) {
+                _editor.activePath = newPath;
+              }
+            }
+            _editor.tabs = next;
+          });
+        }
+        moved += 1;
+      } catch (error) {
+        firstError ??= error;
       }
-    } catch (error) {
-      await _showError('Move', error);
+    }
+    if (!mounted) return;
+    if (moved > 1) {
+      setState(() {
+        _editor.setStatusMessage('Moved $moved items');
+      });
+    }
+    if (firstError != null) {
+      await _showError('Move', firstError);
     }
   }
 
@@ -3364,6 +3599,7 @@ class _AppShellState extends State<AppShell> {
       _showEnvironmentManager = false;
       _showPackageManager = false;
       _showReportsPage = false;
+      _showDoctorPage = false;
       _showExecutionPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -3391,7 +3627,7 @@ class _AppShellState extends State<AppShell> {
   List<PaletteItem> _paletteCommands() {
     final hasWorkspace = _activeWorkspace != null;
     final hasProject = _selectedProject != null;
-    final hasEnv = _activeEnvironment != null;
+    final hasEnv = _activeEnvironment != null && _activeEnvironment!.available;
     final hasEditor = _activeEditorPath != null;
 
     return [
@@ -3481,6 +3717,14 @@ class _AppShellState extends State<AppShell> {
           onSelect: () => unawaited(_openReports()),
         ),
         PaletteItem(
+          id: 'doctor.open',
+          title: 'Open Robot Doctor',
+          icon: Icons.health_and_safety_outlined,
+          kind: PaletteItemKind.command,
+          keywords: const ['health', 'findings', 'inspect'],
+          onSelect: () => unawaited(_openDoctor()),
+        ),
+        PaletteItem(
           id: 'search.symbols',
           title: 'Search Symbols',
           subtitle: 'Open the full search page',
@@ -3554,6 +3798,65 @@ class _AppShellState extends State<AppShell> {
           icon: Icons.format_align_left,
           kind: PaletteItemKind.command,
           onSelect: () => unawaited(_editorFormatDocument()),
+        ),
+        PaletteItem(
+          id: 'editor.formatSelection',
+          title: 'Format Selection',
+          icon: Icons.format_indent_increase,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_editorFormatSelection()),
+        ),
+        PaletteItem(
+          id: 'editor.find',
+          title: 'Find',
+          subtitle: ShellShortcutActivators.label('⌘F', 'Ctrl+F'),
+          icon: Icons.search,
+          kind: PaletteItemKind.command,
+          onSelect: () => _menuFind(),
+        ),
+        PaletteItem(
+          id: 'editor.replace',
+          title: 'Replace',
+          subtitle: ShellShortcutActivators.label('⌘H', 'Ctrl+H'),
+          icon: Icons.find_replace,
+          kind: PaletteItemKind.command,
+          onSelect: () => _menuFind(replace: true),
+        ),
+        PaletteItem(
+          id: 'editor.wordWrap',
+          title: _wordWrap ? 'Disable Word Wrap' : 'Enable Word Wrap',
+          icon: Icons.wrap_text,
+          kind: PaletteItemKind.command,
+          onSelect: () => setState(() => _editor.wordWrap = !_editor.wordWrap),
+        ),
+        PaletteItem(
+          id: 'editor.definition',
+          title: 'Go to Definition',
+          subtitle: 'F12',
+          icon: Icons.subdirectory_arrow_right,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_editorGoToDefinition()),
+        ),
+        PaletteItem(
+          id: 'editor.peek',
+          title: 'Peek Definition',
+          icon: Icons.visibility_outlined,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_editorPeekDefinition()),
+        ),
+        PaletteItem(
+          id: 'editor.references',
+          title: 'Find References',
+          icon: Icons.link,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_editorFindReferences()),
+        ),
+        PaletteItem(
+          id: 'editor.hover',
+          title: 'Show Hover Info',
+          icon: Icons.info_outline,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_editorHoverLookup()),
         ),
         PaletteItem(
           id: 'editor.problems',
@@ -3884,6 +4187,9 @@ class _AppShellState extends State<AppShell> {
     if (_showReportsPage || _activePanel == SidebarPanel.reports) {
       return _CenterView.reports;
     }
+    if (_showDoctorPage || _activePanel == SidebarPanel.doctor) {
+      return _CenterView.doctor;
+    }
     if (_selectedEnvironment != null) return _CenterView.environment;
     if (_selectedProject != null) return _CenterView.project;
     return _CenterView.placeholder;
@@ -3894,351 +4200,410 @@ class _AppShellState extends State<AppShell> {
     final connected = _workspace.backendStatus == 'connected';
     final activeEnvironment = _activeEnvironment;
 
-    return Shortcuts(
-      shortcuts: ShellShortcutActivators.map,
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          OpenCommandPaletteIntent:
-              CallbackAction<OpenCommandPaletteIntent>(
-            onInvoke: (_) {
-              unawaited(_openCommandPalette());
-              return null;
-            },
-          ),
-          QuickOpenIntent: CallbackAction<QuickOpenIntent>(
-            onInvoke: (_) {
-              unawaited(_openCommandPalette());
-              return null;
-            },
-          ),
-          SaveFileIntent: CallbackAction<SaveFileIntent>(
-            onInvoke: (_) {
-              unawaited(_saveActive());
-              return null;
-            },
-          ),
-          SaveAllFilesIntent: CallbackAction<SaveAllFilesIntent>(
-            onInvoke: (_) {
-              unawaited(_saveAll());
-              return null;
-            },
-          ),
-          CloseActiveTabIntent: CallbackAction<CloseActiveTabIntent>(
-            onInvoke: (_) {
-              unawaited(_closeActiveTab());
-              return null;
-            },
-          ),
-          ReopenClosedTabIntent: CallbackAction<ReopenClosedTabIntent>(
-            onInvoke: (_) {
-              unawaited(_reopenClosedTab());
-              return null;
-            },
-          ),
-          NextEditorTabIntent: CallbackAction<NextEditorTabIntent>(
-            onInvoke: (_) {
-              _cycleEditorTab(forward: true);
-              return null;
-            },
-          ),
-          PreviousEditorTabIntent: CallbackAction<PreviousEditorTabIntent>(
-            onInvoke: (_) {
-              _cycleEditorTab(forward: false);
-              return null;
-            },
-          ),
-          ToggleSidebarIntent: CallbackAction<ToggleSidebarIntent>(
-            onInvoke: (_) {
-              _toggleSidebar();
-              return null;
-            },
-          ),
-          ToggleTerminalIntent: CallbackAction<ToggleTerminalIntent>(
-            onInvoke: (_) {
-              _toggleTerminal();
-              return null;
-            },
-          ),
-          FindInProjectIntent: CallbackAction<FindInProjectIntent>(
-            onInvoke: (_) {
-              _openProjectSearch();
-              return null;
-            },
-          ),
-          FormatDocumentIntent: CallbackAction<FormatDocumentIntent>(
-            onInvoke: (_) {
-              unawaited(_editorFormatDocument());
-              return null;
-            },
-          ),
-          ShowProblemsIntent: CallbackAction<ShowProblemsIntent>(
-            onInvoke: (_) {
-              _revealProblemsPanel();
-              return null;
-            },
-          ),
-        },
-        child: Focus(
-          autofocus: true,
-          child: Scaffold(
-            backgroundColor: AppColors.background,
-            body: Stack(
-              children: [
-                Column(
-                  children: [
-                    AppToolbar(
-                      projectLabel: _chromeContextLabel,
-                      environmentLabel:
-                          activeEnvironment?.name ?? 'No environment',
-                      environmentNames: _environments
-                          .map((item) => item.name)
-                          .toList(),
-                      selectedEnvironmentName: activeEnvironment?.name,
-                      environmentBroken: activeEnvironment?.available == false,
-                      onEnvironmentSelected: _handleActivateByName,
-                      onManageEnvironments: _handleManageEnvironments,
-                      backendConnected: connected,
-                      onRun: _handleRunFile,
-                      onRunProject: _handleRunProject,
-                      onStop: _handleStopExecution,
-                      isExecutionRunning: _executionStatus.isActive,
-                      executionStatusLabel: _executionStatus.label,
-                      executionElapsedLabel: _elapsedLabel,
-                      onExecutionStatusTap: _revealTests,
-                      canRun: _selectedProject != null,
-                      canRunProject: _selectedProject != null,
-                      onOpenWorkspace: _handleOpenWorkspace,
-                      onOpenProject: _handleOpenProject,
-                      onNewWorkspace: _handleNewWorkspace,
-                      onOpenSearch: () => unawaited(_openCommandPalette()),
-                      gitBranchLabel: _gitStatus?.repository.branch,
-                      gitBranches: _gitBranchNames,
-                      onGitBranchSelected: _handleGitCheckout,
-                      onGitCreateBranch: _handleGitCreateBranch,
-                      onGitDeleteBranch: _handleGitDeleteBranch,
-                      onGitFetch: () =>
-                          _handleGitRemote('fetch', _gateway.fetchGit),
-                      onGitPull: () =>
-                          _handleGitRemote('pull', _gateway.pullGit),
-                      onGitPush: () =>
-                          _handleGitRemote('push', _gateway.pushGit),
-                      showGitRemoteActions:
-                          _gitStatus?.repository.isRepository == true,
-                    ),
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          AppSidebar(
-                            activePanel: _activePanel,
-                            onPanelSelected: (panel) {
-                              setState(() {
-                                _activePanel = panel;
-                                if (SidePanel.hasSideContent(panel)) {
-                                  _sidePanelCollapsed = false;
-                                }
-                                if (panel == SidebarPanel.tests) {
-                                  _showExecutionPage = true;
-                                  _showEditorPage = false;
-                                } else {
-                                  _showExecutionPage = false;
-                                }
-                                if (panel == SidebarPanel.search) {
-                                  _showSearchPage = true;
-                                  _showEditorPage = false;
-                                  _showEnvironmentManager = false;
-                                  _showPackageManager = false;
-                                  _showPluginManager = false;
-                                  _showSourceControl = false;
-                                  _showReportsPage = false;
-                                  _selectedEnvironment = null;
-                                  _selectedPackage = null;
-                                  _execution.selectedReport = null;
-                                } else {
-                                  _showSearchPage = false;
-                                  if (panel == SidebarPanel.explorer) {
+    return RobotStudioMenuBar(
+      actions: AppMenuBarActions(
+        hasActiveFile: _activeEditorPath != null,
+        hasOpenTabs: _editorTabs.isNotEmpty,
+        hasWorkspace: _activeWorkspace != null,
+        wordWrap: _wordWrap,
+        canStop: _executionStatus.isActive,
+        onNewProject: () => unawaited(_handleNewStandaloneProject()),
+        onOpenProject: () => unawaited(_handleOpenProject()),
+        onOpenWorkspace: () => unawaited(_handleOpenWorkspace()),
+        onSave: () => unawaited(_saveActive()),
+        onSaveAll: () => unawaited(_saveAll()),
+        onCloseEditor: () => unawaited(_closeActiveTab()),
+        onReopenClosedEditor: () => unawaited(_reopenClosedTab()),
+        onRevealInFolder: () => unawaited(_revealCurrentFile()),
+        onFind: () => _menuFind(),
+        onReplace: () => _menuFind(replace: true),
+        onFindInProject: _openProjectSearch,
+        onFormatDocument: () => unawaited(_editorFormatDocument()),
+        onFormatSelection: () => unawaited(_editorFormatSelection()),
+        onToggleWordWrap: () =>
+            setState(() => _editor.wordWrap = !_editor.wordWrap),
+        onCommandPalette: () => unawaited(_openCommandPalette()),
+        onQuickOpen: () => unawaited(_openCommandPalette()),
+        onToggleSidebar: _toggleSidebar,
+        onToggleTerminal: _toggleTerminal,
+        onShowProblems: _revealProblemsPanel,
+        onShowExplorer: () => _showSidebarPanel(SidebarPanel.explorer),
+        onShowSearch: () => _showSidebarPanel(SidebarPanel.search),
+        onShowSourceControl: () => unawaited(_handleOpenSourceControl()),
+        onShowTests: () => unawaited(_revealTests()),
+        onShowReports: () => unawaited(_openReports()),
+        onShowDoctor: () => unawaited(_openDoctor()),
+        onGoToDefinition: () => unawaited(_editorGoToDefinition()),
+        onPeekDefinition: () => unawaited(_editorPeekDefinition()),
+        onFindReferences: () => unawaited(_editorFindReferences()),
+        onGoToSymbolInFile: () => unawaited(_editorOpenSymbol()),
+        onFindSymbolInProject: () => unawaited(_editorWorkspaceSymbol()),
+        onShowHover: () => unawaited(_editorHoverLookup()),
+        onRunFile: () => unawaited(_handleRunFile()),
+        onRunProject: () => unawaited(_handleRunProject()),
+        onStop: () => unawaited(_handleStopExecution()),
+      ),
+      child: Shortcuts(
+        shortcuts: ShellShortcutActivators.flutterShortcuts,
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            OpenCommandPaletteIntent: CallbackAction<OpenCommandPaletteIntent>(
+              onInvoke: (_) {
+                unawaited(_openCommandPalette());
+                return null;
+              },
+            ),
+            QuickOpenIntent: CallbackAction<QuickOpenIntent>(
+              onInvoke: (_) {
+                unawaited(_openCommandPalette());
+                return null;
+              },
+            ),
+            SaveFileIntent: CallbackAction<SaveFileIntent>(
+              onInvoke: (_) {
+                unawaited(_saveActive());
+                return null;
+              },
+            ),
+            SaveAllFilesIntent: CallbackAction<SaveAllFilesIntent>(
+              onInvoke: (_) {
+                unawaited(_saveAll());
+                return null;
+              },
+            ),
+            CloseActiveTabIntent: CallbackAction<CloseActiveTabIntent>(
+              onInvoke: (_) {
+                unawaited(_closeActiveTab());
+                return null;
+              },
+            ),
+            ReopenClosedTabIntent: CallbackAction<ReopenClosedTabIntent>(
+              onInvoke: (_) {
+                unawaited(_reopenClosedTab());
+                return null;
+              },
+            ),
+            NextEditorTabIntent: CallbackAction<NextEditorTabIntent>(
+              onInvoke: (_) {
+                _cycleEditorTab(forward: true);
+                return null;
+              },
+            ),
+            PreviousEditorTabIntent: CallbackAction<PreviousEditorTabIntent>(
+              onInvoke: (_) {
+                _cycleEditorTab(forward: false);
+                return null;
+              },
+            ),
+            ToggleSidebarIntent: CallbackAction<ToggleSidebarIntent>(
+              onInvoke: (_) {
+                _toggleSidebar();
+                return null;
+              },
+            ),
+            ToggleTerminalIntent: CallbackAction<ToggleTerminalIntent>(
+              onInvoke: (_) {
+                _toggleTerminal();
+                return null;
+              },
+            ),
+            FindInProjectIntent: CallbackAction<FindInProjectIntent>(
+              onInvoke: (_) {
+                _openProjectSearch();
+                return null;
+              },
+            ),
+            FormatDocumentIntent: CallbackAction<FormatDocumentIntent>(
+              onInvoke: (_) {
+                unawaited(_editorFormatDocument());
+                return null;
+              },
+            ),
+            ShowProblemsIntent: CallbackAction<ShowProblemsIntent>(
+              onInvoke: (_) {
+                _revealProblemsPanel();
+                return null;
+              },
+            ),
+          },
+          child: Focus(
+            autofocus: true,
+            child: Scaffold(
+              backgroundColor: AppColors.background,
+              body: Stack(
+                children: [
+                  Column(
+                    children: [
+                      AppToolbar(
+                        projectLabel: _chromeContextLabel,
+                        environmentLabel:
+                            activeEnvironment?.name ?? 'No environment',
+                        environmentNames: _environments
+                            .map((item) => item.name)
+                            .toList(),
+                        selectedEnvironmentName: activeEnvironment?.name,
+                        environmentBroken:
+                            activeEnvironment?.available == false,
+                        onEnvironmentSelected: _handleActivateByName,
+                        onManageEnvironments: _handleManageEnvironments,
+                        backendConnected: connected,
+                        onRun: _handleRunFile,
+                        onRunProject: _handleRunProject,
+                        onStop: _handleStopExecution,
+                        isExecutionRunning: _executionStatus.isActive,
+                        executionStatusLabel: _executionStatus.label,
+                        executionElapsedLabel: _elapsedLabel,
+                        onExecutionStatusTap: _revealTests,
+                        canRun:
+                            _selectedProject != null &&
+                            (activeEnvironment == null ||
+                                activeEnvironment.available),
+                        canRunProject:
+                            _selectedProject != null &&
+                            (activeEnvironment == null ||
+                                activeEnvironment.available),
+                        onOpenWorkspace: _handleOpenWorkspace,
+                        onOpenProject: _handleOpenProject,
+                        onNewWorkspace: _handleNewWorkspace,
+                        onOpenSearch: () => unawaited(_openCommandPalette()),
+                        gitBranchLabel: _gitStatus?.repository.branch,
+                        gitBranches: _gitBranchNames,
+                        onGitBranchSelected: _handleGitCheckout,
+                        onGitCreateBranch: _handleGitCreateBranch,
+                        onGitDeleteBranch: _handleGitDeleteBranch,
+                        onGitFetch: () =>
+                            _handleGitRemote('fetch', _gateway.fetchGit),
+                        onGitPull: () =>
+                            _handleGitRemote('pull', _gateway.pullGit),
+                        onGitPush: () =>
+                            _handleGitRemote('push', _gateway.pushGit),
+                        showGitRemoteActions:
+                            _gitStatus?.repository.isRepository == true,
+                      ),
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            AppSidebar(
+                              activePanel: _activePanel,
+                              onPanelSelected: (panel) {
+                                setState(() {
+                                  _activePanel = panel;
+                                  if (SidePanel.hasSideContent(panel)) {
+                                    _sidePanelCollapsed = false;
+                                  }
+                                  if (panel == SidebarPanel.tests) {
+                                    _showExecutionPage = true;
+                                    _showEditorPage = false;
+                                  } else {
+                                    _showExecutionPage = false;
+                                  }
+                                  if (panel == SidebarPanel.search) {
+                                    _showSearchPage = true;
+                                    _showEditorPage = false;
                                     _showEnvironmentManager = false;
                                     _showPackageManager = false;
                                     _showPluginManager = false;
                                     _showSourceControl = false;
                                     _showReportsPage = false;
+                                    _showDoctorPage = false;
+                                    _selectedEnvironment = null;
                                     _selectedPackage = null;
                                     _execution.selectedReport = null;
-                                    if (_editorTabs.isNotEmpty &&
-                                        _activeEditorPath != null) {
-                                      _showEditorPage = true;
+                                  } else {
+                                    _showSearchPage = false;
+                                    if (panel == SidebarPanel.explorer) {
+                                      _showEnvironmentManager = false;
+                                      _showPackageManager = false;
+                                      _showPluginManager = false;
+                                      _showSourceControl = false;
+                                      _showReportsPage = false;
+                                      _showDoctorPage = false;
+                                      _selectedPackage = null;
+                                      _execution.selectedReport = null;
+                                      if (_editorTabs.isNotEmpty &&
+                                          _activeEditorPath != null) {
+                                        _showEditorPage = true;
+                                      }
+                                    } else if (panel == SidebarPanel.packages ||
+                                        panel == SidebarPanel.plugins ||
+                                        panel == SidebarPanel.reports ||
+                                        panel == SidebarPanel.doctor ||
+                                        panel == SidebarPanel.sourceControl) {
+                                      _showEditorPage = false;
                                     }
-                                  } else if (panel == SidebarPanel.packages ||
-                                      panel == SidebarPanel.plugins ||
-                                      panel == SidebarPanel.reports ||
-                                      panel == SidebarPanel.sourceControl) {
-                                    _showEditorPage = false;
                                   }
-                                }
-                              });
-                              if (panel == SidebarPanel.packages) {
-                                _handleOpenPackageManager();
-                              } else if (panel == SidebarPanel.plugins) {
-                                _handleOpenPluginManager();
-                              } else if (panel == SidebarPanel.sourceControl) {
-                                _handleOpenSourceControl();
-                              } else if (panel == SidebarPanel.reports) {
-                                _openReports();
-                              } else if (panel == SidebarPanel.tests) {
-                                _loadExecutionHistory();
-                                _loadTestSuites();
-                              } else if (panel == SidebarPanel.search) {
-                                _loadIndexStatus();
-                                unawaited(_runSearch());
-                              }
-                            },
-                          ),
-                          if (!_sidePanelCollapsed)
-                            SidePanel(
-                            panel: _activePanel,
-                            width: _sidePanelWidth,
-                            workspace: _activeWorkspace,
-                            projects: _projects,
-                            isLoadingProjects: _loadingProjects,
-                            selectedProject: _selectedProject,
-                            onSelectProject: _handleSelectProject,
-                            onNewProject: _handleNewProject,
-                            onImportProject: _handleImportProject,
-                            recentRuns: _reportRuns.take(8).toList(),
-                            onSelectReport: _selectReport,
-                            testSuites: _testSuites,
-                            onSelectTestSuite: (suite) {
-                              unawaited(
-                                _openFile(suite.filePath, line: suite.line),
-                              );
-                            },
-                            testTree: _testTree,
-                            isLoadingTestTree: _loadingTestTree,
-                            testFilter: _testFilter,
-                            onTestFilterChanged: _handleTestFilterChanged,
-                            onRefreshTests: () => unawaited(_loadTestTree()),
-                            onRunAllTests: () =>
-                                unawaited(_handleRunAllTests()),
-                            onRunCurrentFileTests: () =>
-                                unawaited(_handleRunCurrentFileTests()),
-                            onRunFailedTests: () =>
-                                unawaited(_handleRunFailedTests()),
-                            onRunTestNode: (node) =>
-                                unawaited(_handleRunTestNode(node)),
-                            onOpenTestNode: _handleOpenTestNode,
-                            onRevealTestNode: _handleRevealTestNode,
-                            currentEditorPath: _activeEditorPath,
-                            onOpenProject: _handleOpenProject,
-                            onRunProject: _selectedProject == null
-                                ? null
-                                : _handleRunProject,
-                            fileRows: _editor.visibleFileRows(),
-                            isLoadingFileTree: _editor.loadingFileTree,
-                            onOpenFile: _openFile,
-                            onToggleDirectory: (path) =>
-                                unawaited(_editor.toggleDirectory(path)),
-                            gitFileStatuses: _gitFileStatuses,
-                            fileTreeKey: _fileTreeKey,
-                            onEnsureExpanded: (path) =>
-                                _editor.ensureExpanded(path),
-                            onCreateEntry: _explorerCreateEntry,
-                            onRenameEntry: _explorerRenameEntry,
-                            onDeleteEntry: _explorerDeleteEntry,
-                            onDuplicateEntry: _explorerDuplicateEntry,
-                            onMoveEntry: _explorerMoveEntry,
-                            onCopyRelativePath: (path) =>
-                                unawaited(_copyRelativePath(path)),
-                            onCopyAbsolutePath: (path) =>
-                                unawaited(_copyAbsolutePath(path)),
-                            onRevealInOs: (path) =>
-                                unawaited(_revealPathInOs(path)),
-                            onCollapseAllFolders: () {
-                              _editor.collapseAllFolders();
-                            },
-                            outline: _documentOutline,
-                            isLoadingOutline: _loadingOutline,
-                            selectedOutlineId: _selectedOutlineSymbol?.id,
-                            onOutlineSelect: (symbol) {
-                              setState(() {
-                                _editor.selectedOutlineSymbol = symbol;
-                                _editor.jumpToLine = symbol.line;
-                                _showEditorPage = true;
-                              });
-                            },
-                          ),
-                          if (SidePanel.hasSideContent(_activePanel) &&
-                              !_sidePanelCollapsed)
-                            SidePanelResizeHandle(
-                              onDragDelta: (dx) {
-                                setState(() {
-                                  _sidePanelWidth =
-                                      (_sidePanelWidth + dx).clamp(
-                                    SidePanel.minWidth,
-                                    SidePanel.maxWidth,
-                                  );
                                 });
+                                if (panel == SidebarPanel.packages) {
+                                  _handleOpenPackageManager();
+                                } else if (panel == SidebarPanel.plugins) {
+                                  _handleOpenPluginManager();
+                                } else if (panel ==
+                                    SidebarPanel.sourceControl) {
+                                  _handleOpenSourceControl();
+                                } else if (panel == SidebarPanel.reports) {
+                                  _openReports();
+                                } else if (panel == SidebarPanel.doctor) {
+                                  _openDoctor();
+                                } else if (panel == SidebarPanel.tests) {
+                                  _loadExecutionHistory();
+                                  _loadTestSuites();
+                                } else if (panel == SidebarPanel.search) {
+                                  _loadIndexStatus();
+                                  unawaited(_runSearch());
+                                }
                               },
                             ),
-                          Expanded(child: _buildCenter()),
-                        ],
+                            if (!_sidePanelCollapsed)
+                              SidePanel(
+                                panel: _activePanel,
+                                width: _sidePanelWidth,
+                                workspace: _activeWorkspace,
+                                projects: _projects,
+                                isLoadingProjects: _loadingProjects,
+                                selectedProject: _selectedProject,
+                                onSelectProject: _handleSelectProject,
+                                onNewProject: _handleNewStandaloneProject,
+                                onImportProject: _handleImportProject,
+                                recentRuns: _reportRuns.take(8).toList(),
+                                onSelectReport: _selectReport,
+                                testSuites: _testSuites,
+                                onSelectTestSuite: (suite) {
+                                  unawaited(
+                                    _openFile(suite.filePath, line: suite.line),
+                                  );
+                                },
+                                testTree: _testTree,
+                                isLoadingTestTree: _loadingTestTree,
+                                testFilter: _testFilter,
+                                onTestFilterChanged: _handleTestFilterChanged,
+                                onRefreshTests: () =>
+                                    unawaited(_loadTestTree()),
+                                onRunAllTests: () =>
+                                    unawaited(_handleRunAllTests()),
+                                onRunCurrentFileTests: () =>
+                                    unawaited(_handleRunCurrentFileTests()),
+                                onRunFailedTests: () =>
+                                    unawaited(_handleRunFailedTests()),
+                                onRunTestNode: (node) =>
+                                    unawaited(_handleRunTestNode(node)),
+                                onOpenTestNode: _handleOpenTestNode,
+                                onRevealTestNode: _handleRevealTestNode,
+                                currentEditorPath: _activeEditorPath,
+                                onOpenProject: _handleOpenProject,
+                                onRunProject: _selectedProject == null
+                                    ? null
+                                    : _handleRunProject,
+                                fileRows: _editor.visibleFileRows(),
+                                isLoadingFileTree: _editor.loadingFileTree,
+                                onOpenFile: _openFile,
+                                onToggleDirectory: (path) =>
+                                    unawaited(_editor.toggleDirectory(path)),
+                                gitFileStatuses: _gitFileStatuses,
+                                fileTreeKey: _fileTreeKey,
+                                onEnsureExpanded: (path) =>
+                                    _editor.ensureExpanded(path),
+                                onCreateEntry: _explorerCreateEntry,
+                                onRenameEntry: _explorerRenameEntry,
+                                onDeleteEntry: _explorerDeleteEntry,
+                                onDuplicateEntry: _explorerDuplicateEntry,
+                                onMoveEntry: _explorerMoveEntry,
+                                onCopyRelativePath: (paths) =>
+                                    unawaited(_copyRelativePath(paths)),
+                                onCopyAbsolutePath: (paths) =>
+                                    unawaited(_copyAbsolutePath(paths)),
+                                onRevealInOs: (path) =>
+                                    unawaited(_revealPathInOs(path)),
+                                onCollapseAllFolders: () {
+                                  _editor.collapseAllFolders();
+                                },
+                                outline: _documentOutline,
+                                isLoadingOutline: _loadingOutline,
+                                selectedOutlineId: _selectedOutlineSymbol?.id,
+                                onOutlineSelect: (symbol) {
+                                  setState(() {
+                                    _editor.selectedOutlineSymbol = symbol;
+                                    _editor.jumpToLine = symbol.line;
+                                    _showEditorPage = true;
+                                  });
+                                },
+                              ),
+                            if (SidePanel.hasSideContent(_activePanel) &&
+                                !_sidePanelCollapsed)
+                              SidePanelResizeHandle(
+                                onDragDelta: (dx) {
+                                  setState(() {
+                                    _sidePanelWidth = (_sidePanelWidth + dx)
+                                        .clamp(
+                                          SidePanel.minWidth,
+                                          SidePanel.maxWidth,
+                                        );
+                                  });
+                                },
+                              ),
+                            Expanded(child: _buildCenter()),
+                          ],
+                        ),
                       ),
-                    ),
-                    BottomPanel(
-                      logLines: _logLines,
-                      problems: _workspaceProblems,
-                      isLoadingProblems: false,
-                      problemCount: _workspaceProblems.length,
-                      workingDirectory:
-                          _activeWorkspace?.path ?? _selectedProject?.path,
-                      toggleTerminalToken: _toggleTerminalToken,
-                      revealProblemsToken: _revealProblemsToken,
-                      onProblemSelected: _handleProblemSelected,
-                    ),
-                    StatusBar(
-                      projectName:
-                          _selectedProject?.name ?? _activeWorkspace?.name,
-                      fileName: _centerView == _CenterView.editor
-                          ? _activeEditorTab?.fileName
-                          : null,
-                      cursorLabel: _centerView == _CenterView.editor
-                          ? 'Ln $_cursorLine, Col $_cursorColumn'
-                          : null,
-                      dirty: _centerView == _CenterView.editor
-                          ? (_activeEditorTab?.isDirty ?? false)
-                          : false,
-                      errorCount: _workspaceProblems
-                          .where(
-                            (item) => item.severity == DiagnosticSeverity.error,
-                          )
-                          .length,
-                      warningCount: _workspaceProblems
-                          .where(
-                            (item) =>
-                                item.severity == DiagnosticSeverity.warning,
-                          )
-                          .length,
-                      onProblemsTap: _workspaceProblems.isEmpty
-                          ? null
-                          : _revealProblemsPanel,
-                      robotVersion: _activeEnvironment?.robotVersion,
-                      pythonVersion: _activeEnvironment?.pythonVersion,
-                      notification: _liveNotification,
-                    ),
-                  ],
-                ),
-                if (_busy)
-                  Container(
-                    color: Colors.black38,
-                    child: const Center(child: CircularProgressIndicator()),
+                      BottomPanel(
+                        logLines: _logLines,
+                        problems: _workspaceProblems,
+                        isLoadingProblems: false,
+                        problemCount: _workspaceProblems.length,
+                        workingDirectory:
+                            _activeWorkspace?.path ?? _selectedProject?.path,
+                        toggleTerminalToken: _toggleTerminalToken,
+                        revealProblemsToken: _revealProblemsToken,
+                        onProblemSelected: _handleProblemSelected,
+                      ),
+                      StatusBar(
+                        projectName:
+                            _selectedProject?.name ?? _activeWorkspace?.name,
+                        fileName: _centerView == _CenterView.editor
+                            ? _activeEditorTab?.fileName
+                            : null,
+                        cursorLabel: _centerView == _CenterView.editor
+                            ? 'Ln $_cursorLine, Col $_cursorColumn'
+                            : null,
+                        dirty: _centerView == _CenterView.editor
+                            ? (_activeEditorTab?.isDirty ?? false)
+                            : false,
+                        errorCount: _workspaceProblems
+                            .where(
+                              (item) =>
+                                  item.severity == DiagnosticSeverity.error,
+                            )
+                            .length,
+                        warningCount: _workspaceProblems
+                            .where(
+                              (item) =>
+                                  item.severity == DiagnosticSeverity.warning,
+                            )
+                            .length,
+                        onProblemsTap: _workspaceProblems.isEmpty
+                            ? null
+                            : _revealProblemsPanel,
+                        robotVersion: _activeEnvironment?.robotVersion,
+                        pythonVersion: _activeEnvironment?.pythonVersion,
+                        notification: _liveNotification,
+                        backendUnavailable: !connected,
+                      ),
+                    ],
                   ),
-                if (_envPromptMessage != null && _envPromptActions != null)
-                  EnvironmentPromptToast(
-                    title: _envPromptTitle ?? 'Python environment required',
-                    message: _envPromptMessage!,
-                    actions: _envPromptActions!,
-                    onDismiss: _dismissEnvironmentPrompt,
-                  ),
-              ],
+                  if (_busy)
+                    Container(
+                      color: Colors.black38,
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                  if (_envPromptMessage != null && _envPromptActions != null)
+                    EnvironmentPromptToast(
+                      title: _envPromptTitle ?? 'Python environment required',
+                      message: _envPromptMessage!,
+                      actions: _envPromptActions!,
+                      onDismiss: _dismissEnvironmentPrompt,
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -4263,6 +4628,7 @@ class _AppShellState extends State<AppShell> {
             ? null
             : _handleManageEnvironments,
         activeEnvironmentLabel: _activeEnvironment?.name,
+        backendUnavailable: _workspace.backendStatus != 'connected',
         recentRuns: _executionHistory.take(3).toList(),
         runningStatus: _executionStatus.isActive ? _executionStatus : null,
         lastRunLabel: _executionHistory.isNotEmpty
@@ -4422,6 +4788,12 @@ class _AppShellState extends State<AppShell> {
         onDelete: _deleteSelectedReport,
         onRunSuite: _selectedProject == null ? null : _handleRunProject,
       ),
+      _CenterView.doctor => DoctorPage(
+        gateway: _gateway,
+        onJumpToSource: (path, {line, column}) {
+          unawaited(_openFile(path, line: line, column: column));
+        },
+      ),
       _CenterView.search => SearchPage(
         query: _searchQuery,
         kind: _searchKind,
@@ -4450,6 +4822,7 @@ class _AppShellState extends State<AppShell> {
               ),
       ),
       _CenterView.editor => EditorPage(
+        key: _editorPageKey,
         tabs: _editorTabs,
         activePath: _activeEditorPath,
         wordWrap: _wordWrap,
@@ -4470,32 +4843,17 @@ class _AppShellState extends State<AppShell> {
         onTabContextAction: _handleTabContextAction,
         onContentChanged: _onContentChanged,
         onSave: _saveActive,
-        onSaveAll: _saveAll,
-        onToggleWordWrap: () =>
-            setState(() => _editor.wordWrap = !_editor.wordWrap),
-        onGoToDefinition: _editorGoToDefinition,
-        onPeekDefinition: _editorPeekDefinition,
-        onFindReferences: _editorFindReferences,
-        onHover: _editorHoverLookup,
-        onHoverRequest: (line, column) => unawaited(
-          _editor.requestHoverTooltip(line: line, column: column),
-        ),
+        onHoverRequest: (line, column) =>
+            unawaited(_editor.requestHoverTooltip(line: line, column: column)),
         onHoverExit: _editor.clearHoverTooltip,
-        onFormatDocument: _editorFormatDocument,
-        onFormatSelection: _editorFormatSelection,
-        onOpenSymbol: _editorOpenSymbol,
-        onWorkspaceSymbol: _editorWorkspaceSymbol,
         onCtrlClick: _editorCtrlClickDefinition,
         onClosePeek: () => setState(() => _editor.peekDefinition = null),
-        onFind: () {},
-        onReplace: () {},
-        onReveal: _revealCurrentFile,
         onCursorChanged: _editor.onCursorChanged,
       ),
       _CenterView.placeholder => _WorkspaceOpenPlaceholder(
         workspace: _activeWorkspace!,
         projects: _projects,
-        onNewProject: _handleNewProject,
+        onNewProject: _handleNewStandaloneProject,
         onImportProject: _handleImportProject,
         onManageEnvironments: _handleManageEnvironments,
       ),
@@ -4578,4 +4936,3 @@ class _WorkspaceOpenPlaceholder extends StatelessWidget {
     );
   }
 }
-

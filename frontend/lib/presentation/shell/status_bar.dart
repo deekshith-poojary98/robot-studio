@@ -14,6 +14,7 @@ class StatusBar extends StatelessWidget {
     this.robotVersion,
     this.pythonVersion,
     this.notification,
+    this.backendUnavailable = false,
     this.onProblemsTap,
   });
 
@@ -26,6 +27,7 @@ class StatusBar extends StatelessWidget {
   final String? robotVersion;
   final String? pythonVersion;
   final String? notification;
+  final bool backendUnavailable;
   final VoidCallback? onProblemsTap;
 
   @override
@@ -88,6 +90,13 @@ class StatusBar extends StatelessWidget {
               _item(
                 'PYTHON $pythonVersion',
                 tooltip: 'Python version',
+                trailing: false,
+              ),
+            if (backendUnavailable)
+              _item(
+                'BACKEND UNAVAILABLE',
+                tooltip:
+                    'Start the backend with: python -m robot_studio.main',
                 trailing: false,
               ),
           ],

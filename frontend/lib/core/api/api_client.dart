@@ -415,6 +415,33 @@ class ApiClient implements TransportGateway {
       _gateway.getGitDiff(filePath: filePath, commit: commit);
 
   @override
+  Future<DoctorProfilesBundle> getDoctorProfiles() =>
+      _gateway.getDoctorProfiles();
+
+  @override
+  Future<DoctorReport> runDoctor({
+    String profile = 'default',
+    String? projectId,
+    List<String>? providerIds,
+  }) =>
+      _gateway.runDoctor(
+        profile: profile,
+        projectId: projectId,
+        providerIds: providerIds,
+      );
+
+  @override
+  Future<DoctorReport> getDoctorReport(String reportId) =>
+      _gateway.getDoctorReport(reportId);
+
+  @override
+  Future<List<DoctorReportSummary>> getDoctorHistory({
+    String? projectId,
+    int limit = 20,
+  }) =>
+      _gateway.getDoctorHistory(projectId: projectId, limit: limit);
+
+  @override
   Future<FileContentInfo> readFile(String path) => _gateway.readFile(path);
 
   @override

@@ -10,8 +10,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
-ENVIRONMENTS_DIR = "Environments"
+from robot_studio.infrastructure.workspace.filesystem import (
+    legacy_environments_root,
+    studio_environments_root,
+)
+
 ENVIRONMENT_MANIFEST = "environment.json"
+# Back-compat alias for older imports / docs.
+ENVIRONMENTS_DIR = "environments"
 
 _NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
@@ -74,11 +80,34 @@ class EnvironmentManifest:
 
 class FilesystemEnvironmentProvider:
     def environments_root(self, workspace_root: Path) -> Path:
-        return workspace_root / ENVIRONMENTS_DIR
+        """Canonical write location: ``.robotstudio/environments``."""
+        return studio_environments_root(workspace_root)
+
+    def environments_roots(self, workspace_root: Path) -> list[Path]:
+        """Canonical + legacy roots (for discovery / existence checks)."""
+        roots = [self.environments_root(workspace_root)]
+        legacy = legacy_environments_root(workspace_root)
+        if legacy.resolve() not in {path.resolve() for path in roots}:
+            roots.append(legacy)
+        return roots
 
     def environment_root_for_name(self, workspace_root: Path, name: str) -> Path:
+        """Path for a *new* environment under the canonical root."""
         cleaned = self.validate_name(name)
         return self.environments_root(workspace_root) / cleaned
+
+    def find_existing_environment_root(
+        self,
+        workspace_root: Path,
+        name: str,
+    ) -> Path | None:
+        """Return an existing env dir in canonical or legacy roots, if any."""
+        cleaned = self.validate_name(name)
+        for root in self.environments_roots(workspace_root):
+            candidate = root / cleaned
+            if candidate.exists():
+                return candidate
+        return None
 
     def validate_name(self, name: str) -> str:
         cleaned = name.strip()
@@ -152,17 +181,21 @@ class FilesystemEnvironmentProvider:
         return (path / "pyvenv.cfg").is_file()
 
     def discover(self, workspace_root: Path) -> list[Path]:
-        root = self.environments_root(workspace_root)
-        if not root.is_dir():
-            return []
-        return sorted(
-            (
-                child
-                for child in root.iterdir()
-                if child.is_dir() and self.is_virtualenv(child)
-            ),
-            key=lambda item: item.name.lower(),
-        )
+        """List Studio-managed venvs under canonical and legacy roots."""
+        found: list[Path] = []
+        seen: set[Path] = set()
+        for root in self.environments_roots(workspace_root):
+            if not root.is_dir():
+                continue
+            for child in root.iterdir():
+                if not child.is_dir() or not self.is_virtualenv(child):
+                    continue
+                resolved = child.resolve()
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                found.append(child)
+        return sorted(found, key=lambda item: item.name.lower())
 
     def discover_candidates(self, project_root: Path) -> list[Path]:
         """Find local virtualenvs users commonly keep beside a project."""

@@ -57,7 +57,7 @@ void main() {
       projectName: 'ExProj',
     );
     // Opening proves the suite was listed and reachable.
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
     expect(find.text('sample.robot'), findsWidgets);
 
     harness.expectNoFlutterErrors();
@@ -76,7 +76,7 @@ void main() {
       'sample.robot',
       projectName: 'ExOpen',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
     expect(find.textContaining('Sample'), findsWidgets);
 
     harness.expectNoFlutterErrors();
@@ -95,7 +95,8 @@ void main() {
     // Deep package modules should not appear as top-level noise until expanded.
     expect(find.text('numpy'), findsNothing);
     expect(find.text('pip-'), findsNothing);
-    // site-packages folder itself may exist under Environments but must not
+    // site-packages folder itself may exist under .robotstudio/environments
+    // (or legacy Environments/) but must not
     // dump thousands of children into the initial tree.
     final sitePackages = find.text('site-packages');
     if (tester.widgetList(sitePackages).isNotEmpty) {
@@ -157,7 +158,7 @@ void main() {
       'sample.robot',
       projectName: 'ExDirty',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
 
     // Dirty the buffer via API write + reload is hard; type into editor if possible.
     // Prefer Format which may rewrite, or enter text through a CodeLine edit.
@@ -168,7 +169,7 @@ void main() {
     );
 
     // Re-open to load content, then mark dirty by Format if available.
-    await tapText(tester, 'Format');
+    await tapEditorFormat(tester);
     await tester.pump(const Duration(milliseconds: 400));
 
     // Close active tab — look for close icon on tab.
@@ -210,8 +211,8 @@ void main() {
       'sample.robot',
       projectName: 'ExSave',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
-    await tapText(tester, 'Format');
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
+    await tapEditorFormat(tester);
     await tester.pump(const Duration(milliseconds: 400));
     await tapText(tester, 'Save');
     await tester.pump(const Duration(milliseconds: 500));
@@ -237,7 +238,7 @@ void main() {
       'sample.robot',
       projectName: 'ExExt',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
 
     await harness.api.writeFile(
       path: files.sample,
@@ -245,7 +246,7 @@ void main() {
     );
 
     // Nudge UI (save/focus) — may prompt reload or keep buffer; must not crash.
-    await tester.tap(find.byKey(const Key('editor.format')));
+    await tester.tap(find.byKey(const Key('editor.page')));
     await tester.pump(const Duration(milliseconds: 800));
 
     final reloadPrompt =
@@ -261,7 +262,7 @@ void main() {
       }
     }
 
-    expect(find.byKey(const Key('editor.format')), findsOneWidget);
+    expect(find.byKey(const Key('editor.page')), findsOneWidget);
     harness.expectNoFlutterErrors();
   });
 

@@ -63,6 +63,9 @@ abstract final class ShellShortcutActivators {
   static bool get isMac =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
 
+  /// Full chord catalog (docs / unit tests). Prefer [flutterShortcuts] inside
+  /// [Shortcuts] — chords listed on [RobotStudioMenuBar] are owned by the
+  /// platform and must not be dual-registered.
   static Map<ShortcutActivator, Intent> get map =>
       <ShortcutActivator, Intent>{
         // Command Palette — VS Code ⌘/Ctrl+Shift+P; keep ⌘/Ctrl+K as alias.
@@ -145,6 +148,22 @@ abstract final class ShellShortcutActivators {
         // Shift+Option/Alt+F — Format Document
         const SingleActivator(LogicalKeyboardKey.keyF, shift: true, alt: true):
             const FormatDocumentIntent(),
+      };
+
+  /// Chords still handled by Flutter [Shortcuts] (not the native menu bar).
+  ///
+  /// Ctrl+Tab cycling is awkward as a platform menu accelerator on some hosts,
+  /// so it stays here. Everything else with a menu equivalent lives on
+  /// [RobotStudioMenuBar] items.
+  static Map<ShortcutActivator, Intent> get flutterShortcuts =>
+      <ShortcutActivator, Intent>{
+        const SingleActivator(LogicalKeyboardKey.tab, control: true):
+            const NextEditorTabIntent(),
+        const SingleActivator(
+          LogicalKeyboardKey.tab,
+          control: true,
+          shift: true,
+        ): const PreviousEditorTabIntent(),
       };
 
   /// Human-readable label for docs / palette (macOS vs Win/Linux).

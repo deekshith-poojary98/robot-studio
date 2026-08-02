@@ -407,13 +407,50 @@ Future<void> openRobotFileInExplorer(
   await scrollToAndTap(tester, fileFinder);
 }
 
-/// Language actions moved off the permanent editor strip into its ⋯ menu.
-Future<void> tapEditorMenuAction(WidgetTester tester, String action) async {
-  await pumpUntilFound(tester, find.byKey(const Key('editor.more')));
-  await tester.tap(find.byKey(const Key('editor.more')));
+/// Waits until the editor page is mounted (tabs / breadcrumb / code area).
+Future<void> waitForEditorOpen(WidgetTester tester) async {
+  await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
+}
+
+/// Opens the command palette and runs the first item whose title matches [title].
+Future<void> runCommandPaletteAction(
+  WidgetTester tester,
+  String title,
+) async {
+  await pumpUntilFound(tester, find.text('Search commands, files, symbols…'));
+  await tester.tap(find.text('Search commands, files, symbols…'));
   await tester.pumpAndSettle();
-  final item = find.byKey(Key('editor.menu.$action'));
+  final field = find.byType(TextField).last;
+  await tester.enterText(field, title);
+  await tester.pumpAndSettle();
+  final item = find.text(title);
   await pumpUntilFound(tester, item);
-  await tester.tap(item);
+  await tester.tap(item.first);
   await tester.pumpAndSettle();
+}
+
+/// Language / edit actions live on the window menu bar; E2E drives them via
+/// the command palette (same handlers).
+Future<void> tapEditorMenuAction(WidgetTester tester, String action) async {
+  final title = switch (action) {
+    'replace' => 'Replace',
+    'format-selection' => 'Format Selection',
+    'definition' => 'Go to Definition',
+    'peek' => 'Peek Definition',
+    'references' => 'Find References',
+    'hover' => 'Show Hover Info',
+    'open-symbol' => 'Go to Symbol in File…',
+    'project-symbol' => 'Find Symbol in Project…',
+    'reveal' => 'Reveal in Finder',
+    _ => throw ArgumentError('Unknown editor menu action: $action'),
+  };
+  await runCommandPaletteAction(tester, title);
+}
+
+Future<void> tapEditorFormat(WidgetTester tester) async {
+  await runCommandPaletteAction(tester, 'Format Document');
+}
+
+Future<void> tapEditorFind(WidgetTester tester) async {
+  await runCommandPaletteAction(tester, 'Find');
 }

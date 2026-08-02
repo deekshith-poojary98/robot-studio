@@ -56,7 +56,7 @@ Run Hello
       'sample.robot',
       projectName: 'LgLive',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
     await pumpUntilFound(
       tester,
       find.textContaining('PROBLEMS '),
@@ -112,7 +112,7 @@ Run Hello
       'sample.robot',
       projectName: 'LgFix',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
     await tester.pump(const Duration(seconds: 2));
 
     await openBottomTab(tester, 'Problems');
@@ -140,7 +140,7 @@ Run Hello
       'sample.robot',
       projectName: 'LgComplete',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
 
     final completion = await harness.api.languageCompletion(
       filePath: path,
@@ -243,7 +243,7 @@ Run Hello
       'sample.robot',
       projectName: 'LgEmpty',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
     await tester.pump(const Duration(seconds: 2));
 
     await openBottomTab(tester, 'Problems');
@@ -344,9 +344,9 @@ Run Hello
       'sample.robot',
       projectName: 'LgNoEnv',
     );
-    await pumpUntilFound(tester, find.byKey(const Key('editor.format')));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
 
-    await tester.tap(find.byKey(const Key('editor.format')));
+    await tapEditorFormat(tester);
     await tester.pump(const Duration(milliseconds: 400));
     await tapEditorMenuAction(tester, 'hover');
     await tester.pump(const Duration(milliseconds: 400));

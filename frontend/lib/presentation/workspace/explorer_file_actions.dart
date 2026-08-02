@@ -108,12 +108,35 @@ Example Keyword
     return parts.isEmpty ? path : parts.last;
   }
 
+  /// Drops children when an ancestor is also selected (VS Code-style).
+  ///
+  /// Used before multi-delete / multi-move so deleting a folder does not also
+  /// try to delete files nested under it.
+  static List<String> pruneNestedPaths(Iterable<String> paths) {
+    final normalized =
+        paths
+            .map((path) => path.replaceAll('\\', '/'))
+            .where((path) => path.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    final kept = <String>[];
+    for (final path in normalized) {
+      final covered = kept.any(
+        (parent) => path == parent || path.startsWith('$parent/'),
+      );
+      if (!covered) kept.add(path);
+    }
+    return kept;
+  }
+
   /// Short path for UI tips: `/Users/me/proj/a.robot` → `~/proj/a.robot`.
   /// Leaves paths outside the home directory unchanged.
   static String homeRelativePath(String path, {String? home}) {
     final normalized = path.replaceAll('\\', '/');
     if (normalized.isEmpty) return normalized;
-    final homeRaw = home ??
+    final homeRaw =
+        home ??
         Platform.environment['HOME'] ??
         Platform.environment['USERPROFILE'];
     if (homeRaw == null || homeRaw.isEmpty) return normalized;

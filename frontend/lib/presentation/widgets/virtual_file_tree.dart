@@ -70,19 +70,19 @@ class VirtualFileTree extends StatefulWidget {
     required String parentPath,
     required String name,
     required bool isDirectory,
-  })? onCreateEntry;
-  final Future<void> Function({
-    required String path,
-    required String newName,
-  })? onRenameEntry;
-  final Future<void> Function(String path)? onDeleteEntry;
+  })?
+  onCreateEntry;
+  final Future<void> Function({required String path, required String newName})?
+  onRenameEntry;
+  final Future<void> Function(List<String> paths)? onDeleteEntry;
   final Future<void> Function(String path)? onDuplicateEntry;
   final Future<void> Function({
-    required String sourcePath,
+    required List<String> sourcePaths,
     required String destinationParentPath,
-  })? onMoveEntry;
-  final ValueChanged<String>? onCopyRelativePath;
-  final ValueChanged<String>? onCopyAbsolutePath;
+  })?
+  onMoveEntry;
+  final ValueChanged<List<String>>? onCopyRelativePath;
+  final ValueChanged<List<String>>? onCopyAbsolutePath;
   final ValueChanged<String>? onRevealInOs;
 
   @override
@@ -92,6 +92,8 @@ class VirtualFileTree extends StatefulWidget {
 class VirtualFileTreeState extends State<VirtualFileTree> {
   _InlineEdit? _edit;
   String? _selectedPath;
+  final Set<String> _selectedPaths = {};
+  String? _anchorPath;
   String _draftName = '';
   final FocusNode _focusNode = FocusNode(debugLabel: 'explorer-file-tree');
 
@@ -100,7 +102,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
   @override
   void initState() {
     super.initState();
-    _selectedPath = widget.selectedPath;
+    _syncSelectionFromExternal(widget.selectedPath);
   }
 
   @override
@@ -113,7 +115,129 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
   void didUpdateWidget(covariant VirtualFileTree oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.selectedPath != oldWidget.selectedPath) {
-      _selectedPath = widget.selectedPath;
+      _syncSelectionFromExternal(widget.selectedPath);
+    }
+  }
+
+  void _syncSelectionFromExternal(String? path) {
+    _selectedPath = path;
+    _selectedPaths
+      ..clear()
+      ..addAll(path == null || path.isEmpty ? const <String>[] : [path]);
+    _anchorPath = path;
+  }
+
+  void _selectOnly(String path) {
+    _selectedPath = path;
+    _selectedPaths
+      ..clear()
+      ..add(path);
+    _anchorPath = path;
+  }
+
+  void _clearSelection() {
+    if (_selectedPaths.isEmpty && _selectedPath == null) return;
+    setState(() {
+      _selectedPaths.clear();
+      _selectedPath = null;
+      _anchorPath = null;
+    });
+  }
+
+  void _clearMultiSelectionOnOutsideTap() {
+    // Keep a single-row highlight; only multi-select clears on outside click.
+    if (_selectedPaths.length <= 1) return;
+    _clearSelection();
+  }
+
+  void _toggleInSelection(String path) {
+    if (_selectedPaths.contains(path)) {
+      _selectedPaths.remove(path);
+      if (_selectedPath == path) {
+        _selectedPath = _selectedPaths.isEmpty ? null : _selectedPaths.first;
+      }
+    } else {
+      _selectedPaths.add(path);
+      _selectedPath = path;
+    }
+    _anchorPath = path;
+  }
+
+  void _selectRangeTo(String path) {
+    final rows = widget.rows;
+    if (rows.isEmpty) {
+      _selectOnly(path);
+      return;
+    }
+    final anchor = _anchorPath ?? _selectedPath ?? path;
+    final start = rows.indexWhere((row) => row.node.path == anchor);
+    final end = rows.indexWhere((row) => row.node.path == path);
+    if (start < 0 || end < 0) {
+      _selectOnly(path);
+      return;
+    }
+    final low = start < end ? start : end;
+    final high = start < end ? end : start;
+    _selectedPaths
+      ..clear()
+      ..addAll([for (var i = low; i <= high; i++) rows[i].node.path]);
+    _selectedPath = path;
+  }
+
+  List<String> _orderedSelection() {
+    final selected = _selectedPaths.toSet();
+    final ordered = <String>[
+      for (final row in widget.rows)
+        if (selected.contains(row.node.path)) row.node.path,
+    ];
+    for (final path in selected) {
+      if (!ordered.contains(path)) ordered.add(path);
+    }
+    return ordered;
+  }
+
+  List<String> _operationTargets({String? fallback}) {
+    final ordered = _orderedSelection();
+    if (ordered.isNotEmpty) {
+      return ExplorerFileActions.pruneNestedPaths(ordered);
+    }
+    if (fallback != null && fallback.isNotEmpty) return [fallback];
+    return const [];
+  }
+
+  bool _isModifierPressed() {
+    final isMac = Theme.of(context).platform == TargetPlatform.macOS;
+    return isMac
+        ? HardwareKeyboard.instance.isMetaPressed
+        : HardwareKeyboard.instance.isControlPressed;
+  }
+
+  void _handlePrimaryTap(FlatFileTreeRow row) {
+    final path = row.node.path;
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+    final modifier = _isModifierPressed();
+    setState(() {
+      if (shift) {
+        _selectRangeTo(path);
+      } else if (modifier) {
+        _toggleInSelection(path);
+      } else {
+        _selectOnly(path);
+      }
+    });
+    if (shift || modifier) return;
+    if (row.node.isDir) {
+      widget.onToggleDirectory(path);
+    } else {
+      widget.onOpenFile(path);
+    }
+  }
+
+  void _prepareContextSelection(String path) {
+    if (!_selectedPaths.contains(path)) {
+      _selectOnly(path);
+    } else {
+      _selectedPath = path;
     }
   }
 
@@ -138,7 +262,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
     final parent = ExplorerFileActions.parentPath(target);
     final name = ExplorerFileActions.basename(target);
     setState(() {
-      _selectedPath = target;
+      _selectOnly(target);
       _edit = _InlineEdit(
         kind: _InlineEditKind.rename,
         parentPath: parent,
@@ -150,9 +274,9 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
   }
 
   Future<void> deleteSelected() async {
-    final path = _selectedPath;
-    if (path == null) return;
-    await widget.onDeleteEntry?.call(path);
+    final targets = _operationTargets();
+    if (targets.isEmpty) return;
+    await widget.onDeleteEntry?.call(targets);
   }
 
   Future<void> _startCreate(String parent, {required bool isDirectory}) async {
@@ -174,7 +298,9 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
     if (selected == null || selected.isEmpty) return root;
     for (final row in widget.rows) {
       if (row.node.path == selected) {
-        return row.node.isDir ? selected : ExplorerFileActions.parentPath(selected);
+        return row.node.isDir
+            ? selected
+            : ExplorerFileActions.parentPath(selected);
       }
     }
     return ExplorerFileActions.parentPath(selected);
@@ -186,14 +312,12 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
     final names = <String>[];
     for (final row in widget.rows) {
       final path = row.node.path.replaceAll('\\', '/');
-      if (excluding != null &&
-          path == excluding.replaceAll('\\', '/')) {
+      if (excluding != null && path == excluding.replaceAll('\\', '/')) {
         continue;
       }
       final rowParent = ExplorerFileActions.parentPath(path);
-      final atRoot = root != null &&
-          (parent == root || parent.isEmpty) &&
-          row.depth == 0;
+      final atRoot =
+          root != null && (parent == root || parent.isEmpty) && row.depth == 0;
       if (atRoot || rowParent.replaceAll('\\', '/') == parent) {
         names.add(row.node.name);
       }
@@ -205,8 +329,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
     TapDownDetails details,
     FlatFileTreeRow row,
   ) async {
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final position = RelativeRect.fromRect(
       details.globalPosition & const Size(1, 1),
       Offset.zero & overlay.size,
@@ -214,36 +337,46 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
     final revealLabel = ExplorerFileActions.revealLabel();
     final isDir = row.node.isDir;
 
+    setState(() => _prepareContextSelection(row.node.path));
+    final targets = _operationTargets(fallback: row.node.path);
+    final multi = targets.length > 1;
+
     final selected = await showMenu<String>(
       context: context,
       position: position,
       items: [
-        if (!isDir)
+        if (!multi && !isDir)
           const AppPopupMenuItem(value: 'open', child: Text('Open')),
-        if (isDir) ...[
+        if (!multi && isDir) ...[
           const AppPopupMenuItem(value: 'new_file', child: Text('New File')),
-          const AppPopupMenuItem(value: 'new_folder', child: Text('New Folder')),
+          const AppPopupMenuItem(
+            value: 'new_folder',
+            child: Text('New Folder'),
+          ),
           const AppPopupMenuDivider(),
         ],
-        const AppPopupMenuItem(value: 'rename', child: Text('Rename')),
-        if (!isDir)
+        if (!multi)
+          const AppPopupMenuItem(value: 'rename', child: Text('Rename')),
+        if (!multi && !isDir)
           const AppPopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
-        const AppPopupMenuItem(value: 'delete', child: Text('Delete')),
+        AppPopupMenuItem(
+          value: 'delete',
+          child: Text(multi ? 'Delete ${targets.length} Items' : 'Delete'),
+        ),
         const AppPopupMenuDivider(),
-        const AppPopupMenuItem(
+        AppPopupMenuItem(
           value: 'copy_rel',
-          child: Text('Copy Relative Path'),
+          child: Text(multi ? 'Copy Relative Paths' : 'Copy Relative Path'),
         ),
-        const AppPopupMenuItem(
+        AppPopupMenuItem(
           value: 'copy_abs',
-          child: Text('Copy Absolute Path'),
+          child: Text(multi ? 'Copy Absolute Paths' : 'Copy Absolute Path'),
         ),
-        AppPopupMenuItem(value: 'reveal', child: Text(revealLabel)),
+        if (!multi) AppPopupMenuItem(value: 'reveal', child: Text(revealLabel)),
       ],
     );
 
     if (!mounted || selected == null) return;
-    setState(() => _selectedPath = row.node.path);
 
     switch (selected) {
       case 'open':
@@ -257,11 +390,11 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
       case 'duplicate':
         await widget.onDuplicateEntry?.call(row.node.path);
       case 'delete':
-        await widget.onDeleteEntry?.call(row.node.path);
+        await widget.onDeleteEntry?.call(targets);
       case 'copy_rel':
-        widget.onCopyRelativePath?.call(row.node.path);
+        widget.onCopyRelativePath?.call(targets);
       case 'copy_abs':
-        widget.onCopyAbsolutePath?.call(row.node.path);
+        widget.onCopyAbsolutePath?.call(targets);
       case 'reveal':
         widget.onRevealInOs?.call(row.node.path);
     }
@@ -287,10 +420,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
 
     final error = ExplorerFileActions.validateName(
       name,
-      existingNames: _siblingNames(
-        edit.parentPath,
-        excluding: edit.targetPath,
-      ),
+      existingNames: _siblingNames(edit.parentPath, excluding: edit.targetPath),
     );
     if (error != null) {
       if (mounted) {
@@ -366,12 +496,15 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
           !insertedCreate) {
         final parent = ExplorerFileActions.parentPath(path);
         final createParent = edit.parentPath.replaceAll('\\', '/');
-        final atRootCreate = root != null &&
+        final atRootCreate =
+            root != null &&
             createParent == root &&
             row.depth == 0 &&
-            out.where((r) => r.kind == _DisplayKind.entry && r.depth == 0)
+            out
+                .where((r) => r.kind == _DisplayKind.entry && r.depth == 0)
                 .isEmpty;
-        final underParent = parent.replaceAll('\\', '/') == createParent &&
+        final underParent =
+            parent.replaceAll('\\', '/') == createParent &&
             widget.rows.any(
               (r) =>
                   r.node.path.replaceAll('\\', '/') == createParent &&
@@ -383,7 +516,8 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
         }
       }
 
-      final renaming = edit?.kind == _InlineEditKind.rename &&
+      final renaming =
+          edit?.kind == _InlineEditKind.rename &&
           edit?.targetPath?.replaceAll('\\', '/') == path;
       out.add(_DisplayRow.entry(row, renaming));
 
@@ -393,8 +527,8 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
           row.node.isDir &&
           row.expanded &&
           isCreateParent(row.node.path)) {
-        final hasChild = i + 1 < widget.rows.length &&
-            widget.rows[i + 1].depth > row.depth;
+        final hasChild =
+            i + 1 < widget.rows.length && widget.rows[i + 1].depth > row.depth;
         if (!hasChild) {
           out.add(_DisplayRow.creating(edit, row.depth + 1));
           insertedCreate = true;
@@ -473,9 +607,21 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
           beginNewFile();
           return KeyEventResult.handled;
         }
+        if (key == LogicalKeyboardKey.escape && _selectedPaths.length > 1) {
+          _clearSelection();
+          return KeyEventResult.handled;
+        }
         return KeyEventResult.ignored;
       },
-      child: _buildTreeBody(display),
+      child: TapRegion(
+        groupId: #explorerFileTree,
+        onTapOutside: (_) => _clearMultiSelectionOnOutsideTap(),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _clearMultiSelectionOnOutsideTap,
+          child: _buildTreeBody(display),
+        ),
+      ),
     );
   }
 
@@ -499,11 +645,15 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
       return list;
     }
 
-    return DragTarget<String>(
-      onWillAcceptWithDetails: (details) => _canDropOnRoot(details.data),
+    return DragTarget<List<String>>(
+      onWillAcceptWithDetails: (details) => details.data.any(_canDropOnRoot),
       onAcceptWithDetails: (details) {
+        final sources = ExplorerFileActions.pruneNestedPaths(
+          details.data.where(_canDropOnRoot),
+        );
+        if (sources.isEmpty) return;
         widget.onMoveEntry?.call(
-          sourcePath: details.data,
+          sourcePaths: sources,
           destinationParentPath: root,
         );
       },
@@ -558,7 +708,10 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
 
   Widget _buildEntryRow(FlatFileTreeRow row, bool editing) {
     final node = row.node;
-    final selected = (_selectedPath ?? widget.selectedPath) == node.path;
+    final selected =
+        _selectedPaths.contains(node.path) ||
+        (_selectedPaths.isEmpty &&
+            (_selectedPath ?? widget.selectedPath) == node.path);
     // Robot extension is appended silently on New File commit when missing.
 
     Widget child;
@@ -578,8 +731,9 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
         semanticLabel: 'Folder ${node.name}',
         isEditing: editing,
         editInitialValue: editing ? _edit?.initialName : null,
-        onEditChanged:
-            editing ? (value) => setState(() => _draftName = value) : null,
+        onEditChanged: editing
+            ? (value) => setState(() => _draftName = value)
+            : null,
         onEditSubmit: editing
             ? (value) {
                 _draftName = value;
@@ -594,26 +748,24 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
                 child: CircularProgressIndicator(strokeWidth: 1.5),
               )
             : canExpand
-                ? Icon(
-                    row.expanded
-                        ? Icons.keyboard_arrow_down
-                        : Icons.keyboard_arrow_right,
-                    size: 14,
-                    color: AppColors.textMuted,
-                  )
-                : null,
-              onTap: editing
+            ? Icon(
+                row.expanded
+                    ? Icons.keyboard_arrow_down
+                    : Icons.keyboard_arrow_right,
+                size: 14,
+                color: AppColors.textMuted,
+              )
+            : null,
+        onTap: editing
             ? null
             : () {
                 _focusNode.requestFocus();
-                setState(() => _selectedPath = node.path);
-                widget.onToggleDirectory(node.path);
+                _handlePrimaryTap(row);
               },
         onSecondaryTap: editing
             ? null
             : (details) {
                 _focusNode.requestFocus();
-                setState(() => _selectedPath = node.path);
                 _showContextMenu(details, row);
               },
       );
@@ -627,8 +779,9 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
         semanticLabel: 'File ${node.name}',
         isEditing: editing,
         editInitialValue: editing ? _edit?.initialName : null,
-        onEditChanged:
-            editing ? (value) => setState(() => _draftName = value) : null,
+        onEditChanged: editing
+            ? (value) => setState(() => _draftName = value)
+            : null,
         onEditSubmit: editing
             ? (value) {
                 _draftName = value;
@@ -644,14 +797,12 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
             ? null
             : () {
                 _focusNode.requestFocus();
-                setState(() => _selectedPath = node.path);
-                widget.onOpenFile(node.path);
+                _handlePrimaryTap(row);
               },
         onSecondaryTap: editing
             ? null
             : (details) {
                 _focusNode.requestFocus();
-                setState(() => _selectedPath = node.path);
                 _showContextMenu(details, row);
               },
       );
@@ -659,25 +810,48 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
 
     if (widget.onMoveEntry == null || editing) return child;
 
-    return DragTarget<String>(
+    return DragTarget<List<String>>(
       onWillAcceptWithDetails: (details) {
-        final source = details.data.replaceAll('\\', '/');
-        final dest = node.path.replaceAll('\\', '/');
         if (!node.isDir) return false;
-        if (source == dest) return false;
-        if (dest.startsWith('$source/')) return false;
-        return true;
+        final dest = node.path.replaceAll('\\', '/');
+        return details.data.any((sourcePath) {
+          final source = sourcePath.replaceAll('\\', '/');
+          if (source == dest) return false;
+          if (dest.startsWith('$source/')) return false;
+          final parent = ExplorerFileActions.parentPath(
+            source,
+          ).replaceAll('\\', '/');
+          if (parent == dest) return false;
+          return true;
+        });
       },
       onAcceptWithDetails: (details) {
+        final dest = node.path.replaceAll('\\', '/');
+        final sources = ExplorerFileActions.pruneNestedPaths(
+          details.data.where((sourcePath) {
+            final source = sourcePath.replaceAll('\\', '/');
+            if (source == dest) return false;
+            if (dest.startsWith('$source/')) return false;
+            final parent = ExplorerFileActions.parentPath(
+              source,
+            ).replaceAll('\\', '/');
+            return parent != dest;
+          }),
+        );
+        if (sources.isEmpty) return;
         widget.onMoveEntry?.call(
-          sourcePath: details.data,
+          sourcePaths: sources,
           destinationParentPath: node.path,
         );
       },
       builder: (context, candidate, rejected) {
         final highlighted = candidate.isNotEmpty;
-        return Draggable<String>(
-          data: node.path,
+        final dragPaths = _selectedPaths.contains(node.path)
+            ? _operationTargets(fallback: node.path)
+            : [node.path];
+        final dragCount = dragPaths.length;
+        return Draggable<List<String>>(
+          data: dragPaths,
           feedback: Material(
             color: Colors.transparent,
             child: Opacity(
@@ -685,7 +859,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
               child: SizedBox(
                 width: 220,
                 child: ExplorerTreeItem(
-                  label: node.name,
+                  label: dragCount > 1 ? '$dragCount items' : node.name,
                   leading: explorerFileIcon(
                     name: node.name,
                     isDirectory: node.isDir,
@@ -741,17 +915,14 @@ class _DisplayRow {
   });
 
   factory _DisplayRow.entry(FlatFileTreeRow row, bool editing) => _DisplayRow._(
-        kind: _DisplayKind.entry,
-        row: row,
-        depth: row.depth,
-        editing: editing,
-      );
+    kind: _DisplayKind.entry,
+    row: row,
+    depth: row.depth,
+    editing: editing,
+  );
 
-  factory _DisplayRow.creating(_InlineEdit edit, int depth) => _DisplayRow._(
-        kind: _DisplayKind.creating,
-        edit: edit,
-        depth: depth,
-      );
+  factory _DisplayRow.creating(_InlineEdit edit, int depth) =>
+      _DisplayRow._(kind: _DisplayKind.creating, edit: edit, depth: depth);
 
   final _DisplayKind kind;
   final FlatFileTreeRow? row;

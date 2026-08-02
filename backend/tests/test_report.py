@@ -50,7 +50,7 @@ SAMPLE_OUTPUT_XML = """<?xml version="1.0" encoding="UTF-8"?>
 def _workspace(tmp_path: Path) -> Workspace:
     root = tmp_path / "WS"
     root.mkdir()
-    (root / "Reports").mkdir()
+    (root / ".robotstudio" / "reports").mkdir(parents=True)
     return Workspace(
         id=uuid4(),
         name="WS",
@@ -124,7 +124,7 @@ def test_parse_output_stats(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_discover_run_indexes_artifacts(report_stack, tmp_path: Path) -> None:
     service, repository, store, workspace, bus = report_stack
-    run_dir = workspace.path / "Reports" / "Run-20260719-120000"
+    run_dir = workspace.path / ".robotstudio" / "reports" / "Run-20260719-120000"
     run_dir.mkdir(parents=True)
     (run_dir / "output.xml").write_text(SAMPLE_OUTPUT_XML, encoding="utf-8")
     (run_dir / "log.html").write_text("<html>log</html>", encoding="utf-8")
@@ -159,7 +159,7 @@ async def test_discover_run_indexes_artifacts(report_stack, tmp_path: Path) -> N
 @pytest.mark.asyncio
 async def test_delete_run_removes_files_and_metadata(report_stack) -> None:
     service, repository, store, workspace, bus = report_stack
-    run_dir = workspace.path / "Reports" / "Run-20260719-130000"
+    run_dir = workspace.path / ".robotstudio" / "reports" / "Run-20260719-130000"
     run_dir.mkdir(parents=True)
     (run_dir / "report.html").write_text("<html/>", encoding="utf-8")
 
