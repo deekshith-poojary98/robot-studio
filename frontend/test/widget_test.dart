@@ -109,7 +109,7 @@ void main() {
     );
 
     expect(find.byKey(const Key('welcome.backend-unavailable')), findsOneWidget);
-    expect(find.textContaining('python -m robot_studio.main'), findsOneWidget);
+    expect(find.textContaining('make backend'), findsOneWidget);
   });
 
   testWidgets('Welcome screen fits short window heights', (

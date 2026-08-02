@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import sys
 
 import uvicorn
 from fastapi import FastAPI
@@ -41,12 +42,26 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
+def _is_frozen() -> bool:
+    return bool(getattr(sys, "frozen", False))
+
+
 def main() -> None:
+    # Pass the app object when frozen so PyInstaller does not need the
+    # "robot_studio.main:app" string import path.
+    if _is_frozen() or not settings.debug:
+        uvicorn.run(
+            app,
+            host=settings.host,
+            port=settings.port,
+            reload=False,
+        )
+        return
     uvicorn.run(
         "robot_studio.main:app",
         host=settings.host,
         port=settings.port,
-        reload=settings.debug,
+        reload=True,
     )
 
 

@@ -62,7 +62,28 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 
 ## Getting Started
 
-Run the backend and frontend in two terminals. The app connects to `http://127.0.0.1:8765` on launch.
+### Packaged app (closed beta)
+
+Beta users should **double-click** the app — not start a Python process by hand.
+
+| Platform | Artifact | Launch |
+|----------|----------|--------|
+| macOS | `dist/macos/Robot Studio.app` (also zipped) | Double-click **Robot Studio.app** |
+| Windows | `dist/windows/RobotStudio/RobotStudio.exe` (also zipped) | Double-click **RobotStudio.exe** |
+
+Build packages from the repo root:
+
+```bash
+make package-macos      # → dist/macos/Robot Studio.app
+make package-windows   # → dist/windows/RobotStudio/ (run on Windows)
+make package           # this OS
+```
+
+The app embeds a frozen backend sidecar and starts it on launch (stops it on quit). Data lives under `~/.robot-studio`.
+
+### Developer loop (two terminals)
+
+While iterating on the code, keep using the unbundled loop. The app connects to `http://127.0.0.1:8765` and will **not** spawn a sidecar when that backend is already healthy.
 
 ### Makefile (recommended)
 
@@ -76,6 +97,9 @@ make run               # flutter run -d macos|linux|windows
 make build             # flutter build <device>
 make test              # pytest + flutter test
 make test-integration  # E2E (or: make test-integration SUITE=startup_test.dart)
+make package           # double-click app for this OS
+make package-macos     # dist/macos/Robot Studio.app
+make package-windows   # dist/windows/RobotStudio/
 make health            # curl /api/v1/health
 make backend-stop      # kill listener on PORT (default 8765)
 ```
@@ -313,7 +337,7 @@ Core IDE milestones through execution, reports, indexing, language features, Git
 | **M6.6** | Robot Doctor (Project Health Center + `/doctor` APIs + UI) | Done |
 | **M7** | Test execution + WebSocket logs | Done |
 | **M8** | Reports | Done |
-| **M9+** | Settings / AI / packaging polish | Partial (Settings hidden until implemented; AI deferred; bundled backend auto-start deferred to end) |
+| **M9+** | Settings / AI / packaging polish | Partial (Settings hidden until implemented; AI deferred; **desktop packaging shipped for closed beta** — `make package-macos` / `package-windows`) |
 | **M10** | Intelligent editor (parsing bridge, diagnostics, navigation) | In progress / shipping |
 | **M11** | Plugin framework + manager UI | In progress / shipping |
 | **M12** | Git source control | In progress / shipping |

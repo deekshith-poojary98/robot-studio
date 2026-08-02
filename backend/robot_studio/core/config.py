@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,11 +9,20 @@ class Settings(BaseSettings):
 
     host: str = "127.0.0.1"
     port: int = 8765
+    # Always under the user home by default — never next to a read-only .app bundle.
     data_dir: Path = Path.home() / ".robot-studio"
     api_prefix: str = "/api/v1"
     debug: bool = False
     # Confirm before starting runs that match more than this many tests.
     large_run_threshold: int = 100
+
+    @field_validator("data_dir", mode="before")
+    @classmethod
+    def _expand_data_dir(cls, value: object) -> Path:
+        path = Path(str(value)).expanduser()
+        if not path.is_absolute():
+            path = Path.home() / path
+        return path.resolve()
 
     @property
     def database_path(self) -> Path:

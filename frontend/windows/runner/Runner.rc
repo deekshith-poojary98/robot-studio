@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "robot_studio" "\0"
+            VALUE "CompanyName", "Robot Studio" "\0"
+            VALUE "FileDescription", "Robot Studio" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "robot_studio" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "robot_studio.exe" "\0"
-            VALUE "ProductName", "robot_studio" "\0"
+            VALUE "InternalName", "RobotStudio" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Robot Studio. All rights reserved." "\0"
+            VALUE "OriginalFilename", "RobotStudio.exe" "\0"
+            VALUE "ProductName", "Robot Studio" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

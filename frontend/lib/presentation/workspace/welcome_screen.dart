@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/index_info.dart';
@@ -103,10 +104,13 @@ class WelcomeScreen extends StatelessWidget {
                   border: Border.all(color: AppColors.borderSubtle),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Text(
-                  'Backend unavailable. Start it with: '
-                  'python -m robot_studio.main',
-                  style: TextStyle(
+                child: Text(
+                  kReleaseMode
+                      ? 'Robot Studio could not start its backend service. '
+                          'Quit and reopen the app, or reinstall Robot Studio.'
+                      : 'Backend unavailable. Start it with: '
+                          'make backend   (or: python -m robot_studio.main)',
+                  style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12.5,
                     height: 1.35,

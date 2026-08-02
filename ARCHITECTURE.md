@@ -77,7 +77,7 @@ Persistent state lives in **SQLite** under `~/.robot-studio` (configurable). Sym
 | Settings / AI assistant UI | **Not shipped** (both hidden from the rail until ready — no stub surfaces) |
 | Robot Doctor / Impact Analysis / Safe Rename (UI) | **Doctor shipped** (Project Health Center); Impact / Safe Rename **Planned** |
 | Integrated Terminal (bottom panel PTY) | **Shipped** — `xterm` + `flutter_pty`, cwd = project folder; macOS App Sandbox disabled so shells can spawn |
-| Desktop packaging: auto-start bundled backend sidecar | **Deferred** (end-of-ship) — freeze Python backend, spawn from app / native launcher, stop on quit; macOS entitlements already unsandboxed for shell/subprocess spawn |
+| Desktop packaging: auto-start bundled backend sidecar | **Shipped (closed beta)** — PyInstaller freeze + Flutter `BackendHost` spawns sidecar from the `.app` / `.exe` bundle, health-waits, stops on quit; `make package-macos` / `package-windows` |
 | gRPC Language Service sidecar | **Planned** |
 | Full plugin subprocess sandbox (P2) | **Planned** |
 
@@ -718,7 +718,7 @@ Engineering audit notes: [audit.md](./audit.md).
 | **M6** | Indexing pipeline; Keyword/Search UI; Language Service (completion + hover + more) | ✅ Done |
 | **M7** | Runner + history + WebSocket log stream | ✅ Done (gRPC migration deferred) |
 | **M8** | ReportProvider + reports UI | ✅ Done |
-| **M9** | Settings, packaging polish, AI provider | 🔶 Partial (Settings hidden until implemented; AI deferred; backend sidecar auto-start deferred to end) |
+| **M9** | Settings, packaging polish, AI provider | 🔶 Partial (Settings hidden; AI deferred; **desktop packaging shipped** for closed beta) |
 | **M10** | Intelligent editor (parsing bridge, diagnostics, navigation) | 🔶 Shipping |
 | **M11** | Plugin framework + manager UI | 🔶 Shipping |
 | **M12** | Git source control | 🔶 Shipping |

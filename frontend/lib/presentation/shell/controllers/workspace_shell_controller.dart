@@ -176,7 +176,7 @@ class WorkspaceShellController {
         backendStatus = 'offline';
         logLines = [
           '[error] Backend unavailable: $error',
-          '[info] Waiting for backend… start with: python -m robot_studio.main',
+          '[info] Waiting for backend…',
         ];
         notify();
       } else if (backendStatus != 'offline') {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -95,8 +96,10 @@ class StatusBar extends StatelessWidget {
             if (backendUnavailable)
               _item(
                 'BACKEND UNAVAILABLE',
-                tooltip:
-                    'Start the backend with: python -m robot_studio.main',
+                tooltip: kReleaseMode
+                    ? 'Robot Studio could not reach its backend service. '
+                        'Quit and reopen the app, or reinstall.'
+                    : 'Start the backend with: make backend',
                 trailing: false,
               ),
           ],

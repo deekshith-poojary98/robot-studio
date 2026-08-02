@@ -27,6 +27,7 @@ SUITE ?=
 .PHONY: help setup setup-backend setup-frontend \
 	backend backend-stop health \
 	run run-frontend build build-frontend \
+	package package-macos package-windows \
 	test test-backend test-frontend test-integration analyze \
 	pub-get clean
 
@@ -98,6 +99,23 @@ build: build-frontend ## Alias for build-frontend
 
 build-frontend: ## flutter build $(DEVICE)
 	cd "$(FRONTEND)" && flutter build "$(DEVICE)"
+
+# ---------------------------------------------------------------------------
+# Packaging (double-click desktop apps)
+# ---------------------------------------------------------------------------
+
+package: ## Package for this OS (macos on Darwin, windows otherwise)
+ifeq ($(UNAME_S),Darwin)
+	@$(MAKE) package-macos
+else
+	@$(MAKE) package-windows
+endif
+
+package-macos: ## Build dist/macos/Robot Studio.app (+ zip)
+	"$(ROOT)/scripts/package_macos.sh"
+
+package-windows: ## Build dist/windows/RobotStudio/RobotStudio.exe (+ zip)
+	"$(ROOT)/scripts/package_windows.sh"
 
 pub-get: setup-frontend ## Alias for setup-frontend
 
