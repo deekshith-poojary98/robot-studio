@@ -12,6 +12,9 @@ class WorkspaceStreamEvent {
     this.workspaceId,
     this.projectId,
     this.environmentId,
+    this.message,
+    this.current,
+    this.total,
   });
 
   factory WorkspaceStreamEvent.fromJson(Map<String, dynamic> json) {
@@ -28,6 +31,9 @@ class WorkspaceStreamEvent {
       workspaceId: json['workspace_id'] as String?,
       projectId: json['project_id'] as String?,
       environmentId: json['environment_id'] as String?,
+      message: json['message'] as String?,
+      current: (json['current'] as num?)?.toInt(),
+      total: (json['total'] as num?)?.toInt(),
     );
   }
 
@@ -43,6 +49,9 @@ class WorkspaceStreamEvent {
   final String? workspaceId;
   final String? projectId;
   final String? environmentId;
+  final String? message;
+  final int? current;
+  final int? total;
 
   bool get isFilesystemEvent =>
       type.startsWith('FILE_') || type.startsWith('DIRECTORY_');

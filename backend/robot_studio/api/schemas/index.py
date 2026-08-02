@@ -28,6 +28,7 @@ class SymbolResponse(BaseModel):
     documentation: str = ""
     detail: str = ""
     last_modified: float | None = None
+    definitions: list["SymbolResponse"] | None = None
 
 
 class SearchResponse(BaseModel):
@@ -72,6 +73,25 @@ def to_index_status(status: IndexStatus) -> IndexStatusResponse:
 
 
 def to_symbol_response(item: dict) -> SymbolResponse:
+    nested = item.get("definitions")
+    definitions = None
+    if isinstance(nested, list) and nested:
+        definitions = [
+            SymbolResponse(
+                id=str(d["id"]),
+                name=str(d["name"]),
+                kind=str(d["kind"]),
+                file_path=str(d["file_path"]),
+                line=int(d.get("line") or 1),
+                project_id=d.get("project_id"),
+                workspace_id=d.get("workspace_id"),
+                documentation=d.get("documentation") or "",
+                detail=d.get("detail") or "",
+                last_modified=d.get("last_modified"),
+            )
+            for d in nested
+            if isinstance(d, dict) and d.get("id") and d.get("name") and d.get("file_path")
+        ]
     return SymbolResponse(
         id=item["id"],
         name=item["name"],
@@ -83,4 +103,5 @@ def to_symbol_response(item: dict) -> SymbolResponse:
         documentation=item.get("documentation") or "",
         detail=item.get("detail") or "",
         last_modified=item.get("last_modified"),
+        definitions=definitions,
     )

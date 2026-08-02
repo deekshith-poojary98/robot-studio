@@ -220,7 +220,10 @@ class Container:
 
         self.index_store = SqliteIndexStore(settings.database_path)
         self.analysis_store = SqliteAnalysisStore(settings.database_path)
-        self.analysis_engine = RobotAnalysisEngine(store=self.analysis_store)
+        self.analysis_engine = RobotAnalysisEngine(
+            store=self.analysis_store,
+            event_bus=self.event_bus,
+        )
         self.inspection_engine = InspectionEngine(
             analysis_engine=self.analysis_engine,
             store=self.analysis_store,
@@ -287,6 +290,7 @@ class Container:
             store=self.index_store,
             context=self.workspace_context,
             event_bus=self.event_bus,
+            analysis_engine=self.analysis_engine,
         )
         self.plugin_host.register(
             Capability.LANGUAGE_SERVICE,

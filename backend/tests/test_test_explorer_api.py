@@ -270,3 +270,38 @@ async def test_run_test_suite_tag_and_failed(api_client) -> None:
     )
     assert selected.status_code == 200, selected.text
     await _wait_status(client, run_id=selected.json()["id"])
+
+
+@pytest.mark.asyncio
+async def test_large_run_requires_confirmation(api_client, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _, tmp_path = api_client
+    monkeypatch.setattr(settings, "large_run_threshold", 2)
+    await _seed_workspace(client, tmp_path)
+
+    # Suite-wide / project run without confirm → 409 when over threshold.
+    blocked = await client.post("/api/v1/tests/run-suite", json={})
+    assert blocked.status_code == 409, blocked.text
+    detail = blocked.json()["detail"]
+    assert detail["code"] == "large_run_confirmation_required"
+    assert detail["count"] >= 2
+    assert detail["threshold"] == 2
+
+    project_blocked = await client.post("/api/v1/execution/run-project", json={})
+    assert project_blocked.status_code == 409, project_blocked.text
+    assert project_blocked.json()["detail"]["code"] == "large_run_confirmation_required"
+
+    # Tag include can also exceed threshold (smoke covers Alpha via suite tags).
+    tag_blocked = await client.post("/api/v1/tests/run-tag", json={"tag": "smoke"})
+    # May be under or over depending on discovery; force with wildcard which always confirms.
+    wild = await client.post("/api/v1/tests/run-tag", json={"tag": "smoke*"})
+    assert wild.status_code == 409, wild.text
+    assert wild.json()["detail"]["code"] == "large_run_confirmation_required"
+
+    confirmed = await client.post(
+        "/api/v1/tests/run-suite",
+        json={"confirm": True},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["id"]
+    # Stop promptly so the suite stays fast.
+    await client.post("/api/v1/execution/stop")

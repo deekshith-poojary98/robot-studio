@@ -33,10 +33,12 @@ class RunTestRequest(BaseModel):
 
 class RunSuiteRequest(BaseModel):
     file: str | None = None
+    confirm: bool = False
 
 
 class RunTagRequest(BaseModel):
     tag: str = Field(min_length=1)
+    confirm: bool = False
 
 
 class RunSelectedTest(BaseModel):

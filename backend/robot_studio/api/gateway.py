@@ -428,7 +428,12 @@ class RestGateway:
     async def run_file(self, file_path: str | None = None) -> ExecutionRun:
         return await self._execution_service.run_file(file_path=file_path)
 
-    async def run_project(self) -> ExecutionRun:
+    async def run_project(self, *, confirm: bool = False) -> ExecutionRun:
+        await self._test_explorer_service.ensure_large_run_allowed(
+            confirm=confirm,
+            tag=None,
+            project_wide=True,
+        )
         return await self._execution_service.run_project()
 
     async def get_test_tree(
@@ -456,11 +461,13 @@ class RestGateway:
     async def run_test(self, *, file: str, name: str) -> ExecutionRun:
         return await self._test_explorer_service.run_test(file=file, name=name)
 
-    async def run_test_suite(self, *, file: str | None = None) -> ExecutionRun:
-        return await self._test_explorer_service.run_suite(file=file)
+    async def run_test_suite(
+        self, *, file: str | None = None, confirm: bool = False
+    ) -> ExecutionRun:
+        return await self._test_explorer_service.run_suite(file=file, confirm=confirm)
 
-    async def run_tests_by_tag(self, *, tag: str) -> ExecutionRun:
-        return await self._test_explorer_service.run_tag(tag=tag)
+    async def run_tests_by_tag(self, *, tag: str, confirm: bool = False) -> ExecutionRun:
+        return await self._test_explorer_service.run_tag(tag=tag, confirm=confirm)
 
     async def run_failed_tests(self) -> ExecutionRun:
         return await self._test_explorer_service.run_failed()

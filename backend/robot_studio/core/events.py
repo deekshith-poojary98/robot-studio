@@ -113,6 +113,29 @@ class IndexUpdated(DomainEvent):
 
 
 @dataclass(frozen=True)
+class IndexProgress(DomainEvent):
+    """Mid-rebuild progress for status bar / live workspace events."""
+
+    message: str
+    current: int = 0
+    total: int = 0
+    path: str | None = None
+    scope: str = "workspace"
+    scope_id: str | None = None
+
+
+@dataclass(frozen=True)
+class AnalysisProgress(DomainEvent):
+    """Mid-analysis progress (graph rebuild / bind)."""
+
+    message: str
+    current: int = 0
+    total: int = 0
+    scope: str = "workspace"
+    scope_id: str | None = None
+
+
+@dataclass(frozen=True)
 class FileIndexed(DomainEvent):
     path: str
     workspace_id: UUID | None = None

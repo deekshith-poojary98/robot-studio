@@ -7,13 +7,33 @@ from robot_studio.api.schemas.execution import (
     ExecutionResponse,
     ExecutionStatusResponse,
     RunFileRequest,
+    RunProjectRequest,
     to_execution_response,
 )
 from robot_studio.application.services.execution_service import ExecutionValidationError
+from robot_studio.application.services.test_explorer_service import (
+    TestExplorerValidationError,
+)
 from robot_studio.core.container import container
 from robot_studio.domain.models import ExecutionStatus
 
 router = APIRouter(prefix="/execution", tags=["execution"])
+
+
+def _http_run_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, TestExplorerValidationError) and exc.code == "large_run_confirmation_required":
+        return HTTPException(
+            status_code=409,
+            detail={
+                "code": exc.code,
+                "message": str(exc),
+                "count": exc.count,
+                "threshold": exc.threshold,
+            },
+        )
+    if isinstance(exc, (ExecutionValidationError, TestExplorerValidationError)):
+        return HTTPException(status_code=400, detail=str(exc))
+    return HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/run", response_model=ExecutionResponse)
@@ -23,19 +43,21 @@ async def run_file(
 ) -> ExecutionResponse:
     try:
         run = await gateway.run_file(file_path=request.file)
-    except ExecutionValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (ExecutionValidationError, TestExplorerValidationError) as exc:
+        raise _http_run_error(exc) from exc
     return to_execution_response(run)
 
 
 @router.post("/run-project", response_model=ExecutionResponse)
 async def run_project(
+    request: RunProjectRequest | None = None,
     gateway: RestGateway = Depends(get_gateway),
 ) -> ExecutionResponse:
+    body = request or RunProjectRequest()
     try:
-        run = await gateway.run_project()
-    except ExecutionValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        run = await gateway.run_project(confirm=body.confirm)
+    except (ExecutionValidationError, TestExplorerValidationError) as exc:
+        raise _http_run_error(exc) from exc
     return to_execution_response(run)
 
 

@@ -77,8 +77,21 @@ async def run_suite(
     gateway: RestGateway = Depends(get_gateway),
 ) -> ExecutionResponse:
     try:
-        run = await gateway.run_test_suite(file=request.file)
+        run = await gateway.run_test_suite(file=request.file, confirm=request.confirm)
     except (TestExplorerValidationError, ExecutionValidationError) as exc:
+        if (
+            isinstance(exc, TestExplorerValidationError)
+            and exc.code == "large_run_confirmation_required"
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": exc.code,
+                    "message": str(exc),
+                    "count": exc.count,
+                    "threshold": exc.threshold,
+                },
+            ) from exc
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return to_execution_response(run)
 
@@ -89,8 +102,21 @@ async def run_tag(
     gateway: RestGateway = Depends(get_gateway),
 ) -> ExecutionResponse:
     try:
-        run = await gateway.run_tests_by_tag(tag=request.tag)
+        run = await gateway.run_tests_by_tag(tag=request.tag, confirm=request.confirm)
     except (TestExplorerValidationError, ExecutionValidationError) as exc:
+        if (
+            isinstance(exc, TestExplorerValidationError)
+            and exc.code == "large_run_confirmation_required"
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": exc.code,
+                    "message": str(exc),
+                    "count": exc.count,
+                    "threshold": exc.threshold,
+                },
+            ) from exc
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return to_execution_response(run)
 

@@ -107,7 +107,7 @@ abstract class TransportGateway {
 
   Future<ExecutionInfo> runFile({String? file});
 
-  Future<ExecutionInfo> runProject();
+  Future<ExecutionInfo> runProject({bool confirm = false});
 
   Future<TestNodeInfo> getTestTree({String? query, bool lazy = true});
 
@@ -117,9 +117,9 @@ abstract class TransportGateway {
 
   Future<ExecutionInfo> runTest({required String file, required String name});
 
-  Future<ExecutionInfo> runTestSuite({String? file});
+  Future<ExecutionInfo> runTestSuite({String? file, bool confirm = false});
 
-  Future<ExecutionInfo> runTestsByTag(String tag);
+  Future<ExecutionInfo> runTestsByTag(String tag, {bool confirm = false});
 
   Future<ExecutionInfo> runFailedTests();
 
@@ -313,9 +313,15 @@ abstract class TransportGateway {
 }
 
 class GatewayException implements Exception {
-  GatewayException(this.message);
+  GatewayException(this.message, {this.code, this.count, this.threshold});
 
   final String message;
+  final String? code;
+  final int? count;
+  final int? threshold;
+
+  bool get isLargeRunConfirmation =>
+      code == 'large_run_confirmation_required';
 
   @override
   String toString() => message;

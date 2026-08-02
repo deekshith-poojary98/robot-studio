@@ -28,6 +28,8 @@ class DiagnosticResponse(BaseModel):
     column: int = 1
     message: str
     source: str = "robot"
+    code: str | None = None
+    inspection_id: str | None = None
 
 
 class DiagnosticListResponse(BaseModel):

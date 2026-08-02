@@ -70,4 +70,54 @@ void main() {
       isTrue,
     );
   });
+
+  test('WorkspaceStreamEvent parses index progress', () {
+    final event = WorkspaceStreamEvent.fromJson({
+      'type': 'INDEX_PROGRESS',
+      'message': 'Indexing files',
+      'current': 3,
+      'total': 10,
+      'path': 'a.robot',
+    });
+    expect(event.type, 'INDEX_PROGRESS');
+    expect(event.message, 'Indexing files');
+    expect(event.current, 3);
+    expect(event.total, 10);
+  });
+
+  test('WorkspaceLiveController surfaces INDEX_PROGRESS in status', () {
+    final messages = <String>[];
+    final busyFlags = <bool>[];
+    final controller = WorkspaceLiveController(
+      notify: () {},
+      isMounted: () => true,
+      appendLog: (_) {},
+      onFilesystemEvent: (_) async {},
+      onGitChanged: () async {},
+      onIndexUpdated: (_) async {},
+      onTestsChanged: () async {},
+      onEnvironmentChanged: () async {},
+      onProjectMissing: (_) async {},
+      onWorkspaceMissing: (_) async {},
+      onStatusMessage: messages.add,
+      onProgressBusy: busyFlags.add,
+    );
+    controller.handleEvent(
+      WorkspaceStreamEvent.fromJson({
+        'type': 'INDEX_PROGRESS',
+        'message': 'Indexing files',
+        'current': 2,
+        'total': 5,
+      }),
+    );
+    expect(messages.single, contains('Indexing files'));
+    expect(messages.single, contains('2/5'));
+    expect(busyFlags, [true]);
+
+    controller.handleEvent(
+      const WorkspaceStreamEvent(type: 'INDEX_UPDATED', scope: 'workspace'),
+    );
+    expect(messages.last, 'Workspace synchronized');
+    expect(busyFlags.last, isFalse);
+  });
 }

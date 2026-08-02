@@ -31,15 +31,33 @@ class CliGitProvider(GitProvider):
         self._timeout = timeout
 
     async def detect(self, path: Path) -> GitRepositoryInfo | None:
+        """Detect a Git repo scoped to *path* (usually the active project).
+
+        Never silently attach to an unrelated parent monorepo: if ``git`` reports
+        a toplevel that is a strict ancestor of *path*, treat the project as
+        not-a-repository so the user can Init inside the project (or open the
+        parent folder explicitly as the project).
+        """
         target = path.resolve()
         if not target.exists():
             return None
+        # Prefer a .git that lives on the scoped path itself.
+        if (target / ".git").exists():
+            return await self._repository_info(target)
         try:
             root = await self._run_text(["rev-parse", "--show-toplevel"], cwd=target)
         except GitCommandError:
             return None
-        root_path = Path(root.strip())
-        return await self._repository_info(root_path)
+        root_path = Path(root.strip()).resolve()
+        if root_path == target:
+            return await self._repository_info(root_path)
+        # Project nested inside another repo (parent monorepo) — do not claim it.
+        try:
+            target.relative_to(root_path)
+        except ValueError:
+            return None
+        return None
+
 
     async def init(self, path: Path) -> GitRepositoryInfo:
         target = path.resolve()

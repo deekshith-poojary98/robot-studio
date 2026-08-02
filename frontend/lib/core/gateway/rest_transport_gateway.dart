@@ -306,10 +306,10 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<ExecutionInfo> runProject() async {
+  Future<ExecutionInfo> runProject({bool confirm = false}) async {
     final response = await _post(
       '/execution/run-project',
-      body: const {},
+      body: {'confirm': confirm},
       timeout: const Duration(seconds: 30),
     );
     return ExecutionInfo.fromJson(response);
@@ -360,20 +360,26 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<ExecutionInfo> runTestSuite({String? file}) async {
+  Future<ExecutionInfo> runTestSuite({
+    String? file,
+    bool confirm = false,
+  }) async {
     final response = await _post(
       '/tests/run-suite',
-      body: {'file': file},
+      body: {'file': file, 'confirm': confirm},
       timeout: const Duration(seconds: 30),
     );
     return ExecutionInfo.fromJson(response);
   }
 
   @override
-  Future<ExecutionInfo> runTestsByTag(String tag) async {
+  Future<ExecutionInfo> runTestsByTag(
+    String tag, {
+    bool confirm = false,
+  }) async {
     final response = await _post(
       '/tests/run-tag',
-      body: {'tag': tag},
+      body: {'tag': tag, 'confirm': confirm},
       timeout: const Duration(seconds: 30),
     );
     return ExecutionInfo.fromJson(response);
@@ -1172,10 +1178,17 @@ class RestTransportGateway implements TransportGateway {
         : jsonDecode(response.body) as Object?;
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final detail = decoded is Map<String, dynamic>
-          ? decoded['detail']?.toString()
-          : null;
-      final message = detail ?? 'Request failed (${response.statusCode})';
+      final detail = decoded is Map<String, dynamic> ? decoded['detail'] : null;
+      if (detail is Map<String, dynamic>) {
+        throw GatewayException(
+          detail['message']?.toString() ??
+              detail.toString(),
+          code: detail['code']?.toString(),
+          count: (detail['count'] as num?)?.toInt(),
+          threshold: (detail['threshold'] as num?)?.toInt(),
+        );
+      }
+      final message = detail?.toString() ?? 'Request failed (${response.statusCode})';
       AppLogger.warn('HTTP ${response.statusCode}: $message', tag: 'Gateway');
       throw GatewayException(message);
     }

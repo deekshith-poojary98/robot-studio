@@ -116,23 +116,23 @@ class EventBus(ABC):
 - Subscribers may schedule async work (e.g. index rebuild) on a background task.
 - The frontend does **not** connect to the Event Bus directly — it receives filtered streams through the Transport Gateway (execution WebSocket + workspace events WebSocket).
 
-Concrete event types live in `backend/robot_studio/core/events.py` (`WorkspaceOpened`, `ExecutionFinished`, `IndexUpdated`, `FilesystemChanged`, `PluginLoaded`, Git events, etc.).
+Concrete event types live in `backend/robot_studio/core/events.py` (`WorkspaceOpened`, `ExecutionFinished`, `IndexUpdated`, `IndexProgress`, `AnalysisProgress`, `FilesystemChanged`, `PluginLoaded`, Git events, etc.).
 
 **Live workspace fan-out (Tier 1 — shipped):**
 
 ```
 NativeFileWatcher / PollingFileWatcher
         ↓ on_fs_change (all non-skipped files/dirs) + on_change (indexable)
-EventBus (FilesystemChanged, IndexUpdated, RepositoryUpdated, …)
+EventBus (FilesystemChanged, IndexUpdated, IndexProgress, AnalysisProgress, RepositoryUpdated, …)
         ↓
 WorkspaceEventService → WS /api/v1/workspace/events
         ↓
 Flutter WorkspaceEventStreamClient → WorkspaceLiveController
         ↓
-Explorer (incremental) · Editor conflict UX · Git (300ms debounce) · Tests · Search/index · StatusBar
+Explorer (incremental) · Editor conflict UX · Git (300ms debounce) · Tests · Search/index · StatusBar (+ soft progress overlay)
 ```
 
-Wire event types: `FILE_CREATED|DELETED|MODIFIED|RENAMED`, `DIRECTORY_CREATED|DELETED|RENAMED`, `PROJECT_CHANGED`, `WORKSPACE_CHANGED`, `INDEX_UPDATED`, `GIT_CHANGED`, `ENVIRONMENT_CHANGED`.
+Wire event types: `FILE_CREATED|DELETED|MODIFIED|RENAMED`, `DIRECTORY_CREATED|DELETED|RENAMED`, `PROJECT_CHANGED`, `WORKSPACE_CHANGED`, `INDEX_UPDATED`, `INDEX_PROGRESS`, `ANALYSIS_PROGRESS`, `GIT_CHANGED`, `ENVIRONMENT_CHANGED`.
 
 **Root liveness**: deleting the watched root itself yields no watcher events (watchdog loses the directory it observes; the poller skips absent roots), so `WorkspaceEventService` also polls the workspace/project roots every ~2s and emits `WORKSPACE_CHANGED` / `PROJECT_CHANGED` with `reason: "missing"`. A missing workspace suppresses the project event so standalone projects raise one dialog, not two. Complementing this, `FileService` mutations refuse to run when the root is gone — writes create missing parents, so without that guard the next save would silently resurrect an externally deleted project.
 
@@ -394,7 +394,11 @@ Publishes package install/update/remove events; does not call Indexing directly.
 
 ### Git
 
-Workspace-scoped Git via CLI provider: status, init, commit, branches, history, diff, fetch/pull/push, plus `POST /git/seed-local-remote` (creates a bare remote under the workspace and wires `origin` + upstream — used by integration GT-10). Remote actions are UI-gated when the folder is not a repository.
+**Project-scoped** Git via CLI provider: `detect()` only claims a repository when `.git` lives on the active project path (or the path itself is the Git toplevel). Nested projects under a parent monorepo are treated as not-a-repository so Source Control never silently attaches to an unrelated parent — Init creates a repo inside the open project (or the user opens the parent folder as the project). Status, commit, branches, history, diff, fetch/pull/push, plus `POST /git/seed-local-remote` (bare remote under the workspace for integration GT-10). Remote actions are UI-gated when the folder is not a repository.
+
+### Large-run confirmation
+
+`TestExplorerService` / `ExecutionService` gate project-wide and tag runs when the estimated test count exceeds `settings.large_run_threshold` (env `ROBOT_STUDIO_LARGE_RUN_THRESHOLD`, default **100**), or when the tag expression is a wildcard/boolean include. Without `confirm: true`, APIs return **409** with `{code: large_run_confirmation_required, count, threshold, message}`. The Flutter shell pre-counts via `GET /tests/count`, shows the estimate, and retries with `confirm: true`.
 
 ---
 
@@ -611,7 +615,7 @@ PluginState: enabled, loaded_at, error…
 
 ### Language DTOs
 
-Completion, hover, diagnostics, definition/references locations, format edits, signature help, document/workspace symbols — exposed via `/language/*`. Completions and catalogs **separate RF DSL** (section headers, suite/local settings, control-flow: `IF`/`FOR`/`TRY`/`VAR`/… — completion kind `dsl`) from **BuiltIn library** keywords (`Log`, `Should Be Equal`, … — kind `keyword`). Completions also include keywords from `Library` imports in the current file, resolved against the **active environment** via Robot `libdoc` (including `WITH NAME` → `Alias.Keyword` suggestions). Semantic diagnostics resolve `Library` imports (and their keywords) the same way, skip continuation rows (`...`), treat RF automatic / number variables as known, and track variables declared by assignments / `FOR` / `VAR` / `[Arguments]` plus same-file user keywords. Signature help is shown as a pointer hover tooltip.
+Completion, hover, diagnostics, definition/references locations, format edits, signature help, document/workspace symbols — exposed via `/language/*`. Completions and catalogs **separate RF DSL** (section headers, suite/local settings, control-flow: `IF`/`FOR`/`TRY`/`VAR`/… — completion kind `dsl`) from **BuiltIn library** keywords (`Log`, `Should Be Equal`, … — kind `keyword`). Completions also include keywords from `Library` imports in the current file, resolved against the **active environment** via Robot `libdoc` (including `WITH NAME` → `Alias.Keyword` suggestions). Semantic diagnostics resolve `Library` imports (and their keywords) the same way, skip continuation rows (`...`), treat RF automatic / number variables as known, and track variables declared by assignments / `FOR` / `VAR` / `[Arguments]` plus same-file user keywords. Missing Resource/Variables imports are enriched from the Analysis Engine (`source: analysis`, `code` / `inspection_id: missing_import`) so Problems and Doctor share finding identity. Go to Definition resolves the Robot cell under the caret (content + line/column), falls back to the Analysis Engine graph, and returns `definitions[]` when multiple matches exist. Signature help is shown as a pointer hover tooltip.
 
 ---
 

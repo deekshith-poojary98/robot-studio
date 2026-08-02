@@ -150,3 +150,22 @@ async def test_refresh_on_workspace_opened(git_stack) -> None:
     repository = await service.get_repository()
     assert repository is not None
     assert repository.is_repository is True
+
+
+@pytest.mark.asyncio
+async def test_detect_ignores_parent_monorepo(tmp_path: Path) -> None:
+    """Nested project must not silently attach to a parent Git monorepo."""
+    parent = tmp_path / "monorepo"
+    parent.mkdir()
+    _run_git(parent, "init")
+    project = parent / "nested-rf-project"
+    project.mkdir()
+    provider = CliGitProvider()
+
+    assert await provider.detect(project) is None
+
+    _run_git(project, "init")
+    detected = await provider.detect(project)
+    assert detected is not None
+    assert detected.root == project.resolve()
+    assert detected.root != parent.resolve()

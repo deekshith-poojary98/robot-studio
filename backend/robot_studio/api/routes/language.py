@@ -177,6 +177,8 @@ async def language_diagnostics(
                 "column": int(item.get("column") or 1),
                 "message": str(item.get("message") or ""),
                 "source": item.get("source") or "robot",
+                "code": item.get("code"),
+                "inspection_id": item.get("inspection_id"),
             }
             for item in diagnostics
         ],

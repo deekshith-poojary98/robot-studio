@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     data_dir: Path = Path.home() / ".robot-studio"
     api_prefix: str = "/api/v1"
     debug: bool = False
+    # Confirm before starting runs that match more than this many tests.
+    large_run_threshold: int = 100
 
     @property
     def database_path(self) -> Path:

@@ -439,11 +439,22 @@ class SqliteIndexStore(IndexStore):
         *,
         kind: SymbolKind | None = None,
     ) -> dict | None:
+        hits = await self.find_definitions(name, kind=kind, limit=1)
+        return hits[0] if hits else None
+
+    async def find_definitions(
+        self,
+        name: str,
+        *,
+        kind: SymbolKind | None = None,
+        limit: int = 20,
+    ) -> list[dict]:
         clauses = ["name_lower = ?"]
         params: list[object] = [name.lower()]
         if kind:
             clauses.append("kind = ?")
             params.append(kind.value)
+        params.append(limit)
         async with aiosqlite.connect(self._database_path) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
@@ -454,16 +465,19 @@ class SqliteIndexStore(IndexStore):
                     CASE kind
                         WHEN 'keyword' THEN 0
                         WHEN 'variable' THEN 1
-                        WHEN 'library' THEN 2
-                        WHEN 'resource' THEN 3
-                        ELSE 4
-                    END
-                LIMIT 1
+                        WHEN 'test' THEN 2
+                        WHEN 'library' THEN 3
+                        WHEN 'resource' THEN 4
+                        ELSE 5
+                    END,
+                    file_path,
+                    line
+                LIMIT ?
                 """,
                 params,
             )
-            row = await cursor.fetchone()
-        return self._row_to_dict(row) if row else None
+            rows = await cursor.fetchall()
+        return [self._row_to_dict(row) for row in rows]
 
     async def symbols_for_file(self, file_path: Path) -> list[dict]:
         async with aiosqlite.connect(self._database_path) as db:

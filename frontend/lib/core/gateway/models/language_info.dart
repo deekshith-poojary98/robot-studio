@@ -55,6 +55,8 @@ class DiagnosticInfo {
     required this.column,
     required this.message,
     this.source = 'robot',
+    this.code,
+    this.inspectionId,
   });
 
   factory DiagnosticInfo.fromJson(Map<String, dynamic> json) {
@@ -65,6 +67,8 @@ class DiagnosticInfo {
       column: (json['column'] as num?)?.toInt() ?? 1,
       message: json['message'] as String? ?? '',
       source: json['source'] as String? ?? 'robot',
+      code: json['code'] as String?,
+      inspectionId: json['inspection_id'] as String?,
     );
   }
 
@@ -74,6 +78,8 @@ class DiagnosticInfo {
   final int column;
   final String message;
   final String source;
+  final String? code;
+  final String? inspectionId;
 
   String get fileName {
     final normalized = filePath.replaceAll('\\', '/');
@@ -82,6 +88,12 @@ class DiagnosticInfo {
   }
 
   String get locationLabel => '$fileName:$line:$column';
+
+  String get sourceLabel {
+    final bits = <String>[source];
+    if (code != null && code!.isNotEmpty) bits.add(code!);
+    return bits.join(' · ');
+  }
 }
 
 class SignatureParameterInfo {

@@ -21,6 +21,7 @@ class WorkspaceLiveController {
     required this.onProjectMissing,
     required this.onWorkspaceMissing,
     required this.onStatusMessage,
+    this.onProgressBusy,
   });
 
   final ShellNotify notify;
@@ -34,6 +35,8 @@ class WorkspaceLiveController {
   final Future<void> Function(WorkspaceStreamEvent event) onProjectMissing;
   final Future<void> Function(WorkspaceStreamEvent event) onWorkspaceMissing;
   final void Function(String message) onStatusMessage;
+  /// When true, shell may show a non-blocking progress overlay.
+  final void Function(bool busy)? onProgressBusy;
 
   WorkspaceEventStreamClient? _client;
   StreamSubscription<WorkspaceStreamEvent>? _sub;
@@ -103,8 +106,16 @@ class WorkspaceLiveController {
       case 'GIT_CHANGED':
         _scheduleGitFlush();
         return;
+      case 'INDEX_PROGRESS':
+        onStatusMessage(_formatProgress('Indexing', event));
+        _setBusy(true);
+        return;
+      case 'ANALYSIS_PROGRESS':
+        onStatusMessage(_formatProgress('Analyzing', event));
+        _setBusy(true);
+        return;
       case 'INDEX_UPDATED':
-        _indexBusyHint = false;
+        _setBusy(false);
         onStatusMessage('Workspace synchronized');
         _scheduleStatusClear();
         unawaited(onIndexUpdated(event));
@@ -124,13 +135,36 @@ class WorkspaceLiveController {
           onStatusMessage('Workspace removed');
           unawaited(onWorkspaceMissing(event));
         } else if (event.reason == 'opened') {
-          _indexBusyHint = true;
           onStatusMessage('Indexing workspace...');
+          _setBusy(true);
         }
         return;
       default:
         return;
     }
+  }
+
+  void _setBusy(bool busy) {
+    _indexBusyHint = busy;
+    onProgressBusy?.call(busy);
+  }
+
+  String _formatProgress(String verb, WorkspaceStreamEvent event) {
+    final custom = event.message?.trim();
+    if (custom != null && custom.isNotEmpty) {
+      final current = event.current;
+      final total = event.total;
+      if (current != null && total != null && total > 0) {
+        return '$custom ($current/$total)';
+      }
+      return custom;
+    }
+    final current = event.current;
+    final total = event.total;
+    if (current != null && total != null && total > 0) {
+      return '$verb… $current/$total';
+    }
+    return '$verb…';
   }
 
   void _scheduleExplorerFlush() {

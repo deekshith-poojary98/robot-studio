@@ -65,9 +65,25 @@ class IndexedSymbolInfo {
     this.documentation = '',
     this.detail = '',
     this.lastModified,
+    this.definitions = const [],
   });
 
   factory IndexedSymbolInfo.fromJson(Map<String, dynamic> json) {
+    final nested = json['definitions'];
+    final alternatives = <IndexedSymbolInfo>[];
+    if (nested is List) {
+      for (final item in nested) {
+        if (item is Map<String, dynamic>) {
+          alternatives.add(
+            IndexedSymbolInfo.fromJson({
+              ...item,
+              // Avoid recursive nesting.
+              'definitions': null,
+            }),
+          );
+        }
+      }
+    }
     return IndexedSymbolInfo(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -79,6 +95,7 @@ class IndexedSymbolInfo {
       documentation: json['documentation'] as String? ?? '',
       detail: json['detail'] as String? ?? '',
       lastModified: (json['last_modified'] as num?)?.toDouble(),
+      definitions: alternatives,
     );
   }
 
@@ -92,6 +109,7 @@ class IndexedSymbolInfo {
   final String documentation;
   final String detail;
   final double? lastModified;
+  final List<IndexedSymbolInfo> definitions;
 
   String get locationLabel => '$filePath:$line';
 }

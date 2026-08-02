@@ -31,18 +31,18 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 | **Environments** | Create / import / clone / activate; non-blocking prompt on open; Studio venvs live under `.robotstudio/environments/` (legacy root `Environments/` still discovered); also detects `.venv` / `venv` / `env` |
 | **Packages** | List installed packages, search PyPI, install / update / uninstall |
 | **Editor** | Multi-tab Robot editor, find/replace, live diagnostics (venv `Library` imports via active env); document outline under Explorer |
-| **Language intelligence** | Completions split RF DSL vs BuiltIn library keywords; hover tooltips; go-to-definition; references; document symbols |
-| **Problems** | Bottom Problems panel synced while editing; jump to line/column; status-bar ERRORS/WARNINGS shortcut |
+| **Language intelligence** | Completions split RF DSL vs BuiltIn; hover; F12 / Ctrl+Click Go to Definition (index + Analysis Engine, multi-definition picker); references; document symbols |
+| **Problems** | Bottom Problems panel synced while editing; Analysis Engine missing imports share Doctor `missing_import` identity; jump to line/column; status-bar ERRORS/WARNINGS shortcut |
 | **Command palette** | ⌘⇧P / Ctrl+Shift+P (also ⌘P / Ctrl+P, ⌘K / Ctrl+K) for commands, recent files, project files, and symbols |
 | **Keyboard shortcuts** | VS Code–style chrome + editor chords (save, tabs, sidebar, terminal, find/replace, comment, move/copy/delete line, format, Problems) — see `frontend/README.md` |
-| **Indexing** | Background on open (incremental); full rebuild on demand; excludes `.venv` / `node_modules` / `.git` |
-| **Test Explorer** | Lazy suite tree (expand loads children), virtualized list; run test/suite/all/failed; confirm when >100 tests; live filter + status |
-| **Execution** | Run file or project; live WebSocket logs; stop; history |
+| **Indexing** | Background on open (incremental); mid-rebuild `INDEX_PROGRESS` / `ANALYSIS_PROGRESS` on the live workspace stream (status bar + soft overlay); full rebuild on demand; excludes `.venv` / `node_modules` / `.git` |
+| **Test Explorer** | Lazy suite tree (expand loads children), virtualized list; run test/suite/all/failed; confirm when estimated count exceeds threshold (default 100, `ROBOT_STUDIO_LARGE_RUN_THRESHOLD`); live filter + status |
+| **Execution** | Run file or project; large project/tag runs require explicit confirmation (backend 409 + UI); live WebSocket logs; stop; history |
 | **Explorer file ops** | Multi-select (⌘/Ctrl / Shift), new file/folder (`.robot` files seeded with Settings/Variables/Test Cases/Keywords scaffold), inline rename (including case-only like `libs` → `Libs`), bulk delete, duplicate, copy path(s), reveal in OS, drag-move via live events |
-| **Live workspace** | FS/index/git/env events over `/workspace/events`; explorer incremental refresh; external edit / deleted-file dialogs; auto Git + Test Explorer refresh |
+| **Live workspace** | FS/index/git/env/progress events over `/workspace/events`; explorer incremental refresh; external edit / deleted-file dialogs; auto Git + Test Explorer refresh |
 | **Reports** | Runs listed by run number from `.robotstudio/reports/Run-*` (legacy root `Reports/` still readable via stored paths); pass/fail stats; open `report.html` / `log.html` / `output.xml` from run details |
 | **Terminal** | Bottom-panel PTY (login shell) rooted at the project folder; restart / kill from the tab chrome |
-| **Git** | Status (incl. untracked), stage, commit, branches, history, diff; remote actions when a repo exists |
+| **Git** | Scoped to the **active project** (never silently attaches to a parent monorepo); status (incl. untracked), stage, commit, branches, history, diff; Init creates a repo in the project; remote actions when a repo exists |
 | **Plugins** | Builtin capabilities + plugin manager UI (load / enable / details) |
 | **Status** | Project context, `ROBOT` / `PYTHON` versions (backend connection is not shown) |
 | **UX guidance** | Actionable dialogs for missing project/env; gated CTAs; clickable run status → Tests; shared EmptyState + skeleton loaders; friendly timeout copy |
@@ -149,6 +149,7 @@ Backend settings use the `ROBOT_STUDIO_` environment prefix (`backend/robot_stud
 | `ROBOT_STUDIO_PORT` | `8765` | HTTP / WebSocket port |
 | `ROBOT_STUDIO_DATA_DIR` | `~/.robot-studio` | SQLite DB, plugins, local data |
 | `ROBOT_STUDIO_DEBUG` | `false` | Debug mode |
+| `ROBOT_STUDIO_LARGE_RUN_THRESHOLD` | `100` | Ask for confirmation before project/tag runs that would execute more than this many tests |
 
 Database path: `{data_dir}/robot-studio.db`.
 

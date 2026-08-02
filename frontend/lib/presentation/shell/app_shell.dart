@@ -98,6 +98,7 @@ class _AppShellState extends State<AppShell> {
   late final EditorShellController _editor;
   late final WorkspaceLiveController _live;
   String? _liveNotification;
+  String? _progressOverlay;
   bool _missingProjectDialogOpen = false;
   bool _missingWorkspaceDialogOpen = false;
   final GlobalKey<VirtualFileTreeState> _fileTreeKey =
@@ -273,7 +274,25 @@ class _AppShellState extends State<AppShell> {
       onWorkspaceMissing: _handleLiveWorkspaceMissing,
       onStatusMessage: (message) {
         if (!mounted) return;
-        setState(() => _liveNotification = message.isEmpty ? null : message);
+        setState(() {
+          _liveNotification = message.isEmpty ? null : message;
+          final lower = message.toLowerCase();
+          final isProgress = lower.contains('indexing') ||
+              lower.contains('analyzing');
+          if (message.isEmpty ||
+              lower.contains('synchronized') ||
+              lower.contains('removed')) {
+            _progressOverlay = null;
+          } else if (isProgress) {
+            _progressOverlay = message;
+          }
+        });
+      },
+      onProgressBusy: (busy) {
+        if (!mounted) return;
+        if (!busy) {
+          setState(() => _progressOverlay = null);
+        }
       },
     );
     AppLogger.info('AppShell init', tag: 'Shell');
@@ -1050,9 +1069,6 @@ class _AppShellState extends State<AppShell> {
     if (!await _ensureRobotReady()) {
       return;
     }
-    if (!await _confirmLargeExecution(projectWide: true)) {
-      return;
-    }
 
     setState(() {
       _execution.executionLines = [];
@@ -1061,7 +1077,12 @@ class _AppShellState extends State<AppShell> {
     await _connectExecutionStream();
 
     try {
-      final run = await _gateway.runProject();
+      final run = await _runWithLargeRunGuard(
+        start: ({required bool confirm}) =>
+            _gateway.runProject(confirm: confirm),
+        projectWide: true,
+      );
+      if (run == null) return;
       if (!mounted) return;
       AppLogger.info(
         'Run project started',
@@ -1210,24 +1231,14 @@ class _AppShellState extends State<AppShell> {
     return false;
   }
 
-  Future<bool> _confirmLargeExecution({
+  static const int _defaultLargeRunThreshold = 100;
+
+  Future<bool> _showLargeRunConfirmDialog({
+    required int count,
+    required int threshold,
     String? tag,
-    bool projectWide = true,
   }) async {
     if (!mounted) return false;
-    int count = 0;
-    try {
-      count = await _gateway.countTests(tag: tag, projectWide: projectWide);
-    } catch (_) {
-      // If count fails, still allow confirmation for wildcard tags.
-    }
-    final wildcard = tag != null &&
-        (tag.contains('*') ||
-            tag.contains('?') ||
-            tag.toUpperCase().contains('OR') ||
-            tag.toUpperCase().contains('AND') ||
-            tag.toUpperCase().contains('NOT'));
-    if (count <= 100 && !wildcard) return true;
     final estimate = count > 0 ? '$count' : 'many';
     final focus = tag == null || tag.isEmpty
         ? 'the whole project'
@@ -1237,7 +1248,8 @@ class _AppShellState extends State<AppShell> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Run a large test set?'),
         content: Text(
-          'About to run $estimate tests for $focus.\n\n'
+          'About to run $estimate tests for $focus '
+          '(confirmation threshold: $threshold).\n\n'
           'Large runs can take a long time and make the IDE feel busy. '
           'Continue only if that is what you intended.',
         ),
@@ -1254,6 +1266,48 @@ class _AppShellState extends State<AppShell> {
       ),
     );
     return confirmed == true;
+  }
+
+  /// Pre-confirm when over threshold, then call [start] with confirm flags.
+  /// Retries once if the backend returns 409 large_run_confirmation_required.
+  Future<ExecutionInfo?> _runWithLargeRunGuard({
+    required Future<ExecutionInfo> Function({required bool confirm}) start,
+    String? tag,
+    bool projectWide = true,
+  }) async {
+    int count = 0;
+    try {
+      count = await _gateway.countTests(tag: tag, projectWide: projectWide);
+    } catch (_) {}
+    final wildcard = tag != null &&
+        (tag.contains('*') ||
+            tag.contains('?') ||
+            tag.toUpperCase().contains('OR') ||
+            tag.toUpperCase().contains('AND') ||
+            tag.toUpperCase().contains('NOT'));
+    final needsConfirm =
+        count > _defaultLargeRunThreshold || wildcard;
+    if (needsConfirm &&
+        !await _showLargeRunConfirmDialog(
+          count: count,
+          threshold: _defaultLargeRunThreshold,
+          tag: tag,
+        )) {
+      return null;
+    }
+    try {
+      return await start(confirm: needsConfirm);
+    } on GatewayException catch (error) {
+      if (!error.isLargeRunConfirmation) rethrow;
+      if (!await _showLargeRunConfirmDialog(
+        count: error.count ?? count,
+        threshold: error.threshold ?? _defaultLargeRunThreshold,
+        tag: tag,
+      )) {
+        return null;
+      }
+      return await start(confirm: true);
+    }
   }
 
   bool _isRobotMissingError(Object error) {
@@ -2277,30 +2331,32 @@ class _AppShellState extends State<AppShell> {
     if (!await _ensureRobotReady()) {
       return;
     }
-    if ((node.kind == 'project' || node.kind == 'workspace') &&
-        !await _confirmLargeExecution(projectWide: true)) {
-      return;
-    }
     setState(() {
       _execution.executionLines = [];
       _showExecutionPage = true;
     });
     await _connectExecutionStream();
     try {
-      final ExecutionInfo run;
+      final ExecutionInfo? run;
       if (node.kind == 'test' || node.kind == 'task') {
         run = await _gateway.runTest(file: node.path!, name: node.name);
       } else if (node.kind == 'suite') {
         run = await _gateway.runTestSuite(file: node.path);
       } else if (node.kind == 'project' || node.kind == 'workspace') {
-        run = await _gateway.runTestSuite();
+        run = await _runWithLargeRunGuard(
+          start: ({required bool confirm}) =>
+              _gateway.runTestSuite(confirm: confirm),
+          projectWide: true,
+        );
+        if (run == null) return;
       } else {
         return;
       }
-      if (!mounted) return;
+      final started = run;
+      if (started == null || !mounted) return;
       setState(() {
-        _execution.executionStatus = run.status;
-        _execution.currentExecution = run;
+        _execution.executionStatus = started.status;
+        _execution.currentExecution = started;
       });
       _startElapsedTimer();
     } catch (error) {
@@ -2319,16 +2375,18 @@ class _AppShellState extends State<AppShell> {
     if (!await _ensureRobotReady()) {
       return;
     }
-    if (!await _confirmLargeExecution(projectWide: true)) {
-      return;
-    }
     setState(() {
       _execution.executionLines = [];
       _showExecutionPage = true;
     });
     await _connectExecutionStream();
     try {
-      final run = await _gateway.runTestSuite();
+      final run = await _runWithLargeRunGuard(
+        start: ({required bool confirm}) =>
+            _gateway.runTestSuite(confirm: confirm),
+        projectWide: true,
+      );
+      if (run == null) return;
       if (!mounted) return;
       setState(() {
         _execution.executionStatus = run.status;
@@ -3094,7 +3152,12 @@ class _AppShellState extends State<AppShell> {
   Future<void> _editorCtrlClickDefinition() async {
     final tab = _activeEditorTab;
     if (tab == null) return;
-    final token = _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn);
+    final token = EditorShellController.extractRobotTokenAt(
+          tab.content,
+          _cursorLine,
+          _cursorColumn,
+        ) ??
+        _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn);
     if (token == null) return;
     try {
       final definition = await _gateway.languageDefinition(
@@ -3105,9 +3168,7 @@ class _AppShellState extends State<AppShell> {
         content: tab.content,
       );
       if (!mounted) return;
-      if (definition != null) {
-        await _openFile(definition.filePath, line: definition.line);
-      }
+      await _openDefinitionResult(definition, token);
     } catch (error) {
       await _showError('Go to Definition', error);
     }
@@ -3319,7 +3380,16 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _editorGoToDefinition() async {
-    final token = _editorTokenName();
+    final tab = _activeEditorTab;
+    final cursorToken = tab == null
+        ? null
+        : (EditorShellController.extractRobotTokenAt(
+              tab.content,
+              _cursorLine,
+              _cursorColumn,
+            ) ??
+            _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn));
+    final token = cursorToken ?? _editorTokenName();
     if (token == null) {
       setState(() {
         _editor.setStatusMessage(
@@ -3336,19 +3406,55 @@ class _AppShellState extends State<AppShell> {
     });
 
     try {
-      final definition = await _gateway.languageDefinition(name: token);
+      final definition = await _gateway.languageDefinition(
+        name: token,
+        filePath: tab?.path,
+        line: tab == null ? null : _cursorLine,
+        column: tab == null ? null : _cursorColumn,
+        content: tab?.content,
+      );
       if (!mounted) return;
-      if (definition != null) {
-        await _openFile(definition.filePath, line: definition.line);
-      } else {
-        setState(() {
-          _editor.setStatusMessage('No definition found for "$token".');
-        });
-      }
+      await _openDefinitionResult(definition, token);
     } catch (error) {
       _appendLog('[warn] Definition lookup failed: $error');
       await _showError('Go to Definition', error);
     }
+  }
+
+  Future<void> _openDefinitionResult(
+    IndexedSymbolInfo? definition,
+    String token,
+  ) async {
+    if (definition == null) {
+      setState(() {
+        _editor.setStatusMessage('No definition found for "$token".');
+      });
+      return;
+    }
+    final candidates = definition.definitions.isNotEmpty
+        ? definition.definitions
+        : <IndexedSymbolInfo>[definition];
+    IndexedSymbolInfo? chosen = candidates.first;
+    if (candidates.length > 1) {
+      chosen = await showDialog<IndexedSymbolInfo>(
+        context: context,
+        builder: (dialogContext) => SimpleDialog(
+          title: Text('Go to Definition — $token'),
+          children: [
+            for (final item in candidates)
+              SimpleDialogOption(
+                onPressed: () => Navigator.of(dialogContext).pop(item),
+                child: Text(
+                  '${item.name}  ·  ${item.filePath}:${item.line}',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+          ],
+        ),
+      );
+      if (chosen == null) return;
+    }
+    await _openFile(chosen.filePath, line: chosen.line);
   }
 
   Future<void> _editorFindReferences() async {
@@ -4224,13 +4330,13 @@ class _AppShellState extends State<AppShell> {
       );
       if (!mounted) return;
       setState(() => _isLoadingLanguage = false);
-      if (definition != null) {
-        await _openFile(definition.filePath, line: definition.line);
-      } else {
+      if (definition == null) {
         setState(() {
           _navigationMessage = 'No definition found for "${symbol.name}".';
         });
+        return;
       }
+      await _openDefinitionResult(definition, symbol.name);
     } catch (error) {
       if (!mounted) return;
       setState(() => _isLoadingLanguage = false);
@@ -4746,6 +4852,40 @@ class _AppShellState extends State<AppShell> {
                     Container(
                       color: Colors.black38,
                       child: const Center(child: CircularProgressIndicator()),
+                    ),
+                  if (_progressOverlay != null)
+                    Positioned(
+                      left: 24,
+                      right: 24,
+                      bottom: 36,
+                      child: Material(
+                        elevation: 3,
+                        borderRadius: BorderRadius.circular(8),
+                        color: Theme.of(context).colorScheme.surface,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            children: [
+                              const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  _progressOverlay!,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   if (_envPromptMessage != null && _envPromptActions != null)
                     EnvironmentPromptToast(

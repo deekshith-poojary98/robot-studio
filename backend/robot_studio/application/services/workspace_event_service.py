@@ -17,7 +17,9 @@ from robot_studio.core.events import (
     EnvironmentImported,
     EventBus,
     FilesystemChanged,
+    IndexProgress,
     IndexUpdated,
+    AnalysisProgress,
     ProjectOpened,
     RepositoryUpdated,
     Subscription,
@@ -54,6 +56,8 @@ class WorkspaceEventService:
         self._unsubscribes = [
             self.event_bus.subscribe(FilesystemChanged, self._on_filesystem_changed),
             self.event_bus.subscribe(IndexUpdated, self._on_index_updated),
+            self.event_bus.subscribe(IndexProgress, self._on_index_progress),
+            self.event_bus.subscribe(AnalysisProgress, self._on_analysis_progress),
             self.event_bus.subscribe(RepositoryUpdated, self._on_repository_updated),
             self.event_bus.subscribe(WorkspaceOpened, self._on_workspace_opened),
             self.event_bus.subscribe(WorkspaceClosed, self._on_workspace_closed),
@@ -190,6 +194,31 @@ class WorkspaceEventService:
         await self._broadcast(
             {
                 "type": "INDEX_UPDATED",
+                "scope": event.scope,
+                "scope_id": event.scope_id,
+            }
+        )
+
+    async def _on_index_progress(self, event: IndexProgress) -> None:
+        await self._broadcast(
+            {
+                "type": "INDEX_PROGRESS",
+                "message": event.message,
+                "current": event.current,
+                "total": event.total,
+                "path": event.path,
+                "scope": event.scope,
+                "scope_id": event.scope_id,
+            }
+        )
+
+    async def _on_analysis_progress(self, event: AnalysisProgress) -> None:
+        await self._broadcast(
+            {
+                "type": "ANALYSIS_PROGRESS",
+                "message": event.message,
+                "current": event.current,
+                "total": event.total,
                 "scope": event.scope,
                 "scope_id": event.scope_id,
             }

@@ -12,6 +12,7 @@ from robot_studio.application.services.execution_service import (
 )
 from robot_studio.application.services.project_service import ProjectService
 from robot_studio.application.services.workspace_context import WorkspaceContext
+from robot_studio.core.config import settings
 from robot_studio.core.events import (
     EventBus,
     ExecutionFailed,
@@ -32,6 +33,19 @@ from robot_studio.infrastructure.language.robot_parsing_worker import document_s
 
 class TestExplorerValidationError(Exception):
     """Raised when Test Explorer cannot discover or run tests."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str | None = None,
+        count: int | None = None,
+        threshold: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.count = count
+        self.threshold = threshold
 
 
 @dataclass
@@ -249,7 +263,7 @@ class TestExplorerService:
             run_label=f"{Path(suite).name} :: {name.strip()}",
         )
 
-    async def run_suite(self, *, file: str | None = None) -> ExecutionRun:
+    async def run_suite(self, *, file: str | None = None, confirm: bool = False) -> ExecutionRun:
         self._require_workspace()
         if file:
             suite = str(Path(file).expanduser().resolve())
@@ -258,9 +272,10 @@ class TestExplorerService:
                 suite=suite,
                 run_label=label,
             )
+        await self._assert_large_run_allowed(confirm=confirm, tag=None, project_wide=True)
         return await self.execution_service.run_project()
 
-    async def run_tag(self, *, tag: str) -> ExecutionRun:
+    async def run_tag(self, *, tag: str, confirm: bool = False) -> ExecutionRun:
         self._require_workspace()
         cleaned = tag.strip()
         if not cleaned:
@@ -268,10 +283,61 @@ class TestExplorerService:
         project = self.context.project
         if project is None:
             raise TestExplorerValidationError("Open a project before running by tag")
+        await self._assert_large_run_allowed(
+            confirm=confirm,
+            tag=cleaned,
+            project_wide=True,
+        )
         return await self.execution_service.run_with_options(
             suite=str(project.path),
             robot_args=["--include", cleaned],
             run_label=f"Tag: {cleaned}",
+        )
+
+    async def _assert_large_run_allowed(
+        self,
+        *,
+        confirm: bool,
+        tag: str | None,
+        project_wide: bool,
+    ) -> None:
+        if confirm:
+            return
+        threshold = max(1, int(settings.large_run_threshold))
+        count = await self.count_tests(tag=tag, project_wide=project_wide)
+        wildcard = bool(
+            tag
+            and (
+                "*" in tag
+                or "?" in tag
+                or " OR " in tag.upper()
+                or " AND " in tag.upper()
+                or " NOT " in tag.upper()
+            )
+        )
+        if count <= threshold and not wildcard:
+            return
+        label = f'tag "{tag}"' if tag else "the project"
+        raise TestExplorerValidationError(
+            f"This run would execute about {count} tests for {label} "
+            f"(threshold {threshold}). Confirm to proceed.",
+            code="large_run_confirmation_required",
+            count=count,
+            threshold=threshold,
+        )
+
+    async def ensure_large_run_allowed(
+        self,
+        *,
+        confirm: bool,
+        tag: str | None = None,
+        project_wide: bool = True,
+    ) -> None:
+        """Public wrapper used by execution/run-project gateway."""
+        await self._assert_large_run_allowed(
+            confirm=confirm,
+            tag=tag,
+            project_wide=project_wide,
         )
 
     async def run_failed(self) -> ExecutionRun:

@@ -88,10 +88,12 @@ class SourceControlPage extends StatelessWidget {
                 : !isRepository
                 ? EmptyState(
                     icon: Icons.source_outlined,
-                    title: 'No Git repository',
+                    title: 'No Git repository in this project',
                     message:
-                        'Initialize a repository to track changes in this project.',
-                    actionLabel: isBusy ? null : 'Initialize Git Repository',
+                        'Source Control always uses the open Robot Studio project. '
+                        'Initialize Git here, or open the parent folder as the project '
+                        'if you intentionally want that repository.',
+                    actionLabel: isBusy ? null : 'Initialize Git in this project',
                     onAction: isBusy ? null : onInit,
                   )
                 : Row(
@@ -225,11 +227,15 @@ class _Header extends StatelessWidget {
 
   String _subtitle(GitRepositoryInfo? repository) {
     if (repository == null || !repository.isRepository) {
-      return 'Not a Git repository';
+      return 'Scoped to the open project — not a parent monorepo';
     }
     final branch = repository.branch ?? (repository.detached ? 'HEAD' : '—');
     final head = repository.head?.substring(0, 7) ?? 'no commits';
     final dirty = repository.clean ? 'clean' : 'dirty';
+    final root = repository.root;
+    if (root != null && root.isNotEmpty) {
+      return '$branch · $head · $dirty · $root';
+    }
     return '$branch · $head · $dirty';
   }
 }
@@ -245,9 +251,11 @@ class _NotRepositoryView extends StatelessWidget {
     // Kept for API stability; SourceControlPage now uses EmptyState directly.
     return EmptyState(
       icon: Icons.source_outlined,
-      title: 'No Git repository',
-      message: 'Initialize a repository to track changes in this project.',
-      actionLabel: isBusy ? null : 'Initialize Git Repository',
+      title: 'No Git repository in this project',
+      message:
+          'Initialize Git in this project, or open the parent folder as the project '
+          'to use its repository.',
+      actionLabel: isBusy ? null : 'Initialize Git in this project',
       onAction: isBusy ? null : onInit,
     );
   }

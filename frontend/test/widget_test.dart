@@ -1925,7 +1925,7 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<ExecutionInfo> runProject() async {
+  Future<ExecutionInfo> runProject({bool confirm = false}) async {
     return ExecutionInfo(
       id: 'run-project',
       workspaceId: '1',
@@ -1984,10 +1984,12 @@ class _FakeTransportGateway implements TransportGateway {
       runFile(file: file);
 
   @override
-  Future<ExecutionInfo> runTestSuite({String? file}) => runProject();
+  Future<ExecutionInfo> runTestSuite({String? file, bool confirm = false}) =>
+      runProject();
 
   @override
-  Future<ExecutionInfo> runTestsByTag(String tag) => runProject();
+  Future<ExecutionInfo> runTestsByTag(String tag, {bool confirm = false}) =>
+      runProject();
 
   @override
   Future<ExecutionInfo> runFailedTests() => runProject();

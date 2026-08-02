@@ -14,6 +14,7 @@ from robot_studio.core.events import (
     EventBus,
     FileIndexed,
     FileRemoved,
+    IndexProgress,
     IndexUpdated,
     ProjectCreated,
     ProjectImported,
@@ -337,6 +338,8 @@ class IndexService:
         # Discovery is sync and can touch huge trees — keep the event loop free.
         paths = await asyncio.to_thread(self.indexer.discover_files, root)
         total = len(paths)
+        scope = IndexScope.PROJECT.value if project_id else IndexScope.WORKSPACE.value
+        scope_id = str(project_id) if project_id else str(workspace_id)
         for index, path in enumerate(paths):
             try:
                 await self.indexer.index_file(
@@ -350,8 +353,19 @@ class IndexService:
                 # Intentionally no per-file FileIndexed during bulk rebuild.
             except Exception as exc:  # noqa: BLE001
                 self._errors.append(f"{path}: {exc}")
-            if index % 10 == 0:
-                self._message = f"Indexing… {index + 1}/{total}"
+            current = index + 1
+            if index == 0 or current == total or index % 10 == 0:
+                self._message = f"Indexing… {current}/{total}"
+                await self.event_bus.publish(
+                    IndexProgress(
+                        message=self._message,
+                        current=current,
+                        total=total,
+                        path=str(path),
+                        scope=scope,
+                        scope_id=scope_id,
+                    ),
+                )
                 await asyncio.sleep(0)
         return indexed_paths
 

@@ -8,6 +8,11 @@ from robot_studio.domain.models import ExecutionRun, ExecutionStatus
 
 class RunFileRequest(BaseModel):
     file: str | None = None
+    confirm: bool = False
+
+
+class RunProjectRequest(BaseModel):
+    confirm: bool = False
 
 
 class ExecutionResponse(BaseModel):

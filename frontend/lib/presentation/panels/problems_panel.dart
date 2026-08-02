@@ -53,7 +53,7 @@ class ProblemsPanel extends StatelessWidget {
             style: const TextStyle(fontSize: 12),
           ),
           subtitle: Text(
-            item.locationLabel,
+            '${item.locationLabel} · ${item.sourceLabel}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall,

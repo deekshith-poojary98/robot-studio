@@ -11,6 +11,9 @@ from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.events import EventBus, EnvironmentActivated, IndexUpdated
 from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.domain.interfaces.language import LanguageService
+from robot_studio.domain.models.analysis import EntityKind
+from robot_studio.infrastructure.analysis.engine import RobotAnalysisEngine
+from robot_studio.infrastructure.analysis.normalize import normalize_keyword_name
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
 from robot_studio.infrastructure.language.robot_parsing_bridge import (
     RobotParsingBridge,
@@ -44,6 +47,7 @@ class RobotLanguageService(LanguageService):
     context: WorkspaceContext
     parsing: RobotParsingBridge = field(default_factory=RobotParsingBridge)
     event_bus: EventBus | None = None
+    analysis_engine: RobotAnalysisEngine | None = None
     _cache_generation: int = field(default=0, init=False)
     _subscribed: bool = field(default=False, init=False)
     _library_cache: dict[str, dict[str, Any]] = field(default_factory=dict, init=False)
@@ -371,12 +375,20 @@ class RobotLanguageService(LanguageService):
             )
 
         await self._append_semantic_diagnostics(content, file_path, diagnostics)
+        await self._append_analysis_diagnostics(content, file_path, diagnostics)
         return diagnostics
 
     async def definition(self, request: dict) -> dict | None:
-        symbol = await self._resolve(request)
-        if symbol is None:
+        symbols = await self._resolve_all(request)
+        if not symbols:
             return None
+        primary = self._symbol_payload(symbols[0])
+        if len(symbols) > 1:
+            primary["definitions"] = [self._symbol_payload(item) for item in symbols]
+        return primary
+
+    @staticmethod
+    def _symbol_payload(symbol: dict) -> dict:
         return {
             "id": symbol["id"],
             "name": symbol["name"],
@@ -536,30 +548,43 @@ class RobotLanguageService(LanguageService):
         return [name for name, _alias in RobotLanguageService._imported_library_entries(content)]
 
     async def _resolve(self, request: dict) -> dict | None:
+        symbols = await self._resolve_all(request)
+        return symbols[0] if symbols else None
+
+    async def _resolve_all(self, request: dict) -> list[dict]:
         symbol_id = request.get("symbol_id")
         if symbol_id:
-            return await self.store.get_symbol(str(symbol_id))
+            symbol = await self.store.get_symbol(str(symbol_id))
+            return [symbol] if symbol else []
+
         name = request.get("name") or request.get("symbol") or request.get("query")
-        if not name:
-            file_path = request.get("file_path")
-            line = request.get("line")
-            column = request.get("column")
-            content = request.get("content")
-            if content and file_path and line:
+        file_path = request.get("file_path")
+        line = request.get("line")
+        column = request.get("column")
+        content = request.get("content")
+
+        # Prefer RF cell under cursor when content is available.
+        if content and line:
+            cell = self._robot_cell_at(str(content), int(line), int(column or 1))
+            if cell:
+                name = cell
+            if not name:
                 try:
                     ctx = await self.parsing.run(
                         self._python_executable(),
                         op="completion_context",
                         content=str(content),
-                        file_path=str(file_path),
+                        file_path=str(file_path or ""),
                         line=int(line),
                         column=int(column or 1),
                     )
-                    name = ctx.get("prefix")
+                    name = ctx.get("prefix") or ctx.get("keyword") or name
                 except RobotParsingError:
-                    name = None
+                    pass
+
         if not name:
-            return None
+            return []
+
         kind_raw = request.get("kind")
         kind = None
         if kind_raw:
@@ -567,7 +592,149 @@ class RobotLanguageService(LanguageService):
                 kind = SymbolKind(str(kind_raw))
             except ValueError:
                 kind = None
-        return await self.store.find_definition(str(name), kind=kind)
+
+        symbols = await self.store.find_definitions(str(name), kind=kind, limit=20)
+        if symbols:
+            return symbols
+
+        # Analysis Engine fallback — semantic graph keyword entities.
+        analysis_hits = await self._definitions_from_analysis(str(name))
+        return analysis_hits
+
+    @staticmethod
+    def _robot_cell_at(content: str, line: int, column: int) -> str | None:
+        lines = content.splitlines()
+        if line < 1 or line > len(lines):
+            return None
+        raw = lines[line - 1]
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            return None
+        # Split Robot cells on 2+ spaces or tabs, preserving 1-based columns.
+        cells: list[tuple[int, int, str]] = []
+        parts = re.split(r"(\t+|[ ]{2,})", raw)
+        pos = 1
+        for part in parts:
+            if not part:
+                continue
+            if re.fullmatch(r"\t+|[ ]{2,}", part):
+                pos += len(part)
+                continue
+            leading = len(part) - len(part.lstrip(" "))
+            token = part.strip()
+            start = pos + leading
+            end = start + max(len(token) - 1, 0)
+            if token:
+                cells.append((start, end, token))
+            pos += len(part)
+        for start, end, token in cells:
+            if start <= column <= max(end, start):
+                if token.startswith("...") or token.startswith("["):
+                    return None
+                return token
+        # Column past last cell → last keyword-ish cell.
+        for _start, _end, token in reversed(cells):
+            if token and not token.startswith("#"):
+                return token
+        return None
+
+    async def _definitions_from_analysis(self, name: str) -> list[dict]:
+        if self.analysis_engine is None:
+            return []
+        project = self.context.project
+        if project is None:
+            return []
+        try:
+            matches = await self.analysis_engine.store.find_entities_by_normalized_name(
+                normalize_keyword_name(name),
+                project_id=project.id,
+                kinds=[
+                    EntityKind.KEYWORD.value,
+                    EntityKind.VARIABLE.value,
+                    EntityKind.TEST_CASE.value,
+                ],
+            )
+        except Exception:  # noqa: BLE001
+            return []
+        out: list[dict] = []
+        for entity in matches:
+            out.append(
+                {
+                    "id": str(entity.id),
+                    "name": entity.name,
+                    "kind": entity.kind.value,
+                    "file_path": str(entity.file_path),
+                    "line": entity.line,
+                    "documentation": entity.documentation or "",
+                    "detail": entity.detail or "analysis",
+                },
+            )
+        return out
+
+    async def _append_analysis_diagnostics(
+        self,
+        content: str,
+        file_path: str,
+        diagnostics: list[dict],
+    ) -> None:
+        """Merge Analysis Engine missing-import findings into Problems."""
+        if self.analysis_engine is None:
+            return
+        project = self.context.project
+        if project is None:
+            return
+        try:
+            missing = await self.analysis_engine.find_missing_imports(project.id)
+        except Exception:  # noqa: BLE001
+            return
+        target = str(Path(file_path).expanduser().resolve()) if file_path else ""
+        existing = {
+            (d.get("line"), str(d.get("message") or "").casefold())
+            for d in diagnostics
+        }
+        for edge in missing:
+            source_file = str(Path(edge.source_file).resolve()) if edge.source_file else ""
+            if target and source_file and source_file != target:
+                continue
+            name = edge.target_name or "unknown"
+            kind = edge.edge_kind or ""
+            if kind.endswith("variables"):
+                message = f"Unresolved variables import '{name}'"
+            else:
+                message = f"Unresolved import '{name}'"
+            line = int(edge.source_line or 1)
+            key = (line, message.casefold())
+            if key in existing:
+                continue
+            # Unify with an existing semantic Missing resource/import diagnostic —
+            # share Doctor inspection identity instead of duplicating or dropping.
+            matched = False
+            for diagnostic in diagnostics:
+                if int(diagnostic.get("line") or 0) != line:
+                    continue
+                text = str(diagnostic.get("message") or "").casefold()
+                if name.casefold() not in text:
+                    continue
+                if "missing" not in text and "unresolved" not in text and "import" not in text:
+                    continue
+                diagnostic["code"] = "missing_import"
+                diagnostic["inspection_id"] = "missing_import"
+                if diagnostic.get("source") in {None, "robot", "robot.semantic", "robot.parser"}:
+                    diagnostic["source"] = "analysis"
+                    diagnostic["message"] = message
+                matched = True
+                break
+            if matched:
+                existing.add(key)
+                continue
+            diagnostics.append(
+                {
+                    **self._diag(file_path or source_file, line, message, "warning"),
+                    "source": "analysis",
+                    "code": "missing_import",
+                    "inspection_id": "missing_import",
+                },
+            )
+            existing.add(key)
 
     async def _append_semantic_diagnostics(
         self,

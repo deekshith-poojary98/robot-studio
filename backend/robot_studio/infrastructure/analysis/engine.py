@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import UUID
 
+from robot_studio.core.events import AnalysisProgress, EventBus
 from robot_studio.domain.interfaces.analysis import AnalysisEngine, AnalysisStore
 from robot_studio.domain.models.analysis import (
     AnalysisSnapshot,
@@ -45,6 +46,7 @@ def _entity_ref(entity: SemanticEntity) -> EntityRef:
 @dataclass
 class RobotAnalysisEngine(AnalysisEngine):
     store: AnalysisStore
+    event_bus: EventBus | None = None
     binder: SemanticBinder = field(init=False)
 
     def __post_init__(self) -> None:
@@ -103,6 +105,7 @@ class RobotAnalysisEngine(AnalysisEngine):
         await self.store.clear_project(project_id)
         version = await self.store.bump_revision(project_id, new_graph_version=True)
         epoch = version.incremental_revision
+        robot_files: list[Path] = []
         for root in roots:
             if not root.exists():
                 continue
@@ -114,16 +117,42 @@ class RobotAnalysisEngine(AnalysisEngine):
                 parts = {p.lower() for p in path.parts}
                 if parts & {".venv", "venv", "node_modules", ".git", ".robotstudio"}:
                     continue
-                facts = extract_file_semantics(
-                    path,
-                    workspace_id=workspace_id,
-                    project_id=project_id,
-                )
-                await self.store.replace_file_graph(
-                    path,
-                    facts.entities,
-                    facts.edges,
-                    epoch=epoch,
+                robot_files.append(path)
+        total = len(robot_files)
+        if self.event_bus is not None:
+            await self.event_bus.publish(
+                AnalysisProgress(
+                    message=f"Building analysis graph… 0/{total}",
+                    current=0,
+                    total=total,
+                    scope="project",
+                    scope_id=str(project_id),
+                ),
+            )
+        for index, path in enumerate(robot_files):
+            facts = extract_file_semantics(
+                path,
+                workspace_id=workspace_id,
+                project_id=project_id,
+            )
+            await self.store.replace_file_graph(
+                path,
+                facts.entities,
+                facts.edges,
+                epoch=epoch,
+            )
+            current = index + 1
+            if self.event_bus is not None and (
+                index == 0 or current == total or index % 25 == 0
+            ):
+                await self.event_bus.publish(
+                    AnalysisProgress(
+                        message=f"Building analysis graph… {current}/{total}",
+                        current=current,
+                        total=total,
+                        scope="project",
+                        scope_id=str(project_id),
+                    ),
                 )
         return await self.finalize_project(project_id)
 

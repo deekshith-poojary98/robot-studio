@@ -152,7 +152,8 @@ class ApiClient implements TransportGateway {
   Future<ExecutionInfo> runFile({String? file}) => _gateway.runFile(file: file);
 
   @override
-  Future<ExecutionInfo> runProject() => _gateway.runProject();
+  Future<ExecutionInfo> runProject({bool confirm = false}) =>
+      _gateway.runProject(confirm: confirm);
 
   @override
   Future<TestNodeInfo> getTestTree({String? query, bool lazy = true}) =>
@@ -171,12 +172,12 @@ class ApiClient implements TransportGateway {
       _gateway.runTest(file: file, name: name);
 
   @override
-  Future<ExecutionInfo> runTestSuite({String? file}) =>
-      _gateway.runTestSuite(file: file);
+  Future<ExecutionInfo> runTestSuite({String? file, bool confirm = false}) =>
+      _gateway.runTestSuite(file: file, confirm: confirm);
 
   @override
-  Future<ExecutionInfo> runTestsByTag(String tag) =>
-      _gateway.runTestsByTag(tag);
+  Future<ExecutionInfo> runTestsByTag(String tag, {bool confirm = false}) =>
+      _gateway.runTestsByTag(tag, confirm: confirm);
 
   @override
   Future<ExecutionInfo> runFailedTests() => _gateway.runFailedTests();
