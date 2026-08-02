@@ -316,12 +316,23 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<TestNodeInfo> getTestTree({String? query}) async {
-    final suffix = (query == null || query.isEmpty)
-        ? ''
-        : '?q=${Uri.encodeQueryComponent(query)}';
-    final response = await _get('/tests/tree$suffix');
+  Future<TestNodeInfo> getTestTree({String? query, bool lazy = true}) async {
+    final params = <String>['lazy=${lazy ? 'true' : 'false'}'];
+    if (query != null && query.isNotEmpty) {
+      params.add('q=${Uri.encodeQueryComponent(query)}');
+    }
+    final response = await _get('/tests/tree?${params.join('&')}');
     return TestNodeInfo.fromJson(response['tree'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<int> countTests({String? tag, bool projectWide = false}) async {
+    final params = <String>['project_wide=${projectWide ? 'true' : 'false'}'];
+    if (tag != null && tag.isNotEmpty) {
+      params.add('tag=${Uri.encodeQueryComponent(tag)}');
+    }
+    final response = await _get('/tests/count?${params.join('&')}');
+    return (response['count'] as num?)?.toInt() ?? 0;
   }
 
   @override
@@ -401,7 +412,21 @@ class RestTransportGateway implements TransportGateway {
       body: const {},
       timeout: const Duration(seconds: 30),
     );
-    return ExecutionInfo.fromJson(response);
+    final run = response['run'];
+    if (run is Map<String, dynamic>) {
+      return ExecutionInfo.fromJson(run);
+    }
+    // Idempotent no-op — nothing was running.
+    return ExecutionInfo(
+      id: '',
+      workspaceId: '',
+      projectId: '',
+      environmentId: '',
+      projectName: '',
+      suite: '',
+      status: ExecutionStatus.idle,
+      startedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    );
   }
 
   @override

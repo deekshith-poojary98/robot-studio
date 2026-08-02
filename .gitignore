@@ -18,6 +18,8 @@ frontend/.flutter-plugins-dependencies
 .vscode/
 *.swp
 .DS_Store
+.cursor/
 
 # Robot Studio data (local user data)
 .robot-studio/
+qa-bench/

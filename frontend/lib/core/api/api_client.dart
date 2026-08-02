@@ -155,8 +155,12 @@ class ApiClient implements TransportGateway {
   Future<ExecutionInfo> runProject() => _gateway.runProject();
 
   @override
-  Future<TestNodeInfo> getTestTree({String? query}) =>
-      _gateway.getTestTree(query: query);
+  Future<TestNodeInfo> getTestTree({String? query, bool lazy = true}) =>
+      _gateway.getTestTree(query: query, lazy: lazy);
+
+  @override
+  Future<int> countTests({String? tag, bool projectWide = false}) =>
+      _gateway.countTests(tag: tag, projectWide: projectWide);
 
   @override
   Future<List<TestNodeInfo>> getTestsForFile(String path) =>

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,6 +32,10 @@ from robot_studio.infrastructure.workspace.filesystem import studio_reports_root
 
 class ExecutionValidationError(Exception):
     """Raised when an execution cannot start or be controlled."""
+
+    def __init__(self, message: str, *, code: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 @dataclass
@@ -61,11 +66,47 @@ class ExecutionService:
         if environment is None:
             raise ExecutionValidationError(
                 "Activate a Python environment before running tests",
+                code="environment_required",
             )
         return workspace, project, environment
 
+    async def _assert_robot_ready(self, environment) -> None:
+        """Block execution before any run row is created when Robot is missing."""
+        if environment.robot_version or environment.robot_executable:
+            return
+        python = Path(environment.python_executable)
+        if not python.is_file():
+            raise ExecutionValidationError(
+                "The active environment's Python executable is missing on disk. "
+                "Recreate or select another environment.",
+                code="environment_missing",
+            )
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                str(python),
+                "-c",
+                "import robot; print(getattr(robot, '__version__', 'ok'))",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
+        except (OSError, asyncio.TimeoutError) as exc:
+            raise ExecutionValidationError(
+                "Could not verify Robot Framework in the active environment.",
+                code="robot_missing",
+            ) from exc
+        if proc.returncode != 0:
+            detail = (stderr or stdout or b"").decode("utf-8", errors="replace").strip()
+            raise ExecutionValidationError(
+                "Robot Framework is not installed in the active environment. "
+                "Install Robot Framework before running tests."
+                + (f" ({detail})" if detail else ""),
+                code="robot_missing",
+            )
+
     async def run_file(self, file_path: str | None = None) -> ExecutionRun:
         workspace, project, environment = self._require_session()
+        await self._assert_robot_ready(environment)
         suite = self._resolve_suite(project.path, file_path)
         return await self._start_run(
             workspace_id=workspace.id,
@@ -81,6 +122,7 @@ class ExecutionService:
 
     async def run_project(self) -> ExecutionRun:
         workspace, project, environment = self._require_session()
+        await self._assert_robot_ready(environment)
         suites = list(project.path.rglob("*.robot"))
         if not suites:
             raise ExecutionValidationError(
@@ -109,6 +151,7 @@ class ExecutionService:
     ) -> ExecutionRun:
         """Start a Robot run with extra CLI args (e.g. --test / --include)."""
         workspace, project, environment = self._require_session()
+        await self._assert_robot_ready(environment)
         resolved_suite = suite
         if not Path(suite).is_absolute():
             candidate = (project.path / suite).resolve()
@@ -136,7 +179,7 @@ class ExecutionService:
             ExecutionStatus.RUNNING,
             ExecutionStatus.STOPPING,
         }:
-            raise ExecutionValidationError("No running execution to stop")
+            return current
 
         updated = current.model_copy(update={"status": ExecutionStatus.STOPPING})
         async with self._lock:
@@ -162,7 +205,9 @@ class ExecutionService:
         workspace = self.context.workspace
         if workspace is None:
             raise ExecutionValidationError("Open a workspace to view execution history")
-        return await self.repository.list_by_workspace(workspace.id, limit=limit)
+        runs = await self.repository.list_by_workspace(workspace.id, limit=limit * 2)
+        real = [r for r in runs if r.status != ExecutionStatus.ABORTED]
+        return real[:limit]
 
     async def subscribe(self) -> asyncio.Queue[dict]:
         queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=500)
@@ -180,6 +225,28 @@ class ExecutionService:
 
     async def unsubscribe(self, queue: asyncio.Queue[dict]) -> None:
         self._subscribers = [item for item in self._subscribers if item.queue is not queue]
+
+    async def _discard_aborted_run(
+        self,
+        run: ExecutionRun,
+        *,
+        message: str,
+    ) -> None:
+        """Remove a run that never actually started Robot Framework."""
+        await self.repository.delete(run.id)
+        if run.output_dir is not None:
+            shutil.rmtree(run.output_dir, ignore_errors=True)
+        async with self._lock:
+            if self._current is not None and self._current.id == run.id:
+                self._current = None
+        await self._broadcast(
+            {
+                "type": "aborted",
+                "run_id": str(run.id),
+                "status": ExecutionStatus.ABORTED.value,
+                "message": message,
+            },
+        )
 
     async def _start_run(
         self,
@@ -257,29 +324,8 @@ class ExecutionService:
                 },
             )
         except RunnerError as exc:
-            failed = run.model_copy(
-                update={
-                    "status": ExecutionStatus.FAILED,
-                    "finished_at": datetime.now(UTC),
-                    "duration_ms": 0,
-                    "exit_code": -1,
-                },
-            )
-            await self.repository.update(failed)
-            async with self._lock:
-                self._current = failed
-            await self.event_bus.publish(
-                ExecutionFailed(run_id=run_id, message=str(exc)),
-            )
-            await self._broadcast(
-                {
-                    "type": "failed",
-                    "run_id": str(run_id),
-                    "status": ExecutionStatus.FAILED.value,
-                    "message": str(exc),
-                },
-            )
-            raise ExecutionValidationError(str(exc)) from exc
+            await self._discard_aborted_run(run, message=str(exc))
+            raise ExecutionValidationError(str(exc), code="start_failed") from exc
 
         running = run.model_copy(
             update={
@@ -330,6 +376,22 @@ class ExecutionService:
             finished_at = datetime.now(UTC)
             duration_ms = int((finished_at - run.started_at).total_seconds() * 1000)
             artifacts = await self.results_store.ingest(run.id, run.output_dir or Path("."))
+
+            has_xml = bool(artifacts.get("output_xml"))
+            if (
+                status == ExecutionStatus.FAILED
+                and not has_xml
+                and duration_ms < 3000
+                and (exit_code not in (None, 0))
+            ):
+                await self._discard_aborted_run(
+                    run,
+                    message=(
+                        "Robot Framework did not produce results. "
+                        "Confirm Robot Framework is installed in the active environment."
+                    ),
+                )
+                return
 
             final = run.model_copy(
                 update={
@@ -405,7 +467,7 @@ class ExecutionService:
                         "exit_code": exit_code,
                     },
                 )
-        except Exception as exc:  # noqa: BLE001 — surface unexpected monitor failures
+        except Exception as exc:  # noqa: BLE001
             failed = run.model_copy(
                 update={
                     "status": ExecutionStatus.FAILED,

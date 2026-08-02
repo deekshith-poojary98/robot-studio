@@ -114,6 +114,7 @@ class ExecutionHistoryList extends StatelessWidget {
       ExecutionStatus.finished => AppColors.success,
       ExecutionStatus.failed => AppColors.error,
       ExecutionStatus.cancelled => AppColors.warning,
+      ExecutionStatus.aborted => AppColors.warning,
       ExecutionStatus.running ||
       ExecutionStatus.starting ||
       ExecutionStatus.stopping =>

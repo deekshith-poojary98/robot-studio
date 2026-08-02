@@ -303,6 +303,7 @@ class RobotStudioMenuBar extends StatelessWidget {
                 ),
                 PlatformMenuItem(
                   label: 'Robot Doctor',
+                  shortcut: _mod(LogicalKeyboardKey.keyD, shift: true),
                   onSelected: a.hasWorkspace ? a.onShowDoctor : null,
                 ),
                 PlatformMenuItem(
@@ -366,6 +367,7 @@ class RobotStudioMenuBar extends StatelessWidget {
           menus: [
             PlatformMenuItem(
               label: 'Run File',
+              shortcut: const SingleActivator(LogicalKeyboardKey.f5),
               onSelected:
                   a.hasActiveFile && a.hasWorkspace ? a.onRunFile : null,
             ),
@@ -375,6 +377,10 @@ class RobotStudioMenuBar extends StatelessWidget {
             ),
             PlatformMenuItem(
               label: 'Stop',
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.f5,
+                shift: true,
+              ),
               onSelected: a.canStop ? a.onStop : null,
             ),
           ],

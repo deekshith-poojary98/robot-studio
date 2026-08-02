@@ -39,17 +39,20 @@ async def run_project(
     return to_execution_response(run)
 
 
-@router.post("/stop", response_model=ExecutionResponse)
+@router.post("/stop", response_model=ExecutionStatusResponse)
 async def stop_execution(
     gateway: RestGateway = Depends(get_gateway),
-) -> ExecutionResponse:
+) -> ExecutionStatusResponse:
     try:
         run = await gateway.stop_execution()
     except ExecutionValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if run is None:
-        raise HTTPException(status_code=400, detail="No active execution")
-    return to_execution_response(run)
+        return ExecutionStatusResponse(status=ExecutionStatus.IDLE, run=None)
+    return ExecutionStatusResponse(
+        status=run.status,
+        run=to_execution_response(run),
+    )
 
 
 @router.get("/history", response_model=ExecutionHistoryResponse)

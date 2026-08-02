@@ -11,12 +11,13 @@ from uuid import UUID
 from robot_studio.infrastructure.indexing.python_indexer import PythonLibraryIndexer
 from robot_studio.infrastructure.indexing.robot_indexer import RobotIndexer
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
+from robot_studio.infrastructure.indexing.yaml_variable_indexer import YamlVariableIndexer
 
 if TYPE_CHECKING:
     from robot_studio.infrastructure.analysis.engine import RobotAnalysisEngine
 
 
-INDEXABLE_SUFFIXES = {".robot", ".resource", ".py"}
+INDEXABLE_SUFFIXES = {".robot", ".resource", ".py", ".yaml", ".yml"}
 
 # Pruned during discovery — never descend (VS Code / JetBrains style excludes).
 _SKIP_DIR_NAMES = {
@@ -45,6 +46,7 @@ class FilesystemIndexer:
     analysis_engine: RobotAnalysisEngine | None = None
     robot: RobotIndexer = field(default_factory=RobotIndexer)
     python: PythonLibraryIndexer = field(default_factory=PythonLibraryIndexer)
+    yaml_vars: YamlVariableIndexer = field(default_factory=YamlVariableIndexer)
     # Project IDs that need binder finalize after a bulk (rebind=False) pass.
     pending_analysis_projects: set[UUID] = field(default_factory=set)
 
@@ -106,6 +108,14 @@ class FilesystemIndexer:
         elif suffix in PythonLibraryIndexer.INDEXABLE_SUFFIXES:
             symbols = await asyncio.to_thread(
                 lambda: self.python.index_file(
+                    path,
+                    workspace_id=workspace_id,
+                    project_id=project_id,
+                ),
+            )
+        elif suffix in YamlVariableIndexer.INDEXABLE_SUFFIXES:
+            symbols, references = await asyncio.to_thread(
+                lambda: self.yaml_vars.index_file(
                     path,
                     workspace_id=workspace_id,
                     project_id=project_id,

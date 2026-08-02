@@ -1939,7 +1939,7 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<TestNodeInfo> getTestTree({String? query}) async {
+  Future<TestNodeInfo> getTestTree({String? query, bool lazy = true}) async {
     return const TestNodeInfo(
       id: 'workspace:1',
       kind: 'workspace',
@@ -1972,6 +1972,9 @@ class _FakeTransportGateway implements TransportGateway {
       ],
     );
   }
+
+  @override
+  Future<int> countTests({String? tag, bool projectWide = false}) async => 1;
 
   @override
   Future<List<TestNodeInfo>> getTestsForFile(String path) async => const [];

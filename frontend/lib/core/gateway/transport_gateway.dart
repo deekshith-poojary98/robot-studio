@@ -109,7 +109,9 @@ abstract class TransportGateway {
 
   Future<ExecutionInfo> runProject();
 
-  Future<TestNodeInfo> getTestTree({String? query});
+  Future<TestNodeInfo> getTestTree({String? query, bool lazy = true});
+
+  Future<int> countTests({String? tag, bool projectWide = false});
 
   Future<List<TestNodeInfo>> getTestsForFile(String path);
 

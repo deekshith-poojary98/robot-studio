@@ -198,7 +198,7 @@ Central store for **symbol intelligence**. Keyword Explorer, search, and Languag
                     └───────────────────┘
 ```
 
-**Indexed entities (current):** keywords, variables, libraries, resources, test suites / cases, settings/tags/docs as applicable. **BuiltIn** Robot Framework keywords are merged into search/status so explorers are useful even when a suite only calls libraries.
+**Indexed entities (current):** keywords, variables (including top-level keys from `.yaml`/`.yml` variable files), libraries, resources, test suites / cases, settings/tags/docs as applicable. **BuiltIn** Robot Framework keywords are merged into search/status so explorers are useful even when a suite only calls libraries. Tag search collapses duplicate tag names and shows usage counts.
 
 **Update triggers:** workspace/project open, file changes, package/environment changes, explicit rebuild (`POST /index/rebuild`).
 
@@ -636,9 +636,9 @@ Paths below are relative to `/api/v1`. Workspace context is typically **session-
 | GET/POST | `/environments`, `/environments/import`, `/environments/activate`, … | environment |
 | GET | `/environments/interpreters` | environment |
 | GET/POST | `/packages`, `/packages/search`, `/packages/install`, … | packages |
-| POST | `/execution/run`, `/execution/run-project`, `/execution/stop` | execution |
-| GET | `/execution/history`, `/execution/status` | execution |
-| GET | `/tests/tree`, `/tests/file` | tests |
+| POST | `/execution/run`, `/execution/run-project`, `/execution/stop` | execution (pre-validates Robot Framework; stop is idempotent; aborted startups are discarded) |
+| GET | `/execution/history`, `/execution/status` | execution (history omits `aborted`) |
+| GET | `/tests/tree`, `/tests/file`, `/tests/count` | tests (`tree` defaults `lazy=true`; expand via `/tests/file`; `count` for large-run confirm) |
 | POST | `/tests/run`, `/tests/run-suite`, `/tests/run-tag`, `/tests/run-failed`, `/tests/run-selected` | tests |
 | GET | `/reports`, `/reports/dashboard`, `/reports/{id}` | reports |
 | POST | `/reports/{id}/open-log`, `open-report`, `open-xml`, `reveal` | reports |

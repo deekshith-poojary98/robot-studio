@@ -18,6 +18,7 @@ class ExecutionStatus(str, Enum):
     FINISHED = "finished"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    ABORTED = "aborted"  # Never started (missing robot / spawn failure) — not a real run
 
 
 class ProjectType(str, Enum):

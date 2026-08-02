@@ -145,7 +145,19 @@ async def test_discovery_and_filtering(api_client) -> None:
     client, _, tmp_path = api_client
     seeded = await _seed_workspace(client, tmp_path)
 
-    tree = await client.get("/api/v1/tests/tree")
+    lazy_tree = await client.get("/api/v1/tests/tree", params={"lazy": "true"})
+    assert lazy_tree.status_code == 200, lazy_tree.text
+    lazy_root = lazy_tree.json()["tree"]
+    lazy_suite = lazy_root["children"][0]["children"][0]
+    assert lazy_suite["kind"] == "suite"
+    assert lazy_suite["detail"] == "expand"
+    assert lazy_suite["children"] == []
+
+    count = await client.get("/api/v1/tests/count", params={"project_wide": "true"})
+    assert count.status_code == 200
+    assert count.json()["count"] >= 2
+
+    tree = await client.get("/api/v1/tests/tree", params={"lazy": "false"})
     assert tree.status_code == 200, tree.text
     root = tree.json()["tree"]
     assert root["kind"] == "workspace"

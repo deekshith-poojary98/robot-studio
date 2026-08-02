@@ -36,7 +36,7 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 | **Command palette** | ⌘⇧P / Ctrl+Shift+P (also ⌘P / Ctrl+P, ⌘K / Ctrl+K) for commands, recent files, project files, and symbols |
 | **Keyboard shortcuts** | VS Code–style chrome + editor chords (save, tabs, sidebar, terminal, find/replace, comment, move/copy/delete line, format, Problems) — see `frontend/README.md` |
 | **Indexing** | Background on open (incremental); full rebuild on demand; excludes `.venv` / `node_modules` / `.git` |
-| **Test Explorer** | Browse suites/tests/tasks/tags; run test, suite, tag, failed; live filter + status |
+| **Test Explorer** | Lazy suite tree (expand loads children), virtualized list; run test/suite/all/failed; confirm when >100 tests; live filter + status |
 | **Execution** | Run file or project; live WebSocket logs; stop; history |
 | **Explorer file ops** | Multi-select (⌘/Ctrl / Shift), new file/folder (`.robot` files seeded with Settings/Variables/Test Cases/Keywords scaffold), inline rename (including case-only like `libs` → `Libs`), bulk delete, duplicate, copy path(s), reveal in OS, drag-move via live events |
 | **Live workspace** | FS/index/git/env events over `/workspace/events`; explorer incremental refresh; external edit / deleted-file dialogs; auto Git + Test Explorer refresh |
@@ -226,7 +226,7 @@ robot-studio/
 | `/projects` | Create/import/open/recent (no project-type templates) |
 | `/environments` | Create, activate, clone, delete |
 | `/packages` | List, search, install, uninstall |
-| `/execution` | Run, stop, history; `/execution/stream` WebSocket |
+| `/execution` | Run, stop (idempotent), history (excludes aborted startups); `/execution/stream` WebSocket |
 | `/workspace/events` | Live FS / index / git / environment WebSocket fan-out |
 | `/reports` | Runs, dashboard, artifacts |
 | `/index`, `/search` | Rebuild, status, symbol search |
@@ -297,7 +297,7 @@ Details and suite list: [frontend/integration_test/README.md](./frontend/integra
 
 ## Current status
 
-Core IDE milestones through execution, reports, indexing, language features, Git, and plugins are in place. The product is in **active usability hardening** against the public-beta review backlog (critical/functional/UX items such as cold-start status, reports panel, keyword index BuiltIns, guidance dialogs, AI chrome removal).
+Core IDE milestones through execution, reports, indexing, language features, Git, and plugins are in place. The product is in **public-beta usability hardening** against `qa-bench/QA-ISSUES.md` — focusing on the daily Open Project → Environment → F5 → Results → Doctor loop (no fake runs, project-rooted Explorer, actionable Robot-missing dialogs, keyboard Run/Stop/Doctor).
 
 | Milestone | Scope | Status |
 |-----------|--------|--------|

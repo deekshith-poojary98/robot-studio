@@ -192,7 +192,7 @@ def test_discover_files_prunes_venv(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_rebuild_search_definition_references(index_stack) -> None:
-    service, store, facade, suite, lib, bus, _workspace, _project = index_stack
+    service, store, facade, suite, lib, bus, workspace, project = index_stack
     events: list[object] = []
 
     async def on_updated(event: IndexUpdated) -> None:
@@ -237,7 +237,49 @@ async def test_rebuild_search_definition_references(index_stack) -> None:
     # Python library keyword
     py_results = await service.search("greet")
     assert any("greet" in item["name"].lower() for item in py_results)
-    assert lib.exists()
+
+    # YAML variables (QA-005) — index file directly to avoid watcher races.
+    vars_yaml = suite.parent / "common.yaml"
+    vars_yaml.write_text("BROWSER: chrome\nTIMEOUT: 30s\n", encoding="utf-8")
+    await service.indexer.index_file(
+        vars_yaml,
+        workspace_id=workspace.id,
+        project_id=project.id,
+        force=True,
+    )
+    yaml_hits = await store.search_symbols(query="BROWSER")
+    assert any(
+        item["name"] == "BROWSER" and str(item.get("file_path", "")).endswith("common.yaml")
+        for item in yaml_hits
+    ), yaml_hits
+
+    # Tag search should dedupe (QA-006): Force Tags + Test Tags both "smoke".
+    suite.write_text(
+        suite.read_text(encoding="utf-8").replace(
+            "Force Tags    smoke",
+            "Force Tags    smoke\nDefault Tags    smoke",
+        ),
+        encoding="utf-8",
+    )
+    await service.indexer.index_file(
+        suite,
+        workspace_id=workspace.id,
+        project_id=project.id,
+        force=True,
+    )
+    tag_hits = await store.search_symbols(query="smoke", kind=SymbolKind.TAG)
+    smoke = [item for item in tag_hits if item["name"] == "smoke"]
+    assert len(smoke) == 1, smoke
+    assert "used in" in (smoke[0].get("detail") or ""), smoke[0]
+
+
+@pytest.mark.asyncio
+async def test_empty_search_skips_tag_flood(index_stack) -> None:
+    service, *_rest = index_stack
+    await service.rebuild()
+    bare = await service.search("")
+    assert bare
+    assert all(item.get("kind") != "tag" for item in bare)
 
 
 @pytest.mark.asyncio

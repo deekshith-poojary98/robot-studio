@@ -49,6 +49,43 @@ class TestNodeInfo {
       kind == 'suite' ||
       kind == 'project' ||
       kind == 'workspace';
+
+  /// Lazy suite/project shell from the backend — expand loads real children.
+  bool get needsLazyExpand =>
+      children.isEmpty &&
+      detail == 'expand' &&
+      (kind == 'suite' || kind == 'project' || kind == 'directory');
+
+  bool get canExpand => children.isNotEmpty || needsLazyExpand;
+
+  TestNodeInfo copyWith({
+    List<TestNodeInfo>? children,
+    String? detail,
+    TestNodeStatus? status,
+  }) {
+    return TestNodeInfo(
+      id: id,
+      kind: kind,
+      name: name,
+      path: path,
+      line: line,
+      projectId: projectId,
+      status: status ?? this.status,
+      tags: tags,
+      detail: detail ?? this.detail,
+      children: children ?? this.children,
+    );
+  }
+
+  TestNodeInfo replaceChild(String childId, TestNodeInfo replacement) {
+    if (id == childId) return replacement;
+    if (children.isEmpty) return this;
+    return copyWith(
+      children: [
+        for (final child in children) child.replaceChild(childId, replacement),
+      ],
+    );
+  }
 }
 
 enum TestNodeStatus {

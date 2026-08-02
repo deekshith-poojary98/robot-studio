@@ -431,8 +431,24 @@ class RestGateway:
     async def run_project(self) -> ExecutionRun:
         return await self._execution_service.run_project()
 
-    async def get_test_tree(self, query: str | None = None) -> TestNode:
-        return await self._test_explorer_service.get_tree(query=query)
+    async def get_test_tree(
+        self,
+        query: str | None = None,
+        *,
+        lazy: bool = True,
+    ) -> TestNode:
+        return await self._test_explorer_service.get_tree(query=query, lazy=lazy)
+
+    async def count_tests(
+        self,
+        *,
+        tag: str | None = None,
+        project_wide: bool = False,
+    ) -> int:
+        return await self._test_explorer_service.count_tests(
+            tag=tag,
+            project_wide=project_wide,
+        )
 
     async def get_tests_for_file(self, path: str) -> list[TestNode]:
         return await self._test_explorer_service.get_file(path)

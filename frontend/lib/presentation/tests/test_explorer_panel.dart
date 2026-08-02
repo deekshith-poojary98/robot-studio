@@ -7,6 +7,7 @@ import '../widgets/app_menu.dart';
 import '../widgets/skeleton_list.dart';
 
 typedef TestNodeCallback = void Function(TestNodeInfo node);
+typedef TestNodeExpandCallback = Future<void> Function(TestNodeInfo node);
 
 class TestExplorerPanel extends StatefulWidget {
   const TestExplorerPanel({
@@ -22,6 +23,7 @@ class TestExplorerPanel extends StatefulWidget {
     this.onRunNode,
     this.onOpenFile,
     this.onRevealInExplorer,
+    this.onExpandNode,
     this.currentFilePath,
   });
 
@@ -36,6 +38,7 @@ class TestExplorerPanel extends StatefulWidget {
   final TestNodeCallback? onRunNode;
   final TestNodeCallback? onOpenFile;
   final TestNodeCallback? onRevealInExplorer;
+  final TestNodeExpandCallback? onExpandNode;
   final String? currentFilePath;
 
   @override
@@ -45,6 +48,7 @@ class TestExplorerPanel extends StatefulWidget {
 class _TestExplorerPanelState extends State<TestExplorerPanel> {
   final Set<String> _expanded = {};
   final Set<String> _selected = {};
+  final Set<String> _loadingExpand = {};
   final TextEditingController _filterController = TextEditingController();
   bool _seeded = false;
 
@@ -79,15 +83,17 @@ class _TestExplorerPanelState extends State<TestExplorerPanel> {
   void _seedExpanded() {
     final tree = widget.tree;
     if (tree == null || _seeded) return;
-    // Seed defaults once per tree id; INDEX_UPDATED refreshes keep expand state
-    // when the root id is stable.
+    // Depth 0–1 only so lazy suites stay collapsed until the user expands.
     _expanded
       ..clear()
       ..add(tree.id);
     for (final project in tree.children) {
       _expanded.add(project.id);
       for (final suite in project.children.take(3)) {
-        _expanded.add(suite.id);
+        // Only auto-expand already-loaded suites (not lazy "expand" shells).
+        if (suite.children.isNotEmpty) {
+          _expanded.add(suite.id);
+        }
       }
     }
     _seeded = true;
@@ -120,8 +126,44 @@ class _TestExplorerPanelState extends State<TestExplorerPanel> {
     }
   }
 
+  Future<void> _toggleExpand(TestNodeInfo node) async {
+    final id = node.id;
+    if (_expanded.contains(id)) {
+      setState(() => _expanded.remove(id));
+      return;
+    }
+    setState(() => _expanded.add(id));
+    if (node.needsLazyExpand && widget.onExpandNode != null) {
+      setState(() => _loadingExpand.add(id));
+      try {
+        await widget.onExpandNode!(node);
+      } finally {
+        if (mounted) {
+          setState(() => _loadingExpand.remove(id));
+        }
+      }
+    }
+  }
+
+  List<_FlatRow> _flattenVisible() {
+    final tree = widget.tree;
+    if (tree == null) return const [];
+    final rows = <_FlatRow>[];
+    void walk(TestNodeInfo node, int depth) {
+      rows.add(_FlatRow(node: node, depth: depth));
+      if (!_expanded.contains(node.id)) return;
+      for (final child in node.children) {
+        walk(child, depth + 1);
+      }
+    }
+
+    walk(tree, 0);
+    return rows;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final rows = _flattenVisible();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -179,42 +221,44 @@ class _TestExplorerPanelState extends State<TestExplorerPanel> {
                       message: 'Open a project to browse suites and cases.',
                       compact: true,
                     )
-                  : ListView(
+                  : ListView.builder(
                       padding: const EdgeInsets.only(bottom: 12),
-                      children: [
-                        _TestTreeNodeTile(
-                          node: widget.tree!,
-                          depth: 0,
-                          expanded: _expanded,
-                          selected: _selected,
-                          onToggle: (id) {
+                      itemCount: rows.length,
+                      itemBuilder: (context, index) {
+                        final row = rows[index];
+                        return _TestTreeNodeTile(
+                          node: row.node,
+                          depth: row.depth,
+                          expanded: _expanded.contains(row.node.id),
+                          selected: _selected.contains(row.node.id),
+                          loading: _loadingExpand.contains(row.node.id),
+                          onToggle: () => _toggleExpand(row.node),
+                          onSelect: () {
                             setState(() {
-                              if (_expanded.contains(id)) {
-                                _expanded.remove(id);
+                              if (_selected.contains(row.node.id)) {
+                                _selected.remove(row.node.id);
                               } else {
-                                _expanded.add(id);
-                              }
-                            });
-                          },
-                          onSelect: (node) {
-                            setState(() {
-                              if (_selected.contains(node.id)) {
-                                _selected.remove(node.id);
-                              } else {
-                                _selected.add(node.id);
+                                _selected.add(row.node.id);
                               }
                             });
                           },
                           onRunNode: widget.onRunNode,
                           onOpenFile: widget.onOpenFile,
                           onRevealInExplorer: widget.onRevealInExplorer,
-                        ),
-                      ],
+                        );
+                      },
                     ),
         ),
       ],
     );
   }
+}
+
+class _FlatRow {
+  const _FlatRow({required this.node, required this.depth});
+
+  final TestNodeInfo node;
+  final int depth;
 }
 
 class _Toolbar extends StatelessWidget {
@@ -316,6 +360,7 @@ class _TestTreeNodeTile extends StatelessWidget {
     required this.depth,
     required this.expanded,
     required this.selected,
+    required this.loading,
     required this.onToggle,
     required this.onSelect,
     this.onRunNode,
@@ -325,113 +370,106 @@ class _TestTreeNodeTile extends StatelessWidget {
 
   final TestNodeInfo node;
   final int depth;
-  final Set<String> expanded;
-  final Set<String> selected;
-  final ValueChanged<String> onToggle;
-  final TestNodeCallback onSelect;
+  final bool expanded;
+  final bool selected;
+  final bool loading;
+  final VoidCallback onToggle;
+  final VoidCallback onSelect;
   final TestNodeCallback? onRunNode;
   final TestNodeCallback? onOpenFile;
   final TestNodeCallback? onRevealInExplorer;
 
   @override
   Widget build(BuildContext context) {
-    final hasChildren = node.children.isNotEmpty;
-    final isExpanded = expanded.contains(node.id);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Material(
-          color: selected.contains(node.id)
-              ? AppColors.accentSoft
-              : Colors.transparent,
-          child: InkWell(
-            onTap: () => onSelect(node),
-            onDoubleTap: node.path == null
-                ? null
-                : () => onOpenFile?.call(node),
-            onSecondaryTapDown: (details) => _showMenu(context, details),
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(8.0 + depth * 12, 3, 6, 3),
-              child: Row(
-                children: [
+    final canExpand = node.canExpand;
+    return Material(
+      color: selected ? AppColors.accentSoft : Colors.transparent,
+      child: InkWell(
+        onTap: onSelect,
+        onDoubleTap: node.path == null ? null : () => onOpenFile?.call(node),
+        onSecondaryTapDown: (details) => _showMenu(context, details),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(8.0 + depth * 12, 3, 6, 3),
+          child: Row(
+            children: [
                   SizedBox(
                     width: 16,
-                    child: hasChildren
-                        ? GestureDetector(
-                            onTap: () => onToggle(node.id),
-                            child: Icon(
-                              isExpanded
-                                  ? Icons.expand_more
-                                  : Icons.chevron_right,
-                              size: 14,
-                              color: AppColors.textMuted,
+                    child: canExpand
+                        ? IconButton(
+                            key: Key('test-expand-${node.id}'),
+                            onPressed: onToggle,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
                             ),
+                            iconSize: 14,
+                            visualDensity: VisualDensity.compact,
+                            icon: loading
+                                ? const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1.5,
+                                    ),
+                                  )
+                                : Icon(
+                                    expanded
+                                        ? Icons.expand_more
+                                        : Icons.chevron_right,
+                                    size: 14,
+                                    color: AppColors.textMuted,
+                                  ),
                           )
                         : const SizedBox.shrink(),
                   ),
-                  Icon(_kindIcon(node.kind), size: 14, color: _kindColor(node)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      node.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12.2,
-                        color: AppColors.textPrimary,
-                        fontStyle: node.kind == 'setup' || node.kind == 'teardown'
-                            ? FontStyle.italic
-                            : FontStyle.normal,
-                      ),
+              Icon(_kindIcon(node.kind), size: 14, color: _kindColor(node)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  node.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.2,
+                    color: AppColors.textPrimary,
+                    fontStyle: node.kind == 'setup' || node.kind == 'teardown'
+                        ? FontStyle.italic
+                        : FontStyle.normal,
+                  ),
+                ),
+              ),
+              if (node.tags.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Text(
+                    node.tags.take(2).join(','),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppColors.textMuted,
                     ),
                   ),
-                  if (node.tags.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: Text(
-                        node.tags.take(2).join(','),
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    ),
-                  _StatusDot(status: node.status),
-                  if (node.isRunnable)
-                    IconButton(
-                      key: Key('test-run-${node.id}'),
-                      onPressed: onRunNode == null
-                          ? null
-                          : () => onRunNode!(node),
-                      tooltip: 'Run',
-                      icon: const Icon(Icons.play_arrow, size: 14),
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(
-                        minWidth: 22,
-                        minHeight: 22,
-                      ),
-                      padding: EdgeInsets.zero,
-                      color: AppColors.textSecondary,
-                    ),
-                ],
-              ),
-            ),
+                ),
+              _StatusDot(status: node.status),
+              if (node.isRunnable)
+                IconButton(
+                  key: Key('test-run-${node.id}'),
+                  onPressed:
+                      onRunNode == null ? null : () => onRunNode!(node),
+                  tooltip: 'Run',
+                  icon: const Icon(Icons.play_arrow, size: 14),
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 22,
+                    minHeight: 22,
+                  ),
+                  padding: EdgeInsets.zero,
+                  color: AppColors.textSecondary,
+                ),
+            ],
           ),
         ),
-        if (hasChildren && isExpanded)
-          for (final child in node.children)
-            _TestTreeNodeTile(
-              node: child,
-              depth: depth + 1,
-              expanded: expanded,
-              selected: selected,
-              onToggle: onToggle,
-              onSelect: onSelect,
-              onRunNode: onRunNode,
-              onOpenFile: onOpenFile,
-              onRevealInExplorer: onRevealInExplorer,
-            ),
-      ],
+      ),
     );
   }
 
@@ -459,29 +497,35 @@ class _TestTreeNodeTile extends StatelessWidget {
           ),
       ],
     );
-    if (selected == 'run') onRunNode?.call(node);
-    if (selected == 'open') onOpenFile?.call(node);
-    if (selected == 'reveal') onRevealInExplorer?.call(node);
+    if (selected == 'run') {
+      onRunNode?.call(node);
+    } else if (selected == 'open') {
+      onOpenFile?.call(node);
+    } else if (selected == 'reveal') {
+      onRevealInExplorer?.call(node);
+    }
   }
 
-  static IconData _kindIcon(String kind) {
+  IconData _kindIcon(String kind) {
     return switch (kind) {
       'workspace' => Icons.work_outline,
-      'project' => Icons.folder_outlined,
+      'project' => Icons.folder_special_outlined,
+      'directory' => Icons.folder_outlined,
       'suite' => Icons.description_outlined,
-      'test' => Icons.science_outlined,
-      'task' => Icons.checklist_outlined,
-      'setup' => Icons.settings_suggest_outlined,
-      'teardown' => Icons.settings_backup_restore_outlined,
+      'test' || 'task' => Icons.science_outlined,
+      'setup' || 'teardown' => Icons.settings_outlined,
       _ => Icons.circle_outlined,
     };
   }
 
-  static Color _kindColor(TestNodeInfo node) {
-    if (node.status == TestNodeStatus.running) return AppColors.info;
-    if (node.status == TestNodeStatus.fail) return AppColors.error;
-    if (node.status == TestNodeStatus.pass) return AppColors.success;
-    return AppColors.textSecondary;
+  Color _kindColor(TestNodeInfo node) {
+    return switch (node.status) {
+      TestNodeStatus.pass => AppColors.success,
+      TestNodeStatus.fail => AppColors.error,
+      TestNodeStatus.skip => AppColors.warning,
+      TestNodeStatus.running => AppColors.info,
+      TestNodeStatus.notRun => AppColors.textMuted,
+    };
   }
 }
 
@@ -492,35 +536,28 @@ class _StatusDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (status == TestNodeStatus.running) {
+      return const Padding(
+        padding: EdgeInsets.only(right: 2),
+        child: SizedBox(
+          width: 10,
+          height: 10,
+          child: CircularProgressIndicator(strokeWidth: 1.5),
+        ),
+      );
+    }
     final color = switch (status) {
       TestNodeStatus.pass => AppColors.success,
       TestNodeStatus.fail => AppColors.error,
       TestNodeStatus.skip => AppColors.warning,
       TestNodeStatus.running => AppColors.info,
-      TestNodeStatus.notRun => AppColors.textMuted,
+      TestNodeStatus.notRun => AppColors.border,
     };
-    return Tooltip(
-      message: status.label,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: status == TestNodeStatus.running
-            ? SizedBox(
-                width: 10,
-                height: 10,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.4,
-                  color: color,
-                ),
-              )
-            : Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.85),
-                  shape: BoxShape.circle,
-                ),
-              ),
-      ),
+    return Container(
+      width: 7,
+      height: 7,
+      margin: const EdgeInsets.only(right: 2),
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }

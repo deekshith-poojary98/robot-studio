@@ -55,6 +55,18 @@ class ShowProblemsIntent extends Intent {
   const ShowProblemsIntent();
 }
 
+class RunFileIntent extends Intent {
+  const RunFileIntent();
+}
+
+class StopExecutionIntent extends Intent {
+  const StopExecutionIntent();
+}
+
+class ShowDoctorIntent extends Intent {
+  const ShowDoctorIntent();
+}
+
 /// Platform-aware activators for Robot Studio chrome shortcuts.
 ///
 /// Both macOS (⌘) and Win/Linux (Ctrl) chords are registered; the inactive

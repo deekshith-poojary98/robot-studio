@@ -42,6 +42,14 @@ void main() {
     );
   });
 
+  test('missing Robot Framework maps to install recovery', () {
+    final copy = resolveFriendlyError(
+      'Robot Framework is not installed in the active environment.',
+    );
+    expect(copy.summary.toLowerCase(), contains('robot framework'));
+    expect(copy.recovery.toLowerCase(), contains('install'));
+  });
+
   testWidgets(
     'create env dialog warns when discovery returns no interpreters',
     (tester) async {

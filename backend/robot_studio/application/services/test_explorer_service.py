@@ -140,30 +140,97 @@ class TestExplorerService:
     def _case_key(path: str, name: str) -> str:
         return f"{Path(path).resolve()}::{name}"
 
-    async def get_tree(self, *, query: str | None = None) -> TestNode:
+    async def get_tree(self, *, query: str | None = None, lazy: bool = True) -> TestNode:
         workspace = self._require_workspace()
-        if self._tree is None:
-            self._tree = await self._build_tree(workspace)
+        # Filtering needs test names — build eagerly.
+        use_lazy = lazy and not (query and query.strip())
+        cache_key_ok = self._tree is not None and getattr(self, "_tree_lazy", None) == use_lazy
+        if not cache_key_ok:
+            self._tree = await self._build_tree(workspace, lazy=use_lazy)
+            self._tree_lazy = use_lazy
         tree = self._tree
         if query and query.strip():
             return self._filter_tree(tree, query.strip().lower())
         return tree
 
+    def _path_allowed(self, target: Path) -> bool:
+        roots: list[Path] = []
+        workspace = self.context.workspace
+        if workspace is not None:
+            roots.append(Path(workspace.path).resolve())
+        project = self.context.project
+        if project is not None:
+            roots.append(Path(project.path).resolve())
+        for root in roots:
+            try:
+                target.relative_to(root)
+                return True
+            except ValueError:
+                continue
+        return False
+
     async def get_file(self, path: str) -> list[TestNode]:
-        workspace = self._require_workspace()
+        self._require_workspace()
         target = Path(path).expanduser().resolve()
         if not target.is_file():
             raise TestExplorerValidationError(f"File not found: '{target}'")
-        try:
-            target.relative_to(workspace.path.resolve())
-        except ValueError as exc:
-            raise TestExplorerValidationError("Path is outside the active workspace") from exc
+        if not self._path_allowed(target):
+            raise TestExplorerValidationError(
+                "Path is outside the active project or workspace",
+            )
 
         # Prefer live parser (robot.api) for per-file accuracy; fall back to index.
         symbols = await self._parse_file_symbols(target)
         if not symbols:
             symbols = await self.store.symbols_for_file(target)
         return self._nodes_from_file_symbols(target, symbols)
+
+    async def count_tests(
+        self,
+        *,
+        tag: str | None = None,
+        project_wide: bool = False,
+    ) -> int:
+        """Estimate tests for confirmation dialogs (tag / run-all)."""
+        project = self.context.project
+        if project is None:
+            raise TestExplorerValidationError("Open a project first")
+        if tag and tag.strip():
+            needle = tag.strip().lower()
+            tags = await self.store.search_symbols(
+                needle,
+                project_id=project.id,
+                kind=SymbolKind.TAG,
+                limit=5000,
+            )
+            # Each tag symbol is one attachment; count unique test names when possible.
+            names = {
+                str(t.get("detail") or "").split(":", 1)[-1]
+                for t in tags
+                if str(t.get("name") or "").lower() == needle
+                and str(t.get("detail") or "").startswith("test:")
+            }
+            if names:
+                return len(names)
+            # Force/Default tags apply suite-wide — fall back to test_case count.
+            cases = await self.store.search_symbols(
+                "",
+                project_id=project.id,
+                kind=SymbolKind.TEST_CASE,
+                limit=10000,
+            )
+            return len(cases) if any(
+                str(t.get("name") or "").lower() == needle for t in tags
+            ) else max(len(tags), 0)
+        if project_wide:
+            cases = await self.store.search_symbols(
+                "",
+                project_id=project.id,
+                kind=SymbolKind.TEST_CASE,
+                limit=10000,
+            )
+            return len(cases)
+        return 0
 
     async def refresh(self) -> TestNode:
         self._require_workspace()
@@ -302,7 +369,7 @@ class TestExplorerService:
             for item in raw
         ]
 
-    async def _build_tree(self, workspace) -> TestNode:
+    async def _build_tree(self, workspace, *, lazy: bool = True) -> TestNode:
         projects = await self.project_service.list_projects()
         project_nodes: list[TestNode] = []
         for project in projects:
@@ -310,7 +377,7 @@ class TestExplorerService:
                 "",
                 project_id=project.id,
                 kind=SymbolKind.TEST_SUITE,
-                limit=500,
+                limit=10000,
             )
             # Deduplicate by file_path.
             by_path: dict[str, dict] = {}
@@ -331,15 +398,21 @@ class TestExplorerService:
 
             suite_nodes: list[TestNode] = []
             for file_path, suite in sorted(by_path.items()):
-                symbols = await self.store.symbols_for_file(Path(file_path))
-                if not symbols:
-                    symbols = await self._parse_file_symbols(Path(file_path))
-                children = self._nodes_from_file_symbols(
-                    Path(file_path),
-                    symbols,
-                    project_id=str(project.id),
-                )
-                suite_status = self._rollup_status(children)
+                children: list[TestNode] = []
+                detail = ""
+                if lazy:
+                    # Children loaded on expand via GET /tests/file.
+                    detail = "expand"
+                else:
+                    symbols = await self.store.symbols_for_file(Path(file_path))
+                    if not symbols:
+                        symbols = await self._parse_file_symbols(Path(file_path))
+                    children = self._nodes_from_file_symbols(
+                        Path(file_path),
+                        symbols,
+                        project_id=str(project.id),
+                    )
+                suite_status = self._rollup_status(children) if children else "not_run"
                 suite_nodes.append(
                     TestNode(
                         id=f"suite:{file_path}",
@@ -349,6 +422,7 @@ class TestExplorerService:
                         line=int(suite.get("line") or 1),
                         project_id=str(project.id),
                         status=suite_status,
+                        detail=detail,
                         children=children,
                     ),
                 )

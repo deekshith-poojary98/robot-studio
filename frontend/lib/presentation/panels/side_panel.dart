@@ -43,6 +43,7 @@ class SidePanel extends StatelessWidget {
     this.onRunTestNode,
     this.onOpenTestNode,
     this.onRevealTestNode,
+    this.onExpandTestNode,
     this.currentEditorPath,
     this.onOpenProject,
     this.onRunProject,
@@ -92,6 +93,7 @@ class SidePanel extends StatelessWidget {
   final ValueChanged<TestNodeInfo>? onRunTestNode;
   final ValueChanged<TestNodeInfo>? onOpenTestNode;
   final ValueChanged<TestNodeInfo>? onRevealTestNode;
+  final Future<void> Function(TestNodeInfo node)? onExpandTestNode;
   final String? currentEditorPath;
   final VoidCallback? onOpenProject;
   final VoidCallback? onRunProject;
@@ -268,6 +270,7 @@ class SidePanel extends StatelessWidget {
         onRunNode: onRunTestNode,
         onOpenFile: onOpenTestNode,
         onRevealInExplorer: onRevealTestNode,
+        onExpandNode: onExpandTestNode,
         currentFilePath: currentEditorPath,
       );
     }

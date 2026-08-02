@@ -5,7 +5,8 @@ enum ExecutionStatus {
   stopping,
   finished,
   failed,
-  cancelled;
+  cancelled,
+  aborted;
 
   static ExecutionStatus fromApi(String value) {
     return ExecutionStatus.values.firstWhere(
@@ -22,6 +23,7 @@ enum ExecutionStatus {
         ExecutionStatus.finished => 'Finished',
         ExecutionStatus.failed => 'Failed',
         ExecutionStatus.cancelled => 'Cancelled',
+        ExecutionStatus.aborted => 'Aborted',
       };
 
   bool get isActive =>

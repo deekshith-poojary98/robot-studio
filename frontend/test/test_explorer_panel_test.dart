@@ -145,4 +145,44 @@ void main() {
 
     expect(find.byType(CircularProgressIndicator), findsWidgets);
   });
+
+  testWidgets('lazy suite shells are expandable', (tester) async {
+    const suite = TestNodeInfo(
+      id: 'suite:lazy',
+      kind: 'suite',
+      name: 'huge',
+      path: '/tmp/huge.robot',
+      detail: 'expand',
+    );
+    expect(suite.needsLazyExpand, isTrue);
+    expect(suite.canExpand, isTrue);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            height: 600,
+            child: TestExplorerPanel(
+              tree: const TestNodeInfo(
+                id: 'workspace:1',
+                kind: 'workspace',
+                name: 'WS',
+                children: [
+                  TestNodeInfo(
+                    id: 'project:1',
+                    kind: 'project',
+                    name: 'Shop',
+                    children: [suite],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('huge'), findsOneWidget);
+    expect(find.byKey(const Key('test-expand-suite:lazy')), findsOneWidget);
+  });
 }

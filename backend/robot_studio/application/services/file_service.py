@@ -92,18 +92,46 @@ class FileService:
             )
         return workspace
 
-    def _resolve_under_workspace(self, path: str | Path) -> Path:
+    def _allowed_roots(self) -> list[Path]:
+        """Workspace home plus the active project root (imported projects live outside)."""
         workspace = self._require_workspace()
+        roots = [Path(workspace.path).resolve()]
+        project = self.context.project
+        if project is not None:
+            try:
+                proj = Path(project.path).resolve()
+            except OSError:
+                proj = None
+            if proj is not None and proj not in roots:
+                roots.append(proj)
+        return roots
+
+    def _resolve_under_workspace(self, path: str | Path) -> Path:
         target = Path(path).expanduser()
+        roots = self._allowed_roots()
+        workspace = self._require_workspace()
         if not target.is_absolute():
-            target = workspace.path / target
+            # Prefer active project for relative paths (Explorer is project-rooted).
+            project = self.context.project
+            base = Path(project.path) if project is not None else Path(workspace.path)
+            target = base / target
         resolved = target.resolve()
-        root = workspace.path.resolve()
-        try:
-            resolved.relative_to(root)
-        except ValueError as exc:
-            raise FileValidationError("Path is outside the active workspace") from exc
-        return resolved
+        for root in roots:
+            try:
+                resolved.relative_to(root)
+                return resolved
+            except ValueError:
+                continue
+        raise FileValidationError(
+            "Path is outside the active project or workspace",
+        )
+
+    def _tree_relative_root(self) -> Path:
+        """Explorer root: active project when open, otherwise workspace home."""
+        project = self.context.project
+        if project is not None and Path(project.path).is_dir():
+            return Path(project.path).resolve()
+        return Path(self._require_workspace().path).resolve()
 
     def _assert_under_workspace(self, path: Path) -> None:
         """Validate containment without returning a case-normalized path."""
@@ -320,9 +348,9 @@ class FileService:
 
     async def delete_path(self, path: str) -> dict:
         target = self._resolve_under_workspace(path)
-        workspace = self._require_workspace()
-        if target.resolve() == workspace.path.resolve():
-            raise FileValidationError("Cannot delete the workspace root")
+        for root in self._allowed_roots():
+            if target.resolve() == root:
+                raise FileValidationError("Cannot delete the project or workspace root")
         if not target.exists():
             raise FileValidationError(f"Path not found: {path}")
         is_dir = target.is_dir()
@@ -381,12 +409,14 @@ class FileService:
 
         *depth=0* (default) is VS Code style: only immediate children, no recursion.
         Callers expand folders with a follow-up request for that path.
+        Default root is the **active project** when one is open.
         """
-        workspace = self._require_workspace()
-        root = self._resolve_under_workspace(path) if path else workspace.path
+        self._require_workspace()
+        relative_to = self._tree_relative_root()
+        root = self._resolve_under_workspace(path) if path else relative_to
         if not root.exists():
             raise FileValidationError(f"Path not found: {root}")
-        return await asyncio.to_thread(self._walk, root, depth, workspace.path)
+        return await asyncio.to_thread(self._walk, root, depth, relative_to)
 
     def _legacy_env_index(self, rel_parts: tuple[str, ...]) -> int | None:
         """Index of a legacy project-root ``Environments/<name>/…`` segment."""

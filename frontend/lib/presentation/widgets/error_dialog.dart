@@ -277,12 +277,33 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
       );
     }
     if (text.contains('activate an environment with robot') ||
-        text.contains('robot framework')) {
+        text.contains('robot framework is not installed') ||
+        text.contains('could not verify robot framework') ||
+        (text.contains('robot framework') &&
+            (text.contains('not installed') ||
+                text.contains('not available') ||
+                text.contains('missing')))) {
+      return const FriendlyErrorCopy(
+        summary: 'Robot Framework is not installed in the active environment.',
+        recovery:
+            'Install Robot Framework into this environment, or choose another '
+            'environment that already has it.',
+      );
+    }
+    if (text.contains('robot framework')) {
       return const FriendlyErrorCopy(
         summary: 'Robot Framework is not available in the active environment.',
         recovery:
             'Activate an environment with Robot Framework installed, or install '
             'it from Packages.',
+      );
+    }
+    if (text.contains('aborted') || text.contains('failed to start')) {
+      return const FriendlyErrorCopy(
+        summary: 'The test run never started.',
+        recovery:
+            'Fix the environment or suite path, then press F5 to try again. '
+            'Aborted launches are not kept in history.',
       );
     }
     return FriendlyErrorCopy(

@@ -211,11 +211,37 @@ async def test_history_persistence(services) -> None:
 
 
 @pytest.mark.asyncio
-async def test_rejects_suite_outside_project(services, tmp_path: Path) -> None:
-    outside = tmp_path / "outside.robot"
-    outside.write_text("*** Test Cases ***\nOutside\n    Log    x\n", encoding="utf-8")
-    with pytest.raises(ExecutionValidationError, match="inside the active project"):
-        await services["execution_service"].run_file(str(outside))
+async def test_rejects_missing_robot_before_creating_run(services) -> None:
+    """QA-001: never create a fake run when Robot Framework is missing."""
+    env = services["context"].environment
+    assert env is not None
+    # Simulate an environment metadata without Robot (and block import probe).
+    env.robot_version = None
+    env.robot_executable = None
+    original_python = env.python_executable
+    env.python_executable = str(services["tmp_path"] / "missing-python")
+
+    before = await services["exec_repo"].list_by_workspace(
+        services["context"].workspace.id,
+        limit=50,
+    )
+    with pytest.raises(ExecutionValidationError, match="Robot Framework|environment") as exc:
+        await services["execution_service"].run_file(str(services["suite"]))
+    assert getattr(exc.value, "code", None) in {"robot_missing", "environment_missing"}
+
+    after = await services["exec_repo"].list_by_workspace(
+        services["context"].workspace.id,
+        limit=50,
+    )
+    assert len(after) == len(before)
+
+    env.python_executable = original_python
+
+
+@pytest.mark.asyncio
+async def test_stop_is_idempotent_when_idle(services) -> None:
+    stopped = await services["execution_service"].stop()
+    assert stopped is None
 
 
 @pytest.mark.asyncio

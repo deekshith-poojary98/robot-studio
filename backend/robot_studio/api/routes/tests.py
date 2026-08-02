@@ -25,14 +25,27 @@ router = APIRouter(prefix="/tests", tags=["tests"])
 @router.get("/tree", response_model=TestTreeResponse)
 async def get_test_tree(
     q: str | None = Query(default=None),
+    lazy: bool = Query(default=True),
     gateway: RestGateway = Depends(get_gateway),
 ) -> TestTreeResponse:
     try:
-        tree = await gateway.get_test_tree(query=q)
+        tree = await gateway.get_test_tree(query=q, lazy=lazy)
     except TestExplorerValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return TestTreeResponse(tree=to_test_node(tree))
 
+
+@router.get("/count")
+async def count_tests(
+    tag: str | None = Query(default=None),
+    project_wide: bool = Query(default=False),
+    gateway: RestGateway = Depends(get_gateway),
+) -> dict:
+    try:
+        total = await gateway.count_tests(tag=tag, project_wide=project_wide)
+    except TestExplorerValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"count": total}
 
 @router.get("/file", response_model=TestFileResponse)
 async def get_tests_for_file(

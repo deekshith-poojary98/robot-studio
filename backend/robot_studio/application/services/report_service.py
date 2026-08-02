@@ -99,7 +99,10 @@ class ReportService:
 
     async def list_runs(self, *, limit: int = 50) -> list[ExecutionRun]:
         workspace = self._require_workspace()
-        return await self.repository.list_by_workspace(workspace.id, limit=limit)
+        from robot_studio.domain.models import ExecutionStatus
+
+        runs = await self.repository.list_by_workspace(workspace.id, limit=limit * 2)
+        return [r for r in runs if r.status != ExecutionStatus.ABORTED][:limit]
 
     async def get_run(self, run_id: UUID) -> ExecutionRun:
         self._require_workspace()

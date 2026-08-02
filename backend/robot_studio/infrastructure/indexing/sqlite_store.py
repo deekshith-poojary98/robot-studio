@@ -302,6 +302,10 @@ class SqliteIndexStore(IndexStore):
         if kind:
             clauses.append("kind = ?")
             params.append(kind.value)
+        elif not needle:
+            # Empty browse: skip tags (they dominate large RF projects).
+            clauses.append("kind != ?")
+            params.append(SymbolKind.TAG.value)
         if needle:
             clauses.append("(name_lower LIKE ? OR detail LIKE ? OR documentation LIKE ?)")
             like = f"%{needle}%"
@@ -333,7 +337,64 @@ class SqliteIndexStore(IndexStore):
         results = [self._row_to_dict(row) for row in rows]
         if needle:
             results.sort(key=lambda item: self._fuzzy_score(needle, item["name"]))
+        results = self._dedupe_search_results(results, kind=kind)
+        # Prefer keywords/tests/variables over tags when kind is unconstrained.
+        if kind is None:
+            results.sort(key=lambda item: self._kind_rank(item.get("kind")))
+            if needle:
+                results.sort(
+                    key=lambda item: (
+                        self._kind_rank(item.get("kind")),
+                        *self._fuzzy_score(needle, item["name"]),
+                    ),
+                )
         return results[:limit]
+
+    @staticmethod
+    def _kind_rank(kind: str | None) -> int:
+        order = {
+            "keyword": 0,
+            "test_case": 1,
+            "variable": 2,
+            "test_suite": 3,
+            "resource": 4,
+            "library": 5,
+            "file": 6,
+            "tag": 8,
+        }
+        return order.get(str(kind or ""), 7)
+
+    @staticmethod
+    def _dedupe_search_results(
+        results: list[dict],
+        *,
+        kind: SymbolKind | None,
+    ) -> list[dict]:
+        """Collapse duplicate tag names into a single hit with usage count."""
+        if kind is not None and kind != SymbolKind.TAG:
+            return results
+        seen_tags: dict[str, dict] = {}
+        out: list[dict] = []
+        for item in results:
+            if str(item.get("kind") or "") != SymbolKind.TAG.value:
+                out.append(item)
+                continue
+            key = str(item.get("name") or "").lower()
+            if key in seen_tags:
+                prev = seen_tags[key]
+                count = int(prev.get("_count") or 1) + 1
+                prev["_count"] = count
+                prev["detail"] = f"used in {count} places"
+                continue
+            item = dict(item)
+            item["_count"] = 1
+            if not item.get("detail"):
+                item["detail"] = "tag"
+            seen_tags[key] = item
+            out.append(item)
+        for item in out:
+            item.pop("_count", None)
+        return out
 
     async def find_references(self, symbol_id: str) -> list[dict]:
         async with aiosqlite.connect(self._database_path) as db:

@@ -1003,9 +1003,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
-    if (!await _ensureEnvironment(
-      message: 'Activate an environment before running tests.',
-    )) {
+    if (!await _ensureRobotReady()) {
       return;
     }
 
@@ -1031,7 +1029,7 @@ class _AppShellState extends State<AppShell> {
     } catch (error) {
       if (!mounted) return;
       _appendLog('[error] Run failed: $error');
-      await _showError('Execution error', error);
+      await _handleExecutionError(error);
     }
   }
 
@@ -1049,9 +1047,10 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
-    if (!await _ensureEnvironment(
-      message: 'Activate an environment before running tests.',
-    )) {
+    if (!await _ensureRobotReady()) {
+      return;
+    }
+    if (!await _confirmLargeExecution(projectWide: true)) {
       return;
     }
 
@@ -1077,7 +1076,7 @@ class _AppShellState extends State<AppShell> {
     } catch (error) {
       if (!mounted) return;
       _appendLog('[error] Run failed: $error');
-      await _showError('Execution error', error);
+      await _handleExecutionError(error);
     }
   }
 
@@ -1085,6 +1084,13 @@ class _AppShellState extends State<AppShell> {
     try {
       final run = await _gateway.stopExecution();
       if (!mounted) return;
+      if (run.id.isEmpty) {
+        setState(() {
+          _execution.executionStatus = ExecutionStatus.idle;
+        });
+        _stopElapsedTimer();
+        return;
+      }
       setState(() {
         _execution.executionStatus = run.status;
         _execution.currentExecution = run;
@@ -1174,6 +1180,111 @@ class _AppShellState extends State<AppShell> {
       onPrimary: () => unawaited(_handleManageEnvironments()),
     );
     return false;
+  }
+
+  Future<bool> _ensureRobotReady() async {
+    if (!await _ensureEnvironment(
+      message: 'Activate an environment before running tests.',
+    )) {
+      return false;
+    }
+    final env = _activeEnvironment;
+    final installed = _robotFrameworkInstalled ||
+        (env?.robotVersion != null && env!.robotVersion!.isNotEmpty);
+    if (installed) return true;
+    if (!mounted) return false;
+    await showGuidanceDialog(
+      context: context,
+      title: 'Robot Framework required',
+      message:
+          'Robot Framework is not installed in the active environment '
+          '"${env?.name ?? 'unknown'}".\n\n'
+          'Install it into this environment, or choose another interpreter '
+          'that already has Robot Framework. Tests will not start until '
+          'Robot is available — no empty run will be created.',
+      primaryLabel: 'Install Robot Framework',
+      onPrimary: () => unawaited(_handleInstallRobot()),
+      secondaryLabel: 'Choose Environment…',
+      onSecondary: () => unawaited(_handleManageEnvironments()),
+    );
+    return false;
+  }
+
+  Future<bool> _confirmLargeExecution({
+    String? tag,
+    bool projectWide = true,
+  }) async {
+    if (!mounted) return false;
+    int count = 0;
+    try {
+      count = await _gateway.countTests(tag: tag, projectWide: projectWide);
+    } catch (_) {
+      // If count fails, still allow confirmation for wildcard tags.
+    }
+    final wildcard = tag != null &&
+        (tag.contains('*') ||
+            tag.contains('?') ||
+            tag.toUpperCase().contains('OR') ||
+            tag.toUpperCase().contains('AND') ||
+            tag.toUpperCase().contains('NOT'));
+    if (count <= 100 && !wildcard) return true;
+    final estimate = count > 0 ? '$count' : 'many';
+    final focus = tag == null || tag.isEmpty
+        ? 'the whole project'
+        : 'tag filter "$tag"';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Run a large test set?'),
+        content: Text(
+          'About to run $estimate tests for $focus.\n\n'
+          'Large runs can take a long time and make the IDE feel busy. '
+          'Continue only if that is what you intended.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Run tests'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  bool _isRobotMissingError(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('robot framework is not installed') ||
+        text.contains('could not verify robot framework') ||
+        text.contains('robot_missing') ||
+        (text.contains('robot framework') &&
+            (text.contains('not installed') ||
+                text.contains('not available')));
+  }
+
+  Future<void> _handleExecutionError(Object error) async {
+    if (!mounted) return;
+    if (_isRobotMissingError(error)) {
+      await showGuidanceDialog(
+        context: context,
+        title: 'Robot Framework required',
+        message:
+            'Robot Framework is missing from the active environment, so the '
+            'run was not started.\n\n'
+            'Install Robot Framework or choose another environment, then press '
+            'F5 again.',
+        primaryLabel: 'Install Robot Framework',
+        onPrimary: () => unawaited(_handleInstallRobot()),
+        secondaryLabel: 'Choose Environment…',
+        onSecondary: () => unawaited(_handleManageEnvironments()),
+      );
+      return;
+    }
+    await _showError('Execution error', error);
   }
 
   Future<void> _handleNewWorkspace() async {
@@ -2109,7 +2220,11 @@ class _AppShellState extends State<AppShell> {
     if (!mounted) return;
     setState(() => _loadingTestTree = true);
     try {
-      final tree = await _gateway.getTestTree(query: query ?? _testFilter);
+      final q = query ?? _testFilter;
+      final tree = await _gateway.getTestTree(
+        query: q,
+        lazy: q.trim().isEmpty,
+      );
       List<IndexedSymbolInfo> suites = const [];
       try {
         suites = await _gateway.searchSymbols(
@@ -2138,15 +2253,32 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  Future<void> _expandTestNode(TestNodeInfo node) async {
+    if (node.path == null || node.path!.isEmpty) return;
+    try {
+      final children = await _gateway.getTestsForFile(node.path!);
+      if (!mounted || _testTree == null) return;
+      final refreshed = node.copyWith(children: children, detail: '');
+      setState(() {
+        _testTree = _testTree!.replaceChild(node.id, refreshed);
+      });
+    } catch (error) {
+      if (!mounted) return;
+      _appendLog('[warn] Could not expand suite: $error');
+    }
+  }
+
   Future<void> _handleRunTestNode(TestNodeInfo node) async {
     if (!await _ensureProject(
       message: 'Open a project before running tests.',
     )) {
       return;
     }
-    if (!await _ensureEnvironment(
-      message: 'Activate an environment before running tests.',
-    )) {
+    if (!await _ensureRobotReady()) {
+      return;
+    }
+    if ((node.kind == 'project' || node.kind == 'workspace') &&
+        !await _confirmLargeExecution(projectWide: true)) {
       return;
     }
     setState(() {
@@ -2174,7 +2306,7 @@ class _AppShellState extends State<AppShell> {
     } catch (error) {
       if (!mounted) return;
       _appendLog('[error] Test run failed: $error');
-      await _showError('Execution error', error);
+      await _handleExecutionError(error);
     }
   }
 
@@ -2184,9 +2316,10 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
-    if (!await _ensureEnvironment(
-      message: 'Activate an environment before running tests.',
-    )) {
+    if (!await _ensureRobotReady()) {
+      return;
+    }
+    if (!await _confirmLargeExecution(projectWide: true)) {
       return;
     }
     setState(() {
@@ -2204,7 +2337,7 @@ class _AppShellState extends State<AppShell> {
       _startElapsedTimer();
     } catch (error) {
       if (!mounted) return;
-      await _showError('Execution error', error);
+      await _handleExecutionError(error);
     }
   }
 
@@ -2219,9 +2352,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
-    if (!await _ensureEnvironment(
-      message: 'Activate an environment before running tests.',
-    )) {
+    if (!await _ensureRobotReady()) {
       return;
     }
     setState(() {
@@ -2240,7 +2371,7 @@ class _AppShellState extends State<AppShell> {
       _startElapsedTimer();
     } catch (error) {
       if (!mounted) return;
-      await _showError('Execution error', error);
+      await _handleExecutionError(error);
     }
   }
 
@@ -2250,9 +2381,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
-    if (!await _ensureEnvironment(
-      message: 'Activate an environment before running tests.',
-    )) {
+    if (!await _ensureRobotReady()) {
       return;
     }
     setState(() {
@@ -2270,7 +2399,7 @@ class _AppShellState extends State<AppShell> {
       _startElapsedTimer();
     } catch (error) {
       if (!mounted) return;
-      await _showError('Execution error', error);
+      await _handleExecutionError(error);
     }
   }
 
@@ -3719,6 +3848,7 @@ class _AppShellState extends State<AppShell> {
         PaletteItem(
           id: 'doctor.open',
           title: 'Open Robot Doctor',
+          subtitle: ShellShortcutActivators.label('⇧⌘D', 'Ctrl+Shift+D'),
           icon: Icons.health_and_safety_outlined,
           kind: PaletteItemKind.command,
           keywords: const ['health', 'findings', 'inspect'],
@@ -3744,9 +3874,10 @@ class _AppShellState extends State<AppShell> {
         PaletteItem(
           id: 'run.file',
           title: 'Run Current File',
+          subtitle: 'F5',
           icon: Icons.play_arrow_rounded,
           kind: PaletteItemKind.command,
-          keywords: const ['execute', 'test'],
+          keywords: const ['execute', 'test', 'f5'],
           onSelect: () => unawaited(_handleRunFile()),
         ),
         PaletteItem(
@@ -3762,8 +3893,10 @@ class _AppShellState extends State<AppShell> {
         PaletteItem(
           id: 'run.stop',
           title: 'Stop Execution',
+          subtitle: 'Shift+F5',
           icon: Icons.stop_rounded,
           kind: PaletteItemKind.command,
+          keywords: const ['cancel', 'halt'],
           onSelect: () => unawaited(_handleStopExecution()),
         ),
       if (hasEditor) ...[
@@ -4325,6 +4458,24 @@ class _AppShellState extends State<AppShell> {
                 return null;
               },
             ),
+            RunFileIntent: CallbackAction<RunFileIntent>(
+              onInvoke: (_) {
+                unawaited(_handleRunFile());
+                return null;
+              },
+            ),
+            StopExecutionIntent: CallbackAction<StopExecutionIntent>(
+              onInvoke: (_) {
+                unawaited(_handleStopExecution());
+                return null;
+              },
+            ),
+            ShowDoctorIntent: CallbackAction<ShowDoctorIntent>(
+              onInvoke: (_) {
+                unawaited(_openDoctor());
+                return null;
+              },
+            ),
           },
           child: Focus(
             autofocus: true,
@@ -4489,6 +4640,7 @@ class _AppShellState extends State<AppShell> {
                                     unawaited(_handleRunTestNode(node)),
                                 onOpenTestNode: _handleOpenTestNode,
                                 onRevealTestNode: _handleRevealTestNode,
+                                onExpandTestNode: _expandTestNode,
                                 currentEditorPath: _activeEditorPath,
                                 onOpenProject: _handleOpenProject,
                                 onRunProject: _selectedProject == null
