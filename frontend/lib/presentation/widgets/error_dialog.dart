@@ -71,6 +71,39 @@ class FriendlyErrorCopy {
 FriendlyErrorCopy resolveFriendlyError(String raw) {
   final cleaned = cleanErrorMessage(raw);
   final text = cleaned.toLowerCase();
+  final rawLower = raw.toLowerCase();
+
+  // Raw exception / Future / traceback noise — check the original payload first
+  // so cleaning "KeyError: 'x'" into "'x'" cannot leak as the summary.
+  if (_any(rawLower, const [
+    'traceback',
+    'stacktrace',
+    'future not completed',
+    'future already completed',
+    'bad state:',
+    'keyerror',
+    'typeerror',
+    'attributeerror',
+    'valueerror',
+    'runtimeerror',
+    'assertionerror',
+    'null check operator',
+    'nosuchmethoderror',
+  ]) &&
+      !_any(rawLower, const [
+        'timeout',
+        'timed out',
+        'robot framework',
+        'path does not exist',
+        'permission denied',
+      ])) {
+    return const FriendlyErrorCopy(
+      summary: 'Something went wrong while handling that action.',
+      recovery:
+          'Try again. If it keeps failing, check the details below or restart '
+          'Robot Studio.',
+    );
+  }
 
   // Connectivity
   if (_any(text, const [
@@ -329,6 +362,21 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
       recovery: 'Try again. If it keeps failing, check the details below.',
     );
   }
+  if (_any(text, const [
+    'http 500',
+    'status code 500',
+    'internal server error',
+    'request failed (500)',
+    'request failed (502)',
+    'request failed (503)',
+  ])) {
+    return const FriendlyErrorCopy(
+      summary: 'The backend hit an unexpected error.',
+      recovery:
+          'Try again. If it keeps failing, restart the backend and check the '
+          'details below.',
+    );
+  }
   if (text.contains('unexpected response from backend')) {
     return const FriendlyErrorCopy(
       summary: 'The backend returned an unexpected response.',
@@ -336,8 +384,24 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
     );
   }
 
+  // Raw exception leftovers after cleaning (e.g. "'project_id'" from KeyError).
+  if (_any(text, const [
+    'traceback',
+    'stacktrace',
+    'future not completed',
+    'future already completed',
+    'bad state:',
+  ])) {
+    return const FriendlyErrorCopy(
+      summary: 'Something went wrong while handling that action.',
+      recovery:
+          'Try again. If it keeps failing, check the details below or restart '
+          'Robot Studio.',
+    );
+  }
+
   // Prefer a cleaned human detail over the generic line.
-  if (_looksHumanReadable(cleaned)) {
+  if (_looksHumanReadable(cleaned) && !_looksLikeRawException(cleaned)) {
     return FriendlyErrorCopy(
       summary: cleaned,
       recovery: 'Try again. If it keeps failing, check the details below.',
@@ -406,6 +470,27 @@ bool _looksHumanReadable(String text) {
   if (RegExp(r'^HTTP\s*\d{3}$').hasMatch(text)) return false;
   // Prefer sentences / phrases with spaces or punctuation.
   return text.contains(' ') || text.contains("'") || text.contains('/');
+}
+
+bool _looksLikeRawException(String text) {
+  final lower = text.toLowerCase();
+  if (_any(lower, const [
+    'traceback',
+    'future not completed',
+    'keyerror',
+    'typeerror',
+    'attributeerror',
+    '#0 ',
+    'package:',
+  ])) {
+    return true;
+  }
+  // "KeyError: 'foo'" / "TimeoutException after …" without helpful prose.
+  if (RegExp(r'^[A-Za-z_.]*(Error|Exception)\b').hasMatch(text) &&
+      !text.contains(' ')) {
+    return true;
+  }
+  return false;
 }
 
 bool _any(String text, List<String> needles) =>

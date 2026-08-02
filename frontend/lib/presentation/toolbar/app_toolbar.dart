@@ -43,6 +43,7 @@ class AppToolbar extends StatelessWidget {
     this.showGitRemoteActions = false,
     this.canRun = true,
     this.canRunProject = true,
+    this.robotFrameworkReady = true,
   });
 
   final String projectLabel;
@@ -75,6 +76,7 @@ class AppToolbar extends StatelessWidget {
   final bool showGitRemoteActions;
   final bool canRun;
   final bool canRunProject;
+  final bool robotFrameworkReady;
 
   @override
   Widget build(BuildContext context) {
@@ -190,6 +192,8 @@ class AppToolbar extends StatelessWidget {
                       showLabel: true,
                       tooltip: environmentBroken
                           ? 'Active environment is missing on disk — recreate or select another'
+                          : !canRun && !robotFrameworkReady
+                          ? "Robot Framework isn't installed in the selected environment.\nInstall Robot Framework…"
                           : !canRun
                           ? 'Open a project to run the current file'
                           : isExecutionRunning
@@ -204,6 +208,8 @@ class AppToolbar extends StatelessWidget {
                       label: 'Run Project',
                       tooltip: environmentBroken
                           ? 'Active environment is missing on disk — recreate or select another'
+                          : !canRunProject && !robotFrameworkReady
+                          ? "Robot Framework isn't installed in the selected environment.\nInstall Robot Framework…"
                           : !canRunProject
                           ? 'Open a project to run'
                           : isExecutionRunning

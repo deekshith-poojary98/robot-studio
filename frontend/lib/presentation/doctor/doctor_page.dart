@@ -827,19 +827,6 @@ class _FindingTile extends StatelessWidget {
                           icon: const Icon(Icons.open_in_new, size: 14),
                           label: const Text('Jump to source'),
                         ),
-                      Tooltip(
-                        message: finding.supportsFix
-                            ? 'Quick Fix "${finding.fixId}" '
-                                '(risk: ${finding.estimatedRisk ?? 'unknown'}) — coming soon'
-                            : 'No automated fix for this finding yet',
-                        child: OutlinedButton.icon(
-                          onPressed: finding.supportsFix ? () {} : null,
-                          icon: const Icon(Icons.auto_fix_high, size: 14),
-                          label: Text(
-                            finding.supportsFix ? 'Quick Fix' : 'No Quick Fix',
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ],

@@ -1231,6 +1231,18 @@ class _AppShellState extends State<AppShell> {
     return false;
   }
 
+  bool get _robotFrameworkReady {
+    final env = _activeEnvironment;
+    return _robotFrameworkInstalled ||
+        (env?.robotVersion != null && env!.robotVersion!.isNotEmpty);
+  }
+
+  bool get _canRunTests {
+    final env = _activeEnvironment;
+    final envOk = env == null || env.available;
+    return _selectedProject != null && envOk && _robotFrameworkReady;
+  }
+
   static const int _defaultLargeRunThreshold = 100;
 
   Future<bool> _showLargeRunConfirmDialog({
@@ -2190,9 +2202,36 @@ class _AppShellState extends State<AppShell> {
         ? _executionHistory.first
         : null;
     if (latest != null) {
-      await _selectReport(latest);
+      _offerViewReportToast(latest);
     }
     await _suggestMissingLibraryInstall();
+  }
+
+  void _offerViewReportToast(ExecutionInfo run) {
+    if (!mounted) return;
+    final failed = run.status == ExecutionStatus.failed ||
+        run.status == ExecutionStatus.aborted ||
+        run.status == ExecutionStatus.cancelled ||
+        (run.failed ?? 0) > 0 ||
+        ((run.exitCode ?? 0) != 0 && run.status == ExecutionStatus.finished);
+    final label = () {
+      final suite = run.suite.trim();
+      if (suite.isNotEmpty) {
+        final name = suite.replaceAll('\\', '/').split('/').last;
+        return name.isEmpty ? suite : name;
+      }
+      if (run.projectName.trim().isNotEmpty) return run.projectName.trim();
+      return 'Tests';
+    }();
+    showAppToast(
+      context,
+      message: failed ? '$label failed' : '$label passed',
+      actionLabel: 'View Report',
+      onAction: () => unawaited(_selectReport(run)),
+      duration: const Duration(seconds: 6),
+      icon: failed ? Icons.error_outline : Icons.check_circle_outline,
+      iconColor: failed ? AppColors.error : AppColors.success,
+    );
   }
 
   Future<void> _suggestMissingLibraryInstall() async {
@@ -2743,11 +2782,7 @@ class _AppShellState extends State<AppShell> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop('keep'),
-            child: const Text('Keep My Changes'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop('compare'),
-            child: const Text('Compare'),
+            child: const Text('Keep Mine'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop('reload'),
@@ -2757,14 +2792,6 @@ class _AppShellState extends State<AppShell> {
       ),
     );
     if (!mounted) return;
-    if (action == 'compare') {
-      showAppToast(
-        context,
-        message: 'Compare is coming soon',
-        icon: Icons.difference_outlined,
-      );
-      return;
-    }
     if (action == 'reload') {
       setState(() {
         tab.content = fresh.content;
@@ -4446,6 +4473,7 @@ class _AppShellState extends State<AppShell> {
         hasWorkspace: _activeWorkspace != null,
         wordWrap: _wordWrap,
         canStop: _executionStatus.isActive,
+        canRun: _canRunTests,
         onNewProject: () => unawaited(_handleNewStandaloneProject()),
         onOpenProject: () => unawaited(_handleOpenProject()),
         onOpenWorkspace: () => unawaited(_handleOpenWorkspace()),
@@ -4611,14 +4639,9 @@ class _AppShellState extends State<AppShell> {
                         executionStatusLabel: _executionStatus.label,
                         executionElapsedLabel: _elapsedLabel,
                         onExecutionStatusTap: _revealTests,
-                        canRun:
-                            _selectedProject != null &&
-                            (activeEnvironment == null ||
-                                activeEnvironment.available),
-                        canRunProject:
-                            _selectedProject != null &&
-                            (activeEnvironment == null ||
-                                activeEnvironment.available),
+                        canRun: _canRunTests,
+                        canRunProject: _canRunTests,
+                        robotFrameworkReady: _robotFrameworkReady,
                         onOpenWorkspace: _handleOpenWorkspace,
                         onOpenProject: _handleOpenProject,
                         onNewWorkspace: _handleNewWorkspace,

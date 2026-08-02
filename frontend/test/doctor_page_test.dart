@@ -141,7 +141,7 @@ void main() {
     expect(find.text('Why is this reported?'), findsOneWidget);
     expect(find.textContaining('could not be resolved'), findsOneWidget);
     expect(find.text('Jump to source'), findsOneWidget);
-    expect(find.text('Quick Fix'), findsOneWidget);
+    expect(find.text('Quick Fix'), findsNothing);
 
     await tester.tap(find.text('Jump to source'));
     await tester.pumpAndSettle();

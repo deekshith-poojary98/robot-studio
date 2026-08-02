@@ -13,7 +13,11 @@ from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.domain.interfaces.language import LanguageService
 from robot_studio.domain.models.analysis import EntityKind
 from robot_studio.infrastructure.analysis.engine import RobotAnalysisEngine
-from robot_studio.infrastructure.analysis.normalize import normalize_keyword_name
+from robot_studio.infrastructure.analysis.normalize import (
+    normalize_keyword_name,
+    strip_bdd_prefix,
+    strip_library_prefix,
+)
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
 from robot_studio.infrastructure.language.robot_parsing_bridge import (
     RobotParsingBridge,
@@ -825,7 +829,7 @@ class RobotLanguageService(LanguageService):
                     and not keyword.startswith("$")
                     and not keyword.startswith("@")
                     and not keyword.startswith("&")
-                    and keyword.casefold() not in known_keywords
+                    and not self._is_known_keyword_call(keyword, known_keywords)
                 ):
                     diagnostics.append(
                         self._diag(
@@ -1018,6 +1022,44 @@ class RobotLanguageService(LanguageService):
             result = {"available": False, "keywords": []}
         self._library_cache[cache_key] = result
         return result
+
+    @staticmethod
+    def _is_known_keyword_call(keyword: str, known_keywords: set[str]) -> bool:
+        """True when *keyword* matches index/BuiltIn names, including BDD / Library. prefixes."""
+        raw = keyword.strip()
+        if not raw:
+            return True
+        candidates = {
+            raw.casefold(),
+            normalize_keyword_name(raw),
+        }
+        # BuiltIn.Log / SeleniumLibrary.Open Browser
+        without_lib = strip_library_prefix(raw)
+        if without_lib and without_lib != raw:
+            candidates.add(without_lib.casefold())
+            candidates.add(normalize_keyword_name(without_lib))
+        # Given Login User → loginuser
+        normalized = normalize_keyword_name(raw)
+        stripped = strip_bdd_prefix(normalized)
+        if stripped and stripped != normalized:
+            candidates.add(stripped)
+        # Given BuiltIn.Log → strip BDD then library
+        without_bdd_raw = raw
+        for prefix in ("Given ", "When ", "Then ", "And ", "But "):
+            if without_bdd_raw.lower().startswith(prefix.lower()):
+                without_bdd_raw = without_bdd_raw[len(prefix) :].lstrip()
+                break
+        if without_bdd_raw != raw:
+            candidates.add(without_bdd_raw.casefold())
+            candidates.add(normalize_keyword_name(without_bdd_raw))
+            lib_free = strip_library_prefix(without_bdd_raw)
+            if lib_free:
+                candidates.add(lib_free.casefold())
+                candidates.add(normalize_keyword_name(lib_free))
+                candidates.add(strip_bdd_prefix(normalize_keyword_name(lib_free)))
+        known_normalized = {normalize_keyword_name(name) for name in known_keywords}
+        known_normalized.update(known_keywords)
+        return any(item in known_normalized for item in candidates if item)
 
     @staticmethod
     def _keyword_cell(raw: str) -> str:

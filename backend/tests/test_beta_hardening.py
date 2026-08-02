@@ -160,3 +160,16 @@ async def test_analysis_missing_import_in_diagnostics(tmp_path: Path) -> None:
     assert analysis_hits, f"expected analysis missing_import, got {diagnostics}"
     assert any("missing.resource" in str(d.get("message")) for d in analysis_hits)
     assert all(d.get("inspection_id") == "missing_import" for d in analysis_hits)
+
+
+def test_bdd_prefix_not_unknown_keyword() -> None:
+    """Given/When/Then must not flood Problems when the underlying keyword is known."""
+    known = {"log", "login user", "no operation"}
+    assert RobotLanguageService._is_known_keyword_call("Given Log", known)
+    assert RobotLanguageService._is_known_keyword_call("When Login User", known)
+    assert RobotLanguageService._is_known_keyword_call("Then No Operation", known)
+    assert RobotLanguageService._is_known_keyword_call("And Log", known)
+    assert not RobotLanguageService._is_known_keyword_call(
+        "Given Totally Missing Keyword",
+        known,
+    )

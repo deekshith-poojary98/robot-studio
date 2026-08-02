@@ -136,6 +136,27 @@ void main() {
     );
   });
 
+  test('raw exceptions never become the user-facing summary', () {
+    expect(
+      friendlyErrorSummary("KeyError: 'project_id'"),
+      'Something went wrong while handling that action.',
+    );
+    expect(
+      friendlyErrorSummary('Future not completed'),
+      'Something went wrong while handling that action.',
+    );
+    expect(
+      friendlyErrorSummary(
+        'Traceback (most recent call last):\n  File "x.py", line 1\nKeyError',
+      ),
+      'Something went wrong while handling that action.',
+    );
+    expect(
+      friendlyErrorSummary('TimeoutException after 0:00:30'),
+      'That is taking longer than expected.',
+    );
+  });
+
   test('cleanErrorMessage strips exception wrappers', () {
     expect(
       cleanErrorMessage(

@@ -12,6 +12,7 @@ class AppMenuBarActions {
     required this.hasWorkspace,
     required this.wordWrap,
     required this.canStop,
+    this.canRun = true,
     required this.onNewProject,
     required this.onOpenProject,
     required this.onOpenWorkspace,
@@ -53,6 +54,7 @@ class AppMenuBarActions {
   final bool hasWorkspace;
   final bool wordWrap;
   final bool canStop;
+  final bool canRun;
 
   final VoidCallback onNewProject;
   final VoidCallback onOpenProject;
@@ -369,11 +371,13 @@ class RobotStudioMenuBar extends StatelessWidget {
               label: 'Run File',
               shortcut: const SingleActivator(LogicalKeyboardKey.f5),
               onSelected:
-                  a.hasActiveFile && a.hasWorkspace ? a.onRunFile : null,
+                  a.hasActiveFile && a.hasWorkspace && a.canRun
+                      ? a.onRunFile
+                      : null,
             ),
             PlatformMenuItem(
               label: 'Run Project',
-              onSelected: a.hasWorkspace ? a.onRunProject : null,
+              onSelected: a.hasWorkspace && a.canRun ? a.onRunProject : null,
             ),
             PlatformMenuItem(
               label: 'Stop',
