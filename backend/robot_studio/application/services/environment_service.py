@@ -65,9 +65,9 @@ class EnvironmentService:
         self._started = False
 
     async def _on_workspace_opened(self, event: WorkspaceOpened) -> None:
-        # Same absolute path always maps to the same workspace id, so a
-        # Finder-deleted project recreated at that path would otherwise revive
-        # ghost "missing" rows from the previous life.
+        workspace = self._context.workspace
+        if workspace is not None and workspace.id == event.workspace_id:
+            await self.relocate_environment_paths(workspace.id, workspace.path)
         await self.purge_missing_environments(event.workspace_id)
 
     def _require_workspace(self):
@@ -217,7 +217,7 @@ class EnvironmentService:
         """Drop registry rows whose on-disk roots no longer exist.
 
         Mid-session list still keeps missing rows (toolbar ``venv · missing``).
-        Opening a workspace (or recreating one at the same path) clears ghosts.
+        Opening a workspace clears true orphans after relocate attempts.
         """
         removed: list[UUID] = []
         for environment in await self._repository.list_by_workspace(workspace_id):
@@ -238,6 +238,42 @@ class EnvironmentService:
                 ),
             )
         return removed
+
+    async def relocate_environment_paths(
+        self,
+        workspace_id: UUID,
+        workspace_path: Path,
+    ) -> int:
+        """Rewrite env absolute paths when the workspace folder was moved."""
+        from robot_studio.infrastructure.workspace.filesystem import (
+            studio_environments_root,
+        )
+
+        envs_root = studio_environments_root(workspace_path)
+        relocated = 0
+        for environment in await self._repository.list_by_workspace(workspace_id):
+            if environment.path.is_dir():
+                continue
+            candidate = envs_root / environment.path.name
+            if not candidate.is_dir():
+                candidate = envs_root / environment.name
+            if not candidate.is_dir():
+                continue
+            try:
+                executables = self._python.resolve_executables(candidate)
+            except EnvironmentValidationError:
+                continue
+            updated = environment.model_copy(
+                update={
+                    "path": candidate.resolve(),
+                    "python_executable": executables.python,
+                    "pip_executable": executables.pip,
+                    "robot_executable": executables.robot,
+                },
+            )
+            await self._repository.update(updated)
+            relocated += 1
+        return relocated
 
     async def purge_workspace_environments(self, workspace_id: UUID) -> int:
         """Remove every environment row for a workspace (root deleted externally)."""
@@ -490,7 +526,8 @@ class EnvironmentService:
             # Keep rows even when the folder was deleted so the UI can show
             # "active but missing" instead of a healthy-looking ghost state.
             # Ghosts from a previous project life at this path are cleared on
-            # WorkspaceOpened via purge_missing_environments.
+            # WorkspaceOpened via purge_missing_environments (artifact hygiene;
+            # identity itself comes from .robotstudio, not the filesystem path).
             return environments
 
         hydrated: list[Environment] = []

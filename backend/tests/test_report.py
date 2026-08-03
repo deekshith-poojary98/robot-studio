@@ -13,7 +13,7 @@ from robot_studio.application.services.report_service import (
     ReportValidationError,
 )
 from robot_studio.application.services.workspace_context import WorkspaceContext
-from robot_studio.core.events import InMemoryEventBus, RunDeleted, RunIndexed
+from robot_studio.core.events import InMemoryEventBus, RunDeleted, RunIndexed, WorkspaceOpened
 from robot_studio.domain.models import (
     ExecutionRun,
     ExecutionStatus,
@@ -203,6 +203,53 @@ async def test_dashboard_aggregation(report_stack) -> None:
     assert summary.average_duration_ms == 1500.0
     assert summary.last_run is not None
     assert len(summary.recent_failures) == 1
+
+
+@pytest.mark.asyncio
+async def test_reopen_purges_missing_run_artifacts(report_stack) -> None:
+    """Recreating a project at the same path must not revive ghost reports."""
+    import shutil
+
+    service, repository, _store, workspace, bus = report_stack
+    run_dir = workspace.path / ".robotstudio" / "reports" / "Run-ghost"
+    run_dir.mkdir(parents=True)
+    (run_dir / "report.html").write_text("<html/>", encoding="utf-8")
+
+    run = _run(workspace)
+    run = run.model_copy(update={"output_dir": run_dir})
+    await repository.create(run)
+    assert len(await service.list_runs()) == 1
+
+    shutil.rmtree(run_dir)
+    assert len(await service.list_runs()) == 1  # mid-session list keeps the row
+
+    deleted: list[RunDeleted] = []
+
+    async def on_deleted(event: RunDeleted) -> None:
+        deleted.append(event)
+
+    bus.subscribe(RunDeleted, on_deleted)
+
+    # Re-open same workspace id → WorkspaceOpened → purge_missing_runs.
+    await bus.publish(WorkspaceOpened(workspace_id=workspace.id))
+
+    assert await repository.get(run.id) is None
+    assert await service.list_runs() == []
+    assert len(deleted) == 1
+
+
+@pytest.mark.asyncio
+async def test_purge_workspace_runs_clears_registry(report_stack) -> None:
+    service, repository, _store, workspace, _bus = report_stack
+    run_dir = workspace.path / ".robotstudio" / "reports" / "Run-clear"
+    run_dir.mkdir(parents=True)
+    run = _run(workspace).model_copy(update={"output_dir": run_dir})
+    await repository.create(run)
+
+    removed = await service.purge_workspace_runs(workspace.id)
+    assert removed >= 1
+    assert await repository.get(run.id) is None
+    assert await service.list_runs() == []
 
 
 @pytest.mark.asyncio

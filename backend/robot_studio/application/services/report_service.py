@@ -17,6 +17,7 @@ from robot_studio.core.events import (
     ExecutionFinished,
     RunDeleted,
     RunIndexed,
+    WorkspaceOpened,
 )
 from robot_studio.domain.interfaces.runner import ResultsStore
 from robot_studio.domain.models import DashboardSummary, ExecutionRun
@@ -44,7 +45,14 @@ class ReportService:
         self.event_bus.subscribe(ExecutionFinished, self._on_execution_finished)
         self.event_bus.subscribe(ExecutionFailed, self._on_execution_failed)
         self.event_bus.subscribe(ExecutionCancelled, self._on_execution_cancelled)
+        self.event_bus.subscribe(WorkspaceOpened, self._on_workspace_opened)
         self._subscribed = True
+
+    async def _on_workspace_opened(self, event: WorkspaceOpened) -> None:
+        workspace = self.context.workspace
+        if workspace is not None and workspace.id == event.workspace_id:
+            await self.relocate_run_paths(workspace.id, workspace.path)
+        await self.purge_missing_runs(event.workspace_id)
 
     async def _on_execution_finished(self, event: ExecutionFinished) -> None:
         await self.index_run(event.run_id)
@@ -103,6 +111,75 @@ class ReportService:
 
         runs = await self.repository.list_by_workspace(workspace.id, limit=limit * 2)
         return [r for r in runs if r.status != ExecutionStatus.ABORTED][:limit]
+
+    async def purge_missing_runs(self, workspace_id: UUID) -> list[UUID]:
+        """Drop run rows whose on-disk output directories no longer exist."""
+        removed: list[UUID] = []
+        runs = await self.repository.list_by_workspace(workspace_id, limit=10_000)
+        for run in runs:
+            if run.output_dir is not None and run.output_dir.is_dir():
+                continue
+            await self.results_store.delete_run(run.id, run.output_dir)
+            await self.repository.delete(run.id)
+            removed.append(run.id)
+            await self.event_bus.publish(
+                RunDeleted(run_id=run.id, workspace_id=workspace_id),
+            )
+        return removed
+
+    async def relocate_run_paths(
+        self,
+        workspace_id: UUID,
+        workspace_path: Path,
+    ) -> int:
+        """Rewrite run artifact paths when the workspace folder was moved."""
+        from robot_studio.infrastructure.workspace.filesystem import studio_reports_root
+
+        reports_root = studio_reports_root(workspace_path)
+        relocated = 0
+        runs = await self.repository.list_by_workspace(workspace_id, limit=10_000)
+        for run in runs:
+            if run.output_dir is None or run.output_dir.is_dir():
+                continue
+            candidate = reports_root / run.output_dir.name
+            if not candidate.is_dir():
+                continue
+            old_output = run.output_dir
+
+            def _remap(path: Path | None) -> Path | None:
+                if path is None:
+                    return None
+                try:
+                    relative = path.relative_to(old_output)
+                except ValueError:
+                    return candidate / path.name
+                return candidate / relative
+
+            updated = run.model_copy(
+                update={
+                    "output_dir": candidate.resolve(),
+                    "output_xml": _remap(run.output_xml),
+                    "log_html": _remap(run.log_html),
+                    "report_html": _remap(run.report_html),
+                },
+            )
+            await self.repository.update(updated)
+            relocated += 1
+        return relocated
+
+    async def purge_workspace_runs(self, workspace_id: UUID) -> int:
+        """Remove every run row for a workspace (root deleted externally)."""
+        runs = await self.repository.list_by_workspace(workspace_id, limit=10_000)
+        if not runs:
+            return 0
+        for run in runs:
+            await self.results_store.delete_run(run.id, run.output_dir)
+        count = await self.repository.delete_by_workspace(workspace_id)
+        for run in runs:
+            await self.event_bus.publish(
+                RunDeleted(run_id=run.id, workspace_id=workspace_id),
+            )
+        return count
 
     async def get_run(self, run_id: UUID) -> ExecutionRun:
         self._require_workspace()

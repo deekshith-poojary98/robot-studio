@@ -160,6 +160,15 @@ class SqliteExecutionRepository:
             )
             await db.commit()
 
+    async def delete_by_workspace(self, workspace_id: UUID) -> int:
+        async with aiosqlite.connect(self._database_path) as db:
+            cursor = await db.execute(
+                "DELETE FROM execution_runs WHERE workspace_id = ?",
+                (str(workspace_id),),
+            )
+            await db.commit()
+            return int(cursor.rowcount or 0)
+
     async def list_by_workspace(
         self,
         workspace_id: UUID,

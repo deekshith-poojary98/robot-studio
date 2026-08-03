@@ -50,15 +50,21 @@ class SqliteProjectRepository(ProjectRepository):
             await db.commit()
 
     async def create(self, project: Project) -> Project:
+        """Upsert by durable id; path is the current location only."""
+        resolved = str(project.path.resolve())
         async with aiosqlite.connect(self._database_path) as db:
+            await db.execute(
+                "DELETE FROM projects WHERE path = ? AND id != ?",
+                (resolved, str(project.id)),
+            )
             await db.execute(
                 """
                 INSERT INTO projects (id, workspace_id, name, path, type, created_at)
                 VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(path) DO UPDATE SET
-                    id = excluded.id,
+                ON CONFLICT(id) DO UPDATE SET
                     workspace_id = excluded.workspace_id,
                     name = excluded.name,
+                    path = excluded.path,
                     type = excluded.type,
                     created_at = excluded.created_at
                 """,
@@ -66,10 +72,14 @@ class SqliteProjectRepository(ProjectRepository):
                     str(project.id),
                     str(project.workspace_id),
                     project.name,
-                    str(project.path.resolve()),
+                    resolved,
                     project.type.value,
                     project.created_at.isoformat(),
                 ),
+            )
+            await db.execute(
+                "DELETE FROM recent_projects WHERE project_id = ? AND path != ?",
+                (str(project.id), resolved),
             )
             await db.commit()
         return project
@@ -122,6 +132,10 @@ class SqliteProjectRepository(ProjectRepository):
         resolved = str(project.path.resolve())
         opened_at = datetime.now(UTC).isoformat()
         async with aiosqlite.connect(self._database_path) as db:
+            await db.execute(
+                "DELETE FROM recent_projects WHERE project_id = ?",
+                (str(project.id),),
+            )
             await db.execute(
                 "DELETE FROM recent_projects WHERE path = ?",
                 (resolved,),

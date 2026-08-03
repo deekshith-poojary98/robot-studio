@@ -14,7 +14,11 @@ from robot_studio.infrastructure.project.filesystem import (
     FilesystemProjectProvider,
     ProjectValidationError,
 )
-from robot_studio.infrastructure.workspace.filesystem import load_manifest, resolve_project_entry_path
+from robot_studio.infrastructure.workspace.filesystem import (
+    is_classic_workspace,
+    load_manifest,
+    resolve_project_entry_path,
+)
 
 
 class ProjectService:
@@ -94,15 +98,19 @@ class ProjectService:
                 f"'{project_root}' does not look like a Robot Framework project",
             )
 
+        standalone_root = self._is_standalone_root(workspace, project_root)
+
         existing = await self._repository.get_by_path(str(project_root))
         if existing is not None and existing.workspace_id == workspace.id:
+            if standalone_root and existing.id != workspace.id:
+                return await self._realign_standalone_project(existing, workspace)
             await self._activate(existing)
             return existing
 
         if self._fs.has_manifest(project_root):
             manifest = self._fs.load_manifest(project_root)
             name = manifest.name
-            project_id = manifest.id
+            project_id = workspace.id if standalone_root else manifest.id
             created_at = (
                 manifest.created_at
                 if manifest.created_at.tzinfo
@@ -113,11 +121,21 @@ class ProjectService:
                 if manifest.type != ProjectType.EMPTY
                 else ProjectType.IMPORTED
             )
+            if standalone_root and manifest.id != workspace.id:
+                manifest = self._fs.create_manifest(
+                    name=name,
+                    project_type=manifest.type,
+                    project_id=workspace.id,
+                    created_at=created_at,
+                )
+                self._fs.write_manifest(project_root, manifest)
+                project_id = workspace.id
         else:
             name = project_root.name
             manifest = self._fs.create_manifest(
                 name=name,
                 project_type=ProjectType.IMPORTED,
+                project_id=workspace.id if standalone_root else None,
             )
             self._fs.write_manifest(project_root, manifest)
             project_id = manifest.id
@@ -264,6 +282,11 @@ class ProjectService:
         projects = await self.list_projects()
         for project in projects:
             if project.path.resolve() == workspace.path.resolve():
+                if (
+                    not is_classic_workspace(workspace.path)
+                    and project.id != workspace.id
+                ):
+                    return await self._realign_standalone_project(project, workspace)
                 await self._activate(project)
                 return project
         return await self.import_project(workspace.path, force=force)
@@ -271,6 +294,52 @@ class ProjectService:
     async def list_recent(self, limit: int = 10) -> list[Project]:
         recent = await self._repository.list_recent(limit=limit)
         return [project for project in recent if project.path.is_dir()]
+
+    @staticmethod
+    def _is_standalone_root(workspace, project_root: Path) -> bool:
+        return (
+            not is_classic_workspace(workspace.path)
+            and project_root.resolve() == workspace.path.resolve()
+        )
+
+    async def _realign_standalone_project(self, project: Project, workspace) -> Project:
+        """Force ``project.id == workspace.id`` for standalone project folders."""
+        created_at = project.created_at
+        if self._fs.has_manifest(project.path):
+            existing = self._fs.load_manifest(project.path)
+            created_at = existing.created_at
+            project_type = existing.type
+            name = existing.name
+        else:
+            project_type = project.type
+            name = project.name
+
+        manifest = self._fs.create_manifest(
+            name=name,
+            project_type=project_type,
+            project_id=workspace.id,
+            created_at=created_at,
+        )
+        self._fs.write_manifest(project.path, manifest)
+        self._fs.register_in_workspace(
+            workspace.path,
+            project_id=workspace.id,
+            name=name,
+            path=project.path,
+        )
+        aligned = Project(
+            id=workspace.id,
+            workspace_id=workspace.id,
+            name=name,
+            path=project.path.resolve(),
+            created_at=created_at
+            if created_at.tzinfo
+            else created_at.replace(tzinfo=UTC),
+            type=project_type,
+        )
+        await self._repository.create(aligned)
+        await self._activate(aligned)
+        return aligned
 
     async def _activate(self, project: Project) -> None:
         await self._repository.record_recent(project)

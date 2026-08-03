@@ -58,6 +58,7 @@ async def test_create_workspace_structure(tmp_path: Path) -> None:
 
     assert manifest.name == "Demo"
     assert manifest.version == 1
+    assert manifest.id is not None
     assert manifest.projects == []
     assert is_workspace(root)
     assert manifest_path(root).is_file()
@@ -72,6 +73,7 @@ async def test_create_workspace_structure(tmp_path: Path) -> None:
 
     loaded = load_manifest(root)
     assert loaded.name == "Demo"
+    assert loaded.id == manifest.id
     assert loaded.projects == []
 
 
@@ -258,3 +260,89 @@ async def test_repository_get_by_path(
     assert found is not None
     assert found.id == workspace.id
     assert await repository.get(workspace.id) is not None
+
+
+@pytest.mark.asyncio
+async def test_durable_id_survives_folder_move(
+    service: WorkspaceService,
+    repository: SqliteWorkspaceRepository,
+    tmp_path: Path,
+) -> None:
+    created = await service.create_workspace("Movable", tmp_path)
+    original_id = created.id
+    old_path = created.path
+    new_path = tmp_path / "Moved"
+    old_path.rename(new_path)
+
+    reopened = await service.open_workspace(new_path)
+    assert reopened.id == original_id
+    assert reopened.path == new_path.resolve()
+
+    by_id = await repository.get(original_id)
+    assert by_id is not None
+    assert by_id.path == new_path.resolve()
+    assert await repository.get_by_path(old_path) is None
+
+
+@pytest.mark.asyncio
+async def test_migrate_on_read_reuses_project_id_for_standalone(
+    service: WorkspaceService,
+    tmp_path: Path,
+) -> None:
+    """Legacy workspace.json without id picks up project.json id on open."""
+    import json
+    from uuid import uuid4
+
+    from robot_studio.infrastructure.project.filesystem import (
+        FilesystemProjectProvider,
+    )
+    from robot_studio.domain.models import ProjectType
+
+    root = tmp_path / "Legacy"
+    root.mkdir()
+    meta = root / ".robotstudio"
+    meta.mkdir()
+    project_id = uuid4()
+    (meta / "workspace.json").write_text(
+        json.dumps(
+            {
+                "name": "Legacy",
+                "version": 1,
+                "created_at": datetime.now(UTC).isoformat(),
+                "projects": [],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fs = FilesystemProjectProvider()
+    fs.write_manifest(
+        root,
+        fs.create_manifest(
+            name="Legacy",
+            project_type=ProjectType.EMPTY,
+            project_id=project_id,
+        ),
+    )
+
+    opened = await service.open_workspace(root)
+    assert opened.id == project_id
+    assert load_manifest(root).id == project_id
+
+
+@pytest.mark.asyncio
+async def test_recreate_same_path_mints_new_workspace_id(
+    service: WorkspaceService,
+    tmp_path: Path,
+) -> None:
+    import shutil
+
+    created = await service.create_workspace("Fresh", tmp_path)
+    old_id = created.id
+    path = created.path
+    shutil.rmtree(path)
+    create_workspace_structure(path, "Fresh")
+    reopened = await service.open_workspace(path)
+    assert reopened.id != old_id
+    assert load_manifest(path).id == reopened.id

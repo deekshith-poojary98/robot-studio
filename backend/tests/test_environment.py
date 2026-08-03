@@ -284,8 +284,8 @@ async def test_missing_venv_marked_unavailable(services) -> None:
 
 
 @pytest.mark.asyncio
-async def test_reopen_purges_missing_environments(services) -> None:
-    """Recreating a project at the same path must not revive ghost envs."""
+async def test_recreate_same_path_gets_new_identity(services) -> None:
+    """Delete + recreate at the same path must mint a new durable identity."""
     import shutil
 
     from robot_studio.infrastructure.workspace.filesystem import (
@@ -298,17 +298,16 @@ async def test_reopen_purges_missing_environments(services) -> None:
     )
     workspace = services["workspace"]
     workspace_path = workspace.path
-    workspace_id = workspace.id
+    old_workspace_id = workspace.id
 
     shutil.rmtree(environment.path)
     assert not environment.path.is_dir()
 
-    # Mid-session list still surfaces the missing row.
+    # Mid-session list still surfaces the missing row for the open identity.
     listed = await services["environment_service"].list_environments()
     assert len(listed) == 1
     assert listed[0].available is False
 
-    # Simulate Finder delete + recreate at the same absolute path (same uuid5 id).
     shutil.rmtree(workspace_path)
     create_workspace_structure(workspace_path, "WS")
 
@@ -317,12 +316,12 @@ async def test_reopen_purges_missing_environments(services) -> None:
     await workspace_repo.initialize()
     workspace_service = WorkspaceService(workspace_repo, services["context"])
     reopened = await workspace_service.open_workspace(workspace_path)
-    assert reopened.id == workspace_id
+    assert reopened.id != old_workspace_id
 
-    remaining = await services["environment_repo"].list_by_workspace(workspace_id)
-    assert remaining == []
+    # New identity has no environments; old rows may orphan under the old id.
     listed_after = await services["environment_service"].list_environments()
     assert listed_after == []
+    assert await services["environment_repo"].list_by_workspace(reopened.id) == []
 
 
 @pytest.mark.asyncio

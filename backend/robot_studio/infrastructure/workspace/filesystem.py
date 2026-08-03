@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import UUID, uuid4
 
 WORKSPACE_META_DIR = ".robotstudio"
 WORKSPACE_MANIFEST = "workspace.json"
@@ -57,14 +58,18 @@ class WorkspaceManifest:
     version: int
     created_at: datetime
     projects: list[dict]
+    id: UUID | None = None
 
     def to_dict(self) -> dict:
-        return {
+        payload: dict = {
             "name": self.name,
             "version": self.version,
             "created_at": self.created_at.isoformat(),
             "projects": self.projects,
         }
+        if self.id is not None:
+            payload["id"] = str(self.id)
+        return payload
 
     @classmethod
     def from_dict(cls, data: dict) -> WorkspaceManifest:
@@ -74,11 +79,22 @@ class WorkspaceManifest:
             if isinstance(created_raw, str)
             else created_raw
         )
+        raw_id = data.get("id")
         return cls(
             name=str(data["name"]),
             version=int(data.get("version", 1)),
             created_at=created_at,
             projects=list(data.get("projects", [])),
+            id=UUID(str(raw_id)) if raw_id else None,
+        )
+
+    def with_id(self, workspace_id: UUID) -> WorkspaceManifest:
+        return WorkspaceManifest(
+            name=self.name,
+            version=self.version,
+            created_at=self.created_at,
+            projects=list(self.projects),
+            id=workspace_id,
         )
 
 
@@ -137,7 +153,12 @@ def write_manifest(workspace_root: Path, manifest: WorkspaceManifest) -> None:
     )
 
 
-def create_workspace_structure(workspace_root: Path, name: str) -> WorkspaceManifest:
+def create_workspace_structure(
+    workspace_root: Path,
+    name: str,
+    *,
+    workspace_id: UUID | None = None,
+) -> WorkspaceManifest:
     if workspace_root.exists() and any(workspace_root.iterdir()):
         if is_workspace(workspace_root):
             raise WorkspaceValidationError(
@@ -153,6 +174,7 @@ def create_workspace_structure(workspace_root: Path, name: str) -> WorkspaceMani
         (workspace_root / relative).mkdir(parents=True, exist_ok=True)
 
     manifest = WorkspaceManifest(
+        id=workspace_id or uuid4(),
         name=name,
         version=1,
         created_at=datetime.now(UTC),
@@ -165,6 +187,8 @@ def create_workspace_structure(workspace_root: Path, name: str) -> WorkspaceMani
 def initialize_project_as_workspace(
     project_root: Path,
     name: str | None = None,
+    *,
+    workspace_id: UUID | None = None,
 ) -> WorkspaceManifest:
     """Treat *project_root* as a single-project workspace.
 
@@ -181,6 +205,7 @@ def initialize_project_as_workspace(
 
     display_name = (name or root.name).strip() or "Project"
     manifest = WorkspaceManifest(
+        id=workspace_id or uuid4(),
         name=display_name,
         version=1,
         created_at=datetime.now(UTC),
@@ -196,3 +221,15 @@ def resolve_project_entry_path(workspace_root: Path, stored_path: str) -> Path:
     if raw.is_absolute():
         return raw.expanduser().resolve()
     return (workspace_root / raw).resolve()
+
+
+def read_project_manifest_id(project_root: Path) -> UUID | None:
+    """Return ``.robotstudio/project.json`` id when present and valid."""
+    marker = project_root / WORKSPACE_META_DIR / "project.json"
+    if not marker.is_file():
+        return None
+    try:
+        raw = json.loads(marker.read_text(encoding="utf-8"))
+        return UUID(str(raw["id"]))
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return None

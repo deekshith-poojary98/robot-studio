@@ -43,22 +43,34 @@ class SqliteWorkspaceRepository(WorkspaceRepository):
             await db.commit()
 
     async def create(self, workspace: Workspace) -> Workspace:
+        """Upsert by durable id; path is the current location only."""
+        resolved = str(workspace.path.resolve())
         async with aiosqlite.connect(self._database_path) as db:
+            # Drop any other identity that still claims this location.
+            await db.execute(
+                "DELETE FROM workspaces WHERE path = ? AND id != ?",
+                (resolved, str(workspace.id)),
+            )
             await db.execute(
                 """
                 INSERT INTO workspaces (id, name, path, created_at)
                 VALUES (?, ?, ?, ?)
-                ON CONFLICT(path) DO UPDATE SET
-                    id = excluded.id,
+                ON CONFLICT(id) DO UPDATE SET
                     name = excluded.name,
+                    path = excluded.path,
                     created_at = excluded.created_at
                 """,
                 (
                     str(workspace.id),
                     workspace.name,
-                    str(workspace.path),
+                    resolved,
                     workspace.created_at.isoformat(),
                 ),
+            )
+            # After a move/rename, recent must not keep the old path for this id.
+            await db.execute(
+                "DELETE FROM recent_workspaces WHERE workspace_id = ? AND path != ?",
+                (str(workspace.id), resolved),
             )
             await db.commit()
         return workspace
@@ -98,6 +110,10 @@ class SqliteWorkspaceRepository(WorkspaceRepository):
         opened_at = datetime.now(UTC).isoformat()
 
         async with aiosqlite.connect(self._database_path) as db:
+            await db.execute(
+                "DELETE FROM recent_workspaces WHERE workspace_id = ?",
+                (str(workspace.id),),
+            )
             await db.execute(
                 "DELETE FROM recent_workspaces WHERE path = ?",
                 (resolved,),

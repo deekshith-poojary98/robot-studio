@@ -315,7 +315,11 @@ class RestGateway:
             project_root,
             cleaned,
         )
-        manifest = fs.create_manifest(name=cleaned, project_type=ProjectType.EMPTY)
+        manifest = fs.create_manifest(
+            name=cleaned,
+            project_type=ProjectType.EMPTY,
+            project_id=workspace.id,
+        )
         fs.write_manifest(project_root, manifest)
         project = await self._project_service.ensure_root_project()
         return workspace, project

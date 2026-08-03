@@ -43,7 +43,13 @@ class SqliteEnvironmentRepository(EnvironmentRepository):
             await db.commit()
 
     async def create(self, environment: Environment) -> Environment:
+        """Upsert by durable env id; path is the current venv location only."""
+        resolved = str(environment.path.resolve())
         async with aiosqlite.connect(self._database_path) as db:
+            await db.execute(
+                "DELETE FROM environments WHERE path = ? AND id != ?",
+                (resolved, str(environment.id)),
+            )
             await db.execute(
                 """
                 INSERT INTO environments (
@@ -52,10 +58,10 @@ class SqliteEnvironmentRepository(EnvironmentRepository):
                     created_at, is_active
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(path) DO UPDATE SET
-                    id = excluded.id,
+                ON CONFLICT(id) DO UPDATE SET
                     workspace_id = excluded.workspace_id,
                     name = excluded.name,
+                    path = excluded.path,
                     python_version = excluded.python_version,
                     python_executable = excluded.python_executable,
                     pip_executable = excluded.pip_executable,

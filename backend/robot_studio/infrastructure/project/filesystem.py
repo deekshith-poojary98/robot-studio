@@ -210,6 +210,7 @@ class FilesystemProjectProvider:
                 version=manifest.version,
                 created_at=manifest.created_at,
                 projects=entries,
+                id=manifest.id,
             ),
         )
 

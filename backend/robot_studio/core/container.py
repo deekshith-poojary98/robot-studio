@@ -4,6 +4,7 @@ Wires domain interfaces to infrastructure implementations as modules are added.
 """
 
 from dataclasses import dataclass, field
+from uuid import UUID
 
 from robot_studio.application.services.analysis_service import AnalysisService
 from robot_studio.application.services.doctor_service import DoctorService
@@ -275,7 +276,7 @@ class Container:
             context=self.workspace_context,
             event_bus=self.event_bus,
             watcher=watcher,
-            on_workspace_missing=self.environment_service.purge_workspace_environments,
+            on_workspace_missing=self._purge_on_workspace_missing,
         )
         self.workspace_event_service.start()
 
@@ -365,6 +366,17 @@ class Container:
         await self.execution_knowledge_store.initialize()
         await self.doctor_store.initialize()
         await self.plugin_manager.initialize()
+
+    async def _purge_on_workspace_missing(self, workspace_id: UUID) -> int:
+        """Drop orphaned registry rows when the workspace root vanishes."""
+        removed = 0
+        if self.environment_service is not None:
+            removed += await self.environment_service.purge_workspace_environments(
+                workspace_id,
+            )
+        if self.report_service is not None:
+            removed += await self.report_service.purge_workspace_runs(workspace_id)
+        return removed
 
     async def shutdown(self) -> None:
         """Release background work started by initialize/open.

@@ -157,6 +157,7 @@ async def test_open_project_by_path_initializes_in_project_workspace(api_client)
     assert body["project"]["name"] == "my-robot-test-project"
     assert body["project"]["path"] == str(standalone.resolve())
     assert body["workspace"]["path"] == str(standalone.resolve())
+    assert body["workspace"]["id"] == body["project"]["id"]
     assert (standalone / ".robotstudio" / "workspace.json").is_file()
     assert not (standalone / "Projects").exists()
     assert body["needs_environment"] is True
@@ -210,6 +211,7 @@ async def test_create_standalone_project(api_client) -> None:
     project_path = Path(body["project"]["path"])
     assert project_path == parent / "Fresh"
     assert body["workspace"]["path"] == str(project_path.resolve())
+    assert body["workspace"]["id"] == body["project"]["id"]
     assert (project_path / ".robotstudio" / "workspace.json").is_file()
     assert not (project_path / "Projects").exists()
     gitignore = (project_path / ".gitignore").read_text(encoding="utf-8")

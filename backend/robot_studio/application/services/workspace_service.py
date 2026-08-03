@@ -2,24 +2,24 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC
 from pathlib import Path
-from uuid import UUID, uuid5
+from uuid import UUID, uuid4
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.domain.interfaces.workspace import WorkspaceRepository
 from robot_studio.domain.models import Workspace
 from robot_studio.infrastructure.workspace.filesystem import (
+    WorkspaceManifest,
     WorkspaceValidationError,
     create_workspace_structure,
     initialize_project_as_workspace,
     is_classic_workspace,
     is_workspace,
     load_manifest,
+    read_project_manifest_id,
+    write_manifest,
 )
-
-# Stable namespace for deriving workspace IDs from absolute paths.
-WORKSPACE_ID_NAMESPACE = UUID("7f3c1e2a-9b4d-4c6e-a1f0-8d2e5b7c9a10")
 
 
 class WorkspaceService:
@@ -30,10 +30,6 @@ class WorkspaceService:
     ) -> None:
         self._repository = repository
         self._context = context
-
-    @staticmethod
-    def workspace_id_for_path(path: Path) -> UUID:
-        return uuid5(WORKSPACE_ID_NAMESPACE, str(path.resolve()))
 
     async def create_workspace(self, name: str, location: str | Path) -> Workspace:
         cleaned_name = name.strip()
@@ -47,10 +43,16 @@ class WorkspaceService:
             )
 
         workspace_root = parent / cleaned_name
-        manifest = create_workspace_structure(workspace_root, cleaned_name)
+        workspace_id = uuid4()
+        manifest = create_workspace_structure(
+            workspace_root,
+            cleaned_name,
+            workspace_id=workspace_id,
+        )
+        assert manifest.id is not None
 
         workspace = Workspace(
-            id=self.workspace_id_for_path(workspace_root),
+            id=manifest.id,
             name=manifest.name,
             path=workspace_root,
             created_at=manifest.created_at,
@@ -74,13 +76,17 @@ class WorkspaceService:
             )
 
         manifest = load_manifest(workspace_root)
+        workspace_id, manifest = self._ensure_durable_id(workspace_root, manifest)
+        created_at = (
+            manifest.created_at
+            if manifest.created_at.tzinfo
+            else manifest.created_at.replace(tzinfo=UTC)
+        )
         workspace = Workspace(
-            id=self.workspace_id_for_path(workspace_root),
+            id=workspace_id,
             name=manifest.name,
             path=workspace_root,
-            created_at=manifest.created_at
-            if manifest.created_at.tzinfo
-            else manifest.created_at.replace(tzinfo=UTC),
+            created_at=created_at,
         )
 
         await self._repository.create(workspace)
@@ -99,7 +105,13 @@ class WorkspaceService:
                 f"Directory does not exist: '{workspace_root}'",
             )
         if not is_workspace(workspace_root):
-            initialize_project_as_workspace(workspace_root, name)
+            # Prefer an existing project.json id so standalone stays one UUID.
+            existing_project_id = read_project_manifest_id(workspace_root)
+            initialize_project_as_workspace(
+                workspace_root,
+                name,
+                workspace_id=existing_project_id or uuid4(),
+            )
         return await self.open_workspace(workspace_root)
 
     async def list_recent(self, limit: int = 10) -> list[Workspace]:
@@ -114,6 +126,25 @@ class WorkspaceService:
 
     async def get_active(self) -> Workspace | None:
         return self._context.workspace
+
+    def _ensure_durable_id(
+        self,
+        workspace_root: Path,
+        manifest: WorkspaceManifest,
+    ) -> tuple[UUID, WorkspaceManifest]:
+        """Migrate-on-read: persist a durable id when the manifest lacks one."""
+        if manifest.id is not None:
+            return manifest.id, manifest
+
+        if not is_classic_workspace(workspace_root):
+            project_id = read_project_manifest_id(workspace_root)
+            workspace_id = project_id or uuid4()
+        else:
+            workspace_id = uuid4()
+
+        updated = manifest.with_id(workspace_id)
+        write_manifest(workspace_root, updated)
+        return workspace_id, updated
 
     async def _activate(self, workspace: Workspace) -> None:
         if is_classic_workspace(workspace.path):
