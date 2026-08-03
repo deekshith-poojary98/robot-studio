@@ -102,3 +102,17 @@ class ExecutionKnowledgeSnapshot(BaseModel):
     linked_runs: int = 0
     entities_with_stats: int = 0
     execution_edges: int = 0
+
+
+class RunTestFailure(BaseModel):
+    """Failed test from a single run — Jump-to-Source + re-run payload."""
+
+    run_id: str
+    name: str
+    message: str = ""
+    source: str = ""
+    line: int | None = None
+    column: int | None = None
+    entity_id: str | None = None
+    duration_ms: float = 0.0
+    status: str = "FAIL"

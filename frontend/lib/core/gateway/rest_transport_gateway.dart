@@ -553,6 +553,15 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<RunFailuresInfo> getRunFailures(String runId) async {
+    final response = await _get(
+      '/analysis/execution/run-failures'
+      '?run_id=${Uri.encodeQueryComponent(runId)}',
+    );
+    return RunFailuresInfo.fromJson(response);
+  }
+
+  @override
   Future<IndexedSymbolInfo?> languageDefinition({
     String? name,
     String? symbolId,

@@ -65,6 +65,7 @@ from robot_studio.domain.models.execution_knowledge import (
     FlakyCandidate,
     HeatMapEntry,
     LinkedRunInfo,
+    RunTestFailure,
     SlowEntity,
 )
 
@@ -924,6 +925,9 @@ class RestGateway:
             project_id,
             limit=limit,
         )
+
+    async def execution_run_failures(self, run_id: UUID) -> list[RunTestFailure]:
+        return await self._execution_knowledge_service.failures_for_run(run_id)
 
     async def execution_slowest_keywords(
         self,

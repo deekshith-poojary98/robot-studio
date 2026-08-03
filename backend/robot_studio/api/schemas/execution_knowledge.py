@@ -14,6 +14,7 @@ from robot_studio.domain.models.execution_knowledge import (
     FlakyCandidate,
     HeatMapEntry,
     LinkedRunInfo,
+    RunTestFailure,
     SlowEntity,
 )
 
@@ -163,3 +164,24 @@ class FlakyListResponse(BaseModel):
 
 class NeverExecutedResponse(BaseModel):
     items: list[EntityRefResponse] = Field(default_factory=list)
+
+
+class RunTestFailureResponse(BaseModel):
+    run_id: str
+    name: str
+    message: str = ""
+    source: str = ""
+    line: int | None = None
+    column: int | None = None
+    entity_id: str | None = None
+    duration_ms: float = 0.0
+    status: str = "FAIL"
+
+    @classmethod
+    def from_model(cls, item: RunTestFailure) -> RunTestFailureResponse:
+        return cls(**item.model_dump())
+
+
+class RunFailuresResponse(BaseModel):
+    run_id: str
+    items: list[RunTestFailureResponse] = Field(default_factory=list)

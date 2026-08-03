@@ -33,6 +33,9 @@ class ExecutionShellController {
   DashboardSummary? reportsDashboard;
   bool loadingReports = false;
   bool loadingDashboard = false;
+  List<RunTestFailureInfo> failedTests = [];
+  bool loadingFailures = false;
+  String? failedTestsRunId;
 
   Timer? elapsedTimer;
   Duration elapsed = Duration.zero;
@@ -241,6 +244,49 @@ class ExecutionShellController {
     reportRuns = [];
     selectedReport = null;
     reportsDashboard = null;
+    failedTests = [];
+    loadingFailures = false;
+    failedTestsRunId = null;
     stopElapsedTimer();
+  }
+
+  void clearFailedTests() {
+    failedTests = [];
+    loadingFailures = false;
+    failedTestsRunId = null;
+    notify();
+  }
+
+  void prepareNewRun() {
+    executionLines = [];
+    failedTests = [];
+    loadingFailures = false;
+    failedTestsRunId = null;
+  }
+
+  Future<void> loadFailedTests(String runId) async {
+    loadingFailures = true;
+    failedTestsRunId = runId;
+    notify();
+    try {
+      // Linking runs async after index — brief retry if xml just landed.
+      RunFailuresInfo? result;
+      for (var attempt = 0; attempt < 4; attempt++) {
+        result = await gateway.getRunFailures(runId);
+        if (result.items.isNotEmpty || attempt == 3) break;
+        await Future<void>.delayed(Duration(milliseconds: 200 * (attempt + 1)));
+        if (!isMounted() || failedTestsRunId != runId) return;
+      }
+      if (!isMounted() || failedTestsRunId != runId) return;
+      failedTests = result?.items ?? const [];
+      loadingFailures = false;
+      notify();
+    } catch (error) {
+      if (!isMounted() || failedTestsRunId != runId) return;
+      failedTests = [];
+      loadingFailures = false;
+      notify();
+      appendLog('[warn] Could not load failed tests: $error');
+    }
   }
 }

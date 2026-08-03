@@ -39,7 +39,7 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 | **Find in Files** | Left **Search** rail text search (`⌘⇧F` / Ctrl+Shift+F); editor stays mounted; matches decorated with enclosing test/keyword/variable when the index knows; extensions via `ROBOT_STUDIO_CONTENT_SEARCH_EXTENSIONS` |
 | **Symbols** | Indexed keyword/variable/file search (View → Symbols / palette); separate from Find in Files |
 | **Test Explorer** | Lazy suite tree (expand loads children), virtualized list; run test/suite/all/failed; confirm when estimated count exceeds threshold (default 100, `ROBOT_STUDIO_LARGE_RUN_THRESHOLD`); live filter + status |
-| **Execution** | Run file or project; large project/tag runs require explicit confirmation (backend 409 + UI); live WebSocket logs; stop; history; finish stays on current view with View Report toast |
+| **Execution** | Run file or project; large project/tag runs require explicit confirmation (backend 409 + UI); live WebSocket logs; stop; history; finish stays on current view with View Report toast; **Failed Tests** after each run with Jump to Source + Re-run Test |
 | **Robot Doctor** | Project health findings with Jump to source (Quick Fix hidden until real) || **Explorer file ops** | Multi-select (⌘/Ctrl / Shift), new file/folder (`.robot` files seeded with Settings/Variables/Test Cases/Keywords scaffold), inline rename (including case-only like `libs` → `Libs`), bulk delete, duplicate, copy path(s), reveal in OS, drag-move via live events |
 | **Live workspace** | FS/index/git/env/progress events over `/workspace/events`; explorer incremental refresh; external edit / deleted-file dialogs; auto Git + Test Explorer refresh |
 | **Reports** | Runs listed by run number from `.robotstudio/reports/Run-*` (legacy root `Reports/` still readable via stored paths); pass/fail stats; open `report.html` / `log.html` / `output.xml` from run details |
@@ -259,7 +259,7 @@ robot-studio/
 | `/reports` | Runs, dashboard, artifacts |
 | `/index` | Rebuild, status |
 | `/search/symbols`, `/search/content` | Indexed symbol search; plain-text Find in Files |
-| `/analysis` | Semantic engine + Inspection Engine (`Finding`s); graph queries under `/analysis/graph/*`; execution knowledge under `/analysis/execution/*` |
+| `/analysis` | Semantic engine + Inspection Engine (`Finding`s); graph queries under `/analysis/graph/*`; execution knowledge under `/analysis/execution/*` (incl. per-run `run-failures`) |
 | `/doctor` | Robot Doctor Project Health Center (`profiles`, `run`, `report/{id}`, `history`) |
 | `/language` | Definition, hover, references, completion, diagnostics |
 | `/files` | Read/write, tree listing (lazy `depth=0` + `has_children`, workspace-scoped) |

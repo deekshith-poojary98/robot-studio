@@ -19,6 +19,8 @@ from robot_studio.api.schemas.execution_knowledge import (
     HeatMapListResponse,
     LinkedRunResponse,
     NeverExecutedResponse,
+    RunFailuresResponse,
+    RunTestFailureResponse,
     SlowEntityResponse,
     SlowListResponse,
 )
@@ -114,6 +116,22 @@ async def last_failures(
         raise _http(exc) from exc
     return ExecutionHistoryListResponse(
         items=[ExecutionHistoryItemResponse.from_model(i) for i in items],
+    )
+
+
+@router.get("/run-failures", response_model=RunFailuresResponse)
+async def run_failures(
+    run_id: UUID = Query(...),
+    gateway: RestGateway = Depends(get_gateway),
+) -> RunFailuresResponse:
+    """Failed tests for one run — Jump to Source / re-run consumers share this."""
+    try:
+        items = await gateway.execution_run_failures(run_id)
+    except ExecutionKnowledgeValidationError as exc:
+        raise _http(exc) from exc
+    return RunFailuresResponse(
+        run_id=str(run_id),
+        items=[RunTestFailureResponse.from_model(i) for i in items],
     )
 
 

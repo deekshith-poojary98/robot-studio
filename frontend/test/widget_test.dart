@@ -2154,6 +2154,22 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<RunFailuresInfo> getRunFailures(String runId) async {
+    return RunFailuresInfo(
+      runId: runId,
+      items: const [
+        RunTestFailureInfo(
+          runId: 'run-1',
+          name: 'Valid Login',
+          message: 'Login failed',
+          source: 'tests/login.robot',
+          line: 5,
+        ),
+      ],
+    );
+  }
+
+  @override
   Future<IndexedSymbolInfo?> languageDefinition({
     String? name,
     String? symbolId,

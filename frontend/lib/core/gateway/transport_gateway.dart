@@ -10,6 +10,7 @@ import 'models/package_info.dart';
 import 'models/plugin_info.dart';
 import 'models/project_info.dart';
 import 'models/report_info.dart';
+import 'models/run_failure_info.dart';
 import 'models/test_explorer_info.dart';
 import 'models/workspace_info.dart';
 
@@ -26,6 +27,7 @@ export 'models/package_info.dart';
 export 'models/plugin_info.dart';
 export 'models/project_info.dart';
 export 'models/report_info.dart';
+export 'models/run_failure_info.dart';
 export 'models/test_explorer_info.dart';
 export 'models/workspace_info.dart';
 
@@ -166,6 +168,8 @@ abstract class TransportGateway {
     int limit = 500,
     int contextLines = 1,
   });
+
+  Future<RunFailuresInfo> getRunFailures(String runId);
 
   Future<IndexedSymbolInfo?> languageDefinition({
     String? name,

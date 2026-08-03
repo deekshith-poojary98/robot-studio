@@ -653,7 +653,7 @@ Paths below are relative to `/api/v1`. Workspace context is typically **session-
 | GET/POST | `/analysis/snapshot`, `/rebuild` | analysis lifecycle + graph version |
 | GET/POST | `/analysis/inspections`, `/inspect`, `/inspect/{id}` | Inspection Engine → Finding[] |
 | GET/POST | `/analysis/graph/*` | callers, callees, dependency, affected-tests, variable-references, library-usage, keyword-usage-statistics |
-| GET/POST | `/analysis/execution/*` | execution knowledge (history, slowest, heat-map, flaky-candidates, link run) |
+| GET/POST | `/analysis/execution/*` | execution knowledge (history, slowest, heat-map, flaky-candidates, link run, **run-failures**) |
 | GET | `/doctor/profiles` | Doctor profiles + FindingProvider catalog |
 | POST | `/doctor/run` | Run Doctor (profile / optional provider override) |
 | GET | `/doctor/report/{id}` | Fetch persisted Doctor report |

@@ -248,6 +248,10 @@ class ApiClient implements TransportGateway {
       );
 
   @override
+  Future<RunFailuresInfo> getRunFailures(String runId) =>
+      _gateway.getRunFailures(runId);
+
+  @override
   Future<IndexedSymbolInfo?> languageDefinition({
     String? name,
     String? symbolId,

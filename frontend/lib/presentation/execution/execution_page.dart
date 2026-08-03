@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/execution_info.dart';
+import '../../core/gateway/models/run_failure_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/status_badge.dart';
 import 'execution_console.dart';
 import 'execution_history_list.dart';
+import 'failed_tests_panel.dart';
 
 /// Tests center view: monitor live output and recent runs.
 ///
@@ -20,6 +22,10 @@ class ExecutionPage extends StatelessWidget {
     required this.currentRun,
     required this.elapsedLabel,
     this.onRefreshHistory,
+    this.failedTests = const [],
+    this.isLoadingFailures = false,
+    this.onJumpToFailedTest,
+    this.onRerunFailedTest,
   });
 
   final List<String> consoleLines;
@@ -29,6 +35,10 @@ class ExecutionPage extends StatelessWidget {
   final ExecutionInfo? currentRun;
   final String elapsedLabel;
   final VoidCallback? onRefreshHistory;
+  final List<RunTestFailureInfo> failedTests;
+  final bool isLoadingFailures;
+  final void Function(RunTestFailureInfo failure)? onJumpToFailedTest;
+  final void Function(RunTestFailureInfo failure)? onRerunFailedTest;
 
   Color get _statusDot {
     if (status.isActive) return AppColors.accent;
@@ -60,6 +70,8 @@ class ExecutionPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final running = status.isActive;
+    final showFailures =
+        !running && (isLoadingFailures || failedTests.isNotEmpty);
 
     return Container(
       color: AppColors.background,
@@ -117,6 +129,13 @@ class ExecutionPage extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
+          if (showFailures)
+            FailedTestsPanel(
+              failures: failedTests,
+              isLoading: isLoadingFailures,
+              onJumpToSource: onJumpToFailedTest,
+              onRerunTest: onRerunFailedTest,
+            ),
           Expanded(
             child: Row(
               children: [

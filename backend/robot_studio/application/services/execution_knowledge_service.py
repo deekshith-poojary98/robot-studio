@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from statistics import mean, pstdev
 from uuid import UUID
 
@@ -17,10 +18,15 @@ from robot_studio.domain.models.execution_knowledge import (
     FlakyCandidate,
     HeatMapEntry,
     LinkedRunInfo,
+    RunTestFailure,
     SlowEntity,
 )
 from robot_studio.infrastructure.analysis.execution_linker import ExecutionLinker
 from robot_studio.infrastructure.analysis.execution_store import SqliteExecutionKnowledgeStore
+from robot_studio.infrastructure.execution.execution_trace import (
+    iter_tests,
+    parse_execution_trace,
+)
 from robot_studio.infrastructure.repositories.execution_repository import (
     SqliteExecutionRepository,
 )
@@ -166,6 +172,58 @@ class ExecutionKnowledgeService:
         return await self._enrich_history(
             await self.execution_store.last_failures(pid, limit=limit),
         )
+
+    async def failures_for_run(self, run_id: UUID) -> list[RunTestFailure]:
+        """Failed tests for one run — from output.xml, enriched via Analysis."""
+        run = await self.execution_repository.get(run_id)
+        if run is None:
+            raise ExecutionKnowledgeValidationError(f"Unknown run: {run_id}")
+
+        # Keep Knowledge warm for Doctor / Timeline / Replay consumers.
+        await self.linker.link_run(run)
+
+        xml_path = None
+        if run.output_xml is not None:
+            xml_path = Path(run.output_xml)
+        elif run.output_dir is not None:
+            xml_path = Path(run.output_dir) / "output.xml"
+
+        trace = parse_execution_trace(xml_path)
+        if trace is None:
+            return []
+
+        rid = str(run.id)
+        failures: list[RunTestFailure] = []
+        for suite, test in iter_tests(trace):
+            if (test.status or "").upper() != "FAIL":
+                continue
+            source = (test.source or suite.source or "").strip()
+            line = test.line
+            entity_id: str | None = None
+            entity = await self.linker.resolve_test(
+                project_id=run.project_id,
+                name=test.name,
+                source=source,
+            )
+            if entity is not None:
+                entity_id = entity.id
+                if line is None and getattr(entity, "line", None):
+                    line = int(entity.line)
+                if not source and getattr(entity, "file_path", None):
+                    source = str(entity.file_path)
+            failures.append(
+                RunTestFailure(
+                    run_id=rid,
+                    name=test.name,
+                    message=test.message or "",
+                    source=source,
+                    line=line,
+                    entity_id=entity_id,
+                    duration_ms=test.elapsed_ms,
+                    status=test.status or "FAIL",
+                ),
+            )
+        return failures
 
     async def slowest_keywords(
         self,

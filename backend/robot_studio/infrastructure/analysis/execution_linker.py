@@ -228,6 +228,10 @@ class ExecutionLinker:
             executed_at=executed_at,
         )
 
+    async def resolve_test(self, *, project_id: UUID, name: str, source: str):
+        """Public resolve used by run-failures and other Knowledge consumers."""
+        return await self._resolve_test(project_id=project_id, name=name, source=source)
+
     async def _resolve_test(self, *, project_id: UUID, name: str, source: str):
         norm = normalize_keyword_name(name)
         candidates = await self.analysis_store.find_entities_by_normalized_name(

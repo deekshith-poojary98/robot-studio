@@ -202,6 +202,8 @@ class _AppShellState extends State<AppShell> {
   ExecutionStatus get _executionStatus => _execution.executionStatus;
   ExecutionInfo? get _currentExecution => _execution.currentExecution;
   bool get _loadingHistory => _execution.loadingHistory;
+  List<RunTestFailureInfo> get _failedTests => _execution.failedTests;
+  bool get _loadingFailures => _execution.loadingFailures;
   List<ExecutionInfo> get _reportRuns => _execution.reportRuns;
   ExecutionInfo? get _selectedReport => _execution.selectedReport;
   DashboardSummary? get _reportsDashboard => _execution.reportsDashboard;
@@ -1027,7 +1029,7 @@ class _AppShellState extends State<AppShell> {
     }
 
     setState(() {
-      _execution.executionLines = [];
+      _execution.prepareNewRun();
       _showExecutionPage = true;
     });
     await _connectExecutionStream();
@@ -1071,7 +1073,7 @@ class _AppShellState extends State<AppShell> {
     }
 
     setState(() {
-      _execution.executionLines = [];
+      _execution.prepareNewRun();
       _showExecutionPage = true;
     });
     await _connectExecutionStream();
@@ -2203,9 +2205,10 @@ class _AppShellState extends State<AppShell> {
     if (!mounted) return;
     final latest = _executionHistory.isNotEmpty
         ? _executionHistory.first
-        : null;
+        : _currentExecution;
     if (latest != null) {
       _offerViewReportToast(latest);
+      unawaited(_execution.loadFailedTests(latest.id));
     }
     await _suggestMissingLibraryInstall();
   }
@@ -2374,7 +2377,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     setState(() {
-      _execution.executionLines = [];
+      _execution.prepareNewRun();
       _showExecutionPage = true;
     });
     await _connectExecutionStream();
@@ -2418,7 +2421,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     setState(() {
-      _execution.executionLines = [];
+      _execution.prepareNewRun();
       _showExecutionPage = true;
     });
     await _connectExecutionStream();
@@ -2456,7 +2459,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     setState(() {
-      _execution.executionLines = [];
+      _execution.prepareNewRun();
       _showExecutionPage = true;
       _selectedSuitePath = path;
     });
@@ -2485,12 +2488,45 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     setState(() {
-      _execution.executionLines = [];
+      _execution.prepareNewRun();
       _showExecutionPage = true;
     });
     await _connectExecutionStream();
     try {
       final run = await _gateway.runFailedTests();
+      if (!mounted) return;
+      setState(() {
+        _execution.executionStatus = run.status;
+        _execution.currentExecution = run;
+      });
+      _startElapsedTimer();
+    } catch (error) {
+      if (!mounted) return;
+      await _handleExecutionError(error);
+    }
+  }
+
+  Future<void> _handleRerunFailedTest(RunTestFailureInfo failure) async {
+    if (!failure.canJump) return;
+    if (!await _ensureProject(
+      message: 'Open a project before running tests.',
+    )) {
+      return;
+    }
+    if (!await _ensureRobotReady()) {
+      return;
+    }
+    setState(() {
+      _execution.prepareNewRun();
+      _showExecutionPage = true;
+      _showEditorPage = false;
+      _activePanel = SidebarPanel.tests;
+    });
+    await _connectExecutionStream();
+    try {
+      final run = await _gateway.runSelectedTests([
+        (file: failure.source, name: failure.name),
+      ]);
       if (!mounted) return;
       setState(() {
         _execution.executionStatus = run.status;
@@ -2538,6 +2574,7 @@ class _AppShellState extends State<AppShell> {
         _editor.activePath = path;
         _showEditorPage = true;
         _showSymbolsPage = false;
+        _showExecutionPage = false;
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
@@ -2568,6 +2605,7 @@ class _AppShellState extends State<AppShell> {
         _editor.activePath = file.path;
         _showEditorPage = true;
         _showSymbolsPage = false;
+        _showExecutionPage = false;
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
@@ -4436,16 +4474,18 @@ class _AppShellState extends State<AppShell> {
 
   _CenterView get _centerView {
     if (_workspace.activeWorkspace == null) return _CenterView.welcome;
+    // Jump-to-source / open-file always bring the editor forward — even when
+    // the Tests rail would otherwise own the center (Execution monitor).
+    if (_showEditorPage &&
+        _editorTabs.isNotEmpty &&
+        _activeEditorPath != null) {
+      return _CenterView.editor;
+    }
     if (_showExecutionPage || _activePanel == SidebarPanel.tests) {
       return _CenterView.execution;
     }
     if (_showSymbolsPage) {
       return _CenterView.symbols;
-    }
-    if (_showEditorPage &&
-        _editorTabs.isNotEmpty &&
-        _activeEditorPath != null) {
-      return _CenterView.editor;
     }
     if (_showEnvironmentManager) return _CenterView.manager;
     if (_selectedPackage != null) return _CenterView.packageDetail;
@@ -5111,6 +5151,20 @@ class _AppShellState extends State<AppShell> {
         currentRun: _currentExecution,
         elapsedLabel: _elapsedLabel,
         onRefreshHistory: _loadExecutionHistory,
+        failedTests: _failedTests,
+        isLoadingFailures: _loadingFailures,
+        onJumpToFailedTest: (failure) {
+          unawaited(
+            _openFile(
+              failure.source,
+              line: failure.line,
+              column: failure.column,
+            ),
+          );
+        },
+        onRerunFailedTest: (failure) {
+          unawaited(_handleRerunFailedTest(failure));
+        },
       ),
       _CenterView.reports => ReportsPage(
         isLoading: _loadingReports,
