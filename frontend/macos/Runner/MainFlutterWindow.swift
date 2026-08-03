@@ -17,6 +17,9 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
+    // Prefer the human product name over the Dart package id (robot_studio).
+    self.title = "Robot Studio"
+
     super.awakeFromNib()
   }
 }
