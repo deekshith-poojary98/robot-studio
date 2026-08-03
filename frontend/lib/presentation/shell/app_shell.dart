@@ -4630,6 +4630,7 @@ class _AppShellState extends State<AppShell> {
                         environmentBroken:
                             activeEnvironment?.available == false,
                         onEnvironmentSelected: _handleActivateByName,
+                        onCreateEnvironment: _handleCreateEnvironment,
                         onManageEnvironments: _handleManageEnvironments,
                         backendConnected: connected,
                         onRun: _handleRunFile,
@@ -5086,9 +5087,6 @@ class _AppShellState extends State<AppShell> {
         currentRun: _currentExecution,
         elapsedLabel: _elapsedLabel,
         onRefreshHistory: _loadExecutionHistory,
-        onRunFile: _handleRunFile,
-        onRunProject: _handleRunProject,
-        onStop: _handleStopExecution,
       ),
       _CenterView.reports => ReportsPage(
         isLoading: _loadingReports,

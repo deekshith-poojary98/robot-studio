@@ -28,3 +28,6 @@ class EnvironmentRepository(ABC):
 
     @abstractmethod
     async def delete(self, environment_id: UUID) -> None: ...
+
+    @abstractmethod
+    async def delete_by_workspace(self, workspace_id: UUID) -> int: ...

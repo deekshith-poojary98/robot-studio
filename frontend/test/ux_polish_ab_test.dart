@@ -27,6 +27,43 @@ void main() {
     expect(find.textContaining('ENV '), findsNothing);
   });
 
+  testWidgets('empty environment chip offers Create and Manage', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    var createTapped = false;
+    var manageTapped = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppToolbar(
+            projectLabel: 'demo',
+            environmentLabel: 'No environment',
+            backendConnected: true,
+            environmentNames: const [],
+            onCreateEnvironment: () => createTapped = true,
+            onManageEnvironments: () => manageTapped = true,
+            onRun: () {},
+            onRunProject: () {},
+            onStop: () {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('toolbar.environment')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Create Environment…'), findsOneWidget);
+    expect(find.text('Manage Environments…'), findsOneWidget);
+
+    await tester.tap(find.text('Create Environment…'));
+    await tester.pumpAndSettle();
+    expect(createTapped, isTrue);
+    expect(manageTapped, isFalse);
+  });
+
   testWidgets('idle toolbar hides Idle badge and mutes Stop', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1600, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));

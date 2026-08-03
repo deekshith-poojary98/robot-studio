@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -58,16 +60,20 @@ class _RobotStudioAppState extends State<RobotStudioApp>
   }
 
   @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // macOS often never delivers `detached` on window-close quit; native
+    // AppDelegate also kills via the pid file. Do not stop on `hidden` —
+    // minimize must keep the backend alive.
+    if (state == AppLifecycleState.detached) {
+      unawaited(BackendHost.instance?.stop() ?? Future<void>.value());
+    }
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.detached) {
-      BackendHost.instance?.stop();
-    }
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    BackendHost.instance?.stopSync();
+    super.dispose();
   }
 
   @override

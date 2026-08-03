@@ -45,4 +45,13 @@ void main() {
       isNull,
     );
   });
+
+  test('pid file write/read/clear round-trips', () {
+    final dir = Directory.systemTemp.createTempSync('rs-pid-');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    BackendHost.writePidFile(4242, dataDir: dir);
+    expect(BackendHost.readPidFile(dataDir: dir), 4242);
+    BackendHost.clearPidFile(dataDir: dir);
+    expect(BackendHost.readPidFile(dataDir: dir), isNull);
+  });
 }

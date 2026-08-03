@@ -1,6 +1,10 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <cstdio>
+#include <string>
+
+#include <windows.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -40,6 +44,29 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  // Mirror macOS AppDelegate: kill packaged sidecar via BackendHost pid file.
+  wchar_t* profile = nullptr;
+  size_t len = 0;
+  if (_wdupenv_s(&profile, &len, L"USERPROFILE") == 0 && profile != nullptr) {
+    std::wstring pid_path(profile);
+    free(profile);
+    pid_path += L"\\.robot-studio\\backend.pid";
+    FILE* file = nullptr;
+    if (_wfopen_s(&file, pid_path.c_str(), L"r") == 0 && file != nullptr) {
+      int pid = 0;
+      if (fscanf_s(file, "%d", &pid) == 1 && pid > 1) {
+        HANDLE process =
+            OpenProcess(PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
+        if (process != nullptr) {
+          TerminateProcess(process, 0);
+          CloseHandle(process);
+        }
+      }
+      fclose(file);
+      _wremove(pid_path.c_str());
+    }
+  }
+
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }

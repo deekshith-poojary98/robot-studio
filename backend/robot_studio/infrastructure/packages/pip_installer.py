@@ -11,6 +11,9 @@ from pathlib import Path
 
 from robot_studio.domain.interfaces.installer import Installer
 from robot_studio.domain.models import InstalledPackage
+from robot_studio.infrastructure.environment.python_provider import (
+    stable_subprocess_cwd,
+)
 
 _METADATA_SCRIPT = r"""
 import json
@@ -183,6 +186,7 @@ class PipInstaller(Installer):
             capture_output=True,
             text=True,
             check=False,
+            cwd=stable_subprocess_cwd(python.resolve().parent.parent),
         )
         logs = self._merge_logs(result.stdout, result.stderr)
         if result.returncode != 0:
@@ -196,6 +200,7 @@ class PipInstaller(Installer):
             capture_output=True,
             text=True,
             check=False,
+            cwd=stable_subprocess_cwd(python.resolve().parent.parent),
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "command failed").strip()

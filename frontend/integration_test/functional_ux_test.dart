@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:robot_studio/presentation/widgets/toolbar_button.dart';
 
 import 'helpers/integration_api_client.dart';
 import 'helpers/integration_fixtures.dart';
@@ -65,8 +66,15 @@ void main() {
     await harness.launchAppWithWorkspace(tester, workspaceName: 'UX NoProj');
     await tapSidebarPanel(tester, 'Tests');
     await pumpUntilFound(tester, find.text('Execution'));
-    await tester.tap(find.text('Run Project'));
-    await pumpUntilFound(tester, find.textContaining('Project needed'));
+    // Tests page is monitoring-only; launch is toolbar-gated without a project.
+    expect(find.widgetWithText(FilledButton, 'Run Project'), findsNothing);
+    final runProject = tester.widget<ToolbarButton>(
+      find.byWidgetPredicate(
+        (widget) => widget is ToolbarButton && widget.label == 'Run Project',
+      ),
+    );
+    expect(runProject.onTap, isNull);
+    expect(runProject.tooltip, 'Open a project to run');
 
     harness.expectNoFlutterErrors();
   });

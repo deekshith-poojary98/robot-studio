@@ -113,7 +113,10 @@ class _TestExplorerPanelState extends State<TestExplorerPanel> {
     final tree = widget.tree;
     setState(() {
       _expanded.clear();
-      if (tree != null) {
+      if (tree == null) return;
+      // When the workspace row is hidden (single-project), leave roots
+      // collapsed so only the project line remains visible.
+      if (!_hideWorkspaceRoot(tree)) {
         _expanded.add(tree.id);
       }
     });
@@ -124,6 +127,18 @@ class _TestExplorerPanelState extends State<TestExplorerPanel> {
     for (final child in node.children) {
       yield* _collectIds(child);
     }
+  }
+
+  /// Standalone / single-project opens use the same folder as workspace and
+  /// project, so showing both rows is noisy. Skip the workspace container and
+  /// start at the project when there is exactly one.
+  bool _hideWorkspaceRoot(TestNodeInfo tree) {
+    return tree.kind == 'workspace' && tree.children.length == 1;
+  }
+
+  List<TestNodeInfo> _visibleRoots(TestNodeInfo tree) {
+    if (_hideWorkspaceRoot(tree)) return tree.children;
+    return [tree];
   }
 
   Future<void> _toggleExpand(TestNodeInfo node) async {
@@ -157,7 +172,9 @@ class _TestExplorerPanelState extends State<TestExplorerPanel> {
       }
     }
 
-    walk(tree, 0);
+    for (final root in _visibleRoots(tree)) {
+      walk(root, 0);
+    }
     return rows;
   }
 

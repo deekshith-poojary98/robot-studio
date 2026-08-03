@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
+import os
 import sys
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -12,8 +14,26 @@ from robot_studio.core.container import container
 from robot_studio.core.database import init_database
 
 
+def _ensure_process_cwd() -> None:
+    """Heal a deleted process cwd so child pip/venv calls do not crash."""
+    try:
+        Path.cwd()
+        return
+    except OSError:
+        pass
+    for candidate in (settings.data_dir, Path.home(), Path("/")):
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            os.chdir(candidate)
+            Path.cwd()
+            return
+        except OSError:
+            continue
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    _ensure_process_cwd()
     await container.initialize_async()
     await init_database()
     yield

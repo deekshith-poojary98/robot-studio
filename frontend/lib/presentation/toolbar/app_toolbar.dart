@@ -20,6 +20,7 @@ class AppToolbar extends StatelessWidget {
     this.selectedEnvironmentName,
     this.environmentBroken = false,
     this.onEnvironmentSelected,
+    this.onCreateEnvironment,
     this.onManageEnvironments,
     this.onRun,
     this.onRunProject,
@@ -53,6 +54,7 @@ class AppToolbar extends StatelessWidget {
   final String? selectedEnvironmentName;
   final bool environmentBroken;
   final ValueChanged<String>? onEnvironmentSelected;
+  final VoidCallback? onCreateEnvironment;
   final VoidCallback? onManageEnvironments;
   final VoidCallback? onRun;
   final VoidCallback? onRunProject;
@@ -109,8 +111,9 @@ class AppToolbar extends StatelessWidget {
                       names: environmentNames,
                       selectedName: selectedEnvironmentName,
                       broken: environmentBroken,
-                      enabled: backendConnected && environmentNames.isNotEmpty,
+                      enabled: backendConnected,
                       onSelected: onEnvironmentSelected,
+                      onCreate: onCreateEnvironment,
                       onManage: onManageEnvironments,
                     ),
                     if (backendConnected) ...[
@@ -350,6 +353,7 @@ class _EnvironmentSelector extends StatelessWidget {
     required this.selectedName,
     required this.enabled,
     required this.onSelected,
+    required this.onCreate,
     required this.onManage,
     this.broken = false,
   });
@@ -360,43 +364,73 @@ class _EnvironmentSelector extends StatelessWidget {
   final bool enabled;
   final bool broken;
   final ValueChanged<String>? onSelected;
+  final VoidCallback? onCreate;
   final VoidCallback? onManage;
 
   @override
   Widget build(BuildContext context) {
     if (!enabled) {
-      return EnvironmentBadge(label: label, active: false);
+      return Tooltip(
+        message: 'Backend unavailable — start it to manage environments',
+        child: EnvironmentBadge(label: label, active: false),
+      );
     }
 
+    final empty = names.isEmpty;
     final display = broken && selectedName != null
         ? '$selectedName · missing'
         : (selectedName ?? label);
 
     return PopupMenuButton<String>(
-      tooltip: broken
+      key: const Key('toolbar.environment'),
+      tooltip: empty
+          ? 'Create or manage a Python environment'
+          : broken
           ? 'Environment folder is missing — recreate or manage environments'
           : 'Select environment',
       onSelected: (value) {
+        if (value == '__create__') {
+          onCreate?.call();
+          return;
+        }
         if (value == '__manage__') {
           onManage?.call();
           return;
         }
         onSelected?.call(value);
       },
-      itemBuilder: (context) => [
-        ...names.map(
-          (name) => AppCheckedPopupMenuItem<String>(
-            value: name,
-            checked: name == selectedName,
-            child: Text(name),
+      itemBuilder: (context) {
+        if (empty) {
+          return const [
+            AppPopupMenuItem<String>(
+              value: '__create__',
+              child: Text('Create Environment…'),
+            ),
+            AppPopupMenuItem<String>(
+              value: '__manage__',
+              child: Text('Manage Environments…'),
+            ),
+          ];
+        }
+        return [
+          ...names.map(
+            (name) => AppCheckedPopupMenuItem<String>(
+              value: name,
+              checked: name == selectedName,
+              child: Text(name),
+            ),
           ),
-        ),
-        const AppPopupMenuDivider(),
-        const AppPopupMenuItem<String>(
-          value: '__manage__',
-          child: Text('Manage Environments…'),
-        ),
-      ],
+          const AppPopupMenuDivider(),
+          const AppPopupMenuItem<String>(
+            value: '__create__',
+            child: Text('Create Environment…'),
+          ),
+          const AppPopupMenuItem<String>(
+            value: '__manage__',
+            child: Text('Manage Environments…'),
+          ),
+        ];
+      },
       child: EnvironmentBadge(
         label: display,
         active: selectedName != null,

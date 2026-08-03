@@ -118,6 +118,21 @@ void main() {
       PythonInstallGuidance.shortRecovery,
     );
     expect(
+      friendlyErrorSummary(
+        'Failed to install Robot Framework: Traceback...\n'
+        'File ".../pip/__main__.py"\n'
+        'if sys.path[0] in ("", os.getcwd()):',
+      ),
+      'Could not install Robot Framework into the new environment.',
+    );
+    expect(
+      friendlyErrorRecovery(
+        'Failed to install Robot Framework: FileNotFoundError: '
+        '[Errno 2] No such file or directory\ngetcwd',
+      ),
+      contains('working directory'),
+    );
+    expect(
       friendlyErrorSummary("Name cannot contain path separators"),
       "Name cannot contain path separators",
     );

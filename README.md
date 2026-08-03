@@ -79,7 +79,7 @@ make package-windows   # → dist/windows/RobotStudio/ (run on Windows)
 make package           # this OS
 ```
 
-The app embeds a frozen backend sidecar and starts it on launch (stops it on quit). Data lives under `~/.robot-studio`.
+The app embeds a frozen backend sidecar and starts it on launch. Quit stops it via a pid file + native terminate hooks (Flutter lifecycle alone is unreliable on desktop). Data lives under `~/.robot-studio`.
 
 ### Developer loop (two terminals)
 
@@ -185,7 +185,7 @@ Integration tests may also set `ROBOT_STUDIO_PYTHON` / `INTEGRATION_PYTHON` so e
 
 1. **New Project** or **Open Project** (any folder — Studio initializes `.robotstudio/` inside it; no wrapper workspace. Non-Robot-looking folders warn first with **Continue anyways**). **New Project** opens one dialog for name + location (prefilled, with **Browse…**), then always creates a standalone project and opens it fresh, even if another project is already open; adding to a multi-project container is the separate **New Project in Workspace** command. **Open Workspace** / **New Workspace** remain under Advanced for multi-project containers.
 2. Opening a project is immediate; environment setup, indexing, and git refresh continue in the background. If no Python environment is registered, a non-blocking bottom-right toast titled **Python environment required** offers Create Environment / Select Existing (dismiss with ✕), and suggests an existing `.venv` when found. **Create Environment** from that toast installs Robot Framework (same default as the Create dialog). If **no Python interpreter** is installed on the machine, that toast becomes **Python is not installed** with **How to Install** (Homebrew / python.org / apt) instead of a dead-end Create button. If interpreter discovery itself fails (backend error/offline), the toast becomes **Could not detect Python** with install / create / select actions — it does not assume Python is present.
-3. Create or activate a **Python environment**; install Robot Framework and libraries via the package manager. Run is blocked when the active environment is **missing on disk** (`available: false`) — recreate or select another before running.
+3. Create or activate a **Python environment**; install Robot Framework and libraries via the package manager. Run is blocked when the active environment is **missing on disk** (`available: false`) — recreate or select another before running. If you delete a project in Finder and recreate it at the same path, Studio drops the old environment registry rows on open so ghost “missing” venvs do not reappear.
 4. Open `.robot` files in the editor; rebuild the **index** if keyword search looks empty (BuiltIn keywords such as `Log` are always searchable).
 5. **Run** from the toolbar or **Tests** explorer (suite / test / tag / failed); watch output on the **Tests** view (click the run status badge to jump there). Use the bottom **Terminal** for an interactive shell in the project folder.
 6. Open **Reports** for history and HTML output; use **Source Control** if the project is a Git repo.

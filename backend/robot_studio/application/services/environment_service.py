@@ -15,6 +15,8 @@ from robot_studio.core.events import (
     EnvironmentDeleted,
     EnvironmentImported,
     EventBus,
+    Subscription,
+    WorkspaceOpened,
 )
 from robot_studio.domain.interfaces.environment import EnvironmentRepository
 from robot_studio.domain.models import Environment, WorkspaceSettings
@@ -44,6 +46,29 @@ class EnvironmentService:
         self._event_bus = event_bus
         self._fs = filesystem or FilesystemEnvironmentProvider()
         self._python = python or PythonEnvironmentProvider()
+        self._unsubscribes: list[Subscription] = []
+        self._started = False
+
+    def start(self) -> None:
+        """Subscribe to workspace lifecycle for registry hygiene."""
+        if self._started:
+            return
+        self._unsubscribes = [
+            self._event_bus.subscribe(WorkspaceOpened, self._on_workspace_opened),
+        ]
+        self._started = True
+
+    def stop(self) -> None:
+        for subscription in self._unsubscribes:
+            subscription.unsubscribe()
+        self._unsubscribes.clear()
+        self._started = False
+
+    async def _on_workspace_opened(self, event: WorkspaceOpened) -> None:
+        # Same absolute path always maps to the same workspace id, so a
+        # Finder-deleted project recreated at that path would otherwise revive
+        # ghost "missing" rows from the previous life.
+        await self.purge_missing_environments(event.workspace_id)
 
     def _require_workspace(self):
         workspace = self._context.workspace
@@ -187,6 +212,53 @@ class EnvironmentService:
         enriched = [await self._enrich(item) for item in environments]
         await self._sync_active_context(enriched)
         return self._sort(enriched, sort)
+
+    async def purge_missing_environments(self, workspace_id: UUID) -> list[UUID]:
+        """Drop registry rows whose on-disk roots no longer exist.
+
+        Mid-session list still keeps missing rows (toolbar ``venv · missing``).
+        Opening a workspace (or recreating one at the same path) clears ghosts.
+        """
+        removed: list[UUID] = []
+        for environment in await self._repository.list_by_workspace(workspace_id):
+            if environment.path.is_dir():
+                continue
+            await self._repository.delete(environment.id)
+            removed.append(environment.id)
+            if (
+                self._context.workspace is not None
+                and self._context.workspace.id == workspace_id
+                and self._context.environment_id == environment.id
+            ):
+                await self._context.clear_active_environment()
+            await self._event_bus.publish(
+                EnvironmentDeleted(
+                    workspace_id=workspace_id,
+                    environment_id=environment.id,
+                ),
+            )
+        return removed
+
+    async def purge_workspace_environments(self, workspace_id: UUID) -> int:
+        """Remove every environment row for a workspace (root deleted externally)."""
+        environments = await self._repository.list_by_workspace(workspace_id)
+        if not environments:
+            return 0
+        count = await self._repository.delete_by_workspace(workspace_id)
+        if (
+            self._context.workspace is not None
+            and self._context.workspace.id == workspace_id
+            and self._context.environment is not None
+        ):
+            await self._context.clear_active_environment()
+        for environment in environments:
+            await self._event_bus.publish(
+                EnvironmentDeleted(
+                    workspace_id=workspace_id,
+                    environment_id=environment.id,
+                ),
+            )
+        return count
 
     def list_python_interpreters(self) -> list[DiscoveredInterpreter]:
         """Discover host Python interpreters (does not require an open workspace)."""
@@ -417,6 +489,8 @@ class EnvironmentService:
         if environments:
             # Keep rows even when the folder was deleted so the UI can show
             # "active but missing" instead of a healthy-looking ghost state.
+            # Ghosts from a previous project life at this path are cleared on
+            # WorkspaceOpened via purge_missing_environments.
             return environments
 
         hydrated: list[Environment] = []

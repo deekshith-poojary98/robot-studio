@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/execution_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/status_badge.dart';
 import 'execution_console.dart';
 import 'execution_history_list.dart';
 
+/// Tests center view: monitor live output and recent runs.
+///
+/// Global launch controls live on the top toolbar (Run / Run Project / Stop),
+/// menus, shortcuts, and the Test Explorer tree — not here.
 class ExecutionPage extends StatelessWidget {
   const ExecutionPage({
     super.key,
@@ -15,9 +20,6 @@ class ExecutionPage extends StatelessWidget {
     required this.currentRun,
     required this.elapsedLabel,
     this.onRefreshHistory,
-    this.onRunFile,
-    this.onRunProject,
-    this.onStop,
   });
 
   final List<String> consoleLines;
@@ -27,21 +29,52 @@ class ExecutionPage extends StatelessWidget {
   final ExecutionInfo? currentRun;
   final String elapsedLabel;
   final VoidCallback? onRefreshHistory;
-  final VoidCallback? onRunFile;
-  final VoidCallback? onRunProject;
-  final VoidCallback? onStop;
+
+  Color get _statusDot {
+    if (status.isActive) return AppColors.accent;
+    return switch (status) {
+      ExecutionStatus.failed || ExecutionStatus.aborted => AppColors.error,
+      ExecutionStatus.finished => AppColors.success,
+      ExecutionStatus.cancelled => AppColors.warning,
+      _ => AppColors.textMuted,
+    };
+  }
+
+  String get _statusLabel {
+    if (status.isActive) return '${status.label} · $elapsedLabel';
+    if (status == ExecutionStatus.idle) return 'Idle';
+    return status.label;
+  }
+
+  String get _subtitle {
+    if (status.isActive) {
+      return 'Live output updates as the run progresses. Use the toolbar to stop.';
+    }
+    if (currentRun != null && currentRun!.suite.isNotEmpty) {
+      return 'Last suite: ${currentRun!.suite}';
+    }
+    return 'Watch live output and recent runs. Start from the toolbar or Test Explorer.';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final running = status.isActive;
+
     return Container(
       color: AppColors.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.lg,
+              AppSpacing.xl,
+              AppSpacing.md,
+            ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Column(
@@ -49,60 +82,69 @@ class ExecutionPage extends StatelessWidget {
                     children: [
                       Text(
                         'Execution',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontSize: 18,
-                            ),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontSize: 18,
+                        ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: AppSpacing.xs),
                       Text(
-                        running
-                            ? 'Running · $elapsedLabel'
-                            : 'Status: ${status.label}',
-                        style: Theme.of(context).textTheme.bodySmall,
+                        _subtitle,
+                        style: theme.textTheme.bodySmall,
                       ),
+                      if (currentRun != null &&
+                          currentRun!.suite.isNotEmpty &&
+                          running) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          currentRun!.suite,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
-                OutlinedButton.icon(
-                  onPressed: running ? null : onRunFile,
-                  icon: const Icon(Icons.play_arrow, size: 16),
-                  label: const Text('Run File'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: running ? null : onRunProject,
-                  icon: const Icon(Icons.playlist_play, size: 16),
-                  label: const Text('Run Project'),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: running ? onStop : null,
-                  icon: const Icon(Icons.stop, size: 16),
-                  label: const Text('Stop'),
+                const SizedBox(width: AppSpacing.md),
+                StatusBadge(
+                  label: _statusLabel.toUpperCase(),
+                  dotColor: _statusDot,
+                  filled: running,
                 ),
               ],
             ),
           ),
-          if (currentRun != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                currentRun!.suite,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          const SizedBox(height: 8),
           const Divider(height: 1),
           Expanded(
             child: Row(
               children: [
                 Expanded(
                   flex: 3,
-                  child: ColoredBox(
-                    color: AppColors.rail,
-                    child: ExecutionConsole(lines: consoleLines),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.lg,
+                          AppSpacing.md,
+                          AppSpacing.lg,
+                          AppSpacing.sm,
+                        ),
+                        child: Text(
+                          'Live Output',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Expanded(
+                        child: ColoredBox(
+                          color: AppColors.rail,
+                          child: ExecutionConsole(lines: consoleLines),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const VerticalDivider(width: 1),

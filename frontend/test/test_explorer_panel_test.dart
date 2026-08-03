@@ -68,7 +68,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Demo WS'), findsOneWidget);
+    expect(find.text('Demo WS'), findsNothing); // single-project: skip workspace row
     expect(find.text('Shop'), findsOneWidget);
     expect(find.text('checkout'), findsOneWidget);
     expect(find.text('Pay'), findsOneWidget);
@@ -184,5 +184,80 @@ void main() {
     );
     expect(find.text('huge'), findsOneWidget);
     expect(find.byKey(const Key('test-expand-suite:lazy')), findsOneWidget);
+  });
+
+  testWidgets('single-project tree skips duplicate workspace row', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            height: 600,
+            child: TestExplorerPanel(
+              tree: TestNodeInfo(
+                id: 'workspace:1',
+                kind: 'workspace',
+                name: 'Demo',
+                children: [
+                  TestNodeInfo(
+                    id: 'project:1',
+                    kind: 'project',
+                    name: 'Demo',
+                    children: [
+                      TestNodeInfo(
+                        id: 'suite:1',
+                        kind: 'suite',
+                        name: 'login',
+                        path: '/tmp/login.robot',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // One "Demo" (the project), not workspace + project.
+    expect(find.text('Demo'), findsOneWidget);
+    expect(find.text('login'), findsOneWidget);
+  });
+
+  testWidgets('multi-project tree keeps workspace container', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            height: 600,
+            child: TestExplorerPanel(
+              tree: TestNodeInfo(
+                id: 'workspace:1',
+                kind: 'workspace',
+                name: 'Monorepo',
+                children: [
+                  TestNodeInfo(
+                    id: 'project:1',
+                    kind: 'project',
+                    name: 'Api',
+                  ),
+                  TestNodeInfo(
+                    id: 'project:2',
+                    kind: 'project',
+                    name: 'Ui',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Monorepo'), findsOneWidget);
+    expect(find.text('Api'), findsOneWidget);
+    expect(find.text('Ui'), findsOneWidget);
   });
 }

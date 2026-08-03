@@ -234,6 +234,36 @@ async def test_delete_protection(services) -> None:
 
 
 @pytest.mark.asyncio
+async def test_install_robot_survives_deleted_process_cwd(services) -> None:
+    """Pip calls os.getcwd(); a deleted backend cwd must not break install."""
+    import os
+    import tempfile
+
+    gone = Path(tempfile.mkdtemp())
+    os.chdir(gone)
+    gone.rmdir()
+    with pytest.raises(FileNotFoundError):
+        Path.cwd()
+
+    environment = await services["environment_service"].create_environment(
+        "with-robot",
+        sys.executable,
+        install_robot_framework=True,
+    )
+    assert environment.robot_version is not None
+    assert Path(environment.path).is_dir()
+
+
+def test_stable_subprocess_cwd_skips_missing_preferred(tmp_path: Path) -> None:
+    from robot_studio.infrastructure.environment.python_provider import (
+        stable_subprocess_cwd,
+    )
+
+    resolved = Path(stable_subprocess_cwd(tmp_path / "does-not-exist"))
+    assert resolved.is_dir()
+
+
+@pytest.mark.asyncio
 async def test_missing_venv_marked_unavailable(services) -> None:
     environment = await services["environment_service"].create_environment(
         "gone",
@@ -251,6 +281,63 @@ async def test_missing_venv_marked_unavailable(services) -> None:
     assert listed[0].id == environment.id
     assert listed[0].is_active is True
     assert listed[0].available is False
+
+
+@pytest.mark.asyncio
+async def test_reopen_purges_missing_environments(services) -> None:
+    """Recreating a project at the same path must not revive ghost envs."""
+    import shutil
+
+    from robot_studio.infrastructure.workspace.filesystem import (
+        create_workspace_structure,
+    )
+
+    environment = await services["environment_service"].create_environment(
+        "ghost",
+        sys.executable,
+    )
+    workspace = services["workspace"]
+    workspace_path = workspace.path
+    workspace_id = workspace.id
+
+    shutil.rmtree(environment.path)
+    assert not environment.path.is_dir()
+
+    # Mid-session list still surfaces the missing row.
+    listed = await services["environment_service"].list_environments()
+    assert len(listed) == 1
+    assert listed[0].available is False
+
+    # Simulate Finder delete + recreate at the same absolute path (same uuid5 id).
+    shutil.rmtree(workspace_path)
+    create_workspace_structure(workspace_path, "WS")
+
+    services["environment_service"].start()
+    workspace_repo = SqliteWorkspaceRepository(services["tmp_path"] / "test.db")
+    await workspace_repo.initialize()
+    workspace_service = WorkspaceService(workspace_repo, services["context"])
+    reopened = await workspace_service.open_workspace(workspace_path)
+    assert reopened.id == workspace_id
+
+    remaining = await services["environment_repo"].list_by_workspace(workspace_id)
+    assert remaining == []
+    listed_after = await services["environment_service"].list_environments()
+    assert listed_after == []
+
+
+@pytest.mark.asyncio
+async def test_purge_workspace_environments_clears_registry(services) -> None:
+    environment = await services["environment_service"].create_environment(
+        "to-clear",
+        sys.executable,
+    )
+    workspace_id = services["workspace"].id
+    removed = await services["environment_service"].purge_workspace_environments(
+        workspace_id,
+    )
+    assert removed >= 1
+    assert await services["environment_repo"].get(environment.id) is None
+    assert services["context"].environment is None
 
 
 @pytest.mark.asyncio

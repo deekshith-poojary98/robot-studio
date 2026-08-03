@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import suppress
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from uuid import UUID
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.events import (
@@ -43,6 +45,7 @@ class WorkspaceEventService:
     event_bus: EventBus
     watcher: object  # Native/PollingFileWatcher with optional on_fs_change
     root_poll_seconds: float = 2.0
+    on_workspace_missing: Callable[[UUID], Awaitable[int]] | None = None
     _subscribers: list[_Subscriber] = field(default_factory=list, init=False)
     _unsubscribes: list[Subscription] = field(default_factory=list, init=False)
     _subscribed: bool = field(default=False, init=False)
@@ -273,6 +276,14 @@ class WorkspaceEventService:
             workspace_missing = not present
             if not present and not self._missing_workspace_sent:
                 self._missing_workspace_sent = True
+                if self.on_workspace_missing is not None:
+                    try:
+                        await self.on_workspace_missing(workspace.id)
+                    except Exception:  # noqa: BLE001 - never block missing UX
+                        logger.debug(
+                            "Failed to purge environments for missing workspace",
+                            exc_info=True,
+                        )
                 await self._broadcast(
                     {
                         "type": "WORKSPACE_CHANGED",

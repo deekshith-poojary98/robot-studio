@@ -16,6 +16,10 @@ import 'app_toast.dart';
 
 enum _InlineEditKind { rename, newFile, newFolder }
 
+/// Shared [TapRegion.groupId] for the explorer tree and its header actions
+/// (New File / New Folder). Taps inside the group do not clear selection.
+const Object kExplorerFileTreeTapGroup = #explorerFileTree;
+
 class _InlineEdit {
   const _InlineEdit({
     required this.kind,
@@ -144,9 +148,10 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
     });
   }
 
-  void _clearMultiSelectionOnOutsideTap() {
-    // Keep a single-row highlight; only multi-select clears on outside click.
-    if (_selectedPaths.length <= 1) return;
+  void _clearSelectionOnBlankOrOutsideTap() {
+    // VS Code-style: blank explorer space / click outside the explorer chrome
+    // clears the create target so New File lands at the project root.
+    // The open editor path can still soft-highlight via [widget.selectedPath].
     _clearSelection();
   }
 
@@ -607,18 +612,20 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
           beginNewFile();
           return KeyEventResult.handled;
         }
-        if (key == LogicalKeyboardKey.escape && _selectedPaths.length > 1) {
-          _clearSelection();
-          return KeyEventResult.handled;
+        if (key == LogicalKeyboardKey.escape) {
+          if (_selectedPaths.isNotEmpty || _selectedPath != null) {
+            _clearSelection();
+            return KeyEventResult.handled;
+          }
         }
         return KeyEventResult.ignored;
       },
       child: TapRegion(
-        groupId: #explorerFileTree,
-        onTapOutside: (_) => _clearMultiSelectionOnOutsideTap(),
+        groupId: kExplorerFileTreeTapGroup,
+        onTapOutside: (_) => _clearSelectionOnBlankOrOutsideTap(),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: _clearMultiSelectionOnOutsideTap,
+          onTap: _clearSelectionOnBlankOrOutsideTap,
           child: _buildTreeBody(display),
         ),
       ),

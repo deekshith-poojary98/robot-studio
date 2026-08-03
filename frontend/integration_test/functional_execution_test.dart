@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:robot_studio/presentation/widgets/toolbar_button.dart';
@@ -205,14 +206,13 @@ Sleepy
 
     await tapSidebarPanel(tester, 'Tests');
     await pumpUntilFound(tester, find.text('Execution'));
-    await tester.tap(find.text('Run Project'));
-    await tester.pump(const Duration(milliseconds: 500));
-
-    await pumpUntilFound(
-      tester,
-      find.textContaining('Project needed'),
-      timeout: const Duration(seconds: 10),
-    );
+    // Launch controls live on the toolbar — gated until a project is open.
+    expect(find.widgetWithText(FilledButton, 'Run Project'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Run File'), findsNothing);
+    final runProject =
+        tester.widget<ToolbarButton>(toolbarButton('Run Project'));
+    expect(runProject.onTap, isNull);
+    expect(runProject.tooltip, 'Open a project to run');
 
     harness.expectNoFlutterErrors();
   });

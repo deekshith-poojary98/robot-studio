@@ -161,6 +161,25 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
     );
   }
 
+  // Pip install during Create Environment — must run before "no such file"
+  // path matchers (getcwd failures include Errno 2).
+  if (text.contains('failed to install robot framework') ||
+      (text.contains('failed to install') && text.contains('robotframework'))) {
+    final badCwd = _any(text, const [
+      'getcwd',
+      'no such file or directory',
+      'errno 2',
+    ]);
+    return FriendlyErrorCopy(
+      summary: 'Could not install Robot Framework into the new environment.',
+      recovery: badCwd
+          ? 'Pip could not read the working directory. Try Create Environment '
+              'again, or restart Robot Studio and retry.'
+          : 'Check your network connection and that the selected Python can '
+              'use pip, then try Create Environment again.',
+    );
+  }
+
   // Missing paths / projects (before generic "not found")
   if (_any(text, const [
         'path does not exist',
@@ -302,11 +321,21 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
     'package name is required',
     'protected package',
     'pip ',
+    'getcwd',
   ])) {
     if (text.contains('no python interpreter')) {
       return FriendlyErrorCopy(
         summary: PythonInstallGuidance.summary,
         recovery: PythonInstallGuidance.shortRecovery,
+      );
+    }
+    if (text.contains('getcwd') &&
+        (text.contains('pip') || text.contains('robot'))) {
+      return const FriendlyErrorCopy(
+        summary: 'Could not install packages into the environment.',
+        recovery:
+            'Pip could not read the working directory. Restart Robot Studio '
+            'and try again.',
       );
     }
     if (text.contains('activate an environment with robot') ||

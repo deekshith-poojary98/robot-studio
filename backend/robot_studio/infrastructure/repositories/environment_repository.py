@@ -147,6 +147,15 @@ class SqliteEnvironmentRepository(EnvironmentRepository):
             )
             await db.commit()
 
+    async def delete_by_workspace(self, workspace_id: UUID) -> int:
+        async with aiosqlite.connect(self._database_path) as db:
+            cursor = await db.execute(
+                "DELETE FROM environments WHERE workspace_id = ?",
+                (str(workspace_id),),
+            )
+            await db.commit()
+            return int(cursor.rowcount or 0)
+
     @staticmethod
     def _to_row(environment: Environment) -> tuple:
         return (

@@ -108,57 +108,61 @@ class WorkspaceExplorer extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 6, 4, 2),
-          child: Row(
-            children: [
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  headerName.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall,
+          child: TapRegion(
+            groupId: kExplorerFileTreeTapGroup,
+            child: Row(
+              children: [
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    headerName.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
                 ),
-              ),
-              if (!_isSingleProjectRoot) ...[
-                IconButton(
-                  tooltip: 'New Project',
-                  icon: const Icon(Icons.add, size: 15),
-                  onPressed: onNewProject,
-                  visualDensity: VisualDensity.compact,
-                ),
-                IconButton(
-                  tooltip: 'Import Project',
-                  icon: const Icon(Icons.file_download_outlined, size: 15),
-                  onPressed: onImportProject,
-                  visualDensity: VisualDensity.compact,
-                ),
+                if (!_isSingleProjectRoot) ...[
+                  IconButton(
+                    tooltip: 'New Project',
+                    icon: const Icon(Icons.add, size: 15),
+                    onPressed: onNewProject,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  IconButton(
+                    tooltip: 'Import Project',
+                    icon: const Icon(Icons.file_download_outlined, size: 15),
+                    onPressed: onImportProject,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+                if (onCreateEntry != null &&
+                    onOpenFile != null &&
+                    onToggleDirectory != null) ...[
+                  IconButton(
+                    key: const Key('explorer-new-file'),
+                    tooltip: 'New File',
+                    icon: const Icon(Icons.note_add_outlined, size: 15),
+                    onPressed: () => fileTreeKey?.currentState?.beginNewFile(),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  IconButton(
+                    key: const Key('explorer-new-folder'),
+                    tooltip: 'New Folder',
+                    icon: const Icon(Icons.create_new_folder_outlined, size: 15),
+                    onPressed: () =>
+                        fileTreeKey?.currentState?.beginNewFolder(),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  IconButton(
+                    key: const Key('explorer-collapse-all'),
+                    tooltip: 'Collapse All Folders',
+                    icon: const Icon(Icons.unfold_less, size: 15),
+                    onPressed: onCollapseAllFolders,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
               ],
-              if (onCreateEntry != null &&
-                  onOpenFile != null &&
-                  onToggleDirectory != null) ...[
-                IconButton(
-                  key: const Key('explorer-new-file'),
-                  tooltip: 'New File',
-                  icon: const Icon(Icons.note_add_outlined, size: 15),
-                  onPressed: () => fileTreeKey?.currentState?.beginNewFile(),
-                  visualDensity: VisualDensity.compact,
-                ),
-                IconButton(
-                  key: const Key('explorer-new-folder'),
-                  tooltip: 'New Folder',
-                  icon: const Icon(Icons.create_new_folder_outlined, size: 15),
-                  onPressed: () => fileTreeKey?.currentState?.beginNewFolder(),
-                  visualDensity: VisualDensity.compact,
-                ),
-                IconButton(
-                  key: const Key('explorer-collapse-all'),
-                  tooltip: 'Collapse All Folders',
-                  icon: const Icon(Icons.unfold_less, size: 15),
-                  onPressed: onCollapseAllFolders,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ],
-            ],
+            ),
           ),
         ),
         if (!_isSingleProjectRoot)

@@ -173,6 +173,7 @@ class Container:
             filesystem=env_fs,
             python=env_python,
         )
+        self.environment_service.start()
 
         self.package_service = PackageService(
             context=self.workspace_context,
@@ -274,6 +275,7 @@ class Container:
             context=self.workspace_context,
             event_bus=self.event_bus,
             watcher=watcher,
+            on_workspace_missing=self.environment_service.purge_workspace_environments,
         )
         self.workspace_event_service.start()
 
@@ -375,6 +377,8 @@ class Container:
             await self.git_service.stop()
         if self.workspace_event_service is not None:
             await self.workspace_event_service.stop()
+        if self.environment_service is not None:
+            self.environment_service.stop()
         if self.index_service is not None:
             await self.index_service.stop()
         if self.workspace_context is not None:

@@ -445,7 +445,7 @@ void main() {
     expect(copied, ['/tmp/a.robot', '/tmp/b.robot', '/tmp/c.robot']);
   });
 
-  testWidgets('clicking outside clears multi-selection', (tester) async {
+  testWidgets('clicking outside clears selection', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -499,4 +499,76 @@ void main() {
     await tester.pumpAndSettle();
     expect(deleted, ['/tmp/a.robot']);
   });
+
+  testWidgets(
+    'clearing folder selection makes New File land at project root',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      String? createdParent;
+      final key = GlobalKey<VirtualFileTreeState>();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Row(
+              children: [
+                SizedBox(
+                  width: 280,
+                  child: VirtualFileTree(
+                    key: key,
+                    rows: [_dir('empty', expanded: true), _file('root.robot')],
+                    rootPath: '/tmp',
+                    onOpenFile: (_) {},
+                    onToggleDirectory: (_) {},
+                    onEnsureExpanded: (_) async {},
+                    onCreateEntry:
+                        ({
+                          required parentPath,
+                          required name,
+                          required isDirectory,
+                        }) async {
+                          createdParent = parentPath;
+                        },
+                  ),
+                ),
+                const Expanded(
+                  child: ColoredBox(
+                    key: Key('outside-pane'),
+                    color: Colors.black,
+                    child: SizedBox.expand(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('empty'));
+      await tester.pump();
+
+      // Without clearing, New File would target the selected folder.
+      key.currentState!.beginNewFile();
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'inside');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(createdParent, '/tmp/empty');
+
+      createdParent = null;
+      await tester.tap(find.text('empty'));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('outside-pane')));
+      await tester.pumpAndSettle();
+
+      key.currentState!.beginNewFile();
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'at-root');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(createdParent, '/tmp');
+    },
+  );
 }

@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import venv
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,31 @@ from robot_studio.infrastructure.environment.filesystem import (
 )
 
 _VERSION_RE = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
+
+
+def stable_subprocess_cwd(preferred: Path | str | None = None) -> str:
+    """Return an existing directory safe to pass as subprocess ``cwd``.
+
+    Pip (and some other entry points) call ``os.getcwd()``. If this process's
+    cwd was deleted — e.g. a project folder removed while the backend was
+    still running — child pip processes crash with a confusing traceback.
+    """
+    candidates: list[Path] = []
+    if preferred is not None:
+        candidates.append(Path(preferred))
+    try:
+        candidates.append(Path.cwd())
+    except OSError:
+        pass
+    candidates.extend([Path.home(), Path(tempfile.gettempdir())])
+    for candidate in candidates:
+        try:
+            resolved = candidate.expanduser().resolve()
+            if resolved.is_dir() and os.access(resolved, os.R_OK | os.X_OK):
+                return str(resolved)
+        except OSError:
+            continue
+    return tempfile.gettempdir()
 
 
 @dataclass(frozen=True)
@@ -70,6 +96,7 @@ class PythonEnvironmentProvider:
             capture_output=True,
             text=True,
             check=False,
+            cwd=stable_subprocess_cwd(target_dir.parent),
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "venv creation failed").strip()
@@ -130,6 +157,7 @@ class PythonEnvironmentProvider:
             capture_output=True,
             text=True,
             check=False,
+            cwd=stable_subprocess_cwd(python_executable.parent),
         )
         if result.returncode != 0:
             return None
@@ -142,6 +170,7 @@ class PythonEnvironmentProvider:
             capture_output=True,
             text=True,
             check=False,
+            cwd=stable_subprocess_cwd(python_executable.parent),
         )
         if result.returncode != 0:
             return 0
@@ -163,6 +192,7 @@ class PythonEnvironmentProvider:
             capture_output=True,
             text=True,
             check=False,
+            cwd=stable_subprocess_cwd(python_executable.parent),
         )
         if result.returncode != 0:
             return platform.system().lower(), platform.machine()
@@ -183,11 +213,15 @@ class PythonEnvironmentProvider:
         )
 
     def install_robot_framework(self, python_executable: Path) -> None:
+        # Prefer the venv root (…/bin/../ or …/Scripts/../) so pip has a
+        # writable, existing cwd even when the backend's own cwd is gone.
+        preferred = python_executable.resolve().parent.parent
         result = subprocess.run(
             [str(python_executable), "-m", "pip", "install", "robotframework"],
             capture_output=True,
             text=True,
             check=False,
+            cwd=stable_subprocess_cwd(preferred),
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "pip install failed").strip()
@@ -201,6 +235,7 @@ class PythonEnvironmentProvider:
             capture_output=True,
             text=True,
             check=False,
+            cwd=stable_subprocess_cwd(python_executable.parent),
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "pip freeze failed").strip()
@@ -231,6 +266,7 @@ class PythonEnvironmentProvider:
             capture_output=True,
             text=True,
             check=False,
+            cwd=stable_subprocess_cwd(python_executable.resolve().parent.parent),
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "pip install -r failed").strip()
@@ -300,6 +336,7 @@ class PythonEnvironmentProvider:
                         text=True,
                         check=False,
                         timeout=3,
+                        cwd=stable_subprocess_cwd(),
                     )
                     if listed.returncode == 0:
                         for line in (listed.stdout or "").splitlines():
@@ -378,6 +415,7 @@ class PythonEnvironmentProvider:
                 text=True,
                 check=False,
                 timeout=2,
+                cwd=stable_subprocess_cwd(),
             )
         except (OSError, subprocess.TimeoutExpired):
             return None
@@ -394,6 +432,7 @@ class PythonEnvironmentProvider:
             capture_output=True,
             text=True,
             check=False,
+            cwd=stable_subprocess_cwd(),
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "command failed").strip()
