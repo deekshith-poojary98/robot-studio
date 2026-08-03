@@ -1,3 +1,4 @@
+import 'models/content_search_info.dart';
 import 'models/doctor_info.dart';
 import 'models/environment_info.dart';
 import 'models/file_info.dart';
@@ -12,6 +13,7 @@ import 'models/report_info.dart';
 import 'models/test_explorer_info.dart';
 import 'models/workspace_info.dart';
 
+export 'models/content_search_info.dart';
 export 'models/doctor_info.dart';
 export 'models/environment_info.dart';
 export 'models/execution_info.dart';
@@ -157,6 +159,12 @@ abstract class TransportGateway {
     String query = '',
     SymbolKind? kind,
     int limit = 100,
+  });
+
+  Future<ContentSearchResultInfo> searchContent({
+    String query = '',
+    int limit = 500,
+    int contextLines = 1,
   });
 
   Future<IndexedSymbolInfo?> languageDefinition({

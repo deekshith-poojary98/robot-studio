@@ -532,10 +532,11 @@ robot-studio/
 │       │   ├── models/
 │       │   └── interfaces/          # workspace, project, environment,
 │       │                            # installer, runner, language, indexing,
-│       │                            # git, plugins
+│       │                            # search (SearchProvider), git, plugins
 │       ├── application/
 │       │   └── services/            # workspace, project, file, environment,
 │       │                            # package, execution, index, language,
+│       │                            # content_search, symbol_search_provider,
 │       │                            # report, git, plugin, workspace_context,
 │       │                            # workspace_event_service, test_explorer
 │       ├── infrastructure/
@@ -556,7 +557,7 @@ robot-studio/
 │           ├── gateway.py           # RestGateway
 │           ├── routes/              # health, workspaces, workspace_events,
 │           │                        # projects, environments, packages,
-│           │                        # execution, reports, index/search,
+│           │                        # execution, reports, index, search,
 │           │                        # language, files, git, plugins, tests
 │           └── schemas/
 └── frontend/
@@ -647,7 +648,8 @@ Paths below are relative to `/api/v1`. Workspace context is typically **session-
 | GET | `/reports`, `/reports/dashboard`, `/reports/{id}` | reports |
 | POST | `/reports/{id}/open-log`, `open-report`, `open-xml`, `reveal` | reports |
 | POST/GET | `/index/rebuild`, `/index/status` | index |
-| GET | `/search` | search |
+| GET | `/search/symbols` | indexed symbol search (`SearchProvider`) |
+| GET | `/search/content` | plain-text Find in Files (`SearchProvider`; extensions from settings) |
 | GET/POST | `/analysis/snapshot`, `/rebuild` | analysis lifecycle + graph version |
 | GET/POST | `/analysis/inspections`, `/inspect`, `/inspect/{id}` | Inspection Engine → Finding[] |
 | GET/POST | `/analysis/graph/*` | callers, callees, dependency, affected-tests, variable-references, library-usage, keyword-usage-statistics |

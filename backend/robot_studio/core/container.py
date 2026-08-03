@@ -115,6 +115,9 @@ class Container:
     doctor_store: SqliteDoctorStore | None = field(default=None, init=False)
     doctor_service: DoctorService | None = field(default=None, init=False)
     index_service: IndexService | None = field(default=None, init=False)
+    content_search_service: object | None = field(default=None, init=False)
+    symbol_search_provider: object | None = field(default=None, init=False)
+    search_providers: list = field(default_factory=list, init=False)
     language_service: RobotLanguageService | None = field(default=None, init=False)
     language_facade: LanguageFacade | None = field(default=None, init=False)
     file_service: FileService | None = field(default=None, init=False)
@@ -244,6 +247,22 @@ class Container:
             project_repository=self.project_repository,
         )
         self.index_service.start()
+        from robot_studio.application.services.content_search_service import (
+            ContentSearchService,
+        )
+        from robot_studio.application.services.symbol_search_provider import (
+            IndexSymbolSearchProvider,
+        )
+
+        self.content_search_service = ContentSearchService(
+            context=self.workspace_context,
+            index_store=self.index_store,
+        )
+        self.symbol_search_provider = IndexSymbolSearchProvider(self.index_service)
+        self.search_providers = [
+            self.content_search_service,
+            self.symbol_search_provider,
+        ]
         self.analysis_service = AnalysisService(
             context=self.workspace_context,
             engine=self.analysis_engine,

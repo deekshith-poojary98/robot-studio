@@ -15,6 +15,7 @@ from robot_studio.api.routes import (
     projects,
     git,
     reports,
+    search,
     tests,
     workspace_events,
     workspaces,
@@ -31,7 +32,7 @@ api_router.include_router(execution.router)
 api_router.include_router(tests.router)
 api_router.include_router(reports.router)
 api_router.include_router(index.router)
-api_router.include_router(index.search_router)
+api_router.include_router(search.router)
 api_router.include_router(analysis.router)
 api_router.include_router(execution_knowledge.router)
 api_router.include_router(doctor.router)

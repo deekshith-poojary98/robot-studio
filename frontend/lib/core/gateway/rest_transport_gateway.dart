@@ -527,7 +527,7 @@ class RestTransportGateway implements TransportGateway {
     int limit = 100,
   }) async {
     final buffer = StringBuffer(
-      '/search?q=${Uri.encodeQueryComponent(query)}&limit=$limit',
+      '/search/symbols?q=${Uri.encodeQueryComponent(query)}&limit=$limit',
     );
     if (kind != null) {
       buffer.write('&kind=${Uri.encodeQueryComponent(kind.apiValue)}');
@@ -537,6 +537,19 @@ class RestTransportGateway implements TransportGateway {
     return items
         .map((item) => IndexedSymbolInfo.fromJson(item as Map<String, dynamic>))
         .toList();
+  }
+
+  @override
+  Future<ContentSearchResultInfo> searchContent({
+    String query = '',
+    int limit = 500,
+    int contextLines = 1,
+  }) async {
+    final response = await _get(
+      '/search/content?q=${Uri.encodeQueryComponent(query)}'
+      '&limit=$limit&context_lines=$contextLines',
+    );
+    return ContentSearchResultInfo.fromJson(response);
   }
 
   @override

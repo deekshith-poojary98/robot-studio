@@ -36,6 +36,8 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 | **Command palette** | ⌘⇧P / Ctrl+Shift+P (also ⌘P / Ctrl+P, ⌘K / Ctrl+K) for commands, recent files, project files, and symbols |
 | **Keyboard shortcuts** | VS Code–style chrome + editor chords (save, tabs, sidebar, terminal, find/replace, comment, move/copy/delete line, format, Problems) — see `frontend/README.md` |
 | **Indexing** | Background on open (incremental); mid-rebuild `INDEX_PROGRESS` / `ANALYSIS_PROGRESS` on the live workspace stream (status bar + soft overlay); full rebuild on demand; excludes `.venv` / `node_modules` / `.git` |
+| **Find in Files** | Left **Search** rail text search (`⌘⇧F` / Ctrl+Shift+F); editor stays mounted; matches decorated with enclosing test/keyword/variable when the index knows; extensions via `ROBOT_STUDIO_CONTENT_SEARCH_EXTENSIONS` |
+| **Symbols** | Indexed keyword/variable/file search (View → Symbols / palette); separate from Find in Files |
 | **Test Explorer** | Lazy suite tree (expand loads children), virtualized list; run test/suite/all/failed; confirm when estimated count exceeds threshold (default 100, `ROBOT_STUDIO_LARGE_RUN_THRESHOLD`); live filter + status |
 | **Execution** | Run file or project; large project/tag runs require explicit confirmation (backend 409 + UI); live WebSocket logs; stop; history; finish stays on current view with View Report toast |
 | **Robot Doctor** | Project health findings with Jump to source (Quick Fix hidden until real) || **Explorer file ops** | Multi-select (⌘/Ctrl / Shift), new file/folder (`.robot` files seeded with Settings/Variables/Test Cases/Keywords scaffold), inline rename (including case-only like `libs` → `Libs`), bulk delete, duplicate, copy path(s), reveal in OS, drag-move via live events |
@@ -174,6 +176,7 @@ Backend settings use the `ROBOT_STUDIO_` environment prefix (`backend/robot_stud
 | `ROBOT_STUDIO_DATA_DIR` | `~/.robot-studio` | SQLite DB, plugins, local data |
 | `ROBOT_STUDIO_DEBUG` | `false` | Debug mode |
 | `ROBOT_STUDIO_LARGE_RUN_THRESHOLD` | `100` | Ask for confirmation before project/tag runs that would execute more than this many tests |
+| `ROBOT_STUDIO_CONTENT_SEARCH_EXTENSIONS` | `.robot,.resource,.py,.yaml,.yml,.txt,.md,.json,.tsv,.csv` | File suffixes scanned by Find in Files |
 
 Database path: `{data_dir}/robot-studio.db`.
 
@@ -254,7 +257,8 @@ robot-studio/
 | `/execution` | Run, stop (idempotent), history (excludes aborted startups); `/execution/stream` WebSocket |
 | `/workspace/events` | Live FS / index / git / environment WebSocket fan-out |
 | `/reports` | Runs, dashboard, artifacts |
-| `/index`, `/search` | Rebuild, status, symbol search |
+| `/index` | Rebuild, status |
+| `/search/symbols`, `/search/content` | Indexed symbol search; plain-text Find in Files |
 | `/analysis` | Semantic engine + Inspection Engine (`Finding`s); graph queries under `/analysis/graph/*`; execution knowledge under `/analysis/execution/*` |
 | `/doctor` | Robot Doctor Project Health Center (`profiles`, `run`, `report/{id}`, `history`) |
 | `/language` | Definition, hover, references, completion, diagnostics |

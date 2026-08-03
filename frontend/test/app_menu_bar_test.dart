@@ -36,6 +36,7 @@ void main() {
       onShowProblems: () {},
       onShowExplorer: () {},
       onShowSearch: () {},
+      onShowSymbols: () {},
       onShowSourceControl: () {},
       onShowTests: () {},
       onShowReports: () {},

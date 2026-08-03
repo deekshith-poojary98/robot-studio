@@ -268,7 +268,6 @@ void main() {
     tester,
   ) async {
     for (final panel in [
-      SidebarPanel.search,
       SidebarPanel.packages,
       SidebarPanel.plugins,
       SidebarPanel.sourceControl,
@@ -277,6 +276,7 @@ void main() {
     }
     for (final panel in [
       SidebarPanel.explorer,
+      SidebarPanel.search,
       SidebarPanel.tests,
       SidebarPanel.reports,
     ]) {

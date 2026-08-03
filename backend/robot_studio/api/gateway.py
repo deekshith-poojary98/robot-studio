@@ -132,6 +132,13 @@ class RestGateway:
         return service
 
     @property
+    def _content_search_service(self):
+        service = self._container.content_search_service
+        if service is None:
+            raise RuntimeError("ContentSearchService is not initialized")
+        return service
+
+    @property
     def _language_service(self) -> LanguageFacade:
         service = self._container.language_facade
         if service is None:
@@ -526,6 +533,23 @@ class RestGateway:
         limit: int = 100,
     ) -> list[dict]:
         return await self._index_service.search(query, kind=kind, limit=limit)
+
+    async def search_content(
+        self,
+        query: str,
+        *,
+        limit: int = 500,
+        context_lines: int = 1,
+    ):
+        service = self._content_search_service
+        result = await service.search_content(
+            query,
+            limit=limit,
+            context_lines=context_lines,
+        )
+        project = self._container.workspace_context.project if self._container.workspace_context else None
+        project_id = project.id if project is not None else None
+        return await service.decorate_with_index(result, project_id=project_id)
 
     async def language_definition(
         self,

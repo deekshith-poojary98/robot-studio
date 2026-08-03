@@ -9,7 +9,7 @@ enum SidebarPanel {
   search(
     'Search',
     Icons.search,
-    'Search — find keywords, symbols, and files',
+    'Search — find text across the project',
   ),
   tests(
     'Tests',

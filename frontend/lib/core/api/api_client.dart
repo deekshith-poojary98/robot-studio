@@ -237,6 +237,17 @@ class ApiClient implements TransportGateway {
   }) => _gateway.searchSymbols(query: query, kind: kind, limit: limit);
 
   @override
+  Future<ContentSearchResultInfo> searchContent({
+    String query = '',
+    int limit = 500,
+    int contextLines = 1,
+  }) => _gateway.searchContent(
+        query: query,
+        limit: limit,
+        contextLines: contextLines,
+      );
+
+  @override
   Future<IndexedSymbolInfo?> languageDefinition({
     String? name,
     String? symbolId,

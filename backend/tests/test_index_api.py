@@ -69,19 +69,27 @@ async def test_index_search_language_api(api_client) -> None:
     assert status.status_code == 200
     assert status.json()["keywords_indexed"] >= 1
 
-    search = await client.get("/api/v1/search", params={"q": "Hello", "kind": "keyword"})
+    search = await client.get("/api/v1/search/symbols", params={"q": "Hello", "kind": "keyword"})
     assert search.status_code == 200
     names = [item["name"] for item in search.json()["results"]]
     assert "Hello World" in names
 
-    builtin = await client.get("/api/v1/search", params={"q": "Log", "kind": "keyword"})
+    builtin = await client.get("/api/v1/search/symbols", params={"q": "Log", "kind": "keyword"})
     assert builtin.status_code == 200
     builtin_names = [item["name"] for item in builtin.json()["results"]]
     assert "Log" in builtin_names
 
-    suites = await client.get("/api/v1/search", params={"q": "", "kind": "test_suite"})
+    suites = await client.get("/api/v1/search/symbols", params={"q": "", "kind": "test_suite"})
     assert suites.status_code == 200
     assert len(suites.json()["results"]) >= 1
+
+    content = await client.get(
+        "/api/v1/search/content",
+        params={"q": "Hello World", "limit": 50},
+    )
+    assert content.status_code == 200
+    assert content.json()["files_scanned"] >= 1
+    assert len(content.json()["files"]) >= 1
 
     definition = await client.get(
         "/api/v1/language/definition",

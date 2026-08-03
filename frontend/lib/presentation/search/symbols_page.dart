@@ -7,8 +7,8 @@ import '../widgets/skeleton_list.dart';
 import '../widgets/status_badge.dart';
 import 'index_status_card.dart';
 
-class SearchPage extends StatelessWidget {
-  const SearchPage({
+class SymbolsPage extends StatelessWidget {
+  const SymbolsPage({
     super.key,
     required this.query,
     required this.kind,
@@ -66,7 +66,7 @@ class SearchPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Search',
+                  'Symbols',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontSize: 18,
                       ),

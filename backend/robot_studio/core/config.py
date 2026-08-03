@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     debug: bool = False
     # Confirm before starting runs that match more than this many tests.
     large_run_threshold: int = 100
+    # Comma-separated suffixes for Find in Files (plain-text content search).
+    content_search_extensions: str = (
+        ".robot,.resource,.py,.yaml,.yml,.txt,.md,.json,.tsv,.csv"
+    )
+    content_search_max_file_bytes: int = 2_000_000
+    content_search_max_matches: int = 500
+    content_search_context_lines: int = 1
 
     @field_validator("data_dir", mode="before")
     @classmethod

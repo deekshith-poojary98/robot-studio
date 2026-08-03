@@ -19,7 +19,7 @@ import 'package:robot_studio/presentation/reports/delete_run_dialog.dart';
 import 'package:robot_studio/presentation/reports/reports_page.dart';
 import 'package:robot_studio/presentation/reports/run_details_panel.dart';
 import 'package:robot_studio/presentation/search/index_status_card.dart';
-import 'package:robot_studio/presentation/search/search_page.dart';
+import 'package:robot_studio/presentation/search/symbols_page.dart';
 import 'package:robot_studio/presentation/shell/app_shell.dart';
 import 'package:robot_studio/presentation/toolbar/app_toolbar.dart';
 import 'package:robot_studio/presentation/widgets/toolbar_button.dart';
@@ -1124,14 +1124,14 @@ void main() {
     expect(find.textContaining('Average'), findsWidgets);
   });
 
-  testWidgets('Search page shows empty state', (WidgetTester tester) async {
+  testWidgets('Symbols page shows empty state', (WidgetTester tester) async {
     await tester.binding.setSurfaceSize(const Size(1280, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: SearchPage(
+          body: SymbolsPage(
             query: '',
             kind: null,
             results: const [],
@@ -1152,12 +1152,13 @@ void main() {
     );
     await tester.pump();
 
+    expect(find.text('Symbols'), findsOneWidget);
     expect(find.text('Search symbols…'), findsOneWidget);
     expect(find.text('Index Status'), findsOneWidget);
     expect(find.text('No symbols found'), findsOneWidget);
   });
 
-  testWidgets('Search page shows results and detail actions', (
+  testWidgets('Symbols page shows results and detail actions', (
     WidgetTester tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1280, 800));
@@ -1178,7 +1179,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: SearchPage(
+          body: SymbolsPage(
             query: 'login',
             kind: SymbolKind.keyword,
             results: const [symbol],
@@ -2111,6 +2112,45 @@ class _FakeTransportGateway implements TransportGateway {
     if (query.isEmpty) return const [];
     if (kind != null && kind != SymbolKind.keyword) return const [];
     return const [_sampleSymbol];
+  }
+
+  @override
+  Future<ContentSearchResultInfo> searchContent({
+    String query = '',
+    int limit = 500,
+    int contextLines = 1,
+  }) async {
+    if (query.isEmpty) {
+      return const ContentSearchResultInfo(
+        query: '',
+        truncated: false,
+        filesScanned: 0,
+        files: [],
+      );
+    }
+    return ContentSearchResultInfo(
+      query: query,
+      truncated: false,
+      filesScanned: 1,
+      files: [
+        ContentFileHitsInfo(
+          path: 'tests/login.robot',
+          matchCount: 1,
+          matches: [
+            ContentMatchInfo(
+              line: 8,
+              column: 1,
+              text: '    Login With Credentials    \${USER}    \${PASS}',
+              enclosing: const EnclosingSymbolInfo(
+                kind: 'test_case',
+                name: 'Valid Login',
+                line: 5,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   @override

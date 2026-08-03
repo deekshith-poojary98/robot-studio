@@ -34,6 +34,7 @@ class AppMenuBarActions {
     required this.onShowProblems,
     required this.onShowExplorer,
     required this.onShowSearch,
+    required this.onShowSymbols,
     required this.onShowSourceControl,
     required this.onShowTests,
     required this.onShowReports,
@@ -77,6 +78,7 @@ class AppMenuBarActions {
   final VoidCallback onShowProblems;
   final VoidCallback onShowExplorer;
   final VoidCallback onShowSearch;
+  final VoidCallback onShowSymbols;
   final VoidCallback onShowSourceControl;
   final VoidCallback onShowTests;
   final VoidCallback onShowReports;
@@ -290,6 +292,10 @@ class RobotStudioMenuBar extends StatelessWidget {
                 PlatformMenuItem(
                   label: 'Search',
                   onSelected: a.hasWorkspace ? a.onShowSearch : null,
+                ),
+                PlatformMenuItem(
+                  label: 'Symbols',
+                  onSelected: a.hasWorkspace ? a.onShowSymbols : null,
                 ),
                 PlatformMenuItem(
                   label: 'Source Control',

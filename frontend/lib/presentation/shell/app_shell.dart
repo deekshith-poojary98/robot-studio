@@ -37,7 +37,7 @@ import '../doctor/doctor_page.dart';
 import '../reports/delete_run_dialog.dart';
 import '../reports/reports_page.dart';
 import '../search/command_palette.dart';
-import '../search/search_page.dart';
+import '../search/symbols_page.dart';
 import '../sidebar/app_sidebar.dart';
 import '../sidebar/sidebar_panel.dart';
 import '../toolbar/app_toolbar.dart';
@@ -71,7 +71,7 @@ enum _CenterView {
   execution,
   reports,
   doctor,
-  search,
+  symbols,
   editor,
 }
 
@@ -170,7 +170,7 @@ class _AppShellState extends State<AppShell> {
   String? _navigationMessage;
   IndexStatusInfo? _indexStatus;
   bool _loadingIndexStatus = false;
-  bool _showSearchPage = false;
+  bool _showSymbolsPage = false;
   String? _selectedSuitePath;
   bool _showEditorPage = false;
   HoverInfo? _editorHover;
@@ -528,7 +528,7 @@ class _AppShellState extends State<AppShell> {
       _showDoctorPage = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
-      _showSearchPage = false;
+      _showSymbolsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -642,7 +642,7 @@ class _AppShellState extends State<AppShell> {
       _showPluginManager = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
-      _showSearchPage = false;
+      _showSymbolsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -863,7 +863,7 @@ class _AppShellState extends State<AppShell> {
       _showPluginManager = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
-      _showSearchPage = false;
+      _showSymbolsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -890,7 +890,7 @@ class _AppShellState extends State<AppShell> {
       _showPluginManager = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
-      _showSearchPage = false;
+      _showSymbolsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -909,7 +909,7 @@ class _AppShellState extends State<AppShell> {
       _showPluginManager = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
-      _showSearchPage = false;
+      _showSymbolsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -1467,7 +1467,7 @@ class _AppShellState extends State<AppShell> {
       _showPackageManager = false;
       _showReportsPage = false;
       _showDoctorPage = false;
-      _showSearchPage = false;
+      _showSymbolsPage = false;
       _execution.selectedReport = null;
       _execution.reportRuns = [];
       _execution.reportsDashboard = null;
@@ -1847,15 +1847,18 @@ class _AppShellState extends State<AppShell> {
   void _openProjectSearch() {
     setState(() {
       _activePanel = SidebarPanel.search;
-      _showSearchPage = true;
+      _sidePanelCollapsed = false;
+      _showSymbolsPage = false;
       _clearExecutionPageUnlessTests();
-      _showEditorPage = false;
       _showReportsPage = false;
       _showDoctorPage = false;
       _showSourceControl = false;
       _showPluginManager = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
+      if (_editorTabs.isNotEmpty && _activeEditorPath != null) {
+        _showEditorPage = true;
+      }
     });
   }
 
@@ -1903,7 +1906,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _showEnvironmentManager = true;
       _showPackageManager = false;
-      _showSearchPage = false;
+      _showSymbolsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -1925,7 +1928,7 @@ class _AppShellState extends State<AppShell> {
       _showReportsPage = false;
       _showDoctorPage = false;
       _showEnvironmentManager = false;
-      _showSearchPage = false;
+      _showSymbolsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -2534,6 +2537,7 @@ class _AppShellState extends State<AppShell> {
       setState(() {
         _editor.activePath = path;
         _showEditorPage = true;
+        _showSymbolsPage = false;
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
@@ -2563,6 +2567,7 @@ class _AppShellState extends State<AppShell> {
         ];
         _editor.activePath = file.path;
         _showEditorPage = true;
+        _showSymbolsPage = false;
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
@@ -2943,7 +2948,7 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _handleLiveIndexUpdated(WorkspaceStreamEvent event) async {
     await _loadIndexStatus();
-    if (_showSearchPage && _searchQuery.trim().isNotEmpty) {
+    if (_showSymbolsPage && _searchQuery.trim().isNotEmpty) {
       await _runSearch();
     }
     final active = _activeEditorPath;
@@ -3065,7 +3070,7 @@ class _AppShellState extends State<AppShell> {
       _showPackageManager = false;
       _showReportsPage = false;
       _showDoctorPage = false;
-      _showSearchPage = false;
+      _showSymbolsPage = false;
       _showEditorPage = false;
       _showSourceControl = false;
       _showPluginManager = false;
@@ -3313,8 +3318,6 @@ class _AppShellState extends State<AppShell> {
       _sidePanelCollapsed = false;
       if (panel == SidebarPanel.tests) {
         _showExecutionPage = true;
-      } else if (panel == SidebarPanel.search) {
-        _showSearchPage = true;
       } else if (panel == SidebarPanel.sourceControl) {
         _showSourceControl = true;
         unawaited(_refreshGit());
@@ -3325,15 +3328,19 @@ class _AppShellState extends State<AppShell> {
       } else if (panel == SidebarPanel.doctor) {
         _showDoctorPage = true;
         _showReportsPage = false;
-      } else if (panel == SidebarPanel.explorer) {
+      } else if (panel == SidebarPanel.explorer ||
+          panel == SidebarPanel.search) {
         _showExecutionPage = false;
-        _showSearchPage = false;
+        _showSymbolsPage = false;
         _showSourceControl = false;
         _showReportsPage = false;
         _showDoctorPage = false;
         _showPackageManager = false;
         _showPluginManager = false;
         _showEnvironmentManager = false;
+        if (_editorTabs.isNotEmpty && _activeEditorPath != null) {
+          _showEditorPage = true;
+        }
       }
     });
   }
@@ -3848,18 +3855,19 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Future<void> _openSearchPanel({SymbolKind? kind}) async {
+  Future<void> _openSymbolsPage({SymbolKind? kind}) async {
     if (!await _ensureWorkspace(
       message: 'Open a project before searching symbols.',
     )) {
       return;
     }
     setState(() {
-      _activePanel = SidebarPanel.search;
-      _showSearchPage = true;
+      _showSymbolsPage = true;
       _showEditorPage = false;
       _showEnvironmentManager = false;
       _showPackageManager = false;
+      _showPluginManager = false;
+      _showSourceControl = false;
       _showReportsPage = false;
       _showDoctorPage = false;
       _showExecutionPage = false;
@@ -3989,11 +3997,11 @@ class _AppShellState extends State<AppShell> {
         ),
         PaletteItem(
           id: 'search.symbols',
-          title: 'Search Symbols',
-          subtitle: 'Open the full search page',
-          icon: Icons.search,
+          title: 'Symbols',
+          subtitle: 'Search indexed keywords, variables, and files',
+          icon: Icons.code,
           kind: PaletteItemKind.command,
-          onSelect: () => unawaited(_openSearchPanel()),
+          onSelect: () => unawaited(_openSymbolsPage()),
         ),
         PaletteItem(
           id: 'index.rebuild',
@@ -4152,7 +4160,7 @@ class _AppShellState extends State<AppShell> {
         ),
         PaletteItem(
           id: 'view.search',
-          title: 'Search in Project',
+          title: 'Find in Project',
           subtitle: ShellShortcutActivators.label('⌘⇧F', 'Ctrl+Shift+F'),
           icon: Icons.search,
           kind: PaletteItemKind.command,
@@ -4431,8 +4439,8 @@ class _AppShellState extends State<AppShell> {
     if (_showExecutionPage || _activePanel == SidebarPanel.tests) {
       return _CenterView.execution;
     }
-    if (_showSearchPage || _activePanel == SidebarPanel.search) {
-      return _CenterView.search;
+    if (_showSymbolsPage) {
+      return _CenterView.symbols;
     }
     if (_showEditorPage &&
         _editorTabs.isNotEmpty &&
@@ -4496,6 +4504,7 @@ class _AppShellState extends State<AppShell> {
         onShowProblems: _revealProblemsPanel,
         onShowExplorer: () => _showSidebarPanel(SidebarPanel.explorer),
         onShowSearch: () => _showSidebarPanel(SidebarPanel.search),
+        onShowSymbols: () => unawaited(_openSymbolsPage()),
         onShowSourceControl: () => unawaited(_handleOpenSourceControl()),
         onShowTests: () => unawaited(_revealTests()),
         onShowReports: () => unawaited(_openReports()),
@@ -4680,8 +4689,7 @@ class _AppShellState extends State<AppShell> {
                                     _showExecutionPage = false;
                                   }
                                   if (panel == SidebarPanel.search) {
-                                    _showSearchPage = true;
-                                    _showEditorPage = false;
+                                    _showSymbolsPage = false;
                                     _showEnvironmentManager = false;
                                     _showPackageManager = false;
                                     _showPluginManager = false;
@@ -4691,22 +4699,27 @@ class _AppShellState extends State<AppShell> {
                                     _selectedEnvironment = null;
                                     _selectedPackage = null;
                                     _execution.selectedReport = null;
+                                    if (_editorTabs.isNotEmpty &&
+                                        _activeEditorPath != null) {
+                                      _showEditorPage = true;
+                                    }
+                                  } else if (panel == SidebarPanel.explorer) {
+                                    _showSymbolsPage = false;
+                                    _showEnvironmentManager = false;
+                                    _showPackageManager = false;
+                                    _showPluginManager = false;
+                                    _showSourceControl = false;
+                                    _showReportsPage = false;
+                                    _showDoctorPage = false;
+                                    _selectedPackage = null;
+                                    _execution.selectedReport = null;
+                                    if (_editorTabs.isNotEmpty &&
+                                        _activeEditorPath != null) {
+                                      _showEditorPage = true;
+                                    }
                                   } else {
-                                    _showSearchPage = false;
-                                    if (panel == SidebarPanel.explorer) {
-                                      _showEnvironmentManager = false;
-                                      _showPackageManager = false;
-                                      _showPluginManager = false;
-                                      _showSourceControl = false;
-                                      _showReportsPage = false;
-                                      _showDoctorPage = false;
-                                      _selectedPackage = null;
-                                      _execution.selectedReport = null;
-                                      if (_editorTabs.isNotEmpty &&
-                                          _activeEditorPath != null) {
-                                        _showEditorPage = true;
-                                      }
-                                    } else if (panel == SidebarPanel.packages ||
+                                    _showSymbolsPage = false;
+                                    if (panel == SidebarPanel.packages ||
                                         panel == SidebarPanel.plugins ||
                                         panel == SidebarPanel.reports ||
                                         panel == SidebarPanel.doctor ||
@@ -4729,9 +4742,6 @@ class _AppShellState extends State<AppShell> {
                                 } else if (panel == SidebarPanel.tests) {
                                   _loadExecutionHistory();
                                   _loadTestSuites();
-                                } else if (panel == SidebarPanel.search) {
-                                  _loadIndexStatus();
-                                  unawaited(_runSearch());
                                 }
                               },
                             ),
@@ -4807,8 +4817,22 @@ class _AppShellState extends State<AppShell> {
                                     _editor.selectedOutlineSymbol = symbol;
                                     _editor.jumpToLine = symbol.line;
                                     _showEditorPage = true;
+                                    _showSymbolsPage = false;
                                   });
                                 },
+                                onContentSearch: (query) =>
+                                    _gateway.searchContent(query: query),
+                                onOpenContentMatch: (path, line, column) {
+                                  unawaited(
+                                    _openFile(
+                                      path,
+                                      line: line,
+                                      column: column,
+                                    ),
+                                  );
+                                },
+                                onOpenSymbols: () =>
+                                    unawaited(_openSymbolsPage()),
                               ),
                             if (SidePanel.hasSideContent(_activePanel) &&
                                 !_sidePanelCollapsed)
@@ -5107,7 +5131,7 @@ class _AppShellState extends State<AppShell> {
           unawaited(_openFile(path, line: line, column: column));
         },
       ),
-      _CenterView.search => SearchPage(
+      _CenterView.symbols => SymbolsPage(
         query: _searchQuery,
         kind: _searchKind,
         results: _searchResults,

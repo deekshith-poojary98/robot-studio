@@ -287,7 +287,7 @@ class IntegrationApiClient {
     int limit = 100,
   }) async {
     final buffer = StringBuffer(
-      '/search?q=${Uri.encodeQueryComponent(query)}&limit=$limit',
+      '/search/symbols?q=${Uri.encodeQueryComponent(query)}&limit=$limit',
     );
     if (kind != null) {
       buffer.write('&kind=${Uri.encodeQueryComponent(kind)}');

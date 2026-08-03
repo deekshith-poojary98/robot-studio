@@ -8,6 +8,7 @@ import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/test_explorer_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../search/find_in_files_panel.dart';
 import '../sidebar/sidebar_panel.dart';
 import '../tests/test_explorer_panel.dart';
 import '../widgets/empty_state.dart';
@@ -15,6 +16,7 @@ import '../widgets/explorer_tree.dart';
 import '../widgets/panel_header.dart';
 import '../widgets/virtual_file_tree.dart';
 import '../workspace/workspace_explorer.dart';
+import '../../core/gateway/models/content_search_info.dart';
 
 class SidePanel extends StatelessWidget {
   const SidePanel({
@@ -67,6 +69,9 @@ class SidePanel extends StatelessWidget {
     this.isLoadingOutline = false,
     this.selectedOutlineId,
     this.onOutlineSelect,
+    this.onContentSearch,
+    this.onOpenContentMatch,
+    this.onOpenSymbols,
   });
 
   final SidebarPanel panel;
@@ -127,6 +132,9 @@ class SidePanel extends StatelessWidget {
   final bool isLoadingOutline;
   final String? selectedOutlineId;
   final ValueChanged<IndexedSymbolInfo>? onOutlineSelect;
+  final Future<ContentSearchResultInfo> Function(String query)? onContentSearch;
+  final void Function(String path, int line, int column)? onOpenContentMatch;
+  final VoidCallback? onOpenSymbols;
 
   /// Default / min / max widths for the resizable side content column.
   static const double defaultWidth = 280;
@@ -138,7 +146,8 @@ class SidePanel extends StatelessWidget {
   static bool hasSideContent(SidebarPanel panel) {
     return panel == SidebarPanel.explorer ||
         panel == SidebarPanel.tests ||
-        panel == SidebarPanel.reports;
+        panel == SidebarPanel.reports ||
+        panel == SidebarPanel.search;
   }
 
   @override
@@ -151,7 +160,9 @@ class SidePanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            PanelHeader(title: panel.label),
+            PanelHeader(
+              title: panel == SidebarPanel.search ? 'Find in Files' : panel.label,
+            ),
             Expanded(child: _buildBody(context)),
           ],
         ),
@@ -272,6 +283,21 @@ class SidePanel extends StatelessWidget {
         onRevealInExplorer: onRevealTestNode,
         onExpandNode: onExpandTestNode,
         currentFilePath: currentEditorPath,
+      );
+    }
+
+    if (panel == SidebarPanel.search) {
+      return FindInFilesPanel(
+        hasProject: workspace != null,
+        onSearch: onContentSearch ??
+            ((_) async => const ContentSearchResultInfo(
+                  query: '',
+                  truncated: false,
+                  filesScanned: 0,
+                  files: [],
+                )),
+        onOpenMatch: onOpenContentMatch ?? (path, line, column) {},
+        onOpenSymbols: onOpenSymbols,
       );
     }
 
