@@ -526,6 +526,16 @@ class ApiClient implements TransportGateway {
   @override
   Future<List<FileTreeNode>> listFileTree({String? path, int depth = 0}) =>
       _gateway.listFileTree(path: path, depth: depth);
+
+  @override
+  Future<AppSettings> getSettings() => _gateway.getSettings();
+
+  @override
+  Future<AppSettings> updateSettings(Map<String, dynamic> patch) =>
+      _gateway.updateSettings(patch);
+
+  @override
+  Future<AppSettings> resetSettings() => _gateway.resetSettings();
 }
 
 /// Backward-compatible alias for [GatewayException].

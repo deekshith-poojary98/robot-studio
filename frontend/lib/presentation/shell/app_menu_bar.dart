@@ -27,6 +27,7 @@ class AppMenuBarActions {
     required this.onFormatDocument,
     required this.onFormatSelection,
     required this.onToggleWordWrap,
+    required this.onPreferences,
     required this.onCommandPalette,
     required this.onQuickOpen,
     required this.onToggleSidebar,
@@ -72,6 +73,7 @@ class AppMenuBarActions {
   final VoidCallback onFormatDocument;
   final VoidCallback onFormatSelection;
   final VoidCallback onToggleWordWrap;
+  final VoidCallback onPreferences;
   final VoidCallback onCommandPalette;
   final VoidCallback onQuickOpen;
   final VoidCallback onToggleSidebar;
@@ -189,6 +191,15 @@ class RobotStudioMenuBar extends StatelessWidget {
                   label: 'Save All',
                   shortcut: _mod(LogicalKeyboardKey.keyS, shift: true),
                   onSelected: a.hasOpenTabs ? a.onSaveAll : null,
+                ),
+              ],
+            ),
+            PlatformMenuItemGroup(
+              members: [
+                PlatformMenuItem(
+                  label: 'Preferences…',
+                  shortcut: _mod(LogicalKeyboardKey.comma),
+                  onSelected: a.onPreferences,
                 ),
               ],
             ),

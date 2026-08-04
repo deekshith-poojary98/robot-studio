@@ -39,6 +39,9 @@ class EditorPage extends StatefulWidget {
     this.jumpToColumn,
     this.onCompletionAccepted,
     this.foldingRanges = const [],
+    this.fontSize = 13,
+    this.fontFamily = 'Menlo',
+    this.tabWidth = 4,
   });
 
   final List<EditorTabInfo> tabs;
@@ -71,6 +74,9 @@ class EditorPage extends StatefulWidget {
   final int? jumpToColumn;
   final ValueChanged<CompletionItemInfo>? onCompletionAccepted;
   final List<FoldingRangeInfo> foldingRanges;
+  final double fontSize;
+  final String fontFamily;
+  final int tabWidth;
 
   @override
   State<EditorPage> createState() => EditorPageState();
@@ -179,6 +185,9 @@ class EditorPageState extends State<EditorPage> {
                           onCursorChanged: widget.onCursorChanged,
                           onCompletionAccepted: widget.onCompletionAccepted,
                           foldingRanges: widget.foldingRanges,
+                          fontSize: widget.fontSize,
+                          fontFamily: widget.fontFamily,
+                          tabWidth: widget.tabWidth,
                         ),
                       ),
                       if (widget.hover != null || widget.references.isNotEmpty)

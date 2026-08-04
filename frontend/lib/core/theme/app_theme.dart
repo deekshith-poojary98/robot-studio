@@ -251,3 +251,36 @@ ThemeData buildAppTheme() {
     ),
   );
 }
+
+/// Minimal light theme for Appearance → Light / System.
+ThemeData buildLightAppTheme() {
+  final base = buildAppTheme();
+  return base.copyWith(
+    brightness: Brightness.light,
+    scaffoldBackgroundColor: const Color(0xFFECECEF),
+    colorScheme: const ColorScheme.light(
+      brightness: Brightness.light,
+      primary: AppColors.accent,
+      onPrimary: Color(0xFFE8F2F2),
+      secondary: AppColors.accentMuted,
+      onSecondary: Colors.white,
+      surface: Color(0xFFF4F4F6),
+      onSurface: Color(0xFF1A1A1F),
+      error: AppColors.error,
+      onError: Colors.white,
+      outline: Color(0xFFD0D0D6),
+    ),
+  );
+}
+
+ThemeData resolveAppTheme({
+  required String preference,
+  required Brightness platformBrightness,
+}) {
+  final mode = preference.toLowerCase();
+  if (mode == 'light') return buildLightAppTheme();
+  if (mode == 'system' && platformBrightness == Brightness.light) {
+    return buildLightAppTheme();
+  }
+  return buildAppTheme();
+}

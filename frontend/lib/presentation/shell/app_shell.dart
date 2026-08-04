@@ -9,7 +9,9 @@ import '../../core/gateway/models/workspace_event_info.dart';
 import '../../core/gateway/rest_transport_gateway.dart';
 import '../../core/gateway/transport_gateway.dart';
 import '../../core/logging/app_logger.dart';
+import '../../core/settings/app_settings_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../preferences/preferences_dialog.dart';
 import '../environment/clone_environment_dialog.dart';
 import '../environment/create_environment_dialog.dart';
 import '../environment/delete_environment_dialog.dart';
@@ -94,10 +96,12 @@ class _AppShellState extends State<AppShell> {
   SidebarPanel _activePanel = SidebarPanel.explorer;
 
   late final TransportGateway _gateway;
+  late final AppSettingsController _settings;
   late final WorkspaceShellController _workspace;
   late final ExecutionShellController _execution;
   late final EditorShellController _editor;
   late final WorkspaceLiveController _live;
+  Timer? _autoSaveTimer;
   String? _liveNotification;
   String? _progressOverlay;
   bool _missingProjectDialogOpen = false;
@@ -244,6 +248,8 @@ class _AppShellState extends State<AppShell> {
       if (mounted) setState(() {});
     });
     _gateway = widget._gateway ?? RestTransportGateway();
+    _settings = AppSettingsController(gateway: _gateway);
+    _settings.addListener(_onSettingsChanged);
     _workspace = WorkspaceShellController(
       gateway: _gateway,
       notify: _notify,
@@ -305,12 +311,25 @@ class _AppShellState extends State<AppShell> {
       },
     );
     AppLogger.info('AppShell init', tag: 'Shell');
+    unawaited(_settings.load());
     _bootstrap();
+  }
+
+  void _onSettingsChanged() {
+    if (!mounted) return;
+    final wrap = _settings.editor.wordWrap;
+    if (_editor.wordWrap != wrap) {
+      _editor.wordWrap = wrap;
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
     AppLogger.debug('AppShell dispose', tag: 'Shell');
+    _autoSaveTimer?.cancel();
+    _settings.removeListener(_onSettingsChanged);
+    _settings.dispose();
     _testFilterDebounce?.cancel();
     _gitCommitController.dispose();
     _live.dispose();
@@ -1050,6 +1069,9 @@ class _AppShellState extends State<AppShell> {
       return;
     }
 
+    await _maybeSaveBeforeRun();
+    if (!mounted) return;
+
     setState(() {
       _selectedSuitePath = suite;
       _revealExecutionCenter();
@@ -1094,6 +1116,9 @@ class _AppShellState extends State<AppShell> {
       return;
     }
 
+    await _maybeSaveBeforeRun();
+    if (!mounted) return;
+
     setState(() {
       _revealExecutionCenter();
     });
@@ -1125,6 +1150,29 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleStopExecution() async {
+    if (_settings.execution.stopConfirmation) {
+      final running = _execution.executionStatus.isActive;
+      if (running) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Stop execution?'),
+            content: const Text('Stop the current Robot Framework run?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Stop'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+      }
+    }
     try {
       final run = await _gateway.stopExecution();
       if (!mounted) return;
@@ -1292,6 +1340,7 @@ class _AppShellState extends State<AppShell> {
   /// Bring the Execution monitor to the front (Run / Tests), keeping tabs mounted.
   void _revealExecutionCenter() {
     _execution.prepareNewRun();
+    if (!_settings.execution.revealExecutionOnRun) return;
     _showExecutionPage = true;
     _showEditorPage = false;
     _showSymbolsPage = false;
@@ -1301,6 +1350,13 @@ class _AppShellState extends State<AppShell> {
     _showPackageManager = false;
     _showPluginManager = false;
     _showEnvironmentManager = false;
+  }
+
+  Future<void> _maybeSaveBeforeRun() async {
+    if (!_settings.editor.saveBeforeRun) return;
+    final dirty = _editor.tabs.any((tab) => tab.isDirty);
+    if (!dirty) return;
+    await _saveAll();
   }
 
   static const int _defaultLargeRunThreshold = 100;
@@ -2268,7 +2324,17 @@ class _AppShellState extends State<AppShell> {
         ? _executionHistory.first
         : _currentExecution;
     if (latest != null) {
-      _offerViewReportToast(latest);
+      final failed = latest.status == ExecutionStatus.failed ||
+          latest.status == ExecutionStatus.aborted ||
+          latest.status == ExecutionStatus.cancelled ||
+          (latest.failed ?? 0) > 0 ||
+          ((latest.exitCode ?? 0) != 0 &&
+              latest.status == ExecutionStatus.finished);
+      if (failed && _settings.execution.autoOpenReportOnFailure) {
+        unawaited(_selectReport(latest));
+      } else {
+        _offerViewReportToast(latest);
+      }
       unawaited(_execution.loadFailedTests(latest.id));
     }
     await _suggestMissingLibraryInstall();
@@ -3184,8 +3250,19 @@ class _AppShellState extends State<AppShell> {
     await _loadRecent();
   }
 
-  void _onContentChanged(String path, String content) =>
-      _editor.onContentChanged(path, content);
+  void _onContentChanged(String path, String content) {
+    _editor.onContentChanged(path, content);
+    _scheduleAutoSave();
+  }
+
+  void _scheduleAutoSave() {
+    _autoSaveTimer?.cancel();
+    if (!_settings.editor.autoSave) return;
+    _autoSaveTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      unawaited(_saveAll());
+    });
+  }
 
   void _scheduleLanguageRefresh() => _editor.scheduleLanguageRefresh();
 
@@ -4039,6 +4116,23 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  Future<void> _openPreferences() async {
+    if (!mounted) return;
+    await showPreferencesDialog(context, controller: _settings);
+  }
+
+  Future<void> _toggleWordWrap() async {
+    final next = !_editor.wordWrap;
+    setState(() => _editor.wordWrap = next);
+    try {
+      await _settings.patch({
+        'editor': {'word_wrap': next},
+      });
+    } catch (_) {
+      // Local toggle still applied; persistence best-effort.
+    }
+  }
+
   List<PaletteItem> _paletteCommands() {
     final hasWorkspace = _activeWorkspace != null;
     final hasProject = _selectedProject != null;
@@ -4246,7 +4340,14 @@ class _AppShellState extends State<AppShell> {
           title: _wordWrap ? 'Disable Word Wrap' : 'Enable Word Wrap',
           icon: Icons.wrap_text,
           kind: PaletteItemKind.command,
-          onSelect: () => setState(() => _editor.wordWrap = !_editor.wordWrap),
+          onSelect: () => unawaited(_toggleWordWrap()),
+        ),
+        PaletteItem(
+          id: 'preferences.open',
+          title: 'Preferences…',
+          icon: Icons.settings_outlined,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_openPreferences()),
         ),
         PaletteItem(
           id: 'editor.definition',
@@ -4631,8 +4732,14 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final connected = _workspace.backendStatus == 'connected';
     final activeEnvironment = _activeEnvironment;
+    final theme = resolveAppTheme(
+      preference: _settings.appearance.theme.apiValue,
+      platformBrightness: MediaQuery.platformBrightnessOf(context),
+    );
 
-    return RobotStudioMenuBar(
+    return Theme(
+      data: theme,
+      child: RobotStudioMenuBar(
       actions: AppMenuBarActions(
         hasActiveFile: _activeEditorPath != null,
         hasOpenTabs: _editorTabs.isNotEmpty,
@@ -4653,8 +4760,8 @@ class _AppShellState extends State<AppShell> {
         onFindInProject: _openProjectSearch,
         onFormatDocument: () => unawaited(_editorFormatDocument()),
         onFormatSelection: () => unawaited(_editorFormatSelection()),
-        onToggleWordWrap: () =>
-            setState(() => _editor.wordWrap = !_editor.wordWrap),
+        onToggleWordWrap: () => unawaited(_toggleWordWrap()),
+        onPreferences: () => unawaited(_openPreferences()),
         onCommandPalette: () => unawaited(_openCommandPalette()),
         onQuickOpen: () => unawaited(_openCommandPalette()),
         onToggleSidebar: _toggleSidebar,
@@ -5118,6 +5225,7 @@ class _AppShellState extends State<AppShell> {
           ),
         ),
       ),
+      ),
     );
   }
 
@@ -5361,6 +5469,9 @@ class _AppShellState extends State<AppShell> {
         jumpToLine: _jumpToLine,
         jumpToColumn: _jumpToColumn,
         foldingRanges: _editor.documentAnalysis?.foldingRanges ?? const [],
+        fontSize: _settings.editor.fontSize.toDouble(),
+        fontFamily: _settings.editor.fontFamily,
+        tabWidth: _settings.editor.tabWidth,
         onSelectTab: _selectTab,
         onCloseTab: _closeTab,
         onTabContextAction: _handleTabContextAction,

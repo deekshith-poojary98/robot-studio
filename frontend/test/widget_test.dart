@@ -2273,6 +2273,16 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<AppSettings> getSettings() async => const AppSettings();
+
+  @override
+  Future<AppSettings> updateSettings(Map<String, dynamic> patch) async =>
+      const AppSettings();
+
+  @override
+  Future<AppSettings> resetSettings() async => const AppSettings();
+
+  @override
   Future<List<IndexedSymbolInfo>> workspaceSymbols({
     String query = '',
     int limit = 200,

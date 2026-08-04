@@ -9,7 +9,8 @@ from pathlib import Path
 from uuid import UUID
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
-from robot_studio.core.config import settings
+from robot_studio.application.services.settings_service import SettingsService
+from robot_studio.core.config import settings as env_settings
 from robot_studio.domain.interfaces.search import (
     ContentFileHits,
     ContentMatch,
@@ -46,9 +47,11 @@ class ContentSearchService(ContentSearchProvider):
         self,
         context: WorkspaceContext,
         index_store: SqliteIndexStore | None = None,
+        settings_service: SettingsService | None = None,
     ) -> None:
         self._context = context
         self._index_store = index_store
+        self._settings_service = settings_service
 
     async def is_available(self) -> bool:
         return self._context.project is not None or self._context.workspace is not None
@@ -96,14 +99,31 @@ class ContentSearchService(ContentSearchProvider):
                 f"Search root does not exist: '{search_root}'",
             )
 
-        ext = extensions or parse_extensions(settings.content_search_extensions)
-        max_matches = limit if limit is not None else settings.content_search_max_matches
+        prefs = (
+            self._settings_service.get()
+            if self._settings_service is not None
+            else None
+        )
+        if extensions is not None:
+            ext = extensions
+        elif prefs is not None:
+            ext = frozenset(prefs.search.content_search_extensions)
+        else:
+            ext = parse_extensions(env_settings.content_search_extensions)
+        max_matches = (
+            limit if limit is not None else env_settings.content_search_max_matches
+        )
         ctx = (
             context_lines
             if context_lines is not None
-            else settings.content_search_context_lines
+            else env_settings.content_search_context_lines
         )
-        max_bytes = settings.content_search_max_file_bytes
+        max_bytes = env_settings.content_search_max_file_bytes
+        ignore = (
+            frozenset(prefs.search.ignore_patterns)
+            if prefs is not None
+            else frozenset()
+        )
 
         return await asyncio.to_thread(
             self._scan,
@@ -116,6 +136,7 @@ class ContentSearchService(ContentSearchProvider):
             project_id,
             workspace_id,
             cancel_check,
+            ignore,
         )
 
     def _scan(
@@ -129,6 +150,7 @@ class ContentSearchService(ContentSearchProvider):
         project_id: UUID | None,
         workspace_id: UUID | None,
         cancel_check: Callable[[], bool] | None,
+        ignore_patterns: frozenset[str] | None = None,
     ) -> ContentSearchResult:
         import os
 
@@ -137,6 +159,12 @@ class ContentSearchService(ContentSearchProvider):
         total_matches = 0
         files_scanned = 0
         truncated = False
+        skip_dirs = set(_SKIP_DIR_NAMES)
+        for pattern in ignore_patterns or ():
+            cleaned = pattern.strip()
+            if cleaned:
+                skip_dirs.add(cleaned)
+                skip_dirs.add(cleaned.lower())
 
         # Optional per-file symbol lines for enclosing decoration.
         symbols_by_file: dict[str, list[tuple[int, str, str]]] = {}
@@ -148,7 +176,7 @@ class ContentSearchService(ContentSearchProvider):
             dirnames[:] = [
                 name
                 for name in dirnames
-                if name not in _SKIP_DIR_NAMES and name.lower() not in _SKIP_DIR_NAMES
+                if name not in skip_dirs and name.lower() not in skip_dirs
             ]
             for name in filenames:
                 if cancel_check is not None and cancel_check():

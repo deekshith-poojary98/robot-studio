@@ -1190,6 +1190,43 @@ class RestTransportGateway implements TransportGateway {
     );
   }
 
+  Future<Map<String, dynamic>> _patch(
+    String path, {
+    required Map<String, dynamic> body,
+    Duration timeout = const Duration(seconds: 30),
+  }) {
+    return _send(
+      'PATCH',
+      path,
+      () => _client
+          .patch(
+            Uri.parse('$baseUrl$path'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(timeout),
+      body: body,
+    );
+  }
+
+  @override
+  Future<AppSettings> getSettings() async {
+    final response = await _get('/settings');
+    return AppSettings.fromJson(response);
+  }
+
+  @override
+  Future<AppSettings> updateSettings(Map<String, dynamic> patch) async {
+    final response = await _patch('/settings', body: patch);
+    return AppSettings.fromJson(response);
+  }
+
+  @override
+  Future<AppSettings> resetSettings() async {
+    final response = await _post('/settings/reset');
+    return AppSettings.fromJson(response);
+  }
+
   Future<Map<String, dynamic>> _send(
     String method,
     String path,

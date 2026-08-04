@@ -16,6 +16,7 @@ from robot_studio.api.routes import (
     git,
     reports,
     search,
+    settings,
     tests,
     workspace_events,
     workspaces,
@@ -23,6 +24,7 @@ from robot_studio.api.routes import (
 
 api_router = APIRouter()
 api_router.include_router(health.router)
+api_router.include_router(settings.router)
 api_router.include_router(workspaces.router)
 api_router.include_router(workspace_events.router)
 api_router.include_router(projects.router)

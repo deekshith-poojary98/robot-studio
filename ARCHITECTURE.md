@@ -393,6 +393,8 @@ abstract class TransportGateway {
 
 **Epic 2 (Editor Intelligence) is complete** across Phases 1–4: Completion → Parameter authoring → Library Explorer → Document Intelligence.
 
+**Preferences (Epic 3):** `SettingsService` is the **sole owner** of application preferences persisted at `~/.robot-studio/settings.json` (versioned + migrated). Typed models: `EditorSettings`, `ExecutionSettings`, `SearchSettings`, `AppearanceSettings`. REST `GET/PATCH /settings` and `POST /settings/reset`. Flutter `AppSettingsController` observes live updates; editor/execution/search/appearance hard-codes consume the service — never the file. Scope is intentionally narrow (auto-save, save-before-run, tab width, wrap, font, large-run threshold, reveal/stop/report behavior, search extensions/ignores, theme).
+
 Implementation uses IndexStore plus a **Robot parsing bridge** (workspace-venv worker) for fidelity with Robot Framework parsing. The Flutter editor uses gateway language methods — no Robot parsing in Dart.
 
 ### Packages — Installer abstraction
@@ -672,6 +674,7 @@ Paths below are relative to `/api/v1`. Workspace context is typically **session-
 | GET | `/doctor/report/{id}` | Fetch persisted Doctor report |
 | GET | `/doctor/history` | Prior Doctor reports for active project |
 | GET/POST | `/language/definition`, `hover`, `references`, `completion`, `completion/usage`, `diagnostics`, `format`, `signature-help`, `libraries`, `libraries/{name}`, `document-symbols`, `document-analysis`, `workspace-symbols` | language |
+| GET/PATCH/POST | `/settings`, `/settings/reset` | preferences |
 | GET/POST | `/git/status`, `init`, `commit`, `branches`, `checkout`, `diff`, `fetch`, `pull`, `push`, `seed-local-remote`, … | git |
 | GET/POST | `/plugins`, `/plugins/refresh`, `enable`, `disable`, `reload` | plugins |
 

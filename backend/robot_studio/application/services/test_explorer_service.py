@@ -11,8 +11,9 @@ from robot_studio.application.services.execution_service import (
     ExecutionValidationError,
 )
 from robot_studio.application.services.project_service import ProjectService
+from robot_studio.application.services.settings_service import SettingsService
 from robot_studio.application.services.workspace_context import WorkspaceContext
-from robot_studio.core.config import settings
+from robot_studio.core.config import settings as env_settings
 from robot_studio.core.events import (
     EventBus,
     ExecutionFailed,
@@ -83,6 +84,7 @@ class TestExplorerService:
     store: SqliteIndexStore
     project_service: ProjectService
     execution_service: ExecutionService
+    settings_service: SettingsService | None = None
     _tree: TestNode | None = field(default=None, init=False)
     _statuses: dict[str, str] = field(default_factory=dict, init=False)
     _running_keys: set[str] = field(default_factory=set, init=False)
@@ -303,7 +305,13 @@ class TestExplorerService:
     ) -> None:
         if confirm:
             return
-        threshold = max(1, int(settings.large_run_threshold))
+        if self.settings_service is not None:
+            threshold = max(
+                1,
+                int(self.settings_service.get().execution.large_run_threshold),
+            )
+        else:
+            threshold = max(1, int(env_settings.large_run_threshold))
         count = await self.count_tests(tag=tag, project_wide=project_wide)
         wildcard = bool(
             tag

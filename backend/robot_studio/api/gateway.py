@@ -696,6 +696,24 @@ class RestGateway:
     async def analyze_document(self, file_path: str, content: str) -> dict:
         return await self._language_service.analyze_document(file_path, content)
 
+    async def get_settings(self) -> dict:
+        service = self._container.settings_service
+        if service is None:
+            raise RuntimeError("SettingsService is not initialized")
+        return service.get().to_api()
+
+    async def update_settings(self, patch: dict) -> dict:
+        service = self._container.settings_service
+        if service is None:
+            raise RuntimeError("SettingsService is not initialized")
+        return (await service.update(patch)).to_api()
+
+    async def reset_settings(self) -> dict:
+        service = self._container.settings_service
+        if service is None:
+            raise RuntimeError("SettingsService is not initialized")
+        return (await service.reset()).to_api()
+
     async def workspace_symbols(self, query: str = "", *, limit: int = 200) -> list[dict]:
         return await self._language_service.workspace_symbols(query, limit=limit)
 

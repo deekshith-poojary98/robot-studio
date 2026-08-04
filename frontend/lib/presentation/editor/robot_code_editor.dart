@@ -36,6 +36,9 @@ class RobotCodeEditor extends StatefulWidget {
     this.onClosePeek,
     this.onCompletionAccepted,
     this.foldingRanges = const [],
+    this.fontSize = 13,
+    this.fontFamily = 'Menlo',
+    this.tabWidth = 4,
   });
 
   final String path;
@@ -59,13 +62,15 @@ class RobotCodeEditor extends StatefulWidget {
   /// Fired when the user accepts an autocomplete item (usage ranking).
   final ValueChanged<CompletionItemInfo>? onCompletionAccepted;
   final List<FoldingRangeInfo> foldingRanges;
+  final double fontSize;
+  final String fontFamily;
+  final int tabWidth;
 
   @override
   State<RobotCodeEditor> createState() => RobotCodeEditorState();
 }
 
 class RobotCodeEditorState extends State<RobotCodeEditor> {
-  static const _fontSize = 13.0;
   static const _fontHeight = 1.45;
   static const _chunkWidth = 14.0;
   static const _hoverDelay = Duration(milliseconds: 400);
@@ -84,6 +89,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   double _charWidth = 7.8;
 
   CodeLineEditingController get controller => _controller;
+
+  double get _fontSize => widget.fontSize;
 
   CodeLineSpanBuilder get _spanBuilder => ({
         required BuildContext context,
@@ -106,6 +113,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _controller = CodeLineEditingController(
       codeLines: CodeLines.fromText(text),
       spanBuilder: _spanBuilder,
+      options: CodeLineOptions(indentSize: widget.tabWidth.clamp(1, 16)),
     );
   }
 
@@ -137,9 +145,9 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
   void _measureCharWidth() {
     final painter = TextPainter(
-      text: const TextSpan(
+      text: TextSpan(
         text: 'M',
-        style: TextStyle(fontSize: _fontSize, fontFamily: 'Menlo'),
+        style: TextStyle(fontSize: _fontSize, fontFamily: widget.fontFamily),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -171,6 +179,11 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     }
     if (!_sameFoldingRanges(oldWidget.foldingRanges, widget.foldingRanges)) {
       _chunkAnalyzer = RobotDocumentChunkAnalyzer(widget.foldingRanges);
+      setState(() {});
+    }
+    if (oldWidget.fontSize != widget.fontSize ||
+        oldWidget.fontFamily != widget.fontFamily) {
+      _measureCharWidth();
       setState(() {});
     }
     if (widget.jumpToLine != null &&
@@ -396,7 +409,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       },
       style: CodeEditorStyle(
         fontSize: _fontSize,
-        fontFamily: 'Menlo',
+        fontFamily: widget.fontFamily,
         fontHeight: _fontHeight,
         backgroundColor: AppColors.background,
         textColor: AppColors.textPrimary,

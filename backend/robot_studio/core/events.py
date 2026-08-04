@@ -264,6 +264,13 @@ class PluginReloaded(DomainEvent):
     plugin_id: str
 
 
+@dataclass(frozen=True)
+class SettingsUpdated(DomainEvent):
+    """User preferences changed — consumers should refresh from SettingsService."""
+
+    version: int
+
+
 @dataclass
 class Subscription:
     event_type: type[DomainEvent]

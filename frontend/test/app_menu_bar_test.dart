@@ -29,6 +29,7 @@ void main() {
       onFormatDocument: () {},
       onFormatSelection: () {},
       onToggleWordWrap: () {},
+      onPreferences: () {},
       onCommandPalette: () {},
       onQuickOpen: () {},
       onToggleSidebar: () {},

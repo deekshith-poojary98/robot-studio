@@ -12,6 +12,7 @@ import 'models/plugin_info.dart';
 import 'models/project_info.dart';
 import 'models/report_info.dart';
 import 'models/run_failure_info.dart';
+import 'models/settings_info.dart';
 import 'models/test_explorer_info.dart';
 import 'models/workspace_info.dart';
 
@@ -30,6 +31,7 @@ export 'models/plugin_info.dart';
 export 'models/project_info.dart';
 export 'models/report_info.dart';
 export 'models/run_failure_info.dart';
+export 'models/settings_info.dart';
 export 'models/test_explorer_info.dart';
 export 'models/workspace_info.dart';
 
@@ -338,6 +340,12 @@ abstract class TransportGateway {
     String? projectId,
     int limit = 20,
   });
+
+  Future<AppSettings> getSettings();
+
+  Future<AppSettings> updateSettings(Map<String, dynamic> patch);
+
+  Future<AppSettings> resetSettings();
 }
 
 class GatewayException implements Exception {

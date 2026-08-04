@@ -275,7 +275,12 @@ async def test_run_test_suite_tag_and_failed(api_client) -> None:
 @pytest.mark.asyncio
 async def test_large_run_requires_confirmation(api_client, monkeypatch: pytest.MonkeyPatch) -> None:
     client, _, tmp_path = api_client
-    monkeypatch.setattr(settings, "large_run_threshold", 2)
+    patched = await client.patch(
+        "/api/v1/settings",
+        json={"execution": {"large_run_threshold": 2}},
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["execution"]["large_run_threshold"] == 2
     await _seed_workspace(client, tmp_path)
 
     # Suite-wide / project run without confirm → 409 when over threshold.

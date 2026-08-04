@@ -21,6 +21,7 @@ from robot_studio.application.services.package_service import PackageService
 from robot_studio.application.services.plugin_service import PluginService
 from robot_studio.application.services.project_service import ProjectService
 from robot_studio.application.services.report_service import ReportService
+from robot_studio.application.services.settings_service import SettingsService
 from robot_studio.application.services.test_explorer_service import TestExplorerService
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.application.services.workspace_event_service import WorkspaceEventService
@@ -129,6 +130,7 @@ class Container:
     )
     plugin_manager: PluginManager | None = field(default=None, init=False)
     plugin_service: PluginService | None = field(default=None, init=False)
+    settings_service: SettingsService | None = field(default=None, init=False)
     _initialized: bool = field(default=False, init=False)
 
     def initialize(self) -> None:
@@ -136,6 +138,12 @@ class Container:
             return
 
         register_builtin_capabilities(self.plugin_host)
+
+        self.settings_service = SettingsService(
+            data_dir=settings.data_dir,
+            event_bus=self.event_bus,
+        )
+        self.settings_service.load()
 
         installer = PipInstaller()
         registry = PyPIProvider()
@@ -258,6 +266,7 @@ class Container:
         self.content_search_service = ContentSearchService(
             context=self.workspace_context,
             index_store=self.index_store,
+            settings_service=self.settings_service,
         )
         self.symbol_search_provider = IndexSymbolSearchProvider(self.index_service)
         self.search_providers = [
@@ -306,6 +315,7 @@ class Container:
             store=self.index_store,
             project_service=self.project_service,
             execution_service=self.execution_service,
+            settings_service=self.settings_service,
         )
         self.test_explorer_service.start()
 
