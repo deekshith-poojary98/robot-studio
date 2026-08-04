@@ -313,6 +313,13 @@ class ApiClient implements TransportGateway {
       _gateway.documentSymbols(filePath);
 
   @override
+  Future<DocumentAnalysisInfo> analyzeDocument({
+    required String filePath,
+    required String content,
+  }) =>
+      _gateway.analyzeDocument(filePath: filePath, content: content);
+
+  @override
   Future<List<IndexedSymbolInfo>> workspaceSymbols({
     String query = '',
     int limit = 200,

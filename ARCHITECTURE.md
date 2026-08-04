@@ -373,10 +373,11 @@ abstract class TransportGateway {
 | Autocomplete (CompletionProvider pipeline) | Shipped (Phase 1) |
 | Parameter authoring (signature + named args) | Shipped (Phase 2) |
 | Library Explorer side panel | Shipped (Phase 3) |
+| Document Intelligence (Outline / breadcrumbs / folding) | Shipped (Phase 4) |
 | Diagnostics | Shipped |
 | Hover | Shipped |
 | Go to definition / references | Shipped |
-| Document / workspace symbols | Shipped (Outline enhancement = Phase 4) |
+| Document / workspace symbols | Shipped (index + live DocumentSymbolTree) |
 | Format | Shipped |
 | robotframework-lsp swap | Optional future via PluginHost |
 
@@ -384,9 +385,13 @@ abstract class TransportGateway {
 
 **Library catalog:** `LibraryCatalogService` is the **canonical semantic cache** and the **only** caller of `resolve_library()`. It owns discovery, caching, invalidation (env / index), and lazy keyword loading. Consumers (REST, Library Explorer, Completion, Signature Help, Hover) are read-only. `LibraryMetadata` is immutable; cache hits return the same instance until invalidation. `GET /language/libraries` returns summaries only; `GET /language/libraries/{name}` lazy-loads keywords.
 
+**Document intelligence:** `DocumentAnalysisService` is the **sole owner** of buffer → `DocumentSymbolTree` analysis (same philosophy as LibraryCatalog). Outline, clickable breadcrumbs, and RF folding ranges are read-only consumers of one nested tree — never call the parsing worker from the Outline UI. Live analysis uses `POST /language/document-analysis`; `GET /language/document-symbols` remains the flat IndexStore list for workspace search / Go to Symbol.
+
 **Completion architecture:** pluggable `CompletionProvider`s (Buffer, Variables, Keywords/libdoc via catalog, Named Arguments, DSL/sections/settings, Index, Files) feed a ranking pipeline. Context from the parsing bridge (`completion_context`, including `argument`) filters providers. Acceptances are recorded via `POST /language/completion/usage`.
 
 **Signature Help architecture:** composable `SignatureHelpProvider` pipeline merges `KeywordMetadata` contributions (not first-wins). Caret-driven signature card with active parameter; named-arg completions insert `name=` after a resolved keyword.
+
+**Epic 2 (Editor Intelligence) is complete** across Phases 1–4: Completion → Parameter authoring → Library Explorer → Document Intelligence.
 
 Implementation uses IndexStore plus a **Robot parsing bridge** (workspace-venv worker) for fidelity with Robot Framework parsing. The Flutter editor uses gateway language methods — no Robot parsing in Dart.
 
@@ -666,7 +671,7 @@ Paths below are relative to `/api/v1`. Workspace context is typically **session-
 | POST | `/doctor/run` | Run Doctor (profile / optional provider override) |
 | GET | `/doctor/report/{id}` | Fetch persisted Doctor report |
 | GET | `/doctor/history` | Prior Doctor reports for active project |
-| GET/POST | `/language/definition`, `hover`, `references`, `completion`, `completion/usage`, `diagnostics`, `format`, `signature-help`, `libraries`, `libraries/{name}`, `document-symbols`, `workspace-symbols` | language |
+| GET/POST | `/language/definition`, `hover`, `references`, `completion`, `completion/usage`, `diagnostics`, `format`, `signature-help`, `libraries`, `libraries/{name}`, `document-symbols`, `document-analysis`, `workspace-symbols` | language |
 | GET/POST | `/git/status`, `init`, `commit`, `branches`, `checkout`, `diff`, `fetch`, `pull`, `push`, `seed-local-remote`, … | git |
 | GET/POST | `/plugins`, `/plugins/refresh`, `enable`, `disable`, `reload` | plugins |
 

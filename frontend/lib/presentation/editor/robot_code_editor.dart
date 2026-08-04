@@ -35,6 +35,7 @@ class RobotCodeEditor extends StatefulWidget {
     this.peekDefinition,
     this.onClosePeek,
     this.onCompletionAccepted,
+    this.foldingRanges = const [],
   });
 
   final String path;
@@ -57,6 +58,7 @@ class RobotCodeEditor extends StatefulWidget {
   final VoidCallback? onClosePeek;
   /// Fired when the user accepts an autocomplete item (usage ranking).
   final ValueChanged<CompletionItemInfo>? onCompletionAccepted;
+  final List<FoldingRangeInfo> foldingRanges;
 
   @override
   State<RobotCodeEditor> createState() => RobotCodeEditorState();
@@ -72,6 +74,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   late CodeFindController _findController;
   late CodeScrollController _scrollController;
   late final RobotAutocompletePromptsBuilder _promptsBuilder;
+  late CodeChunkAnalyzer _chunkAnalyzer;
   List<DiagnosticInfo> _diagnostics = [];
   bool _listening = false;
   Timer? _hoverTimer;
@@ -119,6 +122,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   void initState() {
     super.initState();
     _diagnostics = widget.diagnostics;
+    _chunkAnalyzer = RobotDocumentChunkAnalyzer(widget.foldingRanges);
     _createController(widget.initialContent);
     _findController = CodeFindController(_controller);
     _scrollController = CodeScrollController();
@@ -165,6 +169,10 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       _diagnostics = widget.diagnostics;
       setState(() {});
     }
+    if (!_sameFoldingRanges(oldWidget.foldingRanges, widget.foldingRanges)) {
+      _chunkAnalyzer = RobotDocumentChunkAnalyzer(widget.foldingRanges);
+      setState(() {});
+    }
     if (widget.jumpToLine != null &&
         (widget.jumpToLine != oldWidget.jumpToLine ||
             widget.jumpToColumn != oldWidget.jumpToColumn)) {
@@ -172,6 +180,17 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
         _jumpIfNeeded(widget.jumpToLine, widget.jumpToColumn);
       });
     }
+  }
+
+  bool _sameFoldingRanges(List<FoldingRangeInfo> a, List<FoldingRangeInfo> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].startLine != b[i].startLine || a[i].endLine != b[i].endLine) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @override
@@ -361,6 +380,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       findController: _findController,
       scrollController: _scrollController,
       wordWrap: widget.wordWrap,
+      chunkAnalyzer: _chunkAnalyzer,
       commentFormatter: DefaultCodeCommentFormatter(
         singleLinePrefix: '#',
       ),
@@ -570,4 +590,27 @@ class _DefinitionIntent extends Intent {
 
 class _DismissSignatureIntent extends Intent {
   const _DismissSignatureIntent();
+}
+
+/// Folding ranges from DocumentSymbolTree (0-based inclusive → CodeChunk).
+class RobotDocumentChunkAnalyzer implements CodeChunkAnalyzer {
+  RobotDocumentChunkAnalyzer(this.ranges);
+
+  final List<FoldingRangeInfo> ranges;
+
+  @override
+  List<CodeChunk> run(CodeLines codeLines) {
+    final chunks = <CodeChunk>[];
+    final maxLine = codeLines.length;
+    for (final range in ranges) {
+      final start = range.startLine.clamp(0, math.max(0, maxLine - 1)).toInt();
+      // CodeChunk.end is exclusive of the last collapsed line's successor.
+      final end = (range.endLine + 1).clamp(start + 1, maxLine).toInt();
+      if (end - start > 1) {
+        chunks.add(CodeChunk(start, end));
+      }
+    }
+    chunks.sort((a, b) => a.index - b.index);
+    return chunks;
+  }
 }

@@ -693,6 +693,9 @@ class RestGateway:
     async def document_symbols(self, file_path: str) -> list[dict]:
         return await self._language_service.document_symbols(file_path)
 
+    async def analyze_document(self, file_path: str, content: str) -> dict:
+        return await self._language_service.analyze_document(file_path, content)
+
     async def workspace_symbols(self, query: str = "", *, limit: int = 200) -> list[dict]:
         return await self._language_service.workspace_symbols(query, limit=limit)
 

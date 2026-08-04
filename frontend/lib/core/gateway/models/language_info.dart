@@ -179,6 +179,7 @@ class EditorBreadcrumbInfo {
     this.folder,
     this.fileName,
     this.symbol,
+    this.segments = const [],
   });
 
   final String? workspace;
@@ -186,4 +187,168 @@ class EditorBreadcrumbInfo {
   final String? folder;
   final String? fileName;
   final IndexedSymbolInfo? symbol;
+
+  /// Clickable crumbs (project / folder / file / symbol).
+  final List<BreadcrumbSegment> segments;
+}
+
+class BreadcrumbSegment {
+  const BreadcrumbSegment({
+    required this.label,
+    this.path,
+    this.line,
+  });
+
+  final String label;
+  final String? path;
+  final int? line;
+}
+
+class FoldingRangeInfo {
+  const FoldingRangeInfo({
+    required this.startLine,
+    required this.endLine,
+  });
+
+  factory FoldingRangeInfo.fromJson(Map<String, dynamic> json) {
+    return FoldingRangeInfo(
+      startLine: (json['start_line'] as num?)?.toInt() ?? 0,
+      endLine: (json['end_line'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// 0-based inclusive line range.
+  final int startLine;
+  final int endLine;
+}
+
+class DocumentSymbolNode {
+  const DocumentSymbolNode({
+    required this.id,
+    required this.name,
+    required this.kind,
+    required this.line,
+    this.endLine,
+    this.column = 1,
+    this.detail = '',
+    this.documentation = '',
+    this.children = const [],
+  });
+
+  factory DocumentSymbolNode.fromJson(Map<String, dynamic> json) {
+    final rawChildren = json['children'];
+    final children = <DocumentSymbolNode>[];
+    if (rawChildren is List) {
+      for (final item in rawChildren) {
+        if (item is Map<String, dynamic>) {
+          children.add(DocumentSymbolNode.fromJson(item));
+        }
+      }
+    }
+    final name = json['name'] as String? ?? '';
+    final kind = SymbolKind.fromApi(json['kind'] as String? ?? 'keyword');
+    final line = (json['line'] as num?)?.toInt() ?? 1;
+    final id = json['id'] as String? ?? '${kind.apiValue}:$line:$name';
+    return DocumentSymbolNode(
+      id: id,
+      name: name,
+      kind: kind,
+      line: line,
+      endLine: (json['end_line'] as num?)?.toInt() ?? line,
+      column: (json['column'] as num?)?.toInt() ?? 1,
+      detail: json['detail'] as String? ?? '',
+      documentation: json['documentation'] as String? ?? '',
+      children: children,
+    );
+  }
+
+  final String id;
+  final String name;
+  final SymbolKind kind;
+  final int line;
+  final int? endLine;
+  final int column;
+  final String detail;
+  final String documentation;
+  final List<DocumentSymbolNode> children;
+
+  bool get hasChildren => children.isNotEmpty;
+
+  Iterable<DocumentSymbolNode> walk() sync* {
+    yield this;
+    for (final child in children) {
+      yield* child.walk();
+    }
+  }
+
+  DocumentSymbolNode? findAtLine(int line) {
+    final end = endLine ?? this.line;
+    if (line < this.line || line > end) return null;
+    DocumentSymbolNode? best = this;
+    for (final child in children) {
+      final hit = child.findAtLine(line);
+      if (hit != null) best = hit;
+    }
+    return best;
+  }
+
+  IndexedSymbolInfo toIndexed(String filePath) {
+    return IndexedSymbolInfo(
+      id: id,
+      name: name,
+      kind: kind,
+      filePath: filePath,
+      line: line,
+      documentation: documentation,
+      detail: detail,
+    );
+  }
+}
+
+class DocumentAnalysisInfo {
+  const DocumentAnalysisInfo({
+    required this.filePath,
+    required this.root,
+    this.contentHash = '',
+    this.foldingRanges = const [],
+  });
+
+  factory DocumentAnalysisInfo.fromJson(Map<String, dynamic> json) {
+    final rootRaw = json['root'];
+    final root = rootRaw is Map<String, dynamic>
+        ? DocumentSymbolNode.fromJson(rootRaw)
+        : const DocumentSymbolNode(
+            id: 'empty',
+            name: '',
+            kind: SymbolKind.file,
+            line: 1,
+          );
+    final ranges = <FoldingRangeInfo>[];
+    final rawRanges = json['folding_ranges'];
+    if (rawRanges is List) {
+      for (final item in rawRanges) {
+        if (item is Map<String, dynamic>) {
+          ranges.add(FoldingRangeInfo.fromJson(item));
+        }
+      }
+    }
+    return DocumentAnalysisInfo(
+      filePath: json['file_path'] as String? ?? '',
+      contentHash: json['content_hash'] as String? ?? '',
+      root: root,
+      foldingRanges: ranges,
+    );
+  }
+
+  final String filePath;
+  final String contentHash;
+  final DocumentSymbolNode root;
+  final List<FoldingRangeInfo> foldingRanges;
+
+  List<IndexedSymbolInfo> flattenIndexed() {
+    return root
+        .walk()
+        .map((node) => node.toIndexed(filePath))
+        .toList(growable: false);
+  }
 }

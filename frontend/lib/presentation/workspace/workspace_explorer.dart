@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/file_info.dart';
 import '../../core/gateway/models/git_info.dart';
 import '../../core/gateway/models/index_info.dart';
+import '../../core/gateway/models/language_info.dart';
 import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
 import '../editor/document_outline.dart';
@@ -37,6 +38,7 @@ class WorkspaceExplorer extends StatelessWidget {
     this.onRevealInOs,
     this.onCollapseAllFolders,
     this.outline = const [],
+    this.outlineRoot,
     this.isLoadingOutline = false,
     this.selectedOutlineId,
     this.onOutlineSelect,
@@ -77,6 +79,7 @@ class WorkspaceExplorer extends StatelessWidget {
   final ValueChanged<String>? onRevealInOs;
   final VoidCallback? onCollapseAllFolders;
   final List<IndexedSymbolInfo> outline;
+  final DocumentSymbolNode? outlineRoot;
   final bool isLoadingOutline;
   final String? selectedOutlineId;
   final ValueChanged<IndexedSymbolInfo>? onOutlineSelect;
@@ -232,6 +235,8 @@ class WorkspaceExplorer extends StatelessWidget {
           const Spacer(),
         DocumentOutlinePanel(
           embedded: true,
+          root: outlineRoot,
+          filePath: selectedFilePath ?? '',
           symbols: outline,
           isLoading: isLoadingOutline,
           selectedId: selectedOutlineId,

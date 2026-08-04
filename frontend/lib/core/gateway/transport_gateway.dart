@@ -205,6 +205,11 @@ abstract class TransportGateway {
 
   Future<List<IndexedSymbolInfo>> documentSymbols(String filePath);
 
+  Future<DocumentAnalysisInfo> analyzeDocument({
+    required String filePath,
+    required String content,
+  });
+
   Future<List<IndexedSymbolInfo>> workspaceSymbols({
     String query = '',
     int limit = 200,

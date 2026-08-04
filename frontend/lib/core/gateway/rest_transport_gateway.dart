@@ -685,6 +685,21 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<DocumentAnalysisInfo> analyzeDocument({
+    required String filePath,
+    required String content,
+  }) async {
+    final response = await _post(
+      '/language/document-analysis',
+      body: {
+        'file_path': filePath,
+        'content': content,
+      },
+    );
+    return DocumentAnalysisInfo.fromJson(response);
+  }
+
+  @override
   Future<List<IndexedSymbolInfo>> workspaceSymbols({
     String query = '',
     int limit = 200,

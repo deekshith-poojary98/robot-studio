@@ -161,6 +161,377 @@ def _collect_documentation(item: Any) -> str:
     return "\n".join(docs).strip()
 
 
+def _end_line(node: Any) -> int:
+    end = getattr(node, "end_lineno", None)
+    if end is not None:
+        return int(end)
+    # Fall back: deepest child end / self line.
+    deepest = _line_number(node)
+    for attr in ("body", "orelse", "except_branches", "finally_body", "try_body"):
+        children = getattr(node, attr, None) or ()
+        for child in children:
+            deepest = max(deepest, _end_line(child))
+    return deepest
+
+
+def _column(node: Any) -> int:
+    return int(getattr(node, "col_offset", None) or getattr(node, "col", None) or 1)
+
+
+def _node(
+    *,
+    name: str,
+    kind: str,
+    line: int,
+    end_line: int | None = None,
+    column: int = 1,
+    detail: str = "",
+    documentation: str = "",
+    children: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    end = end_line if end_line is not None else line
+    return {
+        "name": name,
+        "kind": kind,
+        "line": line,
+        "end_line": end,
+        "column": column,
+        "detail": detail,
+        "documentation": documentation,
+        "children": children or [],
+        "id": f"{kind}:{line}:{name}",
+    }
+
+
+_SECTION_TITLES = {
+    "settings": "Settings",
+    "variables": "Variables",
+    "keywords": "Keywords",
+    "test cases": "Tests",
+    "tasks": "Tasks",
+    "comments": "Comments",
+}
+
+_CONTROL_LABELS = {
+    "If": "IF",
+    "ElseIf": "ELSE IF",
+    "Else": "ELSE",
+    "For": "FOR",
+    "While": "WHILE",
+    "Try": "TRY",
+    "Except": "EXCEPT",
+    "Finally": "FINALLY",
+    "Break": "BREAK",
+    "Continue": "CONTINUE",
+    "ReturnStatement": "RETURN",
+    "ReturnSetting": "RETURN",
+    "Var": "VAR",
+}
+
+
+def _walk_body(entries: Any) -> list[dict[str, Any]]:
+    """Nested symbols for keyword/test bodies (calls + control structures)."""
+    nodes: list[dict[str, Any]] = []
+    for entry in entries or ():
+        item_type = type(entry).__name__
+        line = _line_number(entry)
+        end = _end_line(entry)
+        col = _column(entry)
+        if item_type == "KeywordCall":
+            name = str(getattr(entry, "keyword", "") or "").strip()
+            if not name:
+                continue
+            nodes.append(
+                _node(
+                    name=name,
+                    kind="keyword_call",
+                    line=line,
+                    end_line=end,
+                    column=col,
+                    detail="Call",
+                ),
+            )
+        elif item_type in _CONTROL_LABELS:
+            label = _CONTROL_LABELS[item_type]
+            title = label
+            if item_type == "For":
+                variables = "  ".join(
+                    str(v) for v in (getattr(entry, "assign", None) or ())
+                )
+                values = "  ".join(
+                    str(v) for v in (getattr(entry, "values", None) or ())
+                )
+                if variables or values:
+                    title = f"FOR  {variables}  IN  {values}".strip()
+            elif item_type == "While":
+                condition = str(getattr(entry, "condition", "") or "").strip()
+                if condition:
+                    title = f"WHILE  {condition}"
+            elif item_type in {"If", "ElseIf"}:
+                condition = str(getattr(entry, "condition", "") or "").strip()
+                if condition:
+                    title = f"{label}  {condition}"
+            elif item_type == "Var":
+                title = _node_name(entry) or "VAR"
+            children = _walk_body(getattr(entry, "body", None))
+            # If / Try nest branches as siblings under the control node.
+            if item_type == "If":
+                for branch in getattr(entry, "orelse", None) or ():
+                    children.extend(_walk_body([branch]))
+            if item_type == "Try":
+                for branch in getattr(entry, "except_branches", None) or ():
+                    children.extend(_walk_body([branch]))
+                finally_body = getattr(entry, "finally_body", None) or ()
+                if finally_body:
+                    children.append(
+                        _node(
+                            name="FINALLY",
+                            kind="control",
+                            line=_line_number(finally_body[0])
+                            if finally_body
+                            else line,
+                            end_line=_end_line(finally_body[-1])
+                            if finally_body
+                            else end,
+                            children=_walk_body(finally_body),
+                        ),
+                    )
+            nodes.append(
+                _node(
+                    name=title,
+                    kind="variable" if item_type == "Var" else "control",
+                    line=line,
+                    end_line=end,
+                    column=col,
+                    detail=label,
+                    children=children,
+                ),
+            )
+        elif item_type in {"Setup", "Teardown", "Template"}:
+            label = item_type
+            name = _node_name(entry) or label
+            nodes.append(
+                _node(
+                    name=name,
+                    kind="setting",
+                    line=line,
+                    end_line=end,
+                    column=col,
+                    detail=label,
+                ),
+            )
+        elif item_type == "Tags":
+            for tag in getattr(entry, "values", ()) or ():
+                nodes.append(
+                    _node(
+                        name=str(tag),
+                        kind="tag",
+                        line=line,
+                        end_line=end,
+                        column=col,
+                        detail="Tags",
+                    ),
+                )
+        elif item_type == "Documentation":
+            value = str(getattr(entry, "value", "") or "")
+            if value:
+                nodes.append(
+                    _node(
+                        name=value.split()[0],
+                        kind="documentation",
+                        line=line,
+                        end_line=end,
+                        column=col,
+                        detail="Documentation",
+                        documentation=value,
+                    ),
+                )
+    return nodes
+
+
+def _settings_child(item: Any) -> dict[str, Any] | None:
+    item_type = type(item).__name__
+    line = _line_number(item)
+    end = _end_line(item)
+    col = _column(item)
+    if item_type == "LibraryImport":
+        return _node(
+            name=_node_name(item),
+            kind="library",
+            line=line,
+            end_line=end,
+            column=col,
+            detail="Library",
+        )
+    if item_type == "ResourceImport":
+        return _node(
+            name=_node_name(item),
+            kind="resource",
+            line=line,
+            end_line=end,
+            column=col,
+            detail="Resource",
+        )
+    if item_type == "VariablesImport":
+        return _node(
+            name=_node_name(item),
+            kind="resource",
+            line=line,
+            end_line=end,
+            column=col,
+            detail="Variables",
+        )
+    if item_type == "Documentation":
+        value = str(getattr(item, "value", "") or _node_name(item) or "")
+        return _node(
+            name=(value.split()[0] if value else "Documentation"),
+            kind="documentation",
+            line=line,
+            end_line=end,
+            column=col,
+            detail="Documentation",
+            documentation=value,
+        )
+    if item_type in {"TestTags", "DefaultTags", "ForceTags"}:
+        detail = {
+            "TestTags": "Test Tags",
+            "DefaultTags": "Default Tags",
+            "ForceTags": "Force Tags",
+        }.get(item_type, item_type)
+        children = [
+            _node(name=str(tag), kind="tag", line=line, end_line=end, detail=detail)
+            for tag in (getattr(item, "values", ()) or ())
+        ]
+        return _node(
+            name=detail,
+            kind="setting",
+            line=line,
+            end_line=end,
+            column=col,
+            detail=detail,
+            children=children,
+        )
+    if item_type in {
+        "SuiteSetup",
+        "SuiteTeardown",
+        "TestSetup",
+        "TestTeardown",
+        "TestTimeout",
+        "TaskTimeout",
+        "Metadata",
+    }:
+        label = {
+            "SuiteSetup": "Suite Setup",
+            "SuiteTeardown": "Suite Teardown",
+            "TestSetup": "Test Setup",
+            "TestTeardown": "Test Teardown",
+            "TestTimeout": "Test Timeout",
+            "TaskTimeout": "Task Timeout",
+            "Metadata": "Metadata",
+        }.get(item_type, item_type)
+        return _node(
+            name=_node_name(item) or label,
+            kind="setting",
+            line=line,
+            end_line=end,
+            column=col,
+            detail=label,
+        )
+    return None
+
+
+def document_symbol_tree(content: str, file_path: str) -> dict[str, Any]:
+    """Build a nested DocumentSymbolTree payload for document intelligence."""
+    path = file_path or "file.robot"
+    model = _get_model(content)
+    suffix = Path(path).suffix.lower()
+    stem = Path(path).stem
+    root_kind = "resource" if suffix == ".resource" else "test_suite"
+    root_name = stem or Path(path).name
+
+    section_nodes: list[dict[str, Any]] = []
+    for section in model.sections:
+        header = _section_label(section)
+        title = _SECTION_TITLES.get(header)
+        if not title:
+            continue
+        section_line = _line_number(getattr(section, "header", None) or section)
+        section_end = _end_line(section)
+        children: list[dict[str, Any]] = []
+
+        for item in section.body:
+            item_type = type(item).__name__
+            line = _line_number(item)
+            end = _end_line(item)
+            col = _column(item)
+
+            if header == "settings":
+                child = _settings_child(item)
+                if child is not None:
+                    children.append(child)
+            elif header == "variables" and item_type == "Variable":
+                children.append(
+                    _node(
+                        name=_node_name(item),
+                        kind="variable",
+                        line=line,
+                        end_line=end,
+                        column=col,
+                    ),
+                )
+            elif header == "keywords" and item_type == "Keyword":
+                children.append(
+                    _node(
+                        name=_node_name(item),
+                        kind="keyword",
+                        line=line,
+                        end_line=end,
+                        column=col,
+                        documentation=_collect_documentation(item),
+                        children=_walk_body(getattr(item, "body", None)),
+                    ),
+                )
+            elif header in {"test cases", "tasks"} and item_type == "TestCase":
+                children.append(
+                    _node(
+                        name=_node_name(item),
+                        kind="test_case",
+                        line=line,
+                        end_line=end,
+                        column=col,
+                        detail=title,
+                        documentation=_collect_documentation(item),
+                        children=_walk_body(getattr(item, "body", None)),
+                    ),
+                )
+
+        if children or title in {"Settings", "Variables", "Keywords", "Tests", "Tasks"}:
+            section_nodes.append(
+                _node(
+                    name=title,
+                    kind="section",
+                    line=section_line,
+                    end_line=section_end,
+                    detail=header,
+                    children=children,
+                ),
+            )
+
+    root_end = max((n["end_line"] for n in section_nodes), default=1)
+    root = _node(
+        name=root_name,
+        kind=root_kind,
+        line=1,
+        end_line=root_end,
+        detail=Path(path).name,
+        children=section_nodes,
+    )
+    return {
+        "file_path": path,
+        "root": root,
+    }
+
+
 def document_symbols(content: str, file_path: str) -> list[dict[str, Any]]:
     path = file_path or "file.robot"
     model = _get_model(content)
@@ -724,6 +1095,8 @@ def main() -> None:
             result = parse_diagnostics(content, file_path)
         elif op == "document_symbols":
             result = document_symbols(content, file_path)
+        elif op == "document_symbol_tree":
+            result = document_symbol_tree(content, file_path)
         elif op == "format":
             result = format_document(content, file_path)
         elif op == "completion_context":

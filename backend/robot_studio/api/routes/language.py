@@ -16,12 +16,15 @@ from robot_studio.api.schemas.language import (
     CompletionUsageRequest,
     DiagnosticListResponse,
     DiagnosticsRequest,
+    DocumentAnalysisRequest,
+    DocumentAnalysisResponse,
     FormatRequest,
     FormatResponse,
     LibraryDetailResponse,
     LibraryListResponse,
     SignatureHelpRequest,
     SignatureHelpResponse,
+    to_document_analysis_response,
 )
 from robot_studio.application.services.language_service import LanguageValidationError
 
@@ -331,6 +334,18 @@ async def document_symbols(
     except LanguageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return SearchResponse(results=[to_symbol_response(item) for item in results])
+
+
+@router.post("/document-analysis", response_model=DocumentAnalysisResponse)
+async def document_analysis(
+    body: DocumentAnalysisRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> DocumentAnalysisResponse:
+    try:
+        result = await gateway.analyze_document(body.file_path, body.content)
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return to_document_analysis_response(result)
 
 
 @router.get("/workspace-symbols", response_model=SearchResponse)

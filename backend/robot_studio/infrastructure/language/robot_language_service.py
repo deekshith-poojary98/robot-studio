@@ -53,6 +53,7 @@ from robot_studio.infrastructure.language.completion import (
 from robot_studio.infrastructure.language.keyword_helpers import (
     active_parameter_index,
 )
+from robot_studio.infrastructure.language.document_analysis import DocumentAnalysisService
 from robot_studio.infrastructure.language.library_catalog import LibraryCatalogService
 from robot_studio.domain.models.library_metadata import LibraryMetadata
 from robot_studio.infrastructure.language.signature import (
@@ -84,6 +85,7 @@ class RobotLanguageService(LanguageService):
     _completion_pipeline: CompletionPipeline | None = field(default=None, init=False)
     _signature_pipeline: SignatureHelpPipeline | None = field(default=None, init=False)
     _library_catalog: LibraryCatalogService | None = field(default=None, init=False)
+    _document_analysis: DocumentAnalysisService | None = field(default=None, init=False)
 
     def start(self) -> None:
         if self._subscribed or self.event_bus is None:
@@ -98,6 +100,8 @@ class RobotLanguageService(LanguageService):
         # Imports / index generation changed — drop catalog membership + resolved libs.
         if self._library_catalog is not None:
             self._library_catalog.invalidate()
+        if self._document_analysis is not None:
+            self._document_analysis.invalidate()
         self._signature_pipeline = None
         self._completion_pipeline = None
 
@@ -106,6 +110,8 @@ class RobotLanguageService(LanguageService):
         self._cache_generation += 1
         if self._library_catalog is not None:
             self._library_catalog.invalidate()
+        if self._document_analysis is not None:
+            self._document_analysis.invalidate()
         self._signature_pipeline = None
         self._completion_pipeline = None
 
@@ -149,6 +155,42 @@ class RobotLanguageService(LanguageService):
             _discover_imports=discover_imports,
         )
         return self._library_catalog
+
+    def document_analysis(self) -> DocumentAnalysisService:
+        """Canonical owner of buffer → DocumentSymbolTree (Outline / fold / crumbs)."""
+        if self._document_analysis is not None:
+            return self._document_analysis
+
+        async def run_tree(content: str, file_path: str) -> dict:
+            try:
+                python = self._python_executable()
+            except RobotParsingError:
+                from robot_studio.infrastructure.language.robot_parsing_worker import (
+                    document_symbol_tree,
+                )
+
+                return document_symbol_tree(content, file_path)
+            try:
+                result = await self.parsing.run(
+                    python,
+                    op="document_symbol_tree",
+                    content=content,
+                    file_path=file_path,
+                )
+                return result if isinstance(result, dict) else {}
+            except RobotParsingError:
+                from robot_studio.infrastructure.language.robot_parsing_worker import (
+                    document_symbol_tree,
+                )
+
+                return document_symbol_tree(content, file_path)
+
+        self._document_analysis = DocumentAnalysisService(_run_tree=run_tree)
+        return self._document_analysis
+
+    async def analyze_document(self, file_path: str, content: str) -> dict:
+        tree = await self.document_analysis().analyze(file_path, content)
+        return tree.to_api()
 
     async def list_libraries(self, *, extra_imports: list[str] | None = None) -> list[dict]:
         libs = await self.library_catalog().list_libraries(extra_imports=extra_imports)

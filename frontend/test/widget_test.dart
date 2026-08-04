@@ -2235,6 +2235,44 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<DocumentAnalysisInfo> analyzeDocument({
+    required String filePath,
+    required String content,
+  }) async {
+    return DocumentAnalysisInfo(
+      filePath: filePath,
+      root: DocumentSymbolNode(
+        id: 'suite:1:Login',
+        name: 'login',
+        kind: SymbolKind.testSuite,
+        line: 1,
+        endLine: 10,
+        children: const [
+          DocumentSymbolNode(
+            id: 'section:1:Tests',
+            name: 'Tests',
+            kind: SymbolKind.section,
+            line: 1,
+            endLine: 10,
+            children: [
+              DocumentSymbolNode(
+                id: 'test_case:3:Login',
+                name: 'Login',
+                kind: SymbolKind.testCase,
+                line: 3,
+                endLine: 8,
+              ),
+            ],
+          ),
+        ],
+      ),
+      foldingRanges: const [
+        FoldingRangeInfo(startLine: 2, endLine: 7),
+      ],
+    );
+  }
+
+  @override
   Future<List<IndexedSymbolInfo>> workspaceSymbols({
     String query = '',
     int limit = 200,

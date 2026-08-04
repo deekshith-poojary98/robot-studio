@@ -193,6 +193,16 @@ class LanguageFacade:
             raise LanguageValidationError("Language service does not expose IndexStore")
         return await store.symbols_for_file(Path(file_path))
 
+    async def analyze_document(self, file_path: str, content: str) -> dict:
+        """Live DocumentSymbolTree via DocumentAnalysisService (not IndexStore)."""
+        self._require_workspace()
+        if not file_path:
+            raise LanguageValidationError("Provide file path")
+        analyze = getattr(self.language, "analyze_document", None)
+        if analyze is None:
+            raise LanguageValidationError("Document analysis is unavailable")
+        return await analyze(file_path, content)
+
     async def workspace_symbols(self, query: str = "", *, limit: int = 200) -> list[dict]:
         self._require_workspace()
         store = getattr(self.language, "store", None)

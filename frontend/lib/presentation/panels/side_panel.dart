@@ -4,6 +4,7 @@ import '../../core/gateway/models/execution_info.dart';
 import '../../core/gateway/models/file_info.dart';
 import '../../core/gateway/models/git_info.dart';
 import '../../core/gateway/models/index_info.dart';
+import '../../core/gateway/models/language_info.dart';
 import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/test_explorer_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
@@ -68,6 +69,7 @@ class SidePanel extends StatelessWidget {
     this.onRevealInOs,
     this.onCollapseAllFolders,
     this.outline = const [],
+    this.outlineRoot,
     this.isLoadingOutline = false,
     this.selectedOutlineId,
     this.onOutlineSelect,
@@ -133,6 +135,7 @@ class SidePanel extends StatelessWidget {
   final ValueChanged<String>? onRevealInOs;
   final VoidCallback? onCollapseAllFolders;
   final List<IndexedSymbolInfo> outline;
+  final DocumentSymbolNode? outlineRoot;
   final bool isLoadingOutline;
   final String? selectedOutlineId;
   final ValueChanged<IndexedSymbolInfo>? onOutlineSelect;
@@ -219,6 +222,7 @@ class SidePanel extends StatelessWidget {
         onRevealInOs: onRevealInOs,
         onCollapseAllFolders: onCollapseAllFolders,
         outline: outline,
+        outlineRoot: outlineRoot,
         isLoadingOutline: isLoadingOutline,
         selectedOutlineId: selectedOutlineId,
         onOutlineSelect: onOutlineSelect,

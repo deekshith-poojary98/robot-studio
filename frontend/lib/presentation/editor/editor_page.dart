@@ -20,6 +20,7 @@ class EditorPage extends StatefulWidget {
     required this.statusMessage,
     this.onDismissStatusMessage,
     required this.breadcrumb,
+    this.onBreadcrumbTap,
     required this.completionItems,
     required this.diagnostics,
     required this.hoverTooltip,
@@ -37,6 +38,7 @@ class EditorPage extends StatefulWidget {
     this.jumpToLine,
     this.jumpToColumn,
     this.onCompletionAccepted,
+    this.foldingRanges = const [],
   });
 
   final List<EditorTabInfo> tabs;
@@ -49,6 +51,7 @@ class EditorPage extends StatefulWidget {
   /// Dismisses the notice before its auto-expiry.
   final VoidCallback? onDismissStatusMessage;
   final EditorBreadcrumbInfo breadcrumb;
+  final ValueChanged<BreadcrumbSegment>? onBreadcrumbTap;
   final List<CompletionItemInfo> completionItems;
   final List<DiagnosticInfo> diagnostics;
   final SignatureHelpInfo? hoverTooltip;
@@ -67,6 +70,7 @@ class EditorPage extends StatefulWidget {
   final int? jumpToLine;
   final int? jumpToColumn;
   final ValueChanged<CompletionItemInfo>? onCompletionAccepted;
+  final List<FoldingRangeInfo> foldingRanges;
 
   @override
   State<EditorPage> createState() => EditorPageState();
@@ -104,7 +108,10 @@ class EditorPageState extends State<EditorPage> {
             onClose: widget.onCloseTab,
             onContextAction: widget.onTabContextAction,
           ),
-          EditorBreadcrumbBar(breadcrumb: widget.breadcrumb),
+          EditorBreadcrumbBar(
+            breadcrumb: widget.breadcrumb,
+            onSegmentTap: widget.onBreadcrumbTap,
+          ),
           if (widget.statusMessage != null)
             Container(
               width: double.infinity,
@@ -171,6 +178,7 @@ class EditorPageState extends State<EditorPage> {
                               widget.onContentChanged(active.path, content),
                           onCursorChanged: widget.onCursorChanged,
                           onCompletionAccepted: widget.onCompletionAccepted,
+                          foldingRanges: widget.foldingRanges,
                         ),
                       ),
                       if (widget.hover != null || widget.references.isNotEmpty)

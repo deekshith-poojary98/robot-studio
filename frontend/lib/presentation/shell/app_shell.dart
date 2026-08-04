@@ -3201,29 +3201,75 @@ class _AppShellState extends State<AppShell> {
     final fileName = parts.isNotEmpty ? parts.last : tab.path;
     String? folder;
     String? project;
+    String? projectPath;
+    String? folderPath;
     if (parts.length >= 2) {
       folder = parts[parts.length - 2];
+      folderPath = parts.sublist(0, parts.length - 1).join('/');
     }
     final projectsIndex = parts.indexOf('Projects');
     if (projectsIndex >= 0 && projectsIndex + 1 < parts.length) {
       project = parts[projectsIndex + 1];
+      projectPath = parts.sublist(0, projectsIndex + 2).join('/');
     }
     IndexedSymbolInfo? symbol;
-    for (final item in _documentOutline.reversed) {
-      if (item.line <= _cursorLine &&
-          (item.kind == SymbolKind.keyword ||
-              item.kind == SymbolKind.testCase)) {
-        symbol = item;
-        break;
+    final active = _editor.activeDocumentSymbol;
+    if (active != null &&
+        (active.kind == SymbolKind.keyword ||
+            active.kind == SymbolKind.testCase ||
+            active.kind == SymbolKind.keywordCall)) {
+      symbol = active.toIndexed(tab.path);
+    } else {
+      for (final item in _documentOutline.reversed) {
+        if (item.line <= _cursorLine &&
+            (item.kind == SymbolKind.keyword ||
+                item.kind == SymbolKind.testCase)) {
+          symbol = item;
+          break;
+        }
       }
     }
+
+    final segments = <BreadcrumbSegment>[
+      if (_activeWorkspace != null)
+        BreadcrumbSegment(
+          label: _activeWorkspace!.name,
+          path: _activeWorkspace!.path,
+        ),
+      if (project != null)
+        BreadcrumbSegment(label: project, path: projectPath),
+      if (folder != null && folder != project)
+        BreadcrumbSegment(label: folder, path: folderPath),
+      BreadcrumbSegment(label: fileName, path: tab.path, line: 1),
+      if (symbol != null)
+        BreadcrumbSegment(
+          label: symbol.name,
+          path: tab.path,
+          line: symbol.line,
+        ),
+    ];
+
     return EditorBreadcrumbInfo(
       workspace: _activeWorkspace?.name,
       project: project,
       folder: folder,
       fileName: fileName,
       symbol: symbol,
+      segments: segments,
     );
+  }
+
+  void _onBreadcrumbTap(BreadcrumbSegment segment) {
+    final path = segment.path;
+    if (path == null || path.isEmpty) return;
+    final lower = path.toLowerCase();
+    final isRobotFile =
+        lower.endsWith('.robot') || lower.endsWith('.resource');
+    if (isRobotFile || segment.line != null) {
+      unawaited(_openFile(path, line: segment.line));
+      return;
+    }
+    unawaited(_editor.ensureExpanded(path));
   }
 
   Future<void> _editorFormatDocument() async {
@@ -4925,8 +4971,11 @@ class _AppShellState extends State<AppShell> {
                                   _editor.collapseAllFolders();
                                 },
                                 outline: _documentOutline,
+                                outlineRoot: _editor.documentAnalysis?.root,
                                 isLoadingOutline: _loadingOutline,
-                                selectedOutlineId: _selectedOutlineSymbol?.id,
+                                selectedOutlineId:
+                                    _editor.activeDocumentSymbol?.id ??
+                                        _selectedOutlineSymbol?.id,
                                 onOutlineSelect: (symbol) {
                                   setState(() {
                                     _editor.selectedOutlineSymbol = symbol;
@@ -5304,12 +5353,14 @@ class _AppShellState extends State<AppShell> {
         onDismissStatusMessage: () =>
             setState(() => _editor.setStatusMessage(null)),
         breadcrumb: _buildBreadcrumb(),
+        onBreadcrumbTap: _onBreadcrumbTap,
         completionItems: _completionItems,
         diagnostics: _editorDiagnostics,
         hoverTooltip: _hoverTooltip,
         peekDefinition: _peekDefinition,
         jumpToLine: _jumpToLine,
         jumpToColumn: _jumpToColumn,
+        foldingRanges: _editor.documentAnalysis?.foldingRanges ?? const [],
         onSelectTab: _selectTab,
         onCloseTab: _closeTab,
         onTabContextAction: _handleTabContextAction,

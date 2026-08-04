@@ -8,7 +8,10 @@ enum SymbolKind {
   setting,
   tag,
   documentation,
-  file;
+  file,
+  section,
+  keywordCall,
+  control;
 
   static SymbolKind fromApi(String value) {
     return switch (value) {
@@ -22,6 +25,9 @@ enum SymbolKind {
       'tag' => SymbolKind.tag,
       'documentation' => SymbolKind.documentation,
       'file' => SymbolKind.file,
+      'section' => SymbolKind.section,
+      'keyword_call' => SymbolKind.keywordCall,
+      'control' => SymbolKind.control,
       _ => SymbolKind.keyword,
     };
   }
@@ -37,6 +43,9 @@ enum SymbolKind {
         SymbolKind.tag => 'tag',
         SymbolKind.documentation => 'documentation',
         SymbolKind.file => 'file',
+        SymbolKind.section => 'section',
+        SymbolKind.keywordCall => 'keyword_call',
+        SymbolKind.control => 'control',
       };
 
   String get label => switch (this) {
@@ -50,6 +59,9 @@ enum SymbolKind {
         SymbolKind.tag => 'Tag',
         SymbolKind.documentation => 'Documentation',
         SymbolKind.file => 'File',
+        SymbolKind.section => 'Section',
+        SymbolKind.keywordCall => 'Call',
+        SymbolKind.control => 'Control',
       };
 }
 

@@ -8,19 +8,17 @@ class EditorBreadcrumbBar extends StatelessWidget {
   const EditorBreadcrumbBar({
     super.key,
     required this.breadcrumb,
+    this.onSegmentTap,
   });
 
   final EditorBreadcrumbInfo breadcrumb;
+  final ValueChanged<BreadcrumbSegment>? onSegmentTap;
 
   @override
   Widget build(BuildContext context) {
-    final segments = <String?>[
-      breadcrumb.workspace,
-      breadcrumb.project,
-      breadcrumb.folder,
-      breadcrumb.fileName,
-      breadcrumb.symbol?.name,
-    ].whereType<String>().where((item) => item.isNotEmpty).toList();
+    final segments = breadcrumb.segments.isNotEmpty
+        ? breadcrumb.segments
+        : _legacySegments(breadcrumb);
 
     if (segments.isEmpty) {
       return const SizedBox.shrink();
@@ -41,19 +39,76 @@ class EditorBreadcrumbBar extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: 4),
                 child: Icon(Icons.chevron_right, size: 14, color: AppColors.textMuted),
               ),
-            Text(
-              segments[i],
-              style: TextStyle(
-                fontSize: 11,
-                color: i == segments.length - 1
-                    ? AppColors.textPrimary
-                    : AppColors.textMuted,
-                fontWeight:
-                    i == segments.length - 1 ? FontWeight.w600 : FontWeight.w400,
-              ),
+            _BreadcrumbChip(
+              segment: segments[i],
+              isLast: i == segments.length - 1,
+              onTap: onSegmentTap == null
+                  ? null
+                  : () => onSegmentTap!(segments[i]),
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  List<BreadcrumbSegment> _legacySegments(EditorBreadcrumbInfo info) {
+    final out = <BreadcrumbSegment>[];
+    if (info.workspace != null && info.workspace!.isNotEmpty) {
+      out.add(BreadcrumbSegment(label: info.workspace!));
+    }
+    if (info.project != null && info.project!.isNotEmpty) {
+      out.add(BreadcrumbSegment(label: info.project!));
+    }
+    if (info.folder != null && info.folder!.isNotEmpty) {
+      out.add(BreadcrumbSegment(label: info.folder!));
+    }
+    if (info.fileName != null && info.fileName!.isNotEmpty) {
+      out.add(BreadcrumbSegment(label: info.fileName!));
+    }
+    if (info.symbol != null) {
+      out.add(
+        BreadcrumbSegment(
+          label: info.symbol!.name,
+          path: info.symbol!.filePath,
+          line: info.symbol!.line,
+        ),
+      );
+    }
+    return out;
+  }
+}
+
+class _BreadcrumbChip extends StatelessWidget {
+  const _BreadcrumbChip({
+    required this.segment,
+    required this.isLast,
+    this.onTap,
+  });
+
+  final BreadcrumbSegment segment;
+  final bool isLast;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final navigable =
+        onTap != null && (segment.path != null || segment.line != null);
+    final style = TextStyle(
+      fontSize: 11,
+      color: isLast ? AppColors.textPrimary : AppColors.textMuted,
+      fontWeight: isLast ? FontWeight.w600 : FontWeight.w400,
+    );
+
+    if (!navigable) {
+      return Text(segment.label, style: style);
+    }
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Text(segment.label, style: style),
       ),
     );
   }

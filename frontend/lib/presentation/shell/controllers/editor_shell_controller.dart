@@ -20,6 +20,7 @@ class EditorShellController {
   List<EditorTabInfo> tabs = [];
   String? activePath;
   List<IndexedSymbolInfo> documentOutline = [];
+  DocumentAnalysisInfo? documentAnalysis;
   bool loadingOutline = false;
   bool wordWrap = true;
   String? statusMessage;
@@ -33,6 +34,7 @@ class EditorShellController {
   final Set<String> loadingDirs = {};
   List<String> recentFiles = [];
   IndexedSymbolInfo? selectedOutlineSymbol;
+  DocumentSymbolNode? activeDocumentSymbol;
   List<CompletionItemInfo> completionItems = [];
   List<DiagnosticInfo> diagnostics = [];
   List<DiagnosticInfo> workspaceProblems = [];
@@ -85,7 +87,9 @@ class EditorShellController {
     tabs = [];
     activePath = null;
     documentOutline = [];
+    documentAnalysis = null;
     selectedOutlineSymbol = null;
+    activeDocumentSymbol = null;
     completionItems = [];
     diagnostics = [];
     workspaceProblems = [];
@@ -130,6 +134,7 @@ class EditorShellController {
       tab.cursorLine = line;
       tab.cursorColumn = column;
     }
+    syncActiveSymbol(line);
     notify();
     scheduleLanguageRefresh();
   }
@@ -190,6 +195,17 @@ class EditorShellController {
         ...workspaceProblems.where((item) => item.filePath != tab.path),
         ...diagnostics,
       ];
+      // Keep outline / folding in sync with the live buffer.
+      try {
+        documentAnalysis = await gateway.analyzeDocument(
+          filePath: tab.path,
+          content: tab.content,
+        );
+        documentOutline = documentAnalysis!.flattenIndexed();
+        syncActiveSymbol(cursorLine);
+      } catch (_) {
+        // Outline refresh is best-effort alongside completion/diagnostics.
+      }
       loadingLanguageFeatures = false;
       notify();
     } catch (error) {
@@ -307,20 +323,61 @@ class EditorShellController {
     notify();
   }
 
-  Future<void> loadOutline(String path) async {
+  Future<void> loadOutline(String path, {String? content}) async {
     loadingOutline = true;
     selectedOutlineSymbol = null;
+    activeDocumentSymbol = null;
     notify();
     try {
-      documentOutline = await gateway.documentSymbols(path);
+      var buffer = content;
+      if (buffer == null) {
+        for (final tab in tabs) {
+          if (tab.path == path) {
+            buffer = tab.content;
+            break;
+          }
+        }
+      }
+      if (buffer != null) {
+        documentAnalysis = await gateway.analyzeDocument(
+          filePath: path,
+          content: buffer,
+        );
+        documentOutline = documentAnalysis!.flattenIndexed();
+      } else {
+        documentOutline = await gateway.documentSymbols(path);
+        documentAnalysis = null;
+      }
       if (!isMounted()) return;
+      syncActiveSymbol(cursorLine);
       loadingOutline = false;
       notify();
     } catch (_) {
       if (!isMounted()) return;
       documentOutline = [];
+      documentAnalysis = null;
       loadingOutline = false;
       notify();
+    }
+  }
+
+  void syncActiveSymbol(int line) {
+    cursorLine = line;
+    final root = documentAnalysis?.root;
+    if (root == null) {
+      activeDocumentSymbol = null;
+      return;
+    }
+    final hit = root.findAtLine(line);
+    activeDocumentSymbol = hit;
+    if (hit != null &&
+        (hit.kind == SymbolKind.keyword ||
+            hit.kind == SymbolKind.testCase ||
+            hit.kind == SymbolKind.section ||
+            hit.kind == SymbolKind.keywordCall ||
+            hit.kind == SymbolKind.control ||
+            hit.kind == SymbolKind.variable)) {
+      selectedOutlineSymbol = hit.toIndexed(documentAnalysis!.filePath);
     }
   }
 
