@@ -83,3 +83,36 @@ class SignatureHelpRequest(BaseModel):
     line: int = 1
     column: int = 1
     content: str = ""
+
+
+class LibraryKeywordResponse(BaseModel):
+    name: str
+    qualified_name: str = ""
+    source_type: str = ""
+    library_name: str = ""
+    documentation: str = ""
+    parameters: list[SignatureParameterResponse] = Field(default_factory=list)
+    source_path: str = ""
+    source_line: int | None = None
+    deprecated: bool = False
+    tags: list[str] = Field(default_factory=list)
+    detail: str = ""
+
+
+class LibrarySummaryResponse(BaseModel):
+    name: str
+    version: str = ""
+    documentation: str = ""
+    source_type: str = ""
+    source_path: str = ""
+    builtin: bool = False
+    keyword_count: int = 0
+    last_updated: str | None = None
+
+
+class LibraryListResponse(BaseModel):
+    libraries: list[LibrarySummaryResponse] = Field(default_factory=list)
+
+
+class LibraryDetailResponse(LibrarySummaryResponse):
+    keywords: list[LibraryKeywordResponse] = Field(default_factory=list)

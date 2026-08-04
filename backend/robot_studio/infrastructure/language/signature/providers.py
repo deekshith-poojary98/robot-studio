@@ -1,10 +1,9 @@
-"""Signature Help discovery providers (libdoc + index)."""
+"""Signature Help discovery providers (catalog + index)."""
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
 
 from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.domain.interfaces.signature_help import (
@@ -20,17 +19,17 @@ from robot_studio.infrastructure.language.keyword_helpers import (
     parameters_from_detail_string,
     strip_keyword_qualifier,
 )
+from robot_studio.infrastructure.language.library_catalog import LibraryCatalogService
 
-ResolveLibrary = Callable[[str], Awaitable[dict[str, Any]]]
-ImportedLibraries = Callable[[str], list[str]]
 FindDefinition = Callable[..., Awaitable[dict | None]]
+ImportedLibraries = Callable[[str], list[str]]
 
 
 @dataclass
 class LibdocSignatureHelpProvider(SignatureHelpProvider):
-    """Discover keywords from env libraries / BuiltIn via resolve_library transport."""
+    """Discover keywords via LibraryCatalogService (never resolve_library directly)."""
 
-    resolve_library: ResolveLibrary
+    catalog: LibraryCatalogService
     imported_libraries: ImportedLibraries
 
     @property
@@ -42,53 +41,13 @@ class LibdocSignatureHelpProvider(SignatureHelpProvider):
         return 80
 
     async def resolve(self, ctx: SignatureHelpRequestContext) -> KeywordMetadata | None:
-        bare = strip_keyword_qualifier(ctx.keyword)
-        keys = {ctx.keyword.casefold(), bare.casefold()}
-        # Alias.Keyword — try alias library first
-        qualifier = ""
-        if "." in ctx.keyword:
-            head, _, rest = ctx.keyword.partition(".")
-            if rest:
-                qualifier = head.strip()
-                keys.add(rest.casefold())
-
         libraries = list(self.imported_libraries(ctx.content))
-        if qualifier:
-            libraries = [qualifier, *libraries]
-        if "BuiltIn" not in libraries:
-            libraries.append("BuiltIn")
-
-        for library_name in libraries:
-            resolved = await self.resolve_library(library_name)
-            if not resolved.get("available"):
-                continue
-            info_map = resolved.get("keyword_info") or {}
-            for key in keys:
-                raw = info_map.get(key)
-                if not isinstance(raw, dict):
-                    continue
-                meta = KeywordMetadata.from_transport(raw)
-                # Ensure library_name / source_type filled
-                lib = meta.library_name or str(resolved.get("name") or library_name)
-                source = (
-                    KeywordSourceType.BUILTIN
-                    if lib.casefold() == "builtin"
-                    else KeywordSourceType.LIBRARY
-                )
-                return KeywordMetadata(
-                    name=meta.name or bare,
-                    qualified_name=meta.qualified_name or f"{lib}.{meta.name or bare}",
-                    source_type=source,
-                    library_name=lib,
-                    documentation=meta.documentation,
-                    parameters=meta.parameters,
-                    source_path=meta.source_path,
-                    source_line=meta.source_line,
-                    deprecated=meta.deprecated,
-                    tags=meta.tags,
-                    examples=meta.examples,
-                    detail=meta.detail,
-                )
+        found = await self.catalog.find_keyword(ctx.keyword, libraries=libraries)
+        if found is not None:
+            return found
+        bare = strip_keyword_qualifier(ctx.keyword)
+        if bare != ctx.keyword:
+            return await self.catalog.find_keyword(bare, libraries=libraries)
         return None
 
 
@@ -115,7 +74,6 @@ class IndexSignatureHelpProvider(SignatureHelpProvider):
             return None
         detail = str(definition.get("detail") or "")
         params = parameters_from_detail_string(detail)
-        # Prefer structured parameters if index already stored them
         raw_params = definition.get("parameters")
         if isinstance(raw_params, list) and raw_params:
             params = tuple(

@@ -2289,6 +2289,12 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<List<LibraryInfo>> languageLibraries() async => const [];
+
+  @override
+  Future<LibraryInfo?> languageLibrary(String name) async => null;
+
+  @override
   Future<List<PluginInfo>> listPlugins() async {
     return const [
       PluginInfo(

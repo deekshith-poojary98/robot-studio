@@ -6,6 +6,7 @@ import 'models/git_info.dart';
 import 'models/health_response.dart';
 import 'models/index_info.dart';
 import 'models/language_info.dart';
+import 'models/library_info.dart';
 import 'models/package_info.dart';
 import 'models/plugin_info.dart';
 import 'models/project_info.dart';
@@ -23,6 +24,7 @@ export 'models/git_info.dart';
 export 'models/health_response.dart';
 export 'models/index_info.dart';
 export 'models/language_info.dart';
+export 'models/library_info.dart';
 export 'models/package_info.dart';
 export 'models/plugin_info.dart';
 export 'models/project_info.dart';
@@ -239,6 +241,10 @@ abstract class TransportGateway {
     required int column,
     required String content,
   });
+
+  Future<List<LibraryInfo>> languageLibraries();
+
+  Future<LibraryInfo?> languageLibrary(String name);
 
   Future<FileContentInfo> readFile(String path);
 

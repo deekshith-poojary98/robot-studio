@@ -8,6 +8,8 @@ import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/test_explorer_info.dart';
 import '../../core/gateway/models/workspace_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../libraries/library_explorer_controller.dart';
+import '../libraries/library_explorer_panel.dart';
 import '../search/find_in_files_panel.dart';
 import '../sidebar/sidebar_panel.dart';
 import '../tests/test_explorer_panel.dart';
@@ -72,6 +74,8 @@ class SidePanel extends StatelessWidget {
     this.onContentSearch,
     this.onOpenContentMatch,
     this.onOpenSymbols,
+    this.libraryExplorerController,
+    this.onLibraryJumpToSource,
   });
 
   final SidebarPanel panel;
@@ -135,6 +139,8 @@ class SidePanel extends StatelessWidget {
   final Future<ContentSearchResultInfo> Function(String query)? onContentSearch;
   final void Function(String path, int line, int column)? onOpenContentMatch;
   final VoidCallback? onOpenSymbols;
+  final LibraryExplorerController? libraryExplorerController;
+  final void Function(String path, int? line)? onLibraryJumpToSource;
 
   /// Default / min / max widths for the resizable side content column.
   static const double defaultWidth = 280;
@@ -147,7 +153,8 @@ class SidePanel extends StatelessWidget {
     return panel == SidebarPanel.explorer ||
         panel == SidebarPanel.tests ||
         panel == SidebarPanel.reports ||
-        panel == SidebarPanel.search;
+        panel == SidebarPanel.search ||
+        panel == SidebarPanel.libraries;
   }
 
   @override
@@ -161,7 +168,11 @@ class SidePanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             PanelHeader(
-              title: panel == SidebarPanel.search ? 'Find in Files' : panel.label,
+              title: panel == SidebarPanel.search
+                  ? 'Find in Files'
+                  : panel == SidebarPanel.libraries
+                      ? 'Libraries'
+                      : panel.label,
             ),
             Expanded(child: _buildBody(context)),
           ],
@@ -298,6 +309,23 @@ class SidePanel extends StatelessWidget {
                 )),
         onOpenMatch: onOpenContentMatch ?? (path, line, column) {},
         onOpenSymbols: onOpenSymbols,
+      );
+    }
+
+    if (panel == SidebarPanel.libraries) {
+      final controller = libraryExplorerController;
+      if (controller == null) {
+        return const EmptyState(
+          icon: Icons.menu_book_outlined,
+          title: 'Libraries',
+          message: 'Library explorer is unavailable.',
+          compact: true,
+        );
+      }
+      return LibraryExplorerPanel(
+        hasProject: workspace != null,
+        controller: controller,
+        onJumpToSource: onLibraryJumpToSource ?? (_, _) {},
       );
     }
 

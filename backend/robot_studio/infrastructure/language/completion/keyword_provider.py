@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
 
 from robot_studio.domain.interfaces.completion import (
     CompletionCandidate,
@@ -15,6 +14,7 @@ from robot_studio.domain.interfaces.completion import (
 )
 from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.infrastructure.language.builtin_keywords import BUILTIN_KEYWORDS
+from robot_studio.infrastructure.language.library_catalog import LibraryCatalogService
 
 _POPULAR_BUILTIN = [
     "Log",
@@ -35,16 +35,15 @@ _POPULAR_BUILTIN = [
 ]
 
 
-ResolveLibrary = Callable[[str], Awaitable[dict[str, Any]]]
 ImportedLibraries = Callable[[str], list[tuple[str, str | None]]]
 SearchSymbols = Callable[..., Awaitable[list[dict]]]
 
 
 @dataclass
 class KeywordCompletionProvider(CompletionProvider):
-    """BuiltIn + imported library keywords (libdoc) + indexed keywords."""
+    """BuiltIn + imported library keywords (catalog) + indexed keywords."""
 
-    resolve_library: ResolveLibrary
+    catalog: LibraryCatalogService
     imported_library_entries: ImportedLibraries
     search_symbols: SearchSymbols
 
@@ -65,7 +64,6 @@ class KeywordCompletionProvider(CompletionProvider):
         return 60
 
     def accepts(self, ctx: CompletionRequestContext) -> bool:
-        # Argument sites are owned by NamedArgumentCompletionProvider.
         if ctx.context == "argument":
             return False
         return super().accepts(ctx)
@@ -94,20 +92,20 @@ class KeywordCompletionProvider(CompletionProvider):
 
         if len(prefix) >= 1:
             try:
-                resolved = await self.resolve_library("BuiltIn")
-                if resolved.get("available"):
-                    for name in resolved.get("keywords") or []:
-                        label = str(name)
-                        if matches_prefix(label, prefix):
+                builtin = await self.catalog.get_library("BuiltIn")
+                if builtin is not None:
+                    for kw in builtin.keywords:
+                        if matches_prefix(kw.name, prefix):
                             out.append(
                                 CompletionCandidate(
-                                    label=label,
+                                    label=kw.name,
                                     kind="keyword",
                                     detail="BuiltIn library",
-                                    documentation="BuiltIn library keyword (not RF DSL).",
-                                    insert_text=label,
+                                    documentation=kw.documentation
+                                    or "BuiltIn library keyword (not RF DSL).",
+                                    insert_text=kw.name,
                                     provider_id=self.provider_id,
-                                    match_score=match_score(label, prefix),
+                                    match_score=match_score(kw.name, prefix),
                                     base_priority=self.base_priority + 2,
                                 ),
                             )
@@ -119,21 +117,16 @@ class KeywordCompletionProvider(CompletionProvider):
                     for lib_name, alias in self.imported_library_entries(ctx.content):
                         if lib_name.casefold() == "builtin":
                             continue
-                        resolved = await self.resolve_library(lib_name)
-                        if not resolved.get("available"):
+                        lib = await self.catalog.get_library(lib_name)
+                        if lib is None:
                             continue
-                        display = str(resolved.get("name") or lib_name)
-                        info = resolved.get("keyword_info") or {}
-                        for kw in resolved.get("keywords") or []:
-                            kw_name = str(kw)
-                            docs = str(
-                                (info.get(kw_name.casefold()) or {}).get("documentation")
-                                or "",
-                            )
+                        display = lib.name or lib_name
+                        for kw in lib.keywords:
+                            docs = kw.documentation
                             if alias:
-                                qualified = f"{alias}.{kw_name}"
+                                qualified = f"{alias}.{kw.name}"
                                 if matches_prefix(qualified, prefix) or matches_prefix(
-                                    kw_name,
+                                    kw.name,
                                     prefix,
                                 ):
                                     out.append(
@@ -148,23 +141,22 @@ class KeywordCompletionProvider(CompletionProvider):
                                             base_priority=self.base_priority + 5,
                                         ),
                                     )
-                            elif matches_prefix(kw_name, prefix):
+                            elif matches_prefix(kw.name, prefix):
                                 out.append(
                                     CompletionCandidate(
-                                        label=kw_name,
+                                        label=kw.name,
                                         kind="keyword",
                                         detail=f"{display} library",
                                         documentation=docs,
-                                        insert_text=kw_name,
+                                        insert_text=kw.name,
                                         provider_id=self.provider_id,
-                                        match_score=match_score(kw_name, prefix),
+                                        match_score=match_score(kw.name, prefix),
                                         base_priority=self.base_priority + 5,
                                     ),
                                 )
                 except Exception:  # noqa: BLE001
                     pass
 
-        # Indexed user keywords / suites
         try:
             results = await self.search_symbols(
                 prefix,
@@ -216,7 +208,6 @@ class VariableCompletionProvider(CompletionProvider):
         return 65
 
     async def complete(self, ctx: CompletionRequestContext) -> list[CompletionCandidate]:
-        # Only flood variables when typing a var prefix or in Variables section.
         if ctx.context != "variable" and not ctx.prefix.startswith(("${", "@{", "&{", "%{")):
             if len(ctx.prefix) < 2:
                 return []
@@ -231,7 +222,6 @@ class VariableCompletionProvider(CompletionProvider):
                 name = str(item.get("name") or "")
                 if not name:
                     continue
-                # Ensure RF variable braces when completing bare names
                 insert = name
                 if not name.startswith(("${", "@{", "&{", "%{")):
                     insert = f"${{{name}}}"
@@ -302,7 +292,6 @@ class IndexSymbolCompletionProvider(CompletionProvider):
     async def complete(self, ctx: CompletionRequestContext) -> list[CompletionCandidate]:
         kind = self._kind(ctx)
         if kind in {SymbolKind.KEYWORD, SymbolKind.VARIABLE}:
-            # Handled by dedicated providers to avoid duplicate floods.
             return []
         out: list[CompletionCandidate] = []
         try:

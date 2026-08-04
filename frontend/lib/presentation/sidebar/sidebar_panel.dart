@@ -11,6 +11,11 @@ enum SidebarPanel {
     Icons.search,
     'Search — find text across the project',
   ),
+  libraries(
+    'Libraries',
+    Icons.menu_book_outlined,
+    'Libraries — browse keywords, docs, and arguments',
+  ),
   tests(
     'Tests',
     Icons.science_outlined,

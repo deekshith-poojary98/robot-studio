@@ -18,6 +18,8 @@ from robot_studio.api.schemas.language import (
     DiagnosticsRequest,
     FormatRequest,
     FormatResponse,
+    LibraryDetailResponse,
+    LibraryListResponse,
     SignatureHelpRequest,
     SignatureHelpResponse,
 )
@@ -254,6 +256,68 @@ async def language_signature_help(
             }
             for param in result.get("parameters") or []
         ],
+    )
+
+
+@router.get("/libraries", response_model=LibraryListResponse)
+async def language_libraries(
+    gateway: RestGateway = Depends(get_gateway),
+) -> LibraryListResponse:
+    try:
+        items = await gateway.language_libraries()
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return LibraryListResponse(libraries=items)
+
+
+@router.get("/libraries/{name}", response_model=LibraryDetailResponse | None)
+async def language_library_detail(
+    name: str,
+    gateway: RestGateway = Depends(get_gateway),
+) -> LibraryDetailResponse | None:
+    try:
+        result = await gateway.language_library(name)
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Library '{name}' not found")
+    keywords = []
+    for kw in result.get("keywords") or []:
+        keywords.append(
+            {
+                "name": kw.get("name") or "",
+                "qualified_name": kw.get("qualified_name") or "",
+                "source_type": kw.get("source_type") or "",
+                "library_name": kw.get("library_name") or "",
+                "documentation": kw.get("documentation") or "",
+                "parameters": [
+                    {
+                        "label": p.get("label") or "",
+                        "name": p.get("name") or "",
+                        "documentation": p.get("documentation") or "",
+                        "default": p.get("default"),
+                        "required": bool(p.get("required") or False),
+                        "kind": p.get("kind") or "",
+                    }
+                    for p in (kw.get("parameters") or [])
+                ],
+                "source_path": kw.get("source_path") or "",
+                "source_line": kw.get("source_line"),
+                "deprecated": bool(kw.get("deprecated") or False),
+                "tags": list(kw.get("tags") or []),
+                "detail": kw.get("detail") or "",
+            },
+        )
+    return LibraryDetailResponse(
+        name=result.get("name") or name,
+        version=result.get("version") or "",
+        documentation=result.get("documentation") or "",
+        source_type=result.get("source_type") or "",
+        source_path=result.get("source_path") or "",
+        builtin=bool(result.get("builtin") or False),
+        keyword_count=int(result.get("keyword_count") or len(keywords)),
+        last_updated=result.get("last_updated"),
+        keywords=keywords,
     )
 
 

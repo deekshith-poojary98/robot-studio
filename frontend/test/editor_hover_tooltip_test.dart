@@ -13,10 +13,20 @@ void main() {
             signature: SignatureHelpInfo(
               keyword: 'Open Workbook',
               documentation: 'Opens an Excel workbook.',
+              libraryName: 'ExcelSage',
               parameters: [
-                SignatureParameterInfo(label: 'workbook_name: str'),
-                SignatureParameterInfo(label: 'alias: str | None = None'),
+                SignatureParameterInfo(
+                  label: 'workbook_name: str',
+                  name: 'workbook_name',
+                  required: true,
+                ),
+                SignatureParameterInfo(
+                  label: 'alias: str | None = None',
+                  name: 'alias',
+                  defaultValue: 'None',
+                ),
               ],
+              activeParameter: 1,
             ),
           ),
         ),
@@ -24,9 +34,19 @@ void main() {
     );
 
     expect(find.text('Open Workbook'), findsOneWidget);
+    expect(find.text('ExcelSage'), findsOneWidget);
     expect(find.text('workbook_name: str'), findsOneWidget);
     expect(find.text('alias: str | None = None'), findsOneWidget);
     expect(find.text('Opens an Excel workbook.'), findsOneWidget);
+  });
+
+  test('parameter displayLabel falls back to name=default', () {
+    const param = SignatureParameterInfo(
+      label: '',
+      name: 'browser',
+      defaultValue: 'chrome',
+    );
+    expect(param.displayLabel, 'browser=chrome');
   });
 
   test('extractRobotTokenAt keeps multi-word keyword cells', () {

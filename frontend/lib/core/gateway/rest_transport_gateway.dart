@@ -13,6 +13,7 @@ export 'models/git_info.dart';
 export 'models/health_response.dart';
 export 'models/index_info.dart';
 export 'models/language_info.dart';
+export 'models/library_info.dart';
 export 'models/package_info.dart';
 export 'models/plugin_info.dart';
 export 'models/project_info.dart';
@@ -791,6 +792,22 @@ class RestTransportGateway implements TransportGateway {
     }
     final decoded = _decode(response);
     return SignatureHelpInfo.fromJson(decoded);
+  }
+
+  @override
+  Future<List<LibraryInfo>> languageLibraries() async {
+    final response = await _get('/language/libraries');
+    final items = response['libraries'] as List<dynamic>? ?? const [];
+    return items
+        .map((item) => LibraryInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<LibraryInfo?> languageLibrary(String name) async {
+    final encoded = Uri.encodeComponent(name);
+    final response = await _get('/language/libraries/$encoded');
+    return LibraryInfo.fromJson(response);
   }
 
   @override

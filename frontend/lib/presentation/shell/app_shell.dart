@@ -27,6 +27,7 @@ import '../packages/package_progress_dialog.dart';
 import '../packages/search_packages_dialog.dart';
 import '../packages/uninstall_package_dialog.dart';
 import '../panels/bottom_panel.dart';
+import '../libraries/library_explorer_controller.dart';
 import '../panels/side_panel.dart';
 import '../plugins/plugin_details_panel.dart';
 import '../plugins/plugin_manager_page.dart';
@@ -105,6 +106,7 @@ class _AppShellState extends State<AppShell> {
       GlobalKey<VirtualFileTreeState>();
   final GlobalKey<EditorPageState> _editorPageKey =
       GlobalKey<EditorPageState>();
+  late final LibraryExplorerController _libraryExplorer;
 
   void _notify() {
     if (mounted) setState(() {});
@@ -262,6 +264,11 @@ class _AppShellState extends State<AppShell> {
       notify: _notify,
       isMounted: () => mounted,
       workspace: () => _workspace.activeWorkspace,
+    );
+
+    _libraryExplorer = LibraryExplorerController(
+      listLibraries: () => _gateway.languageLibraries(),
+      getLibrary: (name) => _gateway.languageLibrary(name),
     );
     _live = WorkspaceLiveController(
       notify: _notify,
@@ -4259,6 +4266,14 @@ class _AppShellState extends State<AppShell> {
           onSelect: _openProjectSearch,
         ),
         PaletteItem(
+          id: 'view.libraries',
+          title: 'Show Libraries',
+          icon: Icons.menu_book_outlined,
+          kind: PaletteItemKind.command,
+          keywords: const ['keywords', 'libdoc', 'documentation'],
+          onSelect: () => _showSidebarPanel(SidebarPanel.libraries),
+        ),
+        PaletteItem(
           id: 'view.tests',
           title: 'Show Tests',
           icon: Icons.play_circle_outline,
@@ -4601,6 +4616,7 @@ class _AppShellState extends State<AppShell> {
         onShowProblems: _revealProblemsPanel,
         onShowExplorer: () => _showSidebarPanel(SidebarPanel.explorer),
         onShowSearch: () => _showSidebarPanel(SidebarPanel.search),
+        onShowLibraries: () => _showSidebarPanel(SidebarPanel.libraries),
         onShowSymbols: () => unawaited(_openSymbolsPage()),
         onShowSourceControl: () => unawaited(_handleOpenSourceControl()),
         onShowTests: () => unawaited(_revealTests()),
@@ -4839,6 +4855,8 @@ class _AppShellState extends State<AppShell> {
                                 } else if (panel == SidebarPanel.tests) {
                                   _loadExecutionHistory();
                                   _loadTestSuites();
+                                } else if (panel == SidebarPanel.libraries) {
+                                  unawaited(_libraryExplorer.loadLibraries());
                                 }
                               },
                             ),
@@ -4930,6 +4948,12 @@ class _AppShellState extends State<AppShell> {
                                 },
                                 onOpenSymbols: () =>
                                     unawaited(_openSymbolsPage()),
+                                libraryExplorerController: _libraryExplorer,
+                                onLibraryJumpToSource: (path, line) {
+                                  unawaited(
+                                    _openFile(path, line: line ?? 1),
+                                  );
+                                },
                               ),
                             if (SidePanel.hasSideContent(_activePanel) &&
                                 !_sidePanelCollapsed)

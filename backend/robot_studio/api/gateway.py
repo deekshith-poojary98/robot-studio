@@ -684,6 +684,12 @@ class RestGateway:
             content=content,
         )
 
+    async def language_libraries(self) -> list[dict]:
+        return await self._language_service.list_libraries()
+
+    async def language_library(self, name: str) -> dict | None:
+        return await self._language_service.get_library(name)
+
     async def document_symbols(self, file_path: str) -> list[dict]:
         return await self._language_service.document_symbols(file_path)
 

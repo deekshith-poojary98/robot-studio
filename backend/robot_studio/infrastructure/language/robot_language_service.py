@@ -53,6 +53,8 @@ from robot_studio.infrastructure.language.completion import (
 from robot_studio.infrastructure.language.keyword_helpers import (
     active_parameter_index,
 )
+from robot_studio.infrastructure.language.library_catalog import LibraryCatalogService
+from robot_studio.domain.models.library_metadata import LibraryMetadata
 from robot_studio.infrastructure.language.signature import (
     IndexSignatureHelpProvider,
     LibdocSignatureHelpProvider,
@@ -79,9 +81,9 @@ class RobotLanguageService(LanguageService):
     usage_store: SqliteCompletionUsageStore | None = None
     _cache_generation: int = field(default=0, init=False)
     _subscribed: bool = field(default=False, init=False)
-    _library_cache: dict[str, dict[str, Any]] = field(default_factory=dict, init=False)
     _completion_pipeline: CompletionPipeline | None = field(default=None, init=False)
     _signature_pipeline: SignatureHelpPipeline | None = field(default=None, init=False)
+    _library_catalog: LibraryCatalogService | None = field(default=None, init=False)
 
     def start(self) -> None:
         if self._subscribed or self.event_bus is None:
@@ -93,11 +95,17 @@ class RobotLanguageService(LanguageService):
     async def _on_index_updated(self, event: IndexUpdated) -> None:
         _ = event
         self._cache_generation += 1
+        # Imports / index generation changed — drop catalog membership + resolved libs.
+        if self._library_catalog is not None:
+            self._library_catalog.invalidate()
+        self._signature_pipeline = None
+        self._completion_pipeline = None
 
     async def _on_environment_activated(self, event: EnvironmentActivated) -> None:
         _ = event
-        self._library_cache.clear()
         self._cache_generation += 1
+        if self._library_catalog is not None:
+            self._library_catalog.invalidate()
         self._signature_pipeline = None
         self._completion_pipeline = None
 
@@ -108,6 +116,49 @@ class RobotLanguageService(LanguageService):
                 "Activate a Python environment before using language features",
             )
         return self.parsing.resolve_python(environment.path)
+
+    def library_catalog(self) -> LibraryCatalogService:
+        """Canonical semantic cache — sole resolve_library owner."""
+        if self._library_catalog is not None:
+            return self._library_catalog
+
+        async def discover_imports() -> list[str]:
+            names: list[str] = []
+            seen: set[str] = set()
+            try:
+                symbols = await self.store.search_symbols(
+                    "",
+                    kind=SymbolKind.LIBRARY,
+                    limit=200,
+                )
+            except Exception:  # noqa: BLE001
+                symbols = []
+            for item in symbols:
+                name = str(item.get("name") or "").strip()
+                if not name or name.casefold() in seen:
+                    continue
+                seen.add(name.casefold())
+                names.append(name)
+            return names
+
+        async def resolve_raw(name: str) -> dict[str, Any]:
+            return await self._resolve_library_raw(name)
+
+        self._library_catalog = LibraryCatalogService(
+            _resolve_raw=resolve_raw,
+            _discover_imports=discover_imports,
+        )
+        return self._library_catalog
+
+    async def list_libraries(self, *, extra_imports: list[str] | None = None) -> list[dict]:
+        libs = await self.library_catalog().list_libraries(extra_imports=extra_imports)
+        return [lib.to_summary_api() for lib in libs]
+
+    async def get_library(self, name: str) -> dict | None:
+        lib = await self.library_catalog().get_library(name)
+        if lib is None:
+            return None
+        return lib.to_api()
 
     def _ensure_signature_pipeline(self) -> SignatureHelpPipeline:
         if self._signature_pipeline is not None:
@@ -120,10 +171,11 @@ class RobotLanguageService(LanguageService):
         ) -> dict | None:
             return await self.store.find_definition(name, kind=kind)
 
+        catalog = self.library_catalog()
         self._signature_pipeline = SignatureHelpPipeline(
             providers=[
                 LibdocSignatureHelpProvider(
-                    resolve_library=self._resolve_library,
+                    catalog=catalog,
                     imported_libraries=self._imported_libraries,
                 ),
                 IndexSignatureHelpProvider(find_definition=find_definition),
@@ -144,6 +196,7 @@ class RobotLanguageService(LanguageService):
             return await self.store.search_symbols(prefix, kind=kind, limit=limit)
 
         signature_pipeline = self._ensure_signature_pipeline()
+        catalog = self.library_catalog()
         self._completion_pipeline = CompletionPipeline(
             providers=[
                 NamedArgumentCompletionProvider(
@@ -155,7 +208,7 @@ class RobotLanguageService(LanguageService):
                 BufferCompletionProvider(),
                 VariableCompletionProvider(search_symbols=search_symbols),
                 KeywordCompletionProvider(
-                    resolve_library=self._resolve_library,
+                    catalog=catalog,
                     imported_library_entries=self._imported_library_entries,
                     search_symbols=search_symbols,
                 ),
@@ -287,17 +340,20 @@ class RobotLanguageService(LanguageService):
         for library_name in self._imported_libraries(content):
             if library_name.casefold() != name.casefold():
                 continue
-            resolved = await self._resolve_library(library_name)
-            if not resolved.get("available"):
+            resolved = await self.library_catalog().get_library(library_name)
+            if resolved is None:
                 continue
             return {
-                "name": str(resolved.get("name") or library_name),
+                "name": resolved.name or library_name,
                 "kind": SymbolKind.LIBRARY.value,
                 "file_path": file_path,
                 "line": line,
-                "documentation": f"Library available in the active environment "
-                f"({len(resolved.get('keywords') or [])} keywords).",
-                "detail": str(resolved.get("name") or library_name),
+                "documentation": resolved.documentation
+                or (
+                    f"Library available in the active environment "
+                    f"({resolved.keyword_count} keywords)."
+                ),
+                "detail": resolved.name or library_name,
                 "id": "",
             }
         return None
@@ -720,12 +776,13 @@ class RobotLanguageService(LanguageService):
         imported_libraries = self._imported_libraries(content)
 
         for library_name in imported_libraries:
-            resolved = await self._resolve_library(library_name)
-            if resolved.get("available"):
-                known_libraries.add(library_name.casefold())
-                known_libraries.add(str(resolved.get("name") or library_name).casefold())
-                for keyword in resolved.get("keywords") or []:
-                    known_keywords.add(str(keyword).casefold())
+            resolved = await self.library_catalog().get_library(library_name)
+            if resolved is None:
+                continue
+            known_libraries.add(library_name.casefold())
+            known_libraries.add(resolved.name.casefold())
+            for keyword in resolved.keywords:
+                known_keywords.add(keyword.name.casefold())
 
         for idx, raw in enumerate(lines, start=1):
             line = raw.strip()
@@ -951,7 +1008,8 @@ class RobotLanguageService(LanguageService):
         except ValueError:
             return False
 
-    async def _resolve_library(self, name: str) -> dict[str, Any]:
+    async def _resolve_library_raw(self, name: str) -> dict[str, Any]:
+        """Worker transport only — LibraryCatalogService is the sole caller/cache."""
         cleaned = name.strip()
         if not cleaned:
             return {"available": False, "keywords": []}
@@ -959,10 +1017,6 @@ class RobotLanguageService(LanguageService):
             python = self._python_executable()
         except RobotParsingError:
             return {"available": False, "keywords": []}
-        cache_key = f"{python}::{cleaned.casefold()}"
-        cached = self._library_cache.get(cache_key)
-        if cached is not None:
-            return cached
         try:
             result = await self.parsing.run(
                 python,
@@ -973,7 +1027,6 @@ class RobotLanguageService(LanguageService):
                 result = {"available": False, "keywords": []}
         except RobotParsingError:
             result = {"available": False, "keywords": []}
-        self._library_cache[cache_key] = result
         return result
 
     @staticmethod

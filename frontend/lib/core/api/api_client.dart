@@ -372,6 +372,13 @@ class ApiClient implements TransportGateway {
   );
 
   @override
+  Future<List<LibraryInfo>> languageLibraries() => _gateway.languageLibraries();
+
+  @override
+  Future<LibraryInfo?> languageLibrary(String name) =>
+      _gateway.languageLibrary(name);
+
+  @override
   Future<List<PluginInfo>> listPlugins() => _gateway.listPlugins();
 
   @override

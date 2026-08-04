@@ -199,3 +199,19 @@ class LanguageFacade:
         if store is None:
             raise LanguageValidationError("Language service does not expose IndexStore")
         return await store.search_symbols(query, limit=limit)
+
+    async def list_libraries(self) -> list[dict]:
+        self._require_workspace()
+        list_fn = getattr(self.language, "list_libraries", None)
+        if list_fn is None:
+            raise LanguageValidationError("Library catalog is unavailable")
+        return await list_fn()
+
+    async def get_library(self, name: str) -> dict | None:
+        self._require_workspace()
+        if not name.strip():
+            raise LanguageValidationError("Provide a library name")
+        get_fn = getattr(self.language, "get_library", None)
+        if get_fn is None:
+            raise LanguageValidationError("Library catalog is unavailable")
+        return await get_fn(name)

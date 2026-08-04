@@ -117,9 +117,7 @@ class EditorShellController {
     final tabIndex = tabs.indexWhere((tab) => tab.path == path);
     if (tabIndex < 0) return;
     tabs[tabIndex].content = content;
-    if (hoverTooltip != null) {
-      hoverTooltip = null;
-    }
+    // Keep caret signature card; refreshLanguageFeatures updates or clears it.
     notify();
     scheduleLanguageRefresh();
   }

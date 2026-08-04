@@ -552,16 +552,26 @@ def _keyword_call_at(
 
     # Trailing separator after keyword → entering first argument slot.
     if not in_arguments:
-        stripped_before = cur[:col_in_row]
         cells_full = _robot_cells(cur)
         k_idx = 0
         if cells_full and re.match(r"^[\$@&%]", cells_full[0]) and len(cells_full) > 1:
             k_idx = 1
         if cells_full and k_idx < len(cells_full):
-            # Find end of keyword cell in the row text approximately via split.
-            if re.search(r"[ \t]{2,}|\t", stripped_before):
-                in_arguments = True
-                args_through_caret = list(args_before_row)
+            # Detect 2+ spaces / tab after the keyword token (ignore leading indent).
+            kw_token = cells_full[k_idx]
+            indent_match = re.match(r"^[ \t]*", cur)
+            indent_len = len(indent_match.group(0)) if indent_match else 0
+            body = cur[indent_len:col_in_row]
+            # Assignment cell before keyword
+            if k_idx == 1 and cells_full:
+                # body may start with ${x} then separator then keyword
+                pass
+            kw_pos = body.find(kw_token)
+            if kw_pos >= 0:
+                after_kw = body[kw_pos + len(kw_token) :]
+                if re.match(r"[ \t]{2,}|\t", after_kw):
+                    in_arguments = True
+                    args_through_caret = list(args_before_row)
 
     active = max(0, len(args_through_caret))
     return {

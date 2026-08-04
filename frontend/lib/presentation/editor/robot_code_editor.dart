@@ -296,6 +296,16 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     }
   }
 
+  Offset _caretTooltipOffset() {
+    final sel = _controller.selection;
+    final vertical = _scrollController.verticalScroller.hasClients
+        ? _scrollController.verticalScroller.offset
+        : 0.0;
+    final y = sel.baseIndex * _lineHeight - vertical + _lineHeight + 4;
+    final x = _gutterWidth + sel.baseOffset * _charWidth + 8;
+    return Offset(x.clamp(8.0, 480.0), y.clamp(8.0, 2000.0));
+  }
+
   (int, int)? _lineColumnAt(Offset local) {
     final vertical = _scrollController.verticalScroller.hasClients
         ? _scrollController.verticalScroller.offset
@@ -413,7 +423,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
         : editor;
 
     final tooltip = widget.hoverTooltip;
-    final tooltipPos = _hoverLocal;
+    final tooltipPos = _hoverLocal ?? (tooltip != null ? _caretTooltipOffset() : null);
 
     return Shortcuts(
       shortcuts: {
@@ -435,6 +445,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
             const _RedoIntent(),
         const SingleActivator(LogicalKeyboardKey.f12):
             const _DefinitionIntent(),
+        const SingleActivator(LogicalKeyboardKey.escape):
+            const _DismissSignatureIntent(),
         // Copy line — VS Code Shift+Option/Alt+↑/↓
         const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true, alt: true):
             const CopyLineIntent(VerticalDirection.up),
@@ -473,6 +485,12 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
           _DefinitionIntent: CallbackAction<_DefinitionIntent>(
             onInvoke: (_) {
               widget.onCtrlClick?.call();
+              return null;
+            },
+          ),
+          _DismissSignatureIntent: CallbackAction<_DismissSignatureIntent>(
+            onInvoke: (_) {
+              _dismissHover();
               return null;
             },
           ),
@@ -548,4 +566,8 @@ class _RedoIntent extends Intent {
 
 class _DefinitionIntent extends Intent {
   const _DefinitionIntent();
+}
+
+class _DismissSignatureIntent extends Intent {
+  const _DismissSignatureIntent();
 }
