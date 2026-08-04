@@ -22,6 +22,7 @@ import '../environment/python_install_guidance.dart';
 import '../editor/editor_page.dart';
 import '../editor/editor_tabs_bar.dart';
 import '../execution/execution_page.dart';
+import '../execution/run_target.dart';
 import '../git/source_control_page.dart';
 import '../packages/package_details_panel.dart';
 import '../packages/package_manager_page.dart';
@@ -59,6 +60,7 @@ import 'controllers/editor_shell_controller.dart';
 import 'controllers/execution_shell_controller.dart';
 import 'controllers/workspace_live_controller.dart';
 import 'controllers/workspace_shell_controller.dart';
+import 'shell_paths.dart';
 import 'status_bar.dart';
 
 enum _CenterView {
@@ -1315,25 +1317,14 @@ class _AppShellState extends State<AppShell> {
   }
 
   /// Suites Robot Framework can execute (`.resource` is not a run target).
-  static bool _isRunnableSuitePath(String? path) {
-    if (path == null || path.trim().isEmpty) return false;
-    final lower = path.toLowerCase().replaceAll('\\', '/');
-    return lower.endsWith('.robot');
-  }
+  static bool _isRunnableSuitePath(String? path) => isRunnableSuitePath(path);
 
   /// Prefer the active editor when it is a `.robot` suite; never silently
   /// fall back to another suite while a non-robot file is focused.
-  String? get _runTargetPath {
-    final active = _activeEditorPath;
-    if (_isRunnableSuitePath(active)) return active;
-    if (active != null && active.trim().isNotEmpty) {
-      // Non-runnable editor focused — refuse sticky suite (avoids "txt runs
-      // tests/foo.robot").
-      return null;
-    }
-    if (_isRunnableSuitePath(_selectedSuitePath)) return _selectedSuitePath;
-    return null;
-  }
+  String? get _runTargetPath => resolveRunTargetPath(
+        activeEditorPath: _activeEditorPath,
+        stickySuitePath: _selectedSuitePath,
+      );
 
   bool get _canRunFile => _canRunTests && _runTargetPath != null;
 
@@ -1578,6 +1569,8 @@ class _AppShellState extends State<AppShell> {
       _workspace.activeWorkspace = workspace;
       _selectedProject = selectedProject;
       _selectedEnvironment = null;
+      _workspace.environments = [];
+      _workspace.loadingEnvironments = false;
       _selectedPackage = null;
       _showEnvironmentManager = false;
       _showPackageManager = false;
@@ -3126,6 +3119,7 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _handleLiveProjectMissing(WorkspaceStreamEvent event) async {
     if (_missingProjectDialogOpen || _selectedProject == null) return;
+    _autoSaveTimer?.cancel();
     _missingProjectDialogOpen = true;
     try {
       final action = await showDialog<String>(
@@ -3200,6 +3194,16 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _unloadActiveProject() async {
     final projectPath = _selectedProject?.path;
+    final workspacePath = _activeWorkspace?.path;
+    // Standalone projects share the workspace root — Closing must clear the
+    // whole session (envs/chip), otherwise "New Project same name" keeps
+    // showing `venv · missing` from the deleted life.
+    if (projectPath != null &&
+        workspacePath != null &&
+        sameFsPath(projectPath, workspacePath)) {
+      await _unloadActiveWorkspace();
+      return;
+    }
     setState(() {
       _selectedProject = null;
       _showEditorPage = false;
@@ -3230,6 +3234,8 @@ class _AppShellState extends State<AppShell> {
       _workspace.activeWorkspace = null;
       _selectedProject = null;
       _selectedEnvironment = null;
+      _workspace.environments = [];
+      _workspace.loadingEnvironments = false;
       _selectedPackage = null;
       _showEnvironmentManager = false;
       _showPackageManager = false;
@@ -3258,9 +3264,11 @@ class _AppShellState extends State<AppShell> {
   void _scheduleAutoSave() {
     _autoSaveTimer?.cancel();
     if (!_settings.editor.autoSave) return;
+    if (_missingProjectDialogOpen || _selectedProject == null) return;
     _autoSaveTimer = Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
-      unawaited(_saveAll());
+      if (_missingProjectDialogOpen || _selectedProject == null) return;
+      unawaited(_saveAll(quiet: true));
     });
   }
 
@@ -3577,15 +3585,15 @@ class _AppShellState extends State<AppShell> {
     await _saveTab(path);
   }
 
-  Future<void> _saveAll() async {
+  Future<void> _saveAll({bool quiet = false}) async {
     for (final tab in _editorTabs) {
       if (tab.isDirty) {
-        await _saveTab(tab.path);
+        await _saveTab(tab.path, quiet: quiet);
       }
     }
   }
 
-  Future<void> _saveTab(String path) async {
+  Future<void> _saveTab(String path, {bool quiet = false}) async {
     final tabIndex = _editorTabs.indexWhere((tab) => tab.path == path);
     if (tabIndex < 0) return;
     final tab = _editorTabs[tabIndex];
@@ -3612,6 +3620,13 @@ class _AppShellState extends State<AppShell> {
       unawaited(_refreshLanguageFeatures());
     } catch (error) {
       _appendLog('[error] Save failed: $error');
+      if (quiet) {
+        if (!mounted) return;
+        setState(() {
+          _editor.setStatusMessage('Auto-save failed — use Save (⌘S)');
+        });
+        return;
+      }
       await _showError('Save file', error);
     }
   }

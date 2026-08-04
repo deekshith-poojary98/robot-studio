@@ -284,6 +284,42 @@ async def test_missing_venv_marked_unavailable(services) -> None:
 
 
 @pytest.mark.asyncio
+async def test_recreate_same_name_after_folder_delete_activates_new(services) -> None:
+    """edgecase #9: Create A, delete folder, Create B same name — B active, A gone."""
+    import shutil
+
+    a = await services["environment_service"].create_environment(
+        "venv",
+        sys.executable,
+    )
+    assert a.is_active is True
+    old_id = a.id
+    shutil.rmtree(a.path)
+
+    listed = await services["environment_service"].list_environments()
+    assert len(listed) == 1
+    assert listed[0].available is False
+    assert listed[0].is_active is True
+
+    b = await services["environment_service"].create_environment(
+        "venv",
+        sys.executable,
+    )
+    assert b.id != old_id
+    assert b.name == "venv"
+    assert b.available is True
+    assert b.is_active is True
+    assert services["context"].environment_id == b.id
+
+    listed_after = await services["environment_service"].list_environments()
+    assert len(listed_after) == 1
+    assert listed_after[0].id == b.id
+    assert listed_after[0].is_active is True
+    assert listed_after[0].available is True
+    assert await services["environment_repo"].get(old_id) is None
+
+
+@pytest.mark.asyncio
 async def test_recreate_same_path_gets_new_identity(services) -> None:
     """Delete + recreate at the same path must mint a new durable identity."""
     import shutil

@@ -93,6 +93,27 @@ class EnvironmentService:
             )
         env_root = self._fs.environment_root_for_name(workspace.path, cleaned)
 
+        # Recreate same name after Finder-delete: drop ghost registry rows
+        # *before* create_venv (same path would otherwise look "present").
+        existing = await self._repository.list_by_workspace(workspace.id)
+        replace_active = False
+        for item in existing:
+            if item.name != cleaned:
+                continue
+            if item.path.is_dir():
+                continue
+            if item.is_active or self._context.environment_id == item.id:
+                replace_active = True
+            await self._repository.delete(item.id)
+            if self._context.environment_id == item.id:
+                await self._context.clear_active_environment()
+            await self._event_bus.publish(
+                EnvironmentDeleted(
+                    workspace_id=workspace.id,
+                    environment_id=item.id,
+                ),
+            )
+
         base_python = Path(python_interpreter).expanduser().resolve()
         self._python.create_venv(base_python, env_root)
 
@@ -103,7 +124,9 @@ class EnvironmentService:
                 executables = self._python.resolve_executables(env_root)
 
             python_version = self._python.get_python_version(executables.python)
-            is_first = len(await self._repository.list_by_workspace(workspace.id)) == 0
+            remaining = await self._repository.list_by_workspace(workspace.id)
+            is_first = len(remaining) == 0
+            should_activate = is_first or replace_active
 
             manifest = self._fs.create_manifest(
                 name=cleaned,
@@ -112,7 +135,7 @@ class EnvironmentService:
                 pip_executable=executables.pip,
                 robot_executable=executables.robot,
                 path=env_root,
-                active=is_first,
+                active=should_activate,
             )
             self._fs.write_manifest(env_root, manifest)
 
@@ -124,8 +147,9 @@ class EnvironmentService:
                     environment_id=environment.id,
                 ),
             )
-            if is_first:
+            if should_activate:
                 await self._activate(environment)
+                environment = environment.model_copy(update={"is_active": True})
             return await self._enrich(environment)
         except Exception:
             if env_root.exists():
