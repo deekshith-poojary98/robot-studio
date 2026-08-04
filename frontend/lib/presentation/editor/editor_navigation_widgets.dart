@@ -109,6 +109,16 @@ class EditorHoverTooltip extends StatelessWidget {
                     color: AppColors.textPrimary,
                   ),
                 ),
+                if (signature.libraryName.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    signature.libraryName,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
                 if (signature.parameters.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Wrap(
@@ -165,7 +175,8 @@ class _ParameterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final text = parameter.displayLabel;
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: active ? AppColors.accentSoft : AppColors.rail,
@@ -175,14 +186,21 @@ class _ParameterChip extends StatelessWidget {
         ),
       ),
       child: Text(
-        parameter.documentation.isEmpty
-            ? parameter.label
-            : '${parameter.label} (${parameter.documentation})',
+        text,
         style: TextStyle(
           fontSize: 11,
+          fontWeight: parameter.required || active
+              ? FontWeight.w600
+              : FontWeight.w400,
           color: active ? AppColors.textPrimary : AppColors.textSecondary,
         ),
       ),
+    );
+    if (parameter.documentation.isEmpty) return chip;
+    return Tooltip(
+      message: parameter.documentation,
+      waitDuration: const Duration(milliseconds: 250),
+      child: chip,
     );
   }
 }

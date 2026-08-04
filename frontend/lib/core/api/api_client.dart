@@ -334,6 +334,12 @@ class ApiClient implements TransportGateway {
   );
 
   @override
+  Future<void> languageCompletionUsage({
+    required String label,
+    String kind = '',
+  }) => _gateway.languageCompletionUsage(label: label, kind: kind);
+
+  @override
   Future<List<DiagnosticInfo>> languageDiagnostics({
     required String filePath,
     required String content,

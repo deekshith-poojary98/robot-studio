@@ -391,6 +391,10 @@ def completion_context(
     stripped = row.strip()
     prefix = _word_at(content, line, column)
 
+    # Comments / documentation setting rows — no completions that invent keywords.
+    if stripped.startswith("#"):
+        return {"prefix": prefix, "context": "unknown", "section": ""}
+
     section = "unknown"
     for idx in range(line - 1, -1, -1):
         candidate = lines[idx].strip()
@@ -417,12 +421,24 @@ def completion_context(
     if stripped.startswith("Resource ") or "Resource" in stripped[:20]:
         return {"prefix": prefix, "context": "resource", "section": section}
     if section == "settings":
+        # Documentation suite setting — not argument authoring.
+        if stripped.lower().startswith("documentation"):
+            return {"prefix": prefix, "context": "setting", "section": section}
         return {"prefix": prefix, "context": "setting", "section": section}
     if section == "variables" or prefix.startswith(("${", "@{", "&{")):
         return {"prefix": prefix, "context": "variable", "section": section}
     if section in {"keywords", "test cases", "tasks"}:
         if row.startswith(" ") or row.startswith("\t"):
-            # Control markers are typed like keywords inside bodies.
+            call = _keyword_call_at(lines, line, column)
+            if call is not None and call.get("in_arguments"):
+                return {
+                    "prefix": prefix,
+                    "context": "argument",
+                    "section": section,
+                    "keyword": call["keyword"],
+                    "arguments": call["arguments"],
+                    "active_parameter": call["active_parameter"],
+                }
             return {"prefix": prefix, "context": "keyword_call", "section": section}
         return {"prefix": prefix, "context": "keyword", "section": section}
     return {"prefix": prefix, "context": "keyword_call", "section": section}
@@ -431,6 +447,130 @@ def completion_context(
 def _robot_cells(row: str) -> list[str]:
     """Split a Robot Framework row into cells (2+ spaces or tabs)."""
     return [cell for cell in re.split(r"[ \t]{2,}|\t+", row.strip()) if cell]
+
+
+def _keyword_call_at(
+    lines: list[str],
+    line: int,
+    column: int,
+) -> dict[str, Any] | None:
+    """Resolve keyword + args for an indented call (supports ``...`` continuations)."""
+    if line < 1 or line > len(lines):
+        return None
+    row = lines[line - 1]
+    if not (row.startswith(" ") or row.startswith("\t")):
+        return None
+    if row.strip().startswith("#"):
+        return None
+    if row.strip().startswith("["):
+        return None
+
+    # Walk up through continuation rows to the keyword row.
+    start = line - 1
+    while start > 0:
+        prev = lines[start - 1]
+        if not (prev.startswith(" ") or prev.startswith("\t")):
+            break
+        prev_cells = _robot_cells(prev)
+        if prev_cells and prev_cells[0] == "...":
+            start -= 1
+            continue
+        # Current row is continuation — keyword is on previous body row.
+        cur_cells = _robot_cells(row)
+        if cur_cells and cur_cells[0] == "...":
+            start -= 1
+            continue
+        break
+
+    # Collect cells from keyword row + following continuations up to *line*.
+    all_cells: list[str] = []
+    keyword = ""
+    keyword_index = 0
+    for idx in range(start, line):
+        cells = _robot_cells(lines[idx])
+        if not cells:
+            continue
+        if cells[0] == "...":
+            all_cells.extend(cells[1:])
+            continue
+        if not keyword:
+            keyword_index = 0
+            if re.match(r"^[\$@&%]", cells[0]) and len(cells) > 1:
+                keyword_index = 1
+            if keyword_index >= len(cells):
+                return None
+            keyword = cells[keyword_index]
+            all_cells.extend(cells[keyword_index + 1 :])
+        else:
+            all_cells.extend(cells)
+
+    if not keyword or keyword == "...":
+        return None
+
+    # Active parameter from cells before caret on current row.
+    cur = lines[line - 1]
+    col_in_row = max(0, min(column - 1, len(cur)))
+    before_on_row = _robot_cells(cur[:col_in_row])
+    # Args already fully before this row:
+    args_before_row: list[str] = []
+    for idx in range(start, line - 1):
+        cells = _robot_cells(lines[idx])
+        if not cells:
+            continue
+        if cells[0] == "...":
+            args_before_row.extend(cells[1:])
+            continue
+        k_idx = 0
+        if re.match(r"^[\$@&%]", cells[0]) and len(cells) > 1:
+            k_idx = 1
+        args_before_row.extend(cells[k_idx + 1 :])
+
+    if before_on_row and before_on_row[0] == "...":
+        args_through_caret = args_before_row + before_on_row[1:]
+        in_arguments = True
+    else:
+        k_idx = 0
+        if before_on_row and re.match(r"^[\$@&%]", before_on_row[0]) and len(before_on_row) > 1:
+            k_idx = 1
+        # Past keyword cell?
+        if len(before_on_row) > k_idx + 1 or (
+            len(before_on_row) == k_idx + 1
+            and col_in_row > 0
+            and (cur[:col_in_row].endswith("  ") or cur[:col_in_row].endswith("\t"))
+        ):
+            in_arguments = True
+            args_through_caret = args_before_row + before_on_row[k_idx + 1 :]
+        elif len(before_on_row) > k_idx and before_on_row[0] != keyword:
+            # Continuation-style body without ...
+            in_arguments = len(args_before_row) > 0 or len(before_on_row) > k_idx + 1
+            args_through_caret = args_before_row + (
+                before_on_row[k_idx + 1 :] if in_arguments else []
+            )
+        else:
+            in_arguments = len(args_before_row) > 0
+            args_through_caret = list(args_before_row)
+
+    # Trailing separator after keyword → entering first argument slot.
+    if not in_arguments:
+        stripped_before = cur[:col_in_row]
+        cells_full = _robot_cells(cur)
+        k_idx = 0
+        if cells_full and re.match(r"^[\$@&%]", cells_full[0]) and len(cells_full) > 1:
+            k_idx = 1
+        if cells_full and k_idx < len(cells_full):
+            # Find end of keyword cell in the row text approximately via split.
+            if re.search(r"[ \t]{2,}|\t", stripped_before):
+                in_arguments = True
+                args_through_caret = list(args_before_row)
+
+    active = max(0, len(args_through_caret))
+    return {
+        "keyword": keyword,
+        "arguments": all_cells,
+        "active_parameter": active,
+        "in_arguments": in_arguments,
+        "arguments_through_caret": args_through_caret,
+    }
 
 
 def signature_help(
@@ -446,25 +586,16 @@ def signature_help(
     row = lines[line - 1]
     if not (row.startswith(" ") or row.startswith("\t")):
         return None
-    cells = _robot_cells(row)
-    if not cells:
+    if row.strip().startswith("#") or row.strip().startswith("["):
         return None
-    keyword_index = 0
-    if re.match(r"^[\$@&%]", cells[0]) and len(cells) > 1:
-        keyword_index = 1
-    if keyword_index >= len(cells):
+    call = _keyword_call_at(lines, line, column)
+    if call is None or not call.get("keyword"):
         return None
-    keyword = cells[keyword_index]
-    arguments = cells[keyword_index + 1 :]
-    col_in_row = max(0, min(column - 1, len(row)))
-    before = _robot_cells(row[:col_in_row])
-    arg_index = 0
-    if before:
-        arg_index = max(0, len(before) - 1 - keyword_index)
     return {
-        "keyword": keyword,
-        "active_parameter": arg_index,
-        "arguments": arguments,
+        "keyword": call["keyword"],
+        "active_parameter": int(call.get("active_parameter") or 0),
+        "arguments": list(call.get("arguments") or []),
+        "in_arguments": bool(call.get("in_arguments")),
     }
 
 
@@ -477,23 +608,41 @@ def resolve_library(name: str) -> dict:
         from robot.libdoc import LibraryDocumentation
 
         doc = LibraryDocumentation(cleaned)
+        library_name = str(doc.name or cleaned)
+        source_type = "builtin" if library_name.casefold() == "builtin" else "library"
         keywords: list[str] = []
         keyword_info: dict[str, dict] = {}
         for kw in doc.keywords:
             kw_name = str(kw.name)
             keywords.append(kw_name)
-            parameters: list[dict[str, str]] = []
+            parameters: list[dict] = []
             for arg in getattr(kw, "args", []) or []:
-                label = str(arg)
-                parameters.append({"label": label, "documentation": ""})
+                parameters.append(_arginfo_to_transport(arg))
+            tags = tuple(str(t) for t in (getattr(kw, "tags", None) or []))
+            deprecated = bool(getattr(kw, "deprecated", False))
             keyword_info[kw_name.casefold()] = {
                 "name": kw_name,
-                "documentation": str(getattr(kw, "short_doc", None) or ""),
+                "qualified_name": f"{library_name}.{kw_name}",
+                "source_type": source_type,
+                "library_name": library_name,
+                "documentation": str(
+                    getattr(kw, "short_doc", None)
+                    or getattr(kw, "doc", None)
+                    or "",
+                ),
                 "parameters": parameters,
+                "source_path": str(getattr(doc, "source", None) or ""),
+                "source_line": getattr(kw, "lineno", None),
+                "deprecated": deprecated,
+                "tags": list(tags),
+                "examples": [],
+                "detail": ", ".join(
+                    str(p.get("label") or p.get("name") or "") for p in parameters
+                ),
             }
         return {
             "available": True,
-            "name": str(doc.name or cleaned),
+            "name": library_name,
             "keywords": keywords,
             "keyword_info": keyword_info,
         }
@@ -505,6 +654,50 @@ def resolve_library(name: str) -> dict:
             "keyword_info": {},
             "error": str(exc),
         }
+
+
+def _arginfo_to_transport(arg: object) -> dict:
+    """Map Robot ArgInfo → transport dict for ParameterMetadata.from_transport."""
+    name = str(getattr(arg, "name", None) or str(arg)).strip()
+    default = getattr(arg, "default", None)
+    # robot.running.arguments.ArgumentSpec uses NOT_SET sentinel
+    default_str: str | None
+    if default is None or str(default) in {"NOT_SET", "<class 'robot.utils.notset.NotSet'>"}:
+        default_str = None
+    else:
+        try:
+            from robot.utils import NOT_SET
+
+            if default is NOT_SET:
+                default_str = None
+            else:
+                default_str = str(default)
+        except Exception:  # noqa: BLE001
+            default_str = str(default) if default is not None else None
+
+    kind_obj = getattr(arg, "kind", None)
+    kind = str(getattr(kind_obj, "name", None) or kind_obj or "positional_or_named")
+    kind = kind.lower()
+    type_obj = getattr(arg, "type", None) or getattr(arg, "types", None)
+    type_name = ""
+    if type_obj is not None:
+        type_name = str(type_obj)
+    required = bool(getattr(arg, "required", default_str is None))
+    if kind in {"var_positional", "var_named", "free_named"}:
+        required = False
+    label = str(arg)
+    # Prefer structured name when label is the full ArgInfo repr
+    if not name or name == label:
+        name = label.split("=", 1)[0].split(":", 1)[0].strip()
+    return {
+        "name": name,
+        "label": label,
+        "default": default_str,
+        "required": required,
+        "kind": kind,
+        "type_name": type_name,
+        "documentation": "",
+    }
 
 
 def main() -> None:

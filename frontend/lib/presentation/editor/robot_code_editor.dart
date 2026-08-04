@@ -34,6 +34,7 @@ class RobotCodeEditor extends StatefulWidget {
     this.hoverTooltip,
     this.peekDefinition,
     this.onClosePeek,
+    this.onCompletionAccepted,
   });
 
   final String path;
@@ -54,6 +55,8 @@ class RobotCodeEditor extends StatefulWidget {
   final SignatureHelpInfo? hoverTooltip;
   final IndexedSymbolInfo? peekDefinition;
   final VoidCallback? onClosePeek;
+  /// Fired when the user accepts an autocomplete item (usage ranking).
+  final ValueChanged<CompletionItemInfo>? onCompletionAccepted;
 
   @override
   State<RobotCodeEditor> createState() => RobotCodeEditorState();
@@ -193,6 +196,21 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
         sel.baseOffset + 1,
       );
     });
+  }
+
+  void _recordCompletionAcceptance(String insertWord) {
+    final callback = widget.onCompletionAccepted;
+    if (callback == null) return;
+    CompletionItemInfo? match;
+    for (final item in widget.completionItems) {
+      if (item.insertText == insertWord || item.label == insertWord) {
+        match = item;
+        break;
+      }
+    }
+    if (match != null) {
+      callback(match);
+    }
   }
 
   void _jumpIfNeeded(int? line, [int? column]) {
@@ -383,7 +401,10 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
             viewBuilder: (context, notifier, onSelected) {
               return RobotAutocompleteListView(
                 notifier: notifier,
-                onSelected: onSelected,
+                onSelected: (result) {
+                  _recordCompletionAcceptance(result.word);
+                  onSelected(result);
+                },
               );
             },
             promptsBuilder: _promptsBuilder,

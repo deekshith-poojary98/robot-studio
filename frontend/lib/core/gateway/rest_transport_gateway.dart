@@ -724,6 +724,20 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<void> languageCompletionUsage({
+    required String label,
+    String kind = '',
+  }) async {
+    await _post(
+      '/language/completion/usage',
+      body: {
+        'label': label,
+        'kind': kind,
+      },
+    );
+  }
+
+  @override
   Future<List<DiagnosticInfo>> languageDiagnostics({
     required String filePath,
     required String content,

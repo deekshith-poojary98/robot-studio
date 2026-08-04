@@ -28,6 +28,7 @@ class CompletionItemInfo {
     this.detail = '',
     this.documentation = '',
     this.insertText = '',
+    this.provider = '',
   });
 
   factory CompletionItemInfo.fromJson(Map<String, dynamic> json) {
@@ -37,6 +38,7 @@ class CompletionItemInfo {
       detail: json['detail'] as String? ?? '',
       documentation: json['documentation'] as String? ?? '',
       insertText: json['insert_text'] as String? ?? json['label'] as String,
+      provider: json['provider'] as String? ?? '',
     );
   }
 
@@ -45,6 +47,7 @@ class CompletionItemInfo {
   final String detail;
   final String documentation;
   final String insertText;
+  final String provider;
 }
 
 class DiagnosticInfo {
@@ -99,18 +102,37 @@ class DiagnosticInfo {
 class SignatureParameterInfo {
   const SignatureParameterInfo({
     required this.label,
+    this.name = '',
     this.documentation = '',
+    this.defaultValue,
+    this.required = false,
+    this.kind = '',
   });
 
   factory SignatureParameterInfo.fromJson(Map<String, dynamic> json) {
     return SignatureParameterInfo(
       label: json['label'] as String? ?? '',
+      name: json['name'] as String? ?? '',
       documentation: json['documentation'] as String? ?? '',
+      defaultValue: json['default'] as String?,
+      required: json['required'] as bool? ?? false,
+      kind: json['kind'] as String? ?? '',
     );
   }
 
   final String label;
+  final String name;
   final String documentation;
+  final String? defaultValue;
+  final bool required;
+  final String kind;
+
+  String get displayLabel {
+    if (label.isNotEmpty) return label;
+    if (name.isEmpty) return '';
+    if (defaultValue != null) return '$name=$defaultValue';
+    return name;
+  }
 }
 
 class SignatureHelpInfo {
@@ -120,6 +142,9 @@ class SignatureHelpInfo {
     this.detail = '',
     this.activeParameter = 0,
     this.parameters = const [],
+    this.sourceType = '',
+    this.libraryName = '',
+    this.deprecated = false,
   });
 
   factory SignatureHelpInfo.fromJson(Map<String, dynamic> json) {
@@ -131,6 +156,9 @@ class SignatureHelpInfo {
       parameters: (json['parameters'] as List<dynamic>? ?? [])
           .map((item) => SignatureParameterInfo.fromJson(item as Map<String, dynamic>))
           .toList(),
+      sourceType: json['source_type'] as String? ?? '',
+      libraryName: json['library_name'] as String? ?? '',
+      deprecated: json['deprecated'] as bool? ?? false,
     );
   }
 
@@ -139,6 +167,9 @@ class SignatureHelpInfo {
   final String detail;
   final int activeParameter;
   final List<SignatureParameterInfo> parameters;
+  final String sourceType;
+  final String libraryName;
+  final bool deprecated;
 }
 
 class EditorBreadcrumbInfo {

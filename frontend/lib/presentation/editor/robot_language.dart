@@ -10,6 +10,9 @@ import 'package:re_highlight/re_highlight.dart';
 /// - variable: `${}` `@{}` `&{}` `%{}`
 /// - title: test / user-keyword names
 /// - comment / string / number / attr / continuation
+///
+/// Documentation lines are consumed as strings so words like `for` / `if`
+/// inside `[Documentation]` are not painted as control-flow keywords.
 final Mode langRobot = Mode(
   name: 'robot',
   aliases: ['robotframework', 'robot'],
@@ -42,24 +45,66 @@ final Mode langRobot = Mode(
       relevance: 10,
     ),
 
-    // Local settings: [Documentation] / [Tags] / …
+    // Local [Documentation] … rest of line — exclusive mode so IF/FOR/IN
+    // inside doc text are not painted as control-flow keywords.
+    Mode(
+      className: 'string',
+      begin: r'\[Documentation\]',
+      end: r'$',
+      returnBegin: true,
+      contains: <Mode>[
+        Mode(
+          className: 'meta',
+          begin: r'\[Documentation\]',
+          relevance: 10,
+        ),
+        Mode(
+          className: 'variable',
+          begin: r'[\$@&%]\{[^{}\n]+\}',
+        ),
+      ],
+      relevance: 10,
+    ),
+
+    // Suite-level Documentation setting — same idea.
+    Mode(
+      className: 'string',
+      begin: r'^Documentation\b',
+      end: r'$',
+      returnBegin: true,
+      contains: <Mode>[
+        Mode(
+          className: 'keyword',
+          begin: r'^Documentation\b',
+          relevance: 10,
+        ),
+        Mode(
+          className: 'variable',
+          begin: r'[\$@&%]\{[^{}\n]+\}',
+        ),
+      ],
+      relevance: 10,
+    ),
+
+    // Other local settings: [Tags] / [Setup] / …
     Mode(
       className: 'meta',
       begin:
-          r'\[(Documentation|Tags|Setup|Teardown|Timeout|Arguments|Template|Return)\]',
+          r'\[(Tags|Setup|Teardown|Timeout|Arguments|Template|Return)\]',
     ),
 
-    // Suite / import settings at column 0
+    // Suite / import settings at column 0 (Documentation handled above)
     Mode(
       className: 'keyword',
       begin:
-          r'^(Library|Resource|Variables|Documentation|Metadata|Name|'
+          r'^(Library|Resource|Variables|Metadata|Name|'
           r'Suite Setup|Suite Teardown|Test Setup|Test Teardown|'
           r'Test Timeout|Test Template|Test Tags|Force Tags|Default Tags|'
           r'Keyword Tags|Task Setup|Task Teardown|Task Template|Task Timeout)\b',
     ),
 
-    // Control-flow DSL (NOT BuiltIn library keywords)
+    // Control-flow DSL (NOT BuiltIn library keywords) — after Documentation
+    // so doc text does not pick these up.
     Mode(
       className: 'keyword',
       begin: r'\b('

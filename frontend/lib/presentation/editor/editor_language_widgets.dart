@@ -28,17 +28,21 @@ class RobotAutocompletePromptsBuilder implements CodeAutocompletePromptsBuilder 
     final prompts = items
         .where((item) => prefix.isEmpty || _labelMatches(item, prefix))
         .map(
-          (item) => CodeFieldPrompt(
-            word: item.insertText,
-            type: item.kind,
-            customAutocomplete: CodeAutocompleteResult(
-              input: prefix,
-              word: item.insertText,
-              selection: TextSelection.collapsed(
-                offset: item.insertText.length,
+          (item) {
+            final insert = item.insertText;
+            final caret = item.kind == 'parameter' && insert.endsWith('=')
+                ? insert.length
+                : insert.length;
+            return CodeFieldPrompt(
+              word: insert,
+              type: item.kind,
+              customAutocomplete: CodeAutocompleteResult(
+                input: prefix,
+                word: insert,
+                selection: TextSelection.collapsed(offset: caret),
               ),
-            ),
-          ),
+            );
+          },
         )
         .toList();
     if (prompts.isEmpty) return null;
@@ -60,14 +64,28 @@ class RobotAutocompletePromptsBuilder implements CodeAutocompletePromptsBuilder 
     return false;
   }
 
-  String _prefixAt(String line, int offset) {
+  /// Visible for tests — extracts the autocomplete replace prefix.
+  @visibleForTesting
+  static String prefixAt(String line, int offset) {
     if (offset <= 0 || offset > line.length) {
       offset = line.length;
     }
     final before = line.substring(0, offset);
+    // Section headers: "*** Key" must replace the whole "*** Key", not only "Key".
+    final section = RegExp(r'\*{1,3}[\w\s]*$').firstMatch(before);
+    if (section != null) {
+      return section.group(0)!;
+    }
+    // Local settings: "[Doc" → "[Documentation]"
+    final bracket = RegExp(r'\[[\w\s]*$').firstMatch(before);
+    if (bracket != null) {
+      return bracket.group(0)!;
+    }
     final match = RegExp(r'[\w${}@&][\w\s${}@&.-]*$').firstMatch(before);
     return match?.group(0)?.trim() ?? '';
   }
+
+  String _prefixAt(String line, int offset) => prefixAt(line, offset);
 }
 
 class RobotAutocompleteListView extends StatefulWidget

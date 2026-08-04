@@ -2255,6 +2255,12 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<void> languageCompletionUsage({
+    required String label,
+    String kind = '',
+  }) async {}
+
+  @override
   Future<List<DiagnosticInfo>> languageDiagnostics({
     required String filePath,
     required String content,

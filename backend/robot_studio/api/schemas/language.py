@@ -7,6 +7,7 @@ class CompletionItemResponse(BaseModel):
     detail: str = ""
     documentation: str = ""
     insert_text: str = ""
+    provider: str = ""
 
 
 class CompletionListResponse(BaseModel):
@@ -19,6 +20,11 @@ class CompletionRequest(BaseModel):
     column: int = 1
     content: str = ""
     query: str = ""
+
+
+class CompletionUsageRequest(BaseModel):
+    label: str
+    kind: str = ""
 
 
 class DiagnosticResponse(BaseModel):
@@ -54,7 +60,11 @@ class FormatResponse(BaseModel):
 
 class SignatureParameterResponse(BaseModel):
     label: str
+    name: str = ""
     documentation: str = ""
+    default: str | None = None
+    required: bool = False
+    kind: str = ""
 
 
 class SignatureHelpResponse(BaseModel):
@@ -63,6 +73,9 @@ class SignatureHelpResponse(BaseModel):
     detail: str = ""
     active_parameter: int = 0
     parameters: list[SignatureParameterResponse] = Field(default_factory=list)
+    source_type: str = ""
+    library_name: str = ""
+    deprecated: bool = False
 
 
 class SignatureHelpRequest(BaseModel):

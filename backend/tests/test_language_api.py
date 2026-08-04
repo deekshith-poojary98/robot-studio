@@ -160,6 +160,39 @@ Demo
 
 
 @pytest.mark.asyncio
+async def test_language_completion_usage_api(api_client) -> None:
+    client, _fresh, tmp_path = api_client
+    suite = await _open_workspace_with_suite(client, tmp_path)
+
+    record = await client.post(
+        "/api/v1/language/completion/usage",
+        json={"label": "Should Be Equal", "kind": "keyword"},
+    )
+    assert record.status_code == 200
+    assert record.json()["ok"] is True
+
+    content = """*** Test Cases ***
+Demo
+    Should
+"""
+    response = await client.post(
+        "/api/v1/language/completion",
+        json={
+            "file_path": str(suite),
+            "line": 3,
+            "column": 11,
+            "content": content,
+            "query": "Should",
+        },
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert items
+    assert items[0]["label"] == "Should Be Equal"
+    assert items[0].get("provider")
+
+
+@pytest.mark.asyncio
 async def test_language_diagnostics_api(api_client) -> None:
     client, _fresh, tmp_path = api_client
     suite = await _open_workspace_with_suite(client, tmp_path)

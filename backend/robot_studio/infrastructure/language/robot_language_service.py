@@ -34,6 +34,30 @@ from robot_studio.infrastructure.language.builtin_keywords import (
     SECTION_HEADERS,
     SETTING_NAMES,
 )
+from robot_studio.domain.interfaces.completion import CompletionRequestContext
+from robot_studio.domain.interfaces.signature_help import SignatureHelpRequestContext
+from robot_studio.infrastructure.language.completion import (
+    BufferCompletionProvider,
+    CompletionPipeline,
+    DslCompletionProvider,
+    FilesCompletionProvider,
+    IndexSymbolCompletionProvider,
+    KeywordCompletionProvider,
+    NamedArgumentCompletionProvider,
+    SectionCompletionProvider,
+    SettingCompletionProvider,
+    SqliteCompletionUsageStore,
+    VariableCompletionProvider,
+    resolve_keyword_via_pipeline,
+)
+from robot_studio.infrastructure.language.keyword_helpers import (
+    active_parameter_index,
+)
+from robot_studio.infrastructure.language.signature import (
+    IndexSignatureHelpProvider,
+    LibdocSignatureHelpProvider,
+    SignatureHelpPipeline,
+)
 
 _BUILTIN_KEYWORDS = BUILTIN_KEYWORDS
 _SETTING_NAMES = SETTING_NAMES
@@ -52,9 +76,12 @@ class RobotLanguageService(LanguageService):
     parsing: RobotParsingBridge = field(default_factory=RobotParsingBridge)
     event_bus: EventBus | None = None
     analysis_engine: RobotAnalysisEngine | None = None
+    usage_store: SqliteCompletionUsageStore | None = None
     _cache_generation: int = field(default=0, init=False)
     _subscribed: bool = field(default=False, init=False)
     _library_cache: dict[str, dict[str, Any]] = field(default_factory=dict, init=False)
+    _completion_pipeline: CompletionPipeline | None = field(default=None, init=False)
+    _signature_pipeline: SignatureHelpPipeline | None = field(default=None, init=False)
 
     def start(self) -> None:
         if self._subscribed or self.event_bus is None:
@@ -71,6 +98,8 @@ class RobotLanguageService(LanguageService):
         _ = event
         self._library_cache.clear()
         self._cache_generation += 1
+        self._signature_pipeline = None
+        self._completion_pipeline = None
 
     def _python_executable(self) -> Path:
         environment = self.context.environment
@@ -80,6 +109,79 @@ class RobotLanguageService(LanguageService):
             )
         return self.parsing.resolve_python(environment.path)
 
+    def _ensure_signature_pipeline(self) -> SignatureHelpPipeline:
+        if self._signature_pipeline is not None:
+            return self._signature_pipeline
+
+        async def find_definition(
+            name: str,
+            *,
+            kind: SymbolKind | None = None,
+        ) -> dict | None:
+            return await self.store.find_definition(name, kind=kind)
+
+        self._signature_pipeline = SignatureHelpPipeline(
+            providers=[
+                LibdocSignatureHelpProvider(
+                    resolve_library=self._resolve_library,
+                    imported_libraries=self._imported_libraries,
+                ),
+                IndexSignatureHelpProvider(find_definition=find_definition),
+            ],
+        )
+        return self._signature_pipeline
+
+    def _ensure_completion_pipeline(self) -> CompletionPipeline:
+        if self._completion_pipeline is not None:
+            return self._completion_pipeline
+
+        async def search_symbols(
+            prefix: str,
+            *,
+            kind: SymbolKind | None = None,
+            limit: int = 80,
+        ) -> list[dict]:
+            return await self.store.search_symbols(prefix, kind=kind, limit=limit)
+
+        signature_pipeline = self._ensure_signature_pipeline()
+        self._completion_pipeline = CompletionPipeline(
+            providers=[
+                NamedArgumentCompletionProvider(
+                    resolve_keyword=resolve_keyword_via_pipeline(signature_pipeline),
+                ),
+                SectionCompletionProvider(),
+                SettingCompletionProvider(),
+                DslCompletionProvider(),
+                BufferCompletionProvider(),
+                VariableCompletionProvider(search_symbols=search_symbols),
+                KeywordCompletionProvider(
+                    resolve_library=self._resolve_library,
+                    imported_library_entries=self._imported_library_entries,
+                    search_symbols=search_symbols,
+                ),
+                IndexSymbolCompletionProvider(search_symbols=search_symbols),
+                FilesCompletionProvider(search_symbols=search_symbols),
+            ],
+            usage_store=self.usage_store,
+        )
+        return self._completion_pipeline
+
+    async def record_completion_usage(
+        self,
+        *,
+        label: str,
+        kind: str = "",
+        project_id: str | None = None,
+    ) -> None:
+        if self.usage_store is None:
+            return
+        pid = project_id
+        if not pid and self.context.project is not None:
+            pid = str(self.context.project.id)
+        if not pid:
+            return
+        await self.usage_store.record(project_id=pid, label=label, kind=kind)
+
     async def completion(self, request: dict) -> list[dict]:
         file_path = str(request.get("file_path") or "")
         line = int(request.get("line") or 1)
@@ -87,10 +189,10 @@ class RobotLanguageService(LanguageService):
         content = str(request.get("content") or "")
         query = str(request.get("query") or request.get("prefix") or "")
 
-        ctx: dict[str, Any] = {"prefix": query, "context": "keyword"}
+        ctx_raw: dict[str, Any] = {"prefix": query, "context": "keyword", "section": ""}
         if content and file_path:
             try:
-                ctx = await self.parsing.run(
+                ctx_raw = await self.parsing.run(
                     self._python_executable(),
                     op="completion_context",
                     content=content,
@@ -101,175 +203,34 @@ class RobotLanguageService(LanguageService):
             except RobotParsingError:
                 pass
 
-        prefix = str(ctx.get("prefix") or query).strip()
-        context = str(ctx.get("context") or "keyword")
-        section = str(ctx.get("section") or "")
-        kind = self._kind_for_context(context)
-        results = await self.store.search_symbols(prefix, kind=kind, limit=80)
+        prefix = str(ctx_raw.get("prefix") or query).strip()
+        context = str(ctx_raw.get("context") or "keyword")
+        section = str(ctx_raw.get("section") or "")
+        keyword = str(ctx_raw.get("keyword") or "")
+        arguments = tuple(str(a) for a in (ctx_raw.get("arguments") or []))
+        active_parameter = int(ctx_raw.get("active_parameter") or 0)
+        project_id = None
+        if self.context.project is not None:
+            project_id = str(self.context.project.id)
 
-        items: list[dict] = []
-        seen: set[str] = set()
-
-        def add(
-            label: str,
-            item_kind: str,
-            detail: str = "",
-            insert: str | None = None,
-            documentation: str = "",
-        ) -> None:
-            key = f"{item_kind}:{label.lower()}"
-            if key in seen:
-                return
-            seen.add(key)
-            items.append(
-                {
-                    "label": label,
-                    "kind": item_kind,
-                    "detail": detail,
-                    "documentation": documentation,
-                    "insert_text": insert or label,
-                },
-            )
-
-        def matches(label: str) -> bool:
-            """Prefix / word-start match — not substring (``a`` must not hit ``RANGE``)."""
-            if not prefix:
-                return True
-            needle = prefix.casefold()
-            hay = label.casefold()
-            if hay.startswith(needle):
-                return True
-            return any(
-                part.startswith(needle)
-                for part in re.split(r"[\s.]+", hay)
-                if part
-            )
-
-        # Section headers when typing at column 0 with *** …
-        if prefix.startswith("*") or context == "section":
-            for header in _SECTION_HEADERS:
-                if matches(header):
-                    add(header, "section", detail="Section header")
-
-        if context in {"setting", "library", "resource"} or section == "settings":
-            for name in _SETTING_NAMES:
-                if matches(name):
-                    add(name, "setting", detail="Suite setting")
-
-        if context == "local_setting" or prefix.startswith("["):
-            for name in _LOCAL_SETTINGS:
-                if matches(name):
-                    add(name, "setting", detail="Local setting")
-
-        if context in {"library", "keyword_call", "keyword", "control"}:
-            for marker in _CONTROL_STRUCTURES:
-                label = marker["label"]
-                # Match the short DSL label only — insert templates contain
-                # incidental letters (RANGE, ${a}, …) that must not match.
-                if matches(label):
-                    add(
-                        label,
-                        "dsl",
-                        detail=marker.get("detail") or "RF DSL",
-                        insert=marker.get("insert_text") or label,
-                        documentation=marker.get("documentation") or "",
-                    )
-            # Avoid flooding the dropdown with every BuiltIn when the prefix is empty.
-            builtin_source = _BUILTIN_KEYWORDS
-            if len(prefix) < 1:
-                builtin_source = [
-                    "Log",
-                    "Log To Console",
-                    "Should Be Equal",
-                    "Should Be True",
-                    "Set Variable",
-                    "Create List",
-                    "Create Dictionary",
-                    "Fail",
-                    "Sleep",
-                    "No Operation",
-                    "Run Keyword",
-                    "Evaluate",
-                    "Get Length",
-                    "Get Variable Value",
-                    "Wait Until Keyword Succeeds",
-                ]
-            for name in builtin_source:
-                if matches(name):
-                    add(
-                        name,
-                        "keyword",
-                        detail="BuiltIn library",
-                        documentation="BuiltIn library keyword (not RF DSL).",
-                    )
-            # Prefer live BuiltIn names from the active env when available.
-            if len(prefix) >= 1:
-                try:
-                    resolved = await self._resolve_library("BuiltIn")
-                    if resolved.get("available"):
-                        for name in resolved.get("keywords") or []:
-                            if matches(str(name)):
-                                add(
-                                    str(name),
-                                    "keyword",
-                                    detail="BuiltIn library",
-                                    documentation="BuiltIn library keyword (not RF DSL).",
-                                )
-                except Exception:  # noqa: BLE001 — completion must stay resilient
-                    pass
-
-            # Keywords from Library imports in this file (active env via libdoc).
-            if content and len(prefix) >= 1:
-                try:
-                    for lib_name, alias in self._imported_library_entries(content):
-                        if lib_name.casefold() == "builtin":
-                            continue
-                        resolved = await self._resolve_library(lib_name)
-                        if not resolved.get("available"):
-                            continue
-                        display = str(resolved.get("name") or lib_name)
-                        for kw in resolved.get("keywords") or []:
-                            kw_name = str(kw)
-                            if alias:
-                                qualified = f"{alias}.{kw_name}"
-                                if matches(qualified) or matches(kw_name):
-                                    add(
-                                        qualified,
-                                        "keyword",
-                                        detail=f"{display} (as {alias})",
-                                        documentation=str(
-                                            ((resolved.get("keyword_info") or {}).get(
-                                                kw_name.casefold(),
-                                            )
-                                            or {}).get("documentation")
-                                            or "",
-                                        ),
-                                    )
-                            elif matches(kw_name):
-                                add(
-                                    kw_name,
-                                    "keyword",
-                                    detail=f"{display} library",
-                                    documentation=str(
-                                        ((resolved.get("keyword_info") or {}).get(
-                                            kw_name.casefold(),
-                                        )
-                                        or {}).get("documentation")
-                                        or "",
-                                    ),
-                                )
-                except Exception:  # noqa: BLE001 — completion must stay resilient
-                    pass
-
-        for item in results:
-            add(
-                item["name"],
-                item["kind"],
-                detail=item.get("detail") or "",
-            )
-            if len(items) >= 100:
-                break
-        return items[:100]
+        request_ctx = CompletionRequestContext(
+            file_path=file_path,
+            content=content,
+            line=line,
+            column=column,
+            prefix=prefix,
+            context=context,
+            section=section,
+            project_id=project_id,
+            keyword=keyword,
+            arguments=arguments,
+            active_parameter=active_parameter,
+        )
+        ranked = await self._ensure_completion_pipeline().complete(
+            request_ctx,
+            limit=100,
+        )
+        return [item.to_api() for item in ranked]
 
     async def hover(self, request: dict) -> dict | None:
         symbol = await self._resolve(request)
@@ -465,60 +426,52 @@ class RobotLanguageService(LanguageService):
         keyword = str(parsed.get("keyword") or "")
         if not keyword:
             return None
-        definition = await self.store.find_definition(keyword, kind=SymbolKind.KEYWORD)
-        documentation = ""
-        detail = ""
-        parameters: list[dict] = []
-        if definition:
-            documentation = definition.get("documentation") or ""
-            detail = definition.get("detail") or ""
-            parameters = self._parameters_from_detail(detail)
-        if not parameters and keyword in _BUILTIN_KEYWORDS:
-            parameters = [{"label": "message", "documentation": ""}]
+        arguments = tuple(str(a) for a in (parsed.get("arguments") or []))
+        hint = int(parsed.get("active_parameter") or 0)
 
-        # Library keywords live in the active env, not the workspace index.
-        if not parameters or not documentation:
-            env_info = await self._lookup_keyword_signature(content, keyword)
-            if env_info is not None:
-                if not parameters:
-                    parameters = list(env_info.get("parameters") or [])
-                if not documentation:
-                    documentation = str(env_info.get("documentation") or "")
-                if not detail and parameters:
-                    detail = ", ".join(
-                        str(item.get("label") or "")
-                        for item in parameters
-                        if item.get("label")
-                    )
-
-        if not parameters and not documentation:
+        ctx = SignatureHelpRequestContext(
+            file_path=file_path,
+            content=content,
+            line=line,
+            column=column,
+            keyword=keyword,
+            arguments=arguments,
+            active_parameter_hint=hint,
+            project_id=(
+                str(self.context.project.id) if self.context.project is not None else None
+            ),
+        )
+        meta = await self._ensure_signature_pipeline().resolve(ctx)
+        if meta is None:
+            return None
+        if not meta.parameters and not meta.documentation:
             return None
 
-        active = int(parsed.get("active_parameter") or 0)
-        if parameters:
-            active = max(0, min(active, len(parameters) - 1))
-        return {
-            "keyword": keyword,
-            "documentation": documentation,
-            "detail": detail,
-            "active_parameter": active,
-            "parameters": parameters,
-        }
+        active = active_parameter_index(
+            meta,
+            arguments=list(arguments),
+            active_hint=hint,
+        )
+        return meta.to_signature_api(active_parameter=active)
 
     async def _lookup_keyword_signature(
         self,
         content: str,
         keyword: str,
     ) -> dict[str, Any] | None:
-        key = keyword.casefold()
-        for library_name in [*self._imported_libraries(content), "BuiltIn"]:
-            resolved = await self._resolve_library(library_name)
-            if not resolved.get("available"):
-                continue
-            info = (resolved.get("keyword_info") or {}).get(key)
-            if isinstance(info, dict):
-                return info
-        return None
+        """Legacy helper — returns transport dict from KeywordMetadata for hover."""
+        meta = await self._ensure_signature_pipeline().resolve(
+            SignatureHelpRequestContext(
+                file_path="",
+                content=content,
+                line=1,
+                column=1,
+                keyword=keyword,
+            ),
+        )
+        if meta is None:
+            return None
+        return meta.to_transport()
 
     @staticmethod
     def _imported_library_entries(content: str) -> list[tuple[str, str | None]]:

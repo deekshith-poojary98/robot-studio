@@ -185,7 +185,7 @@ class AppToolbar extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: AppSpacing.md),
                     ],
                     ToolbarButton(
                       key: const Key('toolbar.run'),
@@ -204,7 +204,7 @@ class AppToolbar extends StatelessWidget {
                           : 'Run current file',
                       onTap: isExecutionRunning || !canRun ? null : onRun,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: AppSpacing.sm),
                     ToolbarButton(
                       key: const Key('toolbar.run-project'),
                       icon: Icons.playlist_play_rounded,
@@ -222,7 +222,7 @@ class AppToolbar extends StatelessWidget {
                           ? null
                           : onRunProject,
                     ),
-                    const SizedBox(width: 2),
+                    const SizedBox(width: AppSpacing.sm),
                     ToolbarButton(
                       key: const Key('toolbar.stop'),
                       icon: Icons.stop_rounded,

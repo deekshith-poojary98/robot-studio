@@ -1015,7 +1015,7 @@ class _AppShellState extends State<AppShell> {
       tag: 'Shell',
       data: {
         'project': _selectedProject?.name,
-        'suite': _selectedSuitePath,
+        'suite': _runTargetPath,
         'env': _activeEnvironment?.name,
       },
     );
@@ -1027,15 +1027,30 @@ class _AppShellState extends State<AppShell> {
     if (!await _ensureRobotReady()) {
       return;
     }
+    final suite = _runTargetPath;
+    if (suite == null) {
+      if (!mounted) return;
+      await showGuidanceDialog(
+        context: context,
+        title: 'Nothing to run',
+        message:
+            'Open a .robot suite file, then press Run. '
+            'The current editor is not a Robot Framework test file.',
+        primaryLabel: 'OK',
+        onPrimary: () {},
+        dismissLabel: 'Close',
+      );
+      return;
+    }
 
     setState(() {
-      _execution.prepareNewRun();
-      _showExecutionPage = true;
+      _selectedSuitePath = suite;
+      _revealExecutionCenter();
     });
     await _connectExecutionStream();
 
     try {
-      final run = await _gateway.runFile(file: _selectedSuitePath);
+      final run = await _gateway.runFile(file: suite);
       if (!mounted) return;
       AppLogger.info(
         'Run started',
@@ -1073,8 +1088,7 @@ class _AppShellState extends State<AppShell> {
     }
 
     setState(() {
-      _execution.prepareNewRun();
-      _showExecutionPage = true;
+      _revealExecutionCenter();
     });
     await _connectExecutionStream();
 
@@ -1243,6 +1257,43 @@ class _AppShellState extends State<AppShell> {
     final env = _activeEnvironment;
     final envOk = env == null || env.available;
     return _selectedProject != null && envOk && _robotFrameworkReady;
+  }
+
+  /// Suites Robot Framework can execute (`.resource` is not a run target).
+  static bool _isRunnableSuitePath(String? path) {
+    if (path == null || path.trim().isEmpty) return false;
+    final lower = path.toLowerCase().replaceAll('\\', '/');
+    return lower.endsWith('.robot');
+  }
+
+  /// Prefer the active editor when it is a `.robot` suite; never silently
+  /// fall back to another suite while a non-robot file is focused.
+  String? get _runTargetPath {
+    final active = _activeEditorPath;
+    if (_isRunnableSuitePath(active)) return active;
+    if (active != null && active.trim().isNotEmpty) {
+      // Non-runnable editor focused — refuse sticky suite (avoids "txt runs
+      // tests/foo.robot").
+      return null;
+    }
+    if (_isRunnableSuitePath(_selectedSuitePath)) return _selectedSuitePath;
+    return null;
+  }
+
+  bool get _canRunFile => _canRunTests && _runTargetPath != null;
+
+  /// Bring the Execution monitor to the front (Run / Tests), keeping tabs mounted.
+  void _revealExecutionCenter() {
+    _execution.prepareNewRun();
+    _showExecutionPage = true;
+    _showEditorPage = false;
+    _showSymbolsPage = false;
+    _showReportsPage = false;
+    _showDoctorPage = false;
+    _showSourceControl = false;
+    _showPackageManager = false;
+    _showPluginManager = false;
+    _showEnvironmentManager = false;
   }
 
   static const int _defaultLargeRunThreshold = 100;
@@ -1807,7 +1858,10 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _revealTests() async {
     setState(() {
+      _activePanel = SidebarPanel.tests;
       _showExecutionPage = true;
+      _showEditorPage = false;
+      _sidePanelCollapsed = false;
     });
   }
 
@@ -2377,8 +2431,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     setState(() {
-      _execution.prepareNewRun();
-      _showExecutionPage = true;
+      _revealExecutionCenter();
     });
     await _connectExecutionStream();
     try {
@@ -2421,8 +2474,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     setState(() {
-      _execution.prepareNewRun();
-      _showExecutionPage = true;
+      _revealExecutionCenter();
     });
     await _connectExecutionStream();
     try {
@@ -2445,7 +2497,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleRunCurrentFileTests() async {
-    final path = _activeEditorPath ?? _selectedSuitePath;
+    final path = _runTargetPath;
     if (path == null) {
       await _handleRunFile();
       return;
@@ -2459,9 +2511,8 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     setState(() {
-      _execution.prepareNewRun();
-      _showExecutionPage = true;
       _selectedSuitePath = path;
+      _revealExecutionCenter();
     });
     await _connectExecutionStream();
     try {
@@ -2488,8 +2539,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     setState(() {
-      _execution.prepareNewRun();
-      _showExecutionPage = true;
+      _revealExecutionCenter();
     });
     await _connectExecutionStream();
     try {
@@ -2517,10 +2567,8 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     setState(() {
-      _execution.prepareNewRun();
-      _showExecutionPage = true;
-      _showEditorPage = false;
       _activePanel = SidebarPanel.tests;
+      _revealExecutionCenter();
     });
     await _connectExecutionStream();
     try {
@@ -2575,6 +2623,9 @@ class _AppShellState extends State<AppShell> {
         _showEditorPage = true;
         _showSymbolsPage = false;
         _showExecutionPage = false;
+        if (_isRunnableSuitePath(path)) {
+          _selectedSuitePath = path;
+        }
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
@@ -2606,6 +2657,9 @@ class _AppShellState extends State<AppShell> {
         _showEditorPage = true;
         _showSymbolsPage = false;
         _showExecutionPage = false;
+        if (_isRunnableSuitePath(file.path)) {
+          _selectedSuitePath = file.path;
+        }
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
@@ -4474,14 +4528,17 @@ class _AppShellState extends State<AppShell> {
 
   _CenterView get _centerView {
     if (_workspace.activeWorkspace == null) return _CenterView.welcome;
-    // Jump-to-source / open-file always bring the editor forward — even when
-    // the Tests rail would otherwise own the center (Execution monitor).
+    // Run / Tests monitor takes the center while explicitly requested.
+    // Jump-to-source clears _showExecutionPage and sets _showEditorPage.
+    if (_showExecutionPage) {
+      return _CenterView.execution;
+    }
     if (_showEditorPage &&
         _editorTabs.isNotEmpty &&
         _activeEditorPath != null) {
       return _CenterView.editor;
     }
-    if (_showExecutionPage || _activePanel == SidebarPanel.tests) {
+    if (_activePanel == SidebarPanel.tests) {
       return _CenterView.execution;
     }
     if (_showSymbolsPage) {
@@ -4689,7 +4746,7 @@ class _AppShellState extends State<AppShell> {
                         executionStatusLabel: _executionStatus.label,
                         executionElapsedLabel: _elapsedLabel,
                         onExecutionStatusTap: _revealTests,
-                        canRun: _canRunTests,
+                        canRun: _canRunFile,
                         canRunProject: _canRunTests,
                         robotFrameworkReady: _robotFrameworkReady,
                         onOpenWorkspace: _handleOpenWorkspace,
@@ -5240,6 +5297,7 @@ class _AppShellState extends State<AppShell> {
         onCtrlClick: _editorCtrlClickDefinition,
         onClosePeek: () => setState(() => _editor.peekDefinition = null),
         onCursorChanged: _editor.onCursorChanged,
+        onCompletionAccepted: _editor.recordCompletionUsage,
       ),
       _CenterView.placeholder => _WorkspaceOpenPlaceholder(
         workspace: _activeWorkspace!,

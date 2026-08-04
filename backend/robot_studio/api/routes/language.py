@@ -13,6 +13,7 @@ from robot_studio.api.schemas.index import (
 from robot_studio.api.schemas.language import (
     CompletionListResponse,
     CompletionRequest,
+    CompletionUsageRequest,
     DiagnosticListResponse,
     DiagnosticsRequest,
     FormatRequest,
@@ -150,10 +151,26 @@ async def language_completion(
                 "detail": item.get("detail") or "",
                 "documentation": item.get("documentation") or "",
                 "insert_text": item.get("insert_text") or item["label"],
+                "provider": item.get("provider") or "",
             }
             for item in items
         ],
     )
+
+
+@router.post("/completion/usage")
+async def language_completion_usage(
+    body: CompletionUsageRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> dict:
+    try:
+        await gateway.language_completion_usage(
+            label=body.label,
+            kind=body.kind,
+        )
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True}
 
 
 @router.post("/diagnostics", response_model=DiagnosticListResponse)
@@ -223,10 +240,17 @@ async def language_signature_help(
         documentation=result.get("documentation") or "",
         detail=result.get("detail") or "",
         active_parameter=int(result.get("active_parameter") or 0),
+        source_type=result.get("source_type") or "",
+        library_name=result.get("library_name") or "",
+        deprecated=bool(result.get("deprecated") or False),
         parameters=[
             {
                 "label": param.get("label") or "",
+                "name": param.get("name") or "",
                 "documentation": param.get("documentation") or "",
+                "default": param.get("default"),
+                "required": bool(param.get("required") or False),
+                "kind": param.get("kind") or "",
             }
             for param in result.get("parameters") or []
         ],

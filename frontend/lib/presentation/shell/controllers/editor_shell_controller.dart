@@ -132,9 +132,6 @@ class EditorShellController {
       tab.cursorLine = line;
       tab.cursorColumn = column;
     }
-    if (hoverTooltip != null) {
-      hoverTooltip = null;
-    }
     notify();
     scheduleLanguageRefresh();
   }
@@ -177,10 +174,19 @@ class EditorShellController {
           filePath: tab.path,
           content: tab.content,
         ),
+        gateway.languageSignatureHelp(
+          filePath: tab.path,
+          line: cursorLine,
+          column: cursorColumn,
+          content: tab.content,
+        ),
       ]);
       if (!isMounted()) return;
       completionItems = results[0] as List<CompletionItemInfo>;
       diagnostics = results[1] as List<DiagnosticInfo>;
+      final signature = results[2] as SignatureHelpInfo?;
+      // Caret-driven signature: update when resolved; clear when leaving a call.
+      hoverTooltip = signature;
       // Update Problems for the active file in place (no full-workspace rescan).
       workspaceProblems = [
         ...workspaceProblems.where((item) => item.filePath != tab.path),
@@ -194,6 +200,23 @@ class EditorShellController {
       notify();
       AppLogger.debug('Language refresh failed', tag: 'Shell', data: '$error');
     }
+  }
+
+  void recordCompletionUsage(CompletionItemInfo item) {
+    unawaited(() async {
+      try {
+        await gateway.languageCompletionUsage(
+          label: item.label,
+          kind: item.kind,
+        );
+      } catch (error) {
+        AppLogger.debug(
+          'Completion usage record failed',
+          tag: 'Shell',
+          data: '$error',
+        );
+      }
+    }());
   }
 
   void clearHoverTooltip() {

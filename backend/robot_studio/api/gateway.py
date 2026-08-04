@@ -632,6 +632,17 @@ class RestGateway:
             query=query,
         )
 
+    async def language_completion_usage(
+        self,
+        *,
+        label: str,
+        kind: str = "",
+    ) -> None:
+        await self._language_service.record_completion_usage(
+            label=label,
+            kind=kind,
+        )
+
     async def language_diagnostics(
         self,
         *,

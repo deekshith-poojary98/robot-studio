@@ -36,6 +36,7 @@ class EditorPage extends StatefulWidget {
     required this.onCursorChanged,
     this.jumpToLine,
     this.jumpToColumn,
+    this.onCompletionAccepted,
   });
 
   final List<EditorTabInfo> tabs;
@@ -65,6 +66,7 @@ class EditorPage extends StatefulWidget {
   final void Function(int line, int column) onCursorChanged;
   final int? jumpToLine;
   final int? jumpToColumn;
+  final ValueChanged<CompletionItemInfo>? onCompletionAccepted;
 
   @override
   State<EditorPage> createState() => EditorPageState();
@@ -168,6 +170,7 @@ class EditorPageState extends State<EditorPage> {
                           onContentChanged: (content) =>
                               widget.onContentChanged(active.path, content),
                           onCursorChanged: widget.onCursorChanged,
+                          onCompletionAccepted: widget.onCompletionAccepted,
                         ),
                       ),
                       if (widget.hover != null || widget.references.isNotEmpty)

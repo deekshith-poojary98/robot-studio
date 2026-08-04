@@ -122,6 +122,20 @@ class LanguageFacade:
             },
         )
 
+    async def record_completion_usage(
+        self,
+        *,
+        label: str,
+        kind: str = "",
+    ) -> None:
+        self._require_workspace()
+        if not label.strip():
+            raise LanguageValidationError("Provide a completion label")
+        record = getattr(self.language, "record_completion_usage", None)
+        if record is None:
+            return
+        await record(label=label, kind=kind)
+
     async def diagnostics(self, *, file_path: str, content: str) -> list[dict]:
         self._require_workspace()
         if not file_path:

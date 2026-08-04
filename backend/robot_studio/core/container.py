@@ -49,6 +49,7 @@ from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
 from robot_studio.infrastructure.language.robot_language_service import (
     RobotLanguageService,
 )
+from robot_studio.infrastructure.language.completion import SqliteCompletionUsageStore
 from robot_studio.infrastructure.packages.pip_installer import PipInstaller
 from robot_studio.infrastructure.packages.pypi_provider import PyPIProvider
 from robot_studio.infrastructure.plugins.builtins import register_builtin_capabilities
@@ -313,6 +314,9 @@ class Container:
             context=self.workspace_context,
             event_bus=self.event_bus,
             analysis_engine=self.analysis_engine,
+            usage_store=SqliteCompletionUsageStore(
+                settings.data_dir / "completion-usage.db",
+            ),
         )
         self.plugin_host.register(
             Capability.LANGUAGE_SERVICE,
@@ -384,6 +388,8 @@ class Container:
         await self.analysis_store.initialize()
         await self.execution_knowledge_store.initialize()
         await self.doctor_store.initialize()
+        if self.language_service is not None and self.language_service.usage_store is not None:
+            await self.language_service.usage_store.ensure_schema()
         await self.plugin_manager.initialize()
 
     async def _purge_on_workspace_missing(self, workspace_id: UUID) -> int:

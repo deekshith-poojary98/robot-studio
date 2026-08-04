@@ -216,6 +216,11 @@ abstract class TransportGateway {
     String query = '',
   });
 
+  Future<void> languageCompletionUsage({
+    required String label,
+    String kind = '',
+  });
+
   Future<List<DiagnosticInfo>> languageDiagnostics({
     required String filePath,
     required String content,

@@ -370,17 +370,20 @@ abstract class TransportGateway {
 
 | Capability | Status |
 |------------|--------|
-| Autocomplete | Shipped |
+| Autocomplete (CompletionProvider pipeline) | Shipped (Phase 1) |
 | Diagnostics | Shipped |
 | Hover | Shipped |
 | Go to definition / references | Shipped |
-| Document / workspace symbols | Shipped |
-| Format / signature help | Shipped (hover tooltip near pointer; env libdoc args/docs) |
+| Document / workspace symbols | Shipped (Outline enhancement = Phase 4) |
+| Format / signature help | Shipped (named-arg snippets = Phase 2) |
+| Library Explorer side panel | Planned (Phase 3) |
 | robotframework-lsp swap | Optional future via PluginHost |
+
+**Completion architecture:** pluggable `CompletionProvider`s (Buffer, Variables, Keywords/libdoc, DSL/sections/settings, Index, Files) feed a ranking pipeline (`match_score` + usage counts + buffer frequency + provider priority). Context from the parsing bridge (`completion_context`) filters which providers run. Acceptances are recorded via `POST /language/completion/usage` into a project-scoped SQLite usage store. Reuses IndexStore + libdoc; does not duplicate symbol extraction.
 
 Implementation uses IndexStore plus a **Robot parsing bridge** (workspace-venv worker) for fidelity with Robot Framework parsing.
 
-The Flutter editor uses gateway language methods — no Robot parsing in Dart.
+The Flutter editor uses gateway language methods — no Robot parsing in Dart. Popup order preserves backend ranking; accepting an item records usage for future boosts.
 
 ### Packages — Installer abstraction
 
@@ -616,7 +619,7 @@ PluginState: enabled, loaded_at, error…
 
 ### Language DTOs
 
-Completion, hover, diagnostics, definition/references locations, format edits, signature help, document/workspace symbols — exposed via `/language/*`. Completions and catalogs **separate RF DSL** (section headers, suite/local settings, control-flow: `IF`/`FOR`/`TRY`/`VAR`/… — completion kind `dsl`) from **BuiltIn library** keywords (`Log`, `Should Be Equal`, … — kind `keyword`). Completions also include keywords from `Library` imports in the current file, resolved against the **active environment** via Robot `libdoc` (including `WITH NAME` → `Alias.Keyword` suggestions). Semantic diagnostics resolve `Library` imports (and their keywords) the same way, skip continuation rows (`...`), treat RF automatic / number variables as known, and track variables declared by assignments / `FOR` / `VAR` / `[Arguments]` plus same-file user keywords. Missing Resource/Variables imports are enriched from the Analysis Engine (`source: analysis`, `code` / `inspection_id: missing_import`) so Problems and Doctor share finding identity. Go to Definition resolves the Robot cell under the caret (content + line/column), falls back to the Analysis Engine graph, and returns `definitions[]` when multiple matches exist. Signature help is shown as a pointer hover tooltip.
+Completion, hover, diagnostics, definition/references locations, format edits, signature help, document/workspace symbols — exposed via `/language/*`. Completions run a **CompletionProvider pipeline** (buffer, variables, keywords/libdoc, DSL, index, files) with usage ranking (`POST /language/completion/usage`) and context filtering from the parsing bridge. Completions and catalogs **separate RF DSL** (section headers, suite/local settings, control-flow: `IF`/`FOR`/`TRY`/`VAR`/… — completion kind `dsl`) from **BuiltIn library** keywords (`Log`, `Should Be Equal`, … — kind `keyword`). Completions also include keywords from `Library` imports in the current file, resolved against the **active environment** via Robot `libdoc` (including `WITH NAME` → `Alias.Keyword` suggestions). Semantic diagnostics resolve `Library` imports (and their keywords) the same way, skip continuation rows (`...`), treat RF automatic / number variables as known, and track variables declared by assignments / `FOR` / `VAR` / `[Arguments]` plus same-file user keywords. Missing Resource/Variables imports are enriched from the Analysis Engine (`source: analysis`, `code` / `inspection_id: missing_import`) so Problems and Doctor share finding identity. Go to Definition resolves the Robot cell under the caret (content + line/column), falls back to the Analysis Engine graph, and returns `definitions[]` when multiple matches exist. Signature help is shown as a pointer hover tooltip.
 
 ---
 
@@ -658,7 +661,7 @@ Paths below are relative to `/api/v1`. Workspace context is typically **session-
 | POST | `/doctor/run` | Run Doctor (profile / optional provider override) |
 | GET | `/doctor/report/{id}` | Fetch persisted Doctor report |
 | GET | `/doctor/history` | Prior Doctor reports for active project |
-| GET/POST | `/language/definition`, `hover`, `references`, `completion`, `diagnostics`, `format`, `signature-help`, `document-symbols`, `workspace-symbols` | language |
+| GET/POST | `/language/definition`, `hover`, `references`, `completion`, `completion/usage`, `diagnostics`, `format`, `signature-help`, `document-symbols`, `workspace-symbols` | language |
 | GET/POST | `/git/status`, `init`, `commit`, `branches`, `checkout`, `diff`, `fetch`, `pull`, `push`, `seed-local-remote`, … | git |
 | GET/POST | `/plugins`, `/plugins/refresh`, `enable`, `disable`, `reload` | plugins |
 
