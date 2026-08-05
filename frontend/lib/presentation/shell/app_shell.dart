@@ -5538,7 +5538,6 @@ class _AppShellState extends State<AppShell> {
         isLoadingHistory: _loadingHistory,
         status: _executionStatus,
         currentRun: _currentExecution,
-        elapsedLabel: _elapsedLabel,
         onRefreshHistory: _loadExecutionHistory,
         failedTests: _failedTests,
         isLoadingFailures: _loadingFailures,

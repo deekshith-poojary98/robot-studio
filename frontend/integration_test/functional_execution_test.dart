@@ -19,15 +19,13 @@ void main() {
   tearDownAll(() async => harness.tearDownAll());
 
   Finder toolbarButton(String label) => find.byWidgetPredicate(
-        (widget) => widget is ToolbarButton && widget.label == label,
-      );
+    (widget) => widget is ToolbarButton && widget.label == label,
+  );
 
   Future<void> ensureExecutionIdle() async {
     final status = await harness.api.executionStatus();
     final state = status['status']?.toString() ?? '';
-    if (state == 'running' ||
-        state == 'starting' ||
-        state == 'stopping') {
+    if (state == 'running' || state == 'starting' || state == 'stopping') {
       try {
         await harness.api.stopExecution();
       } catch (_) {}
@@ -177,8 +175,9 @@ Sleepy
     await openProjectInExplorer(tester, projectName: seeded.project);
 
     final run = tester.widget<ToolbarButton>(toolbarButton('Run'));
-    final runProject =
-        tester.widget<ToolbarButton>(toolbarButton('Run Project'));
+    final runProject = tester.widget<ToolbarButton>(
+      toolbarButton('Run Project'),
+    );
     expect(run.primary, isTrue);
     expect(runProject.primary, isTrue);
 
@@ -209,8 +208,9 @@ Sleepy
     // Launch controls live on the toolbar — gated until a project is open.
     expect(find.widgetWithText(FilledButton, 'Run Project'), findsNothing);
     expect(find.widgetWithText(OutlinedButton, 'Run File'), findsNothing);
-    final runProject =
-        tester.widget<ToolbarButton>(toolbarButton('Run Project'));
+    final runProject = tester.widget<ToolbarButton>(
+      toolbarButton('Run Project'),
+    );
     expect(runProject.onTap, isNull);
     expect(runProject.tooltip, 'Open a project to run');
 
@@ -272,7 +272,10 @@ Sleepy
       content: sleepy,
       suiteFile: 'long.robot',
     );
-    await harness.launchAppWithWorkspace(tester, workspaceName: 'XC Concurrent');
+    await harness.launchAppWithWorkspace(
+      tester,
+      workspaceName: 'XC Concurrent',
+    );
     await openProjectInExplorer(tester, projectName: seeded.project);
     await openRobotFileInExplorer(
       tester,

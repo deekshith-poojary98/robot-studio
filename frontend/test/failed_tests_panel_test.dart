@@ -61,7 +61,6 @@ void main() {
             isLoadingHistory: false,
             status: ExecutionStatus.failed,
             currentRun: null,
-            elapsedLabel: '1.2s',
             failedTests: const [failure],
           ),
         ),
@@ -73,7 +72,9 @@ void main() {
     expect(find.text('Re-run Test'), findsOneWidget);
   });
 
-  testWidgets('Execution page hides Failed Tests while running', (tester) async {
+  testWidgets('Execution page hides Failed Tests while running', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -86,7 +87,6 @@ void main() {
             isLoadingHistory: false,
             status: ExecutionStatus.running,
             currentRun: null,
-            elapsedLabel: '0.5s',
             failedTests: [failure],
           ),
         ),

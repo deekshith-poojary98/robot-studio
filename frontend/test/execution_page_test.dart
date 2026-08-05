@@ -17,7 +17,6 @@ void main() {
             isLoadingHistory: false,
             status: ExecutionStatus.running,
             currentRun: null,
-            elapsedLabel: '3s',
           ),
         ),
       ),
@@ -26,7 +25,8 @@ void main() {
     expect(find.text('Execution'), findsOneWidget);
     expect(find.text('Live Output'), findsOneWidget);
     expect(find.text('Recent Runs'), findsOneWidget);
-    expect(find.textContaining('RUNNING'), findsOneWidget);
+    expect(find.textContaining('RUNNING'), findsNothing);
+    expect(find.text('FINISHED'), findsNothing);
     expect(find.text('Run File'), findsNothing);
     expect(find.text('Run Project'), findsNothing);
     expect(find.text('Stop'), findsNothing);
@@ -46,13 +46,12 @@ void main() {
             isLoadingHistory: false,
             status: ExecutionStatus.idle,
             currentRun: null,
-            elapsedLabel: '0s',
           ),
         ),
       ),
     );
 
     expect(find.textContaining('toolbar or Test Explorer'), findsOneWidget);
-    expect(find.text('IDLE'), findsOneWidget);
+    expect(find.text('IDLE'), findsNothing);
   });
 }

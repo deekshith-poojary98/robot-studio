@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/execution_info.dart';
 import '../../core/gateway/models/run_failure_info.dart';
 import '../../core/theme/app_theme.dart';
-import '../widgets/status_badge.dart';
 import 'execution_console.dart';
 import 'execution_history_list.dart';
 import 'failed_tests_panel.dart';
@@ -20,7 +19,6 @@ class ExecutionPage extends StatelessWidget {
     required this.isLoadingHistory,
     required this.status,
     required this.currentRun,
-    required this.elapsedLabel,
     this.onRefreshHistory,
     this.failedTests = const [],
     this.isLoadingFailures = false,
@@ -33,28 +31,11 @@ class ExecutionPage extends StatelessWidget {
   final bool isLoadingHistory;
   final ExecutionStatus status;
   final ExecutionInfo? currentRun;
-  final String elapsedLabel;
   final VoidCallback? onRefreshHistory;
   final List<RunTestFailureInfo> failedTests;
   final bool isLoadingFailures;
   final void Function(RunTestFailureInfo failure)? onJumpToFailedTest;
   final void Function(RunTestFailureInfo failure)? onRerunFailedTest;
-
-  Color _statusDot(AppPalette palette) {
-    if (status.isActive) return palette.accent;
-    return switch (status) {
-      ExecutionStatus.failed || ExecutionStatus.aborted => palette.error,
-      ExecutionStatus.finished => palette.success,
-      ExecutionStatus.cancelled => palette.warning,
-      _ => palette.textMuted,
-    };
-  }
-
-  String get _statusLabel {
-    if (status.isActive) return '${status.label} · $elapsedLabel';
-    if (status == ExecutionStatus.idle) return 'Idle';
-    return status.label;
-  }
 
   String get _subtitle {
     if (status.isActive) {
@@ -85,43 +66,28 @@ class ExecutionPage extends StatelessWidget {
               AppSpacing.xl,
               AppSpacing.md,
             ),
-            child: Row(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Execution',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontSize: 18,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(_subtitle, style: theme.textTheme.bodySmall),
-                      if (currentRun != null &&
-                          currentRun!.suite.isNotEmpty &&
-                          running) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          currentRun!.suite,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: context.palette.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ],
+                Text(
+                  'Execution',
+                  style: theme.textTheme.titleMedium?.copyWith(fontSize: 18),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(_subtitle, style: theme.textTheme.bodySmall),
+                if (currentRun != null &&
+                    currentRun!.suite.isNotEmpty &&
+                    running) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    currentRun!.suite,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: context.palette.textSecondary,
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                StatusBadge(
-                  label: _statusLabel.toUpperCase(),
-                  dotColor: _statusDot(context.palette),
-                  filled: running,
-                ),
+                ],
               ],
             ),
           ),
