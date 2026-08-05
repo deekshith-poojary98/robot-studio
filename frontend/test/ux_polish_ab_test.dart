@@ -136,7 +136,7 @@ void main() {
     expect(stop.danger, isFalse);
     expect(stop.primary, isFalse);
 
-    // Only Run stays visually primary; Run Project is a quiet icon action.
+    // Only Run stays visually primary; the others are quiet segments.
     final run = tester.widget<ToolbarButton>(
       find.byKey(const Key('toolbar.run')),
     );
@@ -145,7 +145,52 @@ void main() {
       find.byKey(const Key('toolbar.run-project')),
     );
     expect(runProject.primary, isFalse);
-    expect(runProject.showLabel, isFalse);
+  });
+
+  testWidgets('run controls are one attached bar of equal segments', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppToolbar(
+            projectLabel: 'WS',
+            environmentLabel: 'robot-main',
+            backendConnected: true,
+            onRun: () {},
+            onRunProject: () {},
+            onStop: () {},
+          ),
+        ),
+      ),
+    );
+
+    Rect rectOf(String key) =>
+        tester.getRect(find.byKey(Key(key)).hitTestable().first);
+
+    final run = rectOf('toolbar.run');
+    final project = rectOf('toolbar.run-project');
+    final stop = rectOf('toolbar.stop');
+
+    // Same width and height across all three.
+    expect(project.width, run.width);
+    expect(stop.width, run.width);
+    expect(project.height, run.height);
+    expect(stop.height, run.height);
+
+    // Attached: only the 1px hairline separator sits between segments.
+    expect(project.left - run.right, closeTo(1, 0.01));
+    expect(stop.left - project.right, closeTo(1, 0.01));
+
+    // One rounded rectangle around the lot, at the shared control height.
+    expect(find.byType(ToolbarButtonGroup), findsOneWidget);
+    expect(
+      tester.getSize(find.byType(ToolbarButtonGroup)).height,
+      AppControlHeight.toolbarAction,
+    );
   });
 
   testWidgets('failed status shows Last: prefix', (tester) async {

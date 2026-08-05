@@ -681,7 +681,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('robotframework-browser'), findsWidgets);
-    await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+    // Rows are the selection affordance; no per-result button.
+    await tester.tap(find.text('robotframework-browser').last);
     await tester.pumpAndSettle();
 
     expect(find.text('Version'), findsOneWidget);
@@ -728,7 +729,7 @@ void main() {
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Search'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Select'));
+    await tester.tap(find.text('six').last);
     await tester.pumpAndSettle();
 
     await tester.tap(find.byType(DropdownButtonFormField<String>));

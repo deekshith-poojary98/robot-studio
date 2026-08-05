@@ -187,51 +187,55 @@ class AppToolbar extends StatelessWidget {
                       ),
                       const SizedBox(width: AppSpacing.md),
                     ],
-                    ToolbarButton(
-                      key: const Key('toolbar.run'),
-                      icon: Icons.play_arrow_rounded,
-                      label: 'Run',
-                      primary: true,
-                      showLabel: true,
-                      tooltip: environmentBroken
-                          ? 'Active environment is missing on disk — recreate or select another'
-                          : !canRun && !robotFrameworkReady
-                          ? "Robot Framework isn't installed in the selected environment.\nInstall Robot Framework…"
-                          : !canRun
-                          ? 'Open a project to run the current file'
-                          : isExecutionRunning
-                          ? 'Stop the current run first'
-                          : 'Run current file',
-                      onTap: isExecutionRunning || !canRun ? null : onRun,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    ToolbarButton(
-                      key: const Key('toolbar.run-project'),
-                      icon: Icons.playlist_play_rounded,
-                      label: 'Run Project',
-                      tooltip: environmentBroken
-                          ? 'Active environment is missing on disk — recreate or select another'
-                          : !canRunProject && !robotFrameworkReady
-                          ? "Robot Framework isn't installed in the selected environment.\nInstall Robot Framework…"
-                          : !canRunProject
-                          ? 'Open a project to run'
-                          : isExecutionRunning
-                          ? 'Stop the current run first'
-                          : 'Run the whole project',
-                      onTap: isExecutionRunning || !canRunProject
-                          ? null
-                          : onRunProject,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    ToolbarButton(
-                      key: const Key('toolbar.stop'),
-                      icon: Icons.stop_rounded,
-                      label: 'Stop',
-                      danger: isExecutionRunning,
-                      tooltip: isExecutionRunning
-                          ? 'Stop the current run'
-                          : 'Nothing to stop',
-                      onTap: isExecutionRunning ? onStop : null,
+                    ToolbarButtonGroup(
+                      buttons: [
+                        ToolbarButton(
+                          key: const Key('toolbar.run'),
+                          icon: Icons.play_arrow_rounded,
+                          label: 'Run',
+                          primary: true,
+                          showLabel: true,
+                          tooltip: environmentBroken
+                              ? 'Active environment is missing on disk — recreate or select another'
+                              : !canRun && !robotFrameworkReady
+                              ? "Robot Framework isn't installed in the selected environment.\nInstall Robot Framework…"
+                              : !canRun
+                              ? 'Open a project to run the current file'
+                              : isExecutionRunning
+                              ? 'Stop the current run first'
+                              : 'Run current file',
+                          onTap: isExecutionRunning || !canRun ? null : onRun,
+                        ),
+                        ToolbarButton(
+                          key: const Key('toolbar.run-project'),
+                          icon: Icons.playlist_play_rounded,
+                          label: 'Project',
+                          showLabel: true,
+                          tooltip: environmentBroken
+                              ? 'Active environment is missing on disk — recreate or select another'
+                              : !canRunProject && !robotFrameworkReady
+                              ? "Robot Framework isn't installed in the selected environment.\nInstall Robot Framework…"
+                              : !canRunProject
+                              ? 'Open a project to run'
+                              : isExecutionRunning
+                              ? 'Stop the current run first'
+                              : 'Run the whole project',
+                          onTap: isExecutionRunning || !canRunProject
+                              ? null
+                              : onRunProject,
+                        ),
+                        ToolbarButton(
+                          key: const Key('toolbar.stop'),
+                          icon: Icons.stop_rounded,
+                          label: 'Stop',
+                          showLabel: true,
+                          danger: isExecutionRunning,
+                          tooltip: isExecutionRunning
+                              ? 'Stop the current run'
+                              : 'Nothing to stop',
+                          onTap: isExecutionRunning ? onStop : null,
+                        ),
+                      ],
                     ),
                   ],
                 ),

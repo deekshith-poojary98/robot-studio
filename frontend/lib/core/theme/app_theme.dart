@@ -70,6 +70,9 @@ abstract final class AppDialogWidth {
 abstract final class AppControlHeight {
   /// Toolbar project / environment / branch chips and the git overflow button.
   static const toolbarChip = 26.0;
+
+  /// Run / Run Project / Stop segments in the toolbar action group.
+  static const toolbarAction = 30.0;
 }
 
 /// Builds the full theme from [palette] so light and dark stay in lockstep.
