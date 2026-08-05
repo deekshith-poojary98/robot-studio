@@ -965,6 +965,9 @@ def resolve_library(name: str) -> dict:
         doc = LibraryDocumentation(cleaned)
         library_name = str(doc.name or cleaned)
         source_type = "builtin" if library_name.casefold() == "builtin" else "library"
+        # ROBOT_LIBRARY_DOC_FORMAT: ROBOT (libdoc's default), MARKDOWN, HTML,
+        # TEXT or REST. The renderer needs it to pick the right markup dialect.
+        doc_format = str(getattr(doc, "doc_format", "") or "").upper()
         keywords: list[str] = []
         keyword_info: dict[str, dict] = {}
         for kw in doc.keywords:
@@ -985,6 +988,7 @@ def resolve_library(name: str) -> dict:
                     or getattr(kw, "short_doc", None)
                     or "",
                 ),
+                "doc_format": doc_format,
                 "parameters": parameters,
                 "source_path": str(getattr(doc, "source", None) or ""),
                 "source_line": getattr(kw, "lineno", None),
@@ -998,6 +1002,7 @@ def resolve_library(name: str) -> dict:
         return {
             "available": True,
             "name": library_name,
+            "doc_format": doc_format,
             "keywords": keywords,
             "keyword_info": keyword_info,
         }

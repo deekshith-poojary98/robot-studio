@@ -235,7 +235,11 @@ async def test_delete_protection(services) -> None:
 
 @pytest.mark.asyncio
 async def test_install_robot_survives_deleted_process_cwd(services) -> None:
-    """Pip calls os.getcwd(); a deleted backend cwd must not break install."""
+    """Pip calls os.getcwd(); a deleted backend cwd must not break install.
+
+    The destroyed cwd is process-global; the autouse ``_restore_process_cwd``
+    fixture puts it back so later tests can still spawn subprocesses.
+    """
     import os
     import tempfile
 

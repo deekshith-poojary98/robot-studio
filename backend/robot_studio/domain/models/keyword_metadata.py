@@ -103,6 +103,8 @@ class KeywordMetadata:
     source_type: KeywordSourceType = KeywordSourceType.LIBRARY
     library_name: str = ""
     documentation: str = ""
+    #: Markup dialect of :attr:`documentation` (libdoc ``doc_format``).
+    doc_format: str = ""
     parameters: tuple[ParameterMetadata, ...] = ()
     source_path: str = ""
     source_line: int | None = None
@@ -128,6 +130,7 @@ class KeywordMetadata:
             "source_type": self.source_type.value,
             "library_name": self.library_name,
             "documentation": self.documentation,
+            "doc_format": self.doc_format,
             "parameters": [p.to_transport() for p in self.parameters],
             "source_path": self.source_path,
             "source_line": self.source_line,
@@ -173,6 +176,7 @@ class KeywordMetadata:
             source_type=source_type,
             library_name=str(raw.get("library_name") or ""),
             documentation=str(raw.get("documentation") or ""),
+            doc_format=str(raw.get("doc_format") or "").upper(),
             parameters=parameters,
             source_path=str(raw.get("source_path") or raw.get("file_path") or ""),
             source_line=int(line) if line is not None else None,
@@ -219,11 +223,14 @@ def merge_keyword_metadata(*parts: KeywordMetadata | None) -> KeywordMetadata | 
                 )
     parameters = tuple(by_name[k] for k in order) if order else primary.parameters
 
+    # The format must follow whichever part actually supplied the text.
     docs = primary.documentation
+    doc_format = primary.doc_format
     if not docs:
         for part in present:
             if part.documentation:
                 docs = part.documentation
+                doc_format = part.doc_format
                 break
 
     path = primary.source_path
@@ -257,6 +264,7 @@ def merge_keyword_metadata(*parts: KeywordMetadata | None) -> KeywordMetadata | 
         library_name=primary.library_name
         or next((p.library_name for p in present if p.library_name), ""),
         documentation=docs,
+        doc_format=doc_format,
         parameters=parameters,
         source_path=path,
         source_line=line,

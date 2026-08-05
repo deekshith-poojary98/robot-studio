@@ -376,40 +376,62 @@ class TestExplorerService:
         failed = list_failed_tests(output_xml)
         if not failed:
             raise TestExplorerValidationError("Last run has no failed tests")
-        return await self.execution_service.run_with_options(
-            suite=str(project.path),
-            robot_args=["--rerunfailed", str(output_xml)],
-            run_label=f"Failed ({len(failed)})",
-        )
 
-    async def run_selected(self, *, tests: list[dict]) -> ExecutionRun:
-        self._require_workspace()
-        if not tests:
-            raise TestExplorerValidationError("Select at least one test")
-        # Group by suite file; Robot allows multiple --test for one suite.
+        # Target each failed test through its own suite file rather than
+        # ``--rerunfailed`` against the project root. Robot resolves the long
+        # names in output.xml relative to the *original* run's target, so a
+        # failure recorded as ``Demo.Beta`` (run of tests/demo.robot) matches
+        # nothing under the project root, where it is ``Proj.Tests.Demo.Beta``.
+        by_file = self._group_tests_by_file(
+            [{"file": item.get("source"), "name": item.get("name")} for item in failed],
+        )
+        label = f"Failed ({len(failed)})"
+        if not by_file:
+            # No usable sources in output.xml — fall back to Robot's own rerun.
+            return await self.execution_service.run_with_options(
+                suite=str(project.path),
+                robot_args=["--rerunfailed", str(output_xml)],
+                run_label=label,
+            )
+        return await self._run_tests_by_file(by_file, label=label)
+
+    @staticmethod
+    def _group_tests_by_file(tests: list[dict]) -> dict[str, list[str]]:
+        """Group ``{file, name}`` entries by suite file, preserving order."""
         by_file: dict[str, list[str]] = {}
         for item in tests:
-            path = str(Path(str(item.get("file") or "")).expanduser().resolve())
+            raw = str(item.get("file") or "")
             name = str(item.get("name") or "").strip()
-            if not path or not name:
+            if not raw or not name:
                 continue
-            by_file.setdefault(path, []).append(name)
-        if not by_file:
-            raise TestExplorerValidationError("No valid tests in selection")
+            path = str(Path(raw).expanduser().resolve())
+            names = by_file.setdefault(path, [])
+            if name not in names:
+                names.append(name)
+        return by_file
+
+    async def _run_tests_by_file(
+        self,
+        by_file: dict[str, list[str]],
+        *,
+        label: str | None = None,
+    ) -> ExecutionRun:
+        """Run named tests: one suite file directly, several via the project."""
+        # Robot allows multiple --test for one suite.
         if len(by_file) == 1:
             suite, names = next(iter(by_file.items()))
             args: list[str] = []
             for name in names:
                 args.extend(["--test", name])
-            label = (
-                f"{Path(suite).name} :: {names[0]}"
-                if len(names) == 1
-                else f"{Path(suite).name} :: {len(names)} tests"
-            )
             return await self.execution_service.run_with_options(
                 suite=suite,
                 robot_args=args,
-                run_label=label,
+                run_label=label
+                or (
+                    f"{Path(suite).name} :: {names[0]}"
+                    if len(names) == 1
+                    else f"{Path(suite).name} :: {len(names)} tests"
+                ),
             )
         # Multiple files: run whole project with name filters (OR).
         project = self.context.project
@@ -419,11 +441,21 @@ class TestExplorerService:
         for names in by_file.values():
             for name in names:
                 args.extend(["--test", name])
+        total = sum(len(names) for names in by_file.values())
         return await self.execution_service.run_with_options(
             suite=str(project.path),
             robot_args=args,
-            run_label=f"Selected ({sum(len(v) for v in by_file.values())})",
+            run_label=label or f"Selected ({total})",
         )
+
+    async def run_selected(self, *, tests: list[dict]) -> ExecutionRun:
+        self._require_workspace()
+        if not tests:
+            raise TestExplorerValidationError("Select at least one test")
+        by_file = self._group_tests_by_file(tests)
+        if not by_file:
+            raise TestExplorerValidationError("No valid tests in selection")
+        return await self._run_tests_by_file(by_file)
 
     async def _parse_file_symbols(self, path: Path) -> list[dict]:
         try:

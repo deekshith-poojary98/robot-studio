@@ -101,6 +101,50 @@ def test_resolve_library_keeps_complete_keyword_doc(
     assert "Second detail" in documentation
 
 
+@pytest.mark.parametrize(
+    ("declared", "expected"),
+    [("MARKDOWN", "MARKDOWN"), ("markdown", "MARKDOWN"), (None, "")],
+)
+def test_resolve_library_reports_doc_format(
+    monkeypatch: pytest.MonkeyPatch,
+    declared: str | None,
+    expected: str,
+) -> None:
+    """The renderer needs ROBOT_LIBRARY_DOC_FORMAT to pick a markup dialect."""
+
+    class _Keyword:
+        name = "Add Sheet"
+        doc = "Adds a **new sheet**."
+        args: list[object] = []
+        tags: list[str] = []
+        deprecated = False
+        lineno = 1
+
+    class _Library:
+        name = "MarkdownLibrary"
+        source = "/tmp/markdown_library.py"
+        doc_format = declared
+        keywords = [_Keyword()]
+
+    monkeypatch.setattr(
+        "robot.libdoc.LibraryDocumentation",
+        lambda _name: _Library(),
+    )
+
+    result = resolve_library("MarkdownLibrary")
+
+    assert result["doc_format"] == expected
+    # Every keyword carries it so the render site needs no library lookup.
+    assert result["keyword_info"]["add sheet"]["doc_format"] == expected
+
+
+@pytest.mark.asyncio
+async def test_resolve_library_reports_robot_format_for_builtin() -> None:
+    """libdoc defaults to ROBOT, which must stay sniffable downstream."""
+    result = resolve_library("Collections")
+    assert result["doc_format"] == "ROBOT"
+
+
 def test_signature_help_keeps_multiword_keywords() -> None:
     content = """*** Test Cases ***
 Demo

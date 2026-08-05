@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,6 +29,38 @@ from robot_studio.infrastructure.repositories.execution_repository import (
     SqliteExecutionRepository,
 )
 from robot_studio.infrastructure.workspace.filesystem import studio_reports_root
+
+
+#: Lines of console output kept so a failed run can explain itself.
+_OUTPUT_TAIL_LINES = 40
+
+#: Robot Framework itself could not be imported — the environment is broken.
+_ROBOT_MISSING_MARKERS = (
+    "no module named robot",
+    "no module named 'robot'",
+)
+
+
+def robot_is_missing(output: list[str]) -> bool:
+    """True when the console says Robot Framework could not be imported.
+
+    Distinguishes a broken environment (discard the run) from Robot running and
+    rejecting the request (keep the run and report what Robot said).
+    """
+    for line in output:
+        folded = line.casefold()
+        if any(marker in folded for marker in _ROBOT_MISSING_MARKERS):
+            return True
+    return False
+
+
+def first_robot_error(output: list[str]) -> str:
+    """Robot's own first ``[ ERROR ]`` line, e.g. a bad option or no matches."""
+    for line in output:
+        stripped = line.strip()
+        if stripped.startswith("[ ERROR ]"):
+            return stripped.removeprefix("[ ERROR ]").strip()
+    return ""
 
 
 class ExecutionValidationError(Exception):
@@ -351,7 +384,9 @@ class ExecutionService:
 
     async def _monitor(self, run: ExecutionRun) -> None:
         try:
+            tail: deque[str] = deque(maxlen=_OUTPUT_TAIL_LINES)
             async for line in self.runner.stream_output(run.id):
+                tail.append(line)
                 await self.event_bus.publish(
                     ExecutionOutput(run_id=run.id, line=line),
                 )
@@ -378,20 +413,28 @@ class ExecutionService:
             artifacts = await self.results_store.ingest(run.id, run.output_dir or Path("."))
 
             has_xml = bool(artifacts.get("output_xml"))
+            console = list(tail)
+            failure_message = ""
             if (
                 status == ExecutionStatus.FAILED
                 and not has_xml
                 and duration_ms < 3000
                 and (exit_code not in (None, 0))
             ):
-                await self._discard_aborted_run(
-                    run,
-                    message=(
-                        "Robot Framework did not produce results. "
-                        "Confirm Robot Framework is installed in the active environment."
-                    ),
-                )
-                return
+                # Only a broken environment justifies deleting the run. Robot
+                # exiting fast with a real complaint (bad option, no matching
+                # tests, invalid data) must stay visible with its own message,
+                # otherwise the run vanishes and we blame the wrong thing.
+                if robot_is_missing(console) or not console:
+                    await self._discard_aborted_run(
+                        run,
+                        message=(
+                            "Robot Framework did not produce results. "
+                            "Confirm Robot Framework is installed in the active environment."
+                        ),
+                    )
+                    return
+                failure_message = first_robot_error(console)
 
             final = run.model_copy(
                 update={
@@ -434,7 +477,10 @@ class ExecutionService:
                 )
             elif status == ExecutionStatus.FAILED:
                 await self.event_bus.publish(
-                    ExecutionFailed(run_id=run.id, message=f"Exit code {exit_code}"),
+                    ExecutionFailed(
+                        run_id=run.id,
+                        message=failure_message or f"Exit code {exit_code}",
+                    ),
                 )
                 await self.event_bus.publish(
                     ExecutionFinished(
@@ -449,6 +495,7 @@ class ExecutionService:
                         "run_id": str(run.id),
                         "status": status.value,
                         "exit_code": exit_code,
+                        "message": failure_message,
                     },
                 )
             else:

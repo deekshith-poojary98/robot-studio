@@ -8,7 +8,7 @@ are read-only consumers of ``LibraryMetadata`` / ``KeywordMetadata``.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -178,6 +178,7 @@ class LibraryCatalogService:
         source_type = (
             KeywordSourceType.BUILTIN if builtin else KeywordSourceType.LIBRARY
         )
+        doc_format = str(raw.get("doc_format") or "").upper()
         info_map = raw.get("keyword_info") or {}
         keywords: list[KeywordMetadata] = []
         for kw_name in raw.get("keywords") or []:
@@ -193,20 +194,15 @@ class LibraryCatalogService:
                     library_name=library_name,
                 )
             if not meta.library_name:
-                meta = KeywordMetadata(
-                    name=meta.name,
+                # ``replace`` so newly added fields are never silently dropped.
+                meta = replace(
+                    meta,
                     qualified_name=meta.qualified_name or f"{library_name}.{meta.name}",
                     source_type=source_type,
                     library_name=library_name,
-                    documentation=meta.documentation,
-                    parameters=meta.parameters,
-                    source_path=meta.source_path,
-                    source_line=meta.source_line,
-                    deprecated=meta.deprecated,
-                    tags=meta.tags,
-                    examples=meta.examples,
-                    detail=meta.detail,
                 )
+            if not meta.doc_format and doc_format:
+                meta = replace(meta, doc_format=doc_format)
             keywords.append(meta)
 
         version = str(raw.get("version") or "")
@@ -220,6 +216,7 @@ class LibraryCatalogService:
             name=library_name,
             version=version,
             documentation=documentation,
+            doc_format=doc_format,
             keywords=tuple(keywords),
             source_type=source_type,
             source_path=source_path,

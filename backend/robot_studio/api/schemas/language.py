@@ -91,6 +91,7 @@ class LibraryKeywordResponse(BaseModel):
     source_type: str = ""
     library_name: str = ""
     documentation: str = ""
+    doc_format: str = ""
     parameters: list[SignatureParameterResponse] = Field(default_factory=list)
     source_path: str = ""
     source_line: int | None = None
@@ -103,6 +104,7 @@ class LibrarySummaryResponse(BaseModel):
     name: str
     version: str = ""
     documentation: str = ""
+    doc_format: str = ""
     source_type: str = ""
     source_path: str = ""
     builtin: bool = False

@@ -59,10 +59,15 @@ async def test_files_tree_lazy_depth_zero(api_client) -> None:
     root = await client.get("/api/v1/files/tree", params={"depth": 0})
     assert root.status_code == 200
     entries = root.json()["entries"]
-    projects = next(item for item in entries if item["name"] == "Projects")
-    assert projects["is_dir"] is True
-    assert projects["has_children"] is True
-    assert projects["children"] == []
+    # The Explorer is rooted at the active project, not the workspace home,
+    # so the scaffold folders are the top level here.
+    by_name = {item["name"]: item for item in entries}
+    assert {"tests", "resources", "variables"} <= set(by_name)
+    tests_entry = by_name["tests"]
+    assert tests_entry["is_dir"] is True
+    assert tests_entry["has_children"] is True
+    # depth=0 is lazy: children are advertised but never expanded.
+    assert all(item["children"] == [] for item in entries)
 
     tests_tree = await client.get(
         "/api/v1/files/tree",
@@ -124,7 +129,11 @@ async def test_files_and_document_symbols(api_client) -> None:
 
     tree = await client.get("/api/v1/files/tree", params={"depth": 4})
     assert tree.status_code == 200
-    assert any(item["name"] == "Projects" for item in tree.json()["entries"])
+    # Rooted at the active project, so the suite is reachable under tests/.
+    tests_entry = next(
+        item for item in tree.json()["entries"] if item["name"] == "tests"
+    )
+    assert "demo.robot" in {child["name"] for child in tests_entry["children"]}
 
     content = await client.get("/api/v1/files/content", params={"path": str(suite)})
     assert content.status_code == 200

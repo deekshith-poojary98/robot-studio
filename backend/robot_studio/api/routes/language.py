@@ -293,6 +293,7 @@ async def language_library_detail(
                 "source_type": kw.get("source_type") or "",
                 "library_name": kw.get("library_name") or "",
                 "documentation": kw.get("documentation") or "",
+                "doc_format": kw.get("doc_format") or "",
                 "parameters": [
                     {
                         "label": p.get("label") or "",
@@ -315,6 +316,7 @@ async def language_library_detail(
         name=result.get("name") or name,
         version=result.get("version") or "",
         documentation=result.get("documentation") or "",
+        doc_format=result.get("doc_format") or "",
         source_type=result.get("source_type") or "",
         source_path=result.get("source_path") or "",
         builtin=bool(result.get("builtin") or False),

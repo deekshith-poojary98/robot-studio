@@ -6,6 +6,7 @@ class LibraryInfo {
     required this.name,
     this.version = '',
     this.documentation = '',
+    this.docFormat = '',
     this.sourceType = '',
     this.sourcePath = '',
     this.builtin = false,
@@ -19,13 +20,16 @@ class LibraryInfo {
       name: json['name'] as String? ?? '',
       version: json['version'] as String? ?? '',
       documentation: json['documentation'] as String? ?? '',
+      docFormat: json['doc_format'] as String? ?? '',
       sourceType: json['source_type'] as String? ?? '',
       sourcePath: json['source_path'] as String? ?? '',
       builtin: json['builtin'] as bool? ?? false,
       keywordCount: (json['keyword_count'] as num?)?.toInt() ?? 0,
       lastUpdated: json['last_updated'] as String?,
       keywords: (json['keywords'] as List<dynamic>? ?? [])
-          .map((item) => LibraryKeywordInfo.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => LibraryKeywordInfo.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
     );
   }
@@ -33,6 +37,9 @@ class LibraryInfo {
   final String name;
   final String version;
   final String documentation;
+
+  /// libdoc `doc_format` for [documentation] (ROBOT, MARKDOWN, HTML, TEXT...).
+  final String docFormat;
   final String sourceType;
   final String sourcePath;
   final bool builtin;
@@ -49,6 +56,7 @@ class LibraryKeywordInfo {
     this.sourceType = '',
     this.libraryName = '',
     this.documentation = '',
+    this.docFormat = '',
     this.parameters = const [],
     this.sourcePath = '',
     this.sourceLine,
@@ -64,8 +72,12 @@ class LibraryKeywordInfo {
       sourceType: json['source_type'] as String? ?? '',
       libraryName: json['library_name'] as String? ?? '',
       documentation: json['documentation'] as String? ?? '',
+      docFormat: json['doc_format'] as String? ?? '',
       parameters: (json['parameters'] as List<dynamic>? ?? [])
-          .map((item) => SignatureParameterInfo.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) =>
+                SignatureParameterInfo.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       sourcePath: json['source_path'] as String? ?? '',
       sourceLine: (json['source_line'] as num?)?.toInt(),
@@ -80,6 +92,9 @@ class LibraryKeywordInfo {
   final String sourceType;
   final String libraryName;
   final String documentation;
+
+  /// libdoc `doc_format` for [documentation] (ROBOT, MARKDOWN, HTML, TEXT...).
+  final String docFormat;
   final List<SignatureParameterInfo> parameters;
   final String sourcePath;
   final int? sourceLine;

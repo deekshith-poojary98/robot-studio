@@ -332,7 +332,10 @@ class _KeywordDetail extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
-        RobotDocumentation(documentation: keyword.documentation),
+        RobotDocumentation(
+          documentation: keyword.documentation,
+          format: RobotDocFormat.fromLibdoc(keyword.docFormat),
+        ),
         const SizedBox(height: AppSpacing.lg),
         Text(
           'Arguments',

@@ -126,3 +126,30 @@ def test_library_metadata_immutable_with_keywords() -> None:
     assert "keywords" not in api
     detail = full.to_api()
     assert len(detail["keywords"]) == 1
+
+
+def test_from_resolve_propagates_doc_format_to_keywords() -> None:
+    """A library-level doc_format must reach every keyword the UI renders."""
+    raw = {
+        "available": True,
+        "name": "MarkdownLibrary",
+        "doc_format": "MARKDOWN",
+        "keywords": ["Add Sheet", "Undocumented"],
+        "keyword_info": {
+            "add sheet": {
+                "name": "Add Sheet",
+                "documentation": "Adds a **new sheet**.",
+                "doc_format": "MARKDOWN",
+            },
+            # No entry for "Undocumented" — it is built from the library alone.
+        },
+    }
+
+    meta = LibraryCatalogService._from_resolve(raw, requested_name="MarkdownLibrary")
+
+    assert meta.doc_format == "MARKDOWN"
+    assert [kw.doc_format for kw in meta.keywords] == ["MARKDOWN", "MARKDOWN"]
+    # library_name backfill must not drop the format (regression: field-by-field
+    # rebuild silently lost newly added fields).
+    assert all(kw.library_name == "MarkdownLibrary" for kw in meta.keywords)
+    assert meta.to_api()["keywords"][0]["doc_format"] == "MARKDOWN"

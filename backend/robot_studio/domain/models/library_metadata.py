@@ -24,6 +24,8 @@ class LibraryMetadata:
     name: str
     version: str = ""
     documentation: str = ""
+    #: Markup dialect of :attr:`documentation` (libdoc ``doc_format``).
+    doc_format: str = ""
     keywords: tuple[KeywordMetadata, ...] = ()
     source_type: KeywordSourceType = KeywordSourceType.LIBRARY
     source_path: str = ""
@@ -37,6 +39,7 @@ class LibraryMetadata:
         *,
         version: str | None = None,
         documentation: str | None = None,
+        doc_format: str | None = None,
         source_path: str | None = None,
     ) -> LibraryMetadata:
         """Return a new instance with populated keywords (lazy-load result)."""
@@ -46,6 +49,7 @@ class LibraryMetadata:
             documentation=(
                 documentation if documentation is not None else self.documentation
             ),
+            doc_format=doc_format if doc_format is not None else self.doc_format,
             keywords=keywords,
             source_type=self.source_type,
             source_path=source_path if source_path is not None else self.source_path,
@@ -69,6 +73,7 @@ class LibraryMetadata:
             "name": self.name,
             "version": self.version,
             "documentation": self.documentation,
+            "doc_format": self.doc_format,
             "source_type": self.source_type.value,
             "source_path": self.source_path,
             "builtin": self.builtin,
@@ -113,6 +118,7 @@ class LibraryMetadata:
             name=name,
             version=str(raw.get("version") or ""),
             documentation=str(raw.get("documentation") or ""),
+            doc_format=str(raw.get("doc_format") or "").upper(),
             keywords=keywords,
             source_type=source_type,
             source_path=str(raw.get("source_path") or ""),

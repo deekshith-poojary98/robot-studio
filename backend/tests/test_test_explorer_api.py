@@ -273,6 +273,75 @@ async def test_run_test_suite_tag_and_failed(api_client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_failed_targets_the_suite_that_recorded_the_failure(
+    api_client,
+) -> None:
+    """Re-run Failed must actually re-run, not die on long-name mismatch.
+
+    ``--rerunfailed`` resolves the long names in output.xml against the run's
+    target. A failure recorded while running ``tests/demo.robot`` is
+    ``Demo.Beta``, which matches nothing under the project root (where it is
+    ``SuiteProj.Tests.Demo.Beta``) — Robot then exits 252 with no results.
+    """
+    client, _, tmp_path = api_client
+    seeded = await _seed_workspace(client, tmp_path)
+    suite = seeded["suite"]
+
+    fail_run = await client.post(
+        "/api/v1/tests/run",
+        json={"file": suite, "name": "Beta"},
+    )
+    assert fail_run.status_code == 200, fail_run.text
+    await _wait_status(client, run_id=fail_run.json()["id"])
+
+    rerun = await client.post("/api/v1/tests/run-failed")
+    assert rerun.status_code == 200, rerun.text
+    assert "Failed" in rerun.json()["suite"]
+    # Targets the suite file the failure came from, not the project root.
+    command = rerun.json()["command"]
+    assert "--test Beta" in command
+    assert command.rstrip().endswith("demo.robot")
+    assert "--rerunfailed" not in command
+
+    body = await _wait_status(client, run_id=rerun.json()["id"])
+    run = body["run"]
+    # Robot really executed the failing test instead of rejecting the request.
+    assert run["exit_code"] == 1
+    assert run["total_tests"] == 1
+    assert run["failed"] == 1
+    assert run["output_xml"] is not None
+
+
+@pytest.mark.asyncio
+async def test_robot_data_error_keeps_the_run_visible(api_client) -> None:
+    """A fast Robot rejection must not be deleted as "Robot not installed".
+
+    Runs that produce no output.xml in under 3s used to be discarded wholesale,
+    so any bad option / no-matching-test error vanished from the UI behind a
+    misleading "confirm Robot Framework is installed" message.
+    """
+    client, fresh, tmp_path = api_client
+    seeded = await _seed_workspace(client, tmp_path)
+
+    started = await fresh.execution_service.run_with_options(
+        suite=seeded["project"]["path"],
+        robot_args=["--test", "NoSuchTestAnywhere"],
+        run_label="Bad filter",
+    )
+    body = await _wait_status(client, run_id=str(started.id))
+
+    assert body["status"] == "failed"
+    run = body["run"]
+    assert run is not None, "the run must stay attached, not be discarded"
+    assert run["id"] == str(started.id)
+    assert run["exit_code"] not in (None, 0)
+    # Robot's own complaint is preserved rather than replaced.
+    history = await client.get("/api/v1/execution/history")
+    assert history.status_code == 200
+    assert any(item["id"] == str(started.id) for item in history.json()["runs"])
+
+
+@pytest.mark.asyncio
 async def test_large_run_requires_confirmation(api_client, monkeypatch: pytest.MonkeyPatch) -> None:
     client, _, tmp_path = api_client
     patched = await client.patch(
