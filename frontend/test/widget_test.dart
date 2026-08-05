@@ -646,8 +646,8 @@ void main() {
     expect(find.text('robotframework'), findsOneWidget);
     expect(find.textContaining('Robot Framework 7.0'), findsOneWidget);
     expect(find.text('Update'), findsWidgets);
-    expect(find.text('Import requirements…'), findsOneWidget);
-    await tester.tap(find.text('Import requirements…'));
+    expect(find.text('Import requirements'), findsOneWidget);
+    await tester.tap(find.text('Import requirements'));
     await tester.pump();
     expect(importRequirementsTapped, isTrue);
   });

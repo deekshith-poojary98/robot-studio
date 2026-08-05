@@ -475,6 +475,27 @@ class TestExplorerService:
             for item in raw
         ]
 
+    @staticmethod
+    def _has_runnable_section(path: Path) -> bool:
+        """Return whether a Robot file declares tests or tasks."""
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeError):
+            return False
+
+        runnable_sections = {"test case", "test cases", "task", "tasks"}
+        for raw_line in lines:
+            line = raw_line.strip()
+            # Robot also permits pipe-separated data.
+            if line.startswith("|") and line.endswith("|"):
+                line = line[1:-1].strip()
+            if not (line.startswith("***") and line.endswith("***")):
+                continue
+            section = " ".join(line.strip("*").split()).casefold()
+            if section in runnable_sections:
+                return True
+        return False
+
     async def _build_tree(self, workspace, *, lazy: bool = True) -> TestNode:
         projects = await self.project_service.list_projects()
         project_nodes: list[TestNode] = []
@@ -491,16 +512,21 @@ class TestExplorerService:
                 file_path = str(suite.get("file_path") or "")
                 if not file_path:
                     continue
-                by_path[file_path] = suite
+                target = Path(file_path).expanduser().resolve()
+                if self._has_runnable_section(target):
+                    by_path[str(target)] = suite
 
-            # Also discover .robot files under project if index empty.
-            if not by_path:
-                for robot_file in sorted(project.path.rglob("*.robot")):
-                    by_path[str(robot_file)] = {
+            # Include files not yet present in the index, but only when they
+            # actually declare tests/tasks. Resource and keyword-only Robot
+            # files do not belong in Test Explorer.
+            for robot_file in sorted(project.path.rglob("*.robot")):
+                target = robot_file.resolve()
+                if self._has_runnable_section(target):
+                    by_path.setdefault(str(target), {
                         "name": robot_file.stem,
-                        "file_path": str(robot_file),
+                        "file_path": str(target),
                         "line": 1,
-                    }
+                    })
 
             suite_nodes: list[TestNode] = []
             for file_path, suite in sorted(by_path.items()):

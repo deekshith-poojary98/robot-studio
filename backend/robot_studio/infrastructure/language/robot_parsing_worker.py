@@ -66,8 +66,16 @@ def _section_label(section: Any) -> str:
     for token in getattr(header, "tokens", []) or []:
         value = str(getattr(token, "value", "") or "")
         if value.startswith("***") and value.endswith("***"):
-            return value.strip("*").strip().lower()
-    return str(header).lower()
+            label = value.strip("*").strip().lower()
+            return {
+                "test case": "test cases",
+                "task": "tasks",
+            }.get(label, label)
+    label = str(header).lower()
+    return {
+        "test case": "test cases",
+        "task": "tasks",
+    }.get(label, label)
 
 
 def _node_name(item: Any) -> str:

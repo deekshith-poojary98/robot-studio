@@ -199,6 +199,63 @@ async def test_discovery_and_filtering(api_client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_discovery_excludes_robot_files_without_tests_or_tasks(
+    api_client,
+) -> None:
+    client, _, tmp_path = api_client
+    seeded = await _seed_workspace(client, tmp_path)
+    tests_dir = Path(seeded["project"]["path"]) / "tests"
+
+    (tests_dir / "singular-test.robot").write_text(
+        "*** Test Case ***\n"
+        "Singular Test\n"
+        "    Log    test\n",
+        encoding="utf-8",
+    )
+    (tests_dir / "singular-task.robot").write_text(
+        "*** Task ***\n"
+        "Singular Task\n"
+        "    Log    task\n",
+        encoding="utf-8",
+    )
+    (tests_dir / "keywords-only.robot").write_text(
+        "*** Keywords ***\n"
+        "Reusable Keyword\n"
+        "    Log    helper\n",
+        encoding="utf-8",
+    )
+
+    rebuild = await client.post("/api/v1/index/rebuild")
+    assert rebuild.status_code == 200, rebuild.text
+    await asyncio.sleep(0.3)
+
+    response = await client.get("/api/v1/tests/tree", params={"lazy": "true"})
+    assert response.status_code == 200, response.text
+    suites = response.json()["tree"]["children"][0]["children"]
+    files = {Path(node["path"]).name for node in suites}
+
+    # The seeded project covers the plural section names; these two cover the
+    # singular aliases accepted by Robot Framework.
+    assert {
+        "demo.robot",
+        "tasks.robot",
+        "singular-test.robot",
+        "singular-task.robot",
+    } <= files
+    assert "keywords-only.robot" not in files
+
+    eager = await client.get("/api/v1/tests/tree", params={"lazy": "false"})
+    assert eager.status_code == 200, eager.text
+    children = [
+        child
+        for suite in eager.json()["tree"]["children"][0]["children"]
+        for child in suite["children"]
+    ]
+    discovered_names = {child["name"] for child in children}
+    assert {"Singular Test", "Singular Task"} <= discovered_names
+
+
+@pytest.mark.asyncio
 async def test_incremental_refresh_after_file_change(api_client) -> None:
     client, _, tmp_path = api_client
     seeded = await _seed_workspace(client, tmp_path)

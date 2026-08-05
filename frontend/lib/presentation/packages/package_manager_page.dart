@@ -85,7 +85,7 @@ class PackageManagerPage extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: hasActiveEnvironment ? onImportRequirements : null,
                   icon: const Icon(Icons.file_upload_outlined, size: 16),
-                  label: const Text('Import requirements…'),
+                  label: const Text('Import requirements'),
                 ),
                 const SizedBox(width: 8),
                 FilledButton.icon(
