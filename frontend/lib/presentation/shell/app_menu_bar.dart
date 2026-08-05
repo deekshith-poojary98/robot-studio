@@ -203,7 +203,7 @@ class RobotStudioMenuBar extends StatelessWidget {
             PlatformMenuItemGroup(
               members: [
                 PlatformMenuItem(
-                  label: 'Preferences…',
+                  label: 'Settings…',
                   shortcut: _mod(LogicalKeyboardKey.comma),
                   onSelected: a.onPreferences,
                 ),

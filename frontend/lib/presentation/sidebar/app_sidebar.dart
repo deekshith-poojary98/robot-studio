@@ -10,11 +10,13 @@ class AppSidebar extends StatelessWidget {
     required this.activePanel,
     required this.onPanelSelected,
     this.onSettings,
+    this.settingsActive = false,
   });
 
   final SidebarPanel activePanel;
   final ValueChanged<SidebarPanel> onPanelSelected;
   final VoidCallback? onSettings;
+  final bool settingsActive;
 
   @override
   Widget build(BuildContext context) {
@@ -62,19 +64,18 @@ class AppSidebar extends StatelessWidget {
                     icon: panel.icon,
                     label: panel.label,
                     tooltip: panel.tooltip,
-                    isActive: panel == activePanel,
+                    isActive: !settingsActive && panel == activePanel,
                     onTap: () => onPanelSelected(panel),
                   ),
               ],
             ),
           ),
-          // Settings intentionally omitted until it does something real.
           if (onSettings != null)
             SidebarButton(
               icon: Icons.settings_outlined,
               label: 'Settings',
-              tooltip: 'Settings',
-              isActive: false,
+              tooltip: 'Settings (⌘,)',
+              isActive: settingsActive,
               onTap: onSettings!,
             ),
           const SizedBox(height: 10),

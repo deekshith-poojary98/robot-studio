@@ -11,7 +11,7 @@ import '../../core/gateway/transport_gateway.dart';
 import '../../core/logging/app_logger.dart';
 import '../../core/settings/app_settings_controller.dart';
 import '../../core/theme/app_theme.dart';
-import '../preferences/preferences_dialog.dart';
+import '../preferences/preferences_page.dart';
 import '../environment/clone_environment_dialog.dart';
 import '../environment/create_environment_dialog.dart';
 import '../environment/delete_environment_dialog.dart';
@@ -65,6 +65,7 @@ import 'status_bar.dart';
 
 enum _CenterView {
   welcome,
+  settings,
   placeholder,
   project,
   environment,
@@ -162,6 +163,7 @@ class _AppShellState extends State<AppShell> {
   final List<String> _recentlyClosedPaths = [];
   bool _showReportsPage = false;
   bool _showDoctorPage = false;
+  bool _showSettingsPage = false;
   String _searchQuery = '';
   SymbolKind? _searchKind;
   List<IndexedSymbolInfo> _searchResults = [];
@@ -559,6 +561,7 @@ class _AppShellState extends State<AppShell> {
       _showPackageManager = false;
       _showEnvironmentManager = false;
       _showSymbolsPage = false;
+      _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -673,6 +676,7 @@ class _AppShellState extends State<AppShell> {
       _showPackageManager = false;
       _showEnvironmentManager = false;
       _showSymbolsPage = false;
+      _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -894,6 +898,7 @@ class _AppShellState extends State<AppShell> {
       _showPackageManager = false;
       _showEnvironmentManager = false;
       _showSymbolsPage = false;
+      _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -921,6 +926,7 @@ class _AppShellState extends State<AppShell> {
       _showPackageManager = false;
       _showEnvironmentManager = false;
       _showSymbolsPage = false;
+      _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -940,6 +946,7 @@ class _AppShellState extends State<AppShell> {
       _showPackageManager = false;
       _showEnvironmentManager = false;
       _showSymbolsPage = false;
+      _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -1333,6 +1340,7 @@ class _AppShellState extends State<AppShell> {
     _execution.prepareNewRun();
     if (!_settings.execution.revealExecutionOnRun) return;
     _showExecutionPage = true;
+    _showSettingsPage = false;
     _showEditorPage = false;
     _showSymbolsPage = false;
     _showReportsPage = false;
@@ -1576,6 +1584,7 @@ class _AppShellState extends State<AppShell> {
       _showPackageManager = false;
       _showReportsPage = false;
       _showDoctorPage = false;
+      _showSettingsPage = false;
       _showSymbolsPage = false;
       _execution.selectedReport = null;
       _execution.reportRuns = [];
@@ -1917,6 +1926,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _activePanel = SidebarPanel.tests;
       _showExecutionPage = true;
+      _showSettingsPage = false;
       _showEditorPage = false;
       _sidePanelCollapsed = false;
     });
@@ -1961,6 +1971,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _activePanel = SidebarPanel.search;
       _sidePanelCollapsed = false;
+      _showSettingsPage = false;
       _showSymbolsPage = false;
       _clearExecutionPageUnlessTests();
       _showReportsPage = false;
@@ -2020,6 +2031,7 @@ class _AppShellState extends State<AppShell> {
       _showEnvironmentManager = true;
       _showPackageManager = false;
       _showSymbolsPage = false;
+      _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -2042,6 +2054,7 @@ class _AppShellState extends State<AppShell> {
       _showDoctorPage = false;
       _showEnvironmentManager = false;
       _showSymbolsPage = false;
+      _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
@@ -2055,6 +2068,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _selectedPackage = package;
       _showPackageManager = true;
+      _showSettingsPage = false;
       _showEnvironmentManager = false;
       _selectedEnvironment = null;
     });
@@ -2688,6 +2702,7 @@ class _AppShellState extends State<AppShell> {
       setState(() {
         _editor.activePath = path;
         _showEditorPage = true;
+        _showSettingsPage = false;
         _showSymbolsPage = false;
         _showExecutionPage = false;
         if (_isRunnableSuitePath(path)) {
@@ -2722,6 +2737,7 @@ class _AppShellState extends State<AppShell> {
         ];
         _editor.activePath = file.path;
         _showEditorPage = true;
+        _showSettingsPage = false;
         _showSymbolsPage = false;
         _showExecutionPage = false;
         if (_isRunnableSuitePath(file.path)) {
@@ -2890,6 +2906,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _editor.activePath = path;
       _showEditorPage = true;
+      _showSettingsPage = false;
       _editor.jumpToLine = null;
       _editor.jumpToColumn = null;
       _editorHover = null;
@@ -3263,6 +3280,7 @@ class _AppShellState extends State<AppShell> {
       _showReportsPage = false;
       _showDoctorPage = false;
       _showSymbolsPage = false;
+      _showSettingsPage = false;
       _showEditorPage = false;
       _showExecutionPage = false;
       _showSourceControl = false;
@@ -3570,6 +3588,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _activePanel = panel;
       _sidePanelCollapsed = false;
+      _showSettingsPage = false;
       if (panel == SidebarPanel.tests) {
         _showExecutionPage = true;
       } else if (panel == SidebarPanel.sourceControl) {
@@ -4107,7 +4126,10 @@ class _AppShellState extends State<AppShell> {
   void _handleContinueWorking() {
     if (_editorTabs.isNotEmpty) {
       final path = _activeEditorPath ?? _editorTabs.first.path;
-      setState(() => _showEditorPage = true);
+      setState(() {
+        _showEditorPage = true;
+        _showSettingsPage = false;
+      });
       _selectTab(path);
       return;
     }
@@ -4124,6 +4146,7 @@ class _AppShellState extends State<AppShell> {
     }
     setState(() {
       _showSymbolsPage = true;
+      _showSettingsPage = false;
       _showEditorPage = false;
       _showEnvironmentManager = false;
       _showPackageManager = false;
@@ -4155,9 +4178,14 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Future<void> _openPreferences() async {
+  void _openPreferences() {
     if (!mounted) return;
-    await showPreferencesDialog(context, controller: _settings);
+    setState(() => _showSettingsPage = true);
+  }
+
+  void _closePreferences() {
+    if (!mounted) return;
+    setState(() => _showSettingsPage = false);
   }
 
   Future<void> _toggleWordWrap() async {
@@ -4393,10 +4421,10 @@ class _AppShellState extends State<AppShell> {
         ),
         PaletteItem(
           id: 'preferences.open',
-          title: 'Preferences…',
+          title: 'Settings',
           icon: Icons.settings_outlined,
           kind: PaletteItemKind.command,
-          onSelect: () => unawaited(_openPreferences()),
+          onSelect: _openPreferences,
         ),
         PaletteItem(
           id: 'editor.definition',
@@ -4738,6 +4766,9 @@ class _AppShellState extends State<AppShell> {
   }
 
   _CenterView get _centerView {
+    // Settings outranks the welcome screen so it stays reachable with no
+    // project open.
+    if (_showSettingsPage) return _CenterView.settings;
     if (_workspace.activeWorkspace == null) return _CenterView.welcome;
     // Run / Tests monitor takes the center while explicitly requested.
     // Jump-to-source clears _showExecutionPage and sets _showEditorPage.
@@ -4811,7 +4842,7 @@ class _AppShellState extends State<AppShell> {
         onFormatDocument: () => unawaited(_editorFormatDocument()),
         onFormatSelection: () => unawaited(_editorFormatSelection()),
         onToggleWordWrap: () => unawaited(_toggleWordWrap()),
-        onPreferences: () => unawaited(_openPreferences()),
+        onPreferences: _openPreferences,
         onCommandPalette: () => unawaited(_openCommandPalette()),
         onQuickOpen: () => unawaited(_openCommandPalette()),
         onToggleSidebar: _toggleSidebar,
@@ -4992,9 +5023,14 @@ class _AppShellState extends State<AppShell> {
                           children: [
                             AppSidebar(
                               activePanel: _activePanel,
+                              settingsActive: _showSettingsPage,
+                              onSettings: _showSettingsPage
+                                  ? _closePreferences
+                                  : _openPreferences,
                               onPanelSelected: (panel) {
                                 setState(() {
                                   _activePanel = panel;
+                                  _showSettingsPage = false;
                                   if (SidePanel.hasSideContent(panel)) {
                                     _sidePanelCollapsed = false;
                                   }
@@ -5138,6 +5174,7 @@ class _AppShellState extends State<AppShell> {
                                     _editor.selectedOutlineSymbol = symbol;
                                     _editor.jumpToLine = symbol.line;
                                     _showEditorPage = true;
+                                    _showSettingsPage = false;
                                     _showSymbolsPage = false;
                                   });
                                 },
@@ -5281,6 +5318,10 @@ class _AppShellState extends State<AppShell> {
 
   Widget _buildCenter() {
     return switch (_centerView) {
+      _CenterView.settings => PreferencesPage(
+        controller: _settings,
+        onClose: _closePreferences,
+      ),
       _CenterView.welcome => WelcomeScreen(
         recentWorkspaces: _recentWorkspaces,
         recentProjects: _recentProjects,
