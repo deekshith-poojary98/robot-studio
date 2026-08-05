@@ -19,6 +19,7 @@ class DocumentOutlinePanel extends StatelessWidget {
     this.selectedId,
     this.embedded = false,
     this.initiallyExpanded = false,
+    this.maxHeight,
   });
 
   /// Preferred: live analysis root from DocumentAnalysisService.
@@ -33,6 +34,10 @@ class DocumentOutlinePanel extends StatelessWidget {
   final bool embedded;
   final bool initiallyExpanded;
 
+  /// Upper bound for the embedded pane's drag-resize, so growing the outline
+  /// can never starve the file tree above it.
+  final double? maxHeight;
+
   @override
   Widget build(BuildContext context) {
     if (embedded) {
@@ -44,6 +49,7 @@ class DocumentOutlinePanel extends StatelessWidget {
         onSelect: onSelect,
         selectedId: selectedId,
         initiallyExpanded: initiallyExpanded,
+        maxHeight: maxHeight,
       );
     }
 
@@ -90,6 +96,7 @@ class _EmbeddedOutline extends StatefulWidget {
     this.onSelect,
     this.selectedId,
     this.initiallyExpanded = false,
+    this.maxHeight,
   });
 
   final DocumentSymbolNode? root;
@@ -99,6 +106,12 @@ class _EmbeddedOutline extends StatefulWidget {
   final ValueChanged<IndexedSymbolInfo>? onSelect;
   final String? selectedId;
   final bool initiallyExpanded;
+  final double? maxHeight;
+
+  /// Default pane height, and the floor / ceiling a drag can reach.
+  static const defaultHeight = 220.0;
+  static const minHeight = 96.0;
+  static const fallbackMaxHeight = 720.0;
 
   @override
   State<_EmbeddedOutline> createState() => _EmbeddedOutlineState();
@@ -106,13 +119,40 @@ class _EmbeddedOutline extends StatefulWidget {
 
 class _EmbeddedOutlineState extends State<_EmbeddedOutline> {
   late bool _expanded = widget.initiallyExpanded;
+  double _requestedHeight = _EmbeddedOutline.defaultHeight;
+
+  double get _ceiling {
+    final max = widget.maxHeight;
+    if (max == null || max <= _EmbeddedOutline.minHeight) {
+      return _EmbeddedOutline.fallbackMaxHeight;
+    }
+    return max;
+  }
+
+  double get _height =>
+      _requestedHeight.clamp(_EmbeddedOutline.minHeight, _ceiling);
+
+  /// Drag up (negative dy) grows the outline; the tree above absorbs the change.
+  void _resizeBy(double dy) {
+    setState(() {
+      _requestedHeight = (_height - dy).clamp(
+        _EmbeddedOutline.minHeight,
+        _ceiling,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Divider(height: 1),
+        _ResizeHandle(
+          enabled: _expanded,
+          onDrag: _resizeBy,
+          onReset: () =>
+              setState(() => _requestedHeight = _EmbeddedOutline.defaultHeight),
+        ),
         InkWell(
           onTap: () => setState(() => _expanded = !_expanded),
           child: Padding(
@@ -134,7 +174,7 @@ class _EmbeddedOutlineState extends State<_EmbeddedOutline> {
         ),
         if (_expanded)
           SizedBox(
-            height: 220,
+            height: _height,
             child: _OutlineBody(
               root: widget.root,
               filePath: widget.filePath,
@@ -146,6 +186,39 @@ class _EmbeddedOutlineState extends State<_EmbeddedOutline> {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Sash between the file tree and the outline pane.
+///
+/// Keeps the 1px divider look but claims an 7px hit area — a 1px target is
+/// unhittable in practice. Double-tap restores the default height.
+class _ResizeHandle extends StatelessWidget {
+  const _ResizeHandle({
+    required this.enabled,
+    required this.onDrag,
+    required this.onReset,
+  });
+
+  final bool enabled;
+  final ValueChanged<double> onDrag;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    final divider = Divider(height: 1, color: context.palette.borderSubtle);
+    if (!enabled) return divider;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeRow,
+      child: GestureDetector(
+        key: const Key('outline-resize-handle'),
+        behavior: HitTestBehavior.opaque,
+        onVerticalDragUpdate: (details) => onDrag(details.delta.dy),
+        onDoubleTap: onReset,
+        child: SizedBox(height: 7, child: Center(child: divider)),
+      ),
     );
   }
 }

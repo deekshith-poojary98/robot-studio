@@ -105,144 +105,154 @@ class WorkspaceExplorer extends StatelessWidget {
         ? (selectedProject?.name ?? projects.first.name)
         : (selectedProject?.name ?? workspace.name);
 
-    return Column(
-      key: const Key('workspace-explorer-list'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 6, 4, 2),
-          child: TapRegion(
-            groupId: kExplorerFileTreeTapGroup,
-            child: Row(
-              children: [
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    headerName.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall,
+    return LayoutBuilder(
+      builder: (context, constraints) => Column(
+        key: const Key('workspace-explorer-list'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 6, 4, 2),
+            child: TapRegion(
+              groupId: kExplorerFileTreeTapGroup,
+              child: Row(
+                children: [
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      headerName.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
                   ),
-                ),
-                if (!_isSingleProjectRoot) ...[
-                  IconButton(
-                    tooltip: 'New Project',
-                    icon: const Icon(Icons.add, size: 15),
-                    onPressed: onNewProject,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  IconButton(
-                    tooltip: 'Import Project',
-                    icon: const Icon(Icons.file_download_outlined, size: 15),
-                    onPressed: onImportProject,
-                    visualDensity: VisualDensity.compact,
-                  ),
+                  if (!_isSingleProjectRoot) ...[
+                    IconButton(
+                      tooltip: 'New Project',
+                      icon: const Icon(Icons.add, size: 15),
+                      onPressed: onNewProject,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    IconButton(
+                      tooltip: 'Import Project',
+                      icon: const Icon(Icons.file_download_outlined, size: 15),
+                      onPressed: onImportProject,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                  if (onCreateEntry != null &&
+                      onOpenFile != null &&
+                      onToggleDirectory != null) ...[
+                    IconButton(
+                      key: const Key('explorer-new-file'),
+                      tooltip: 'New File',
+                      icon: const Icon(Icons.note_add_outlined, size: 15),
+                      onPressed: () =>
+                          fileTreeKey?.currentState?.beginNewFile(),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    IconButton(
+                      key: const Key('explorer-new-folder'),
+                      tooltip: 'New Folder',
+                      icon: const Icon(
+                        Icons.create_new_folder_outlined,
+                        size: 15,
+                      ),
+                      onPressed: () =>
+                          fileTreeKey?.currentState?.beginNewFolder(),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    IconButton(
+                      key: const Key('explorer-collapse-all'),
+                      tooltip: 'Collapse All Folders',
+                      icon: const Icon(Icons.unfold_less, size: 15),
+                      onPressed: onCollapseAllFolders,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
                 ],
-                if (onCreateEntry != null &&
-                    onOpenFile != null &&
-                    onToggleDirectory != null) ...[
-                  IconButton(
-                    key: const Key('explorer-new-file'),
-                    tooltip: 'New File',
-                    icon: const Icon(Icons.note_add_outlined, size: 15),
-                    onPressed: () => fileTreeKey?.currentState?.beginNewFile(),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  IconButton(
-                    key: const Key('explorer-new-folder'),
-                    tooltip: 'New Folder',
-                    icon: const Icon(Icons.create_new_folder_outlined, size: 15),
-                    onPressed: () =>
-                        fileTreeKey?.currentState?.beginNewFolder(),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  IconButton(
-                    key: const Key('explorer-collapse-all'),
-                    tooltip: 'Collapse All Folders',
-                    icon: const Icon(Icons.unfold_less, size: 15),
-                    onPressed: onCollapseAllFolders,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
-        ),
-        if (!_isSingleProjectRoot)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: ToolSection(
-              title: 'Projects',
-              children: [
-                if (isLoadingProjects)
-                  const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+          if (!_isSingleProjectRoot)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: ToolSection(
+                title: 'Projects',
+                children: [
+                  if (isLoadingProjects)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    )
+                  else if (projects.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
+                      child: Text(
+                        'No projects yet. Create or import one.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    )
+                  else
+                    ...projects.map(
+                      (project) => ExplorerTreeItem(
+                        key: ValueKey(project.id),
+                        icon: Icons.folder_outlined,
+                        label: project.name,
+                        indent: 1,
+                        selected: selectedProject?.id == project.id,
+                        onTap: () => onSelectProject(project),
                       ),
                     ),
-                  )
-                else if (projects.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
-                    child: Text(
-                      'No projects yet. Create or import one.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  )
-                else
-                  ...projects.map(
-                    (project) => ExplorerTreeItem(
-                      key: ValueKey(project.id),
-                      icon: Icons.folder_outlined,
-                      label: project.name,
-                      indent: 1,
-                      selected: selectedProject?.id == project.id,
-                      onTap: () => onSelectProject(project),
-                    ),
-                  ),
-              ],
+                ],
+              ),
             ),
+          if (onOpenFile != null && onToggleDirectory != null)
+            Expanded(
+              child: VirtualFileTree(
+                key: fileTreeKey,
+                rows: fileRows,
+                isLoading: isLoadingFileTree,
+                selectedPath: selectedFilePath,
+                rootPath: _filesRootPath,
+                onOpenFile: onOpenFile!,
+                onToggleDirectory: onToggleDirectory!,
+                gitFileStatuses: gitFileStatuses,
+                emptyMessage: 'This project has no files yet.',
+                emptyHint: 'Create a file to get started.',
+                onEnsureExpanded: onEnsureExpanded,
+                onCreateEntry: onCreateEntry,
+                onRenameEntry: onRenameEntry,
+                onDeleteEntry: onDeleteEntry,
+                onDuplicateEntry: onDuplicateEntry,
+                onMoveEntry: onMoveEntry,
+                onCopyRelativePath: onCopyRelativePath,
+                onCopyAbsolutePath: onCopyAbsolutePath,
+                onRevealInOs: onRevealInOs,
+              ),
+            )
+          else
+            const Spacer(),
+          DocumentOutlinePanel(
+            embedded: true,
+            root: outlineRoot,
+            filePath: selectedFilePath ?? '',
+            symbols: outline,
+            isLoading: isLoadingOutline,
+            selectedId: selectedOutlineId,
+            onSelect: onOutlineSelect,
+            // Leave room for the header and a usable slice of the file tree.
+            maxHeight: constraints.hasBoundedHeight
+                ? constraints.maxHeight - 140
+                : null,
           ),
-        if (onOpenFile != null && onToggleDirectory != null)
-          Expanded(
-            child: VirtualFileTree(
-              key: fileTreeKey,
-              rows: fileRows,
-              isLoading: isLoadingFileTree,
-              selectedPath: selectedFilePath,
-              rootPath: _filesRootPath,
-              onOpenFile: onOpenFile!,
-              onToggleDirectory: onToggleDirectory!,
-              gitFileStatuses: gitFileStatuses,
-              emptyMessage: 'This project has no files yet.',
-              emptyHint: 'Create a file to get started.',
-              onEnsureExpanded: onEnsureExpanded,
-              onCreateEntry: onCreateEntry,
-              onRenameEntry: onRenameEntry,
-              onDeleteEntry: onDeleteEntry,
-              onDuplicateEntry: onDuplicateEntry,
-              onMoveEntry: onMoveEntry,
-              onCopyRelativePath: onCopyRelativePath,
-              onCopyAbsolutePath: onCopyAbsolutePath,
-              onRevealInOs: onRevealInOs,
-            ),
-          )
-        else
-          const Spacer(),
-        DocumentOutlinePanel(
-          embedded: true,
-          root: outlineRoot,
-          filePath: selectedFilePath ?? '',
-          symbols: outline,
-          isLoading: isLoadingOutline,
-          selectedId: selectedOutlineId,
-          onSelect: onOutlineSelect,
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

@@ -165,6 +165,71 @@ void main() {
     expect(find.text('Valid Login'), findsOneWidget);
   });
 
+  testWidgets('outline pane can be dragged taller and reset', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: Column(
+            children: [
+              const Expanded(child: SizedBox.expand()),
+              DocumentOutlinePanel(
+                isLoading: false,
+                root: sampleTree(),
+                filePath: '/ws/login.robot',
+                initiallyExpanded: true,
+                embedded: true,
+                maxHeight: 600,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    double paneHeight() {
+      final body = find.byType(DocumentOutlinePanel);
+      final outline = find.descendant(
+        of: body,
+        matching: find.byType(TextField),
+      );
+      // The sized pane is the SizedBox wrapping the outline body.
+      return tester
+          .getSize(
+            find.ancestor(of: outline, matching: find.byType(SizedBox)).last,
+          )
+          .height;
+    }
+
+    final initial = paneHeight();
+    expect(initial, closeTo(220, 1));
+
+    // Drag the sash upward — the outline grows. The recognizer eats touch slop
+    // before the first update, so assert the growth, not an exact pixel count.
+    final handle = find.byKey(const Key('outline-resize-handle'));
+    expect(handle, findsOneWidget);
+    await tester.drag(handle, const Offset(0, -120));
+    await tester.pumpAndSettle();
+    final grown = paneHeight();
+    expect(grown, greaterThan(initial + 80));
+    expect(grown, lessThanOrEqualTo(initial + 120));
+
+    // Beyond the cap it stops growing rather than starving the tree.
+    await tester.drag(handle, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    expect(paneHeight(), closeTo(600, 1));
+
+    // Double-tap restores the default.
+    await tester.tap(handle);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(handle);
+    await tester.pumpAndSettle();
+    expect(paneHeight(), closeTo(220, 1));
+  });
+
   testWidgets('collapse-all stays hidden for a flat symbol list', (
     tester,
   ) async {
