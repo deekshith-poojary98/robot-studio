@@ -73,4 +73,47 @@ void main() {
       expect(html.toLowerCase(), contains('>if<'));
     });
   });
+
+  group('Keyword name highlighting', () {
+    late Highlight highlight;
+
+    setUp(() {
+      highlight = Highlight();
+      highlight.registerLanguage('robot', langRobot);
+    });
+
+    String render(String code) =>
+        highlight.highlight(code: code, language: 'robot').toHtml();
+
+    const suite = '*** Keywords ***\n'
+        'Click\n'
+        '    Click Element    locator=x\n'
+        '%SEPARATOR%\n'
+        'Type\n'
+        '    [Documentation]    doc\n';
+
+    test('column-0 name stays a title after a whitespace-only line', () {
+      // A blank line with indentation must not extend the previous keyword
+      // call across the newline and repaint `Type` as a library call.
+      for (final separator in ['', '    ', '\t', '  \t ']) {
+        final html = render(suite.replaceFirst('%SEPARATOR%', separator));
+        expect(
+          html,
+          contains('<span class="hljs-title">Type</span>'),
+          reason: 'separator ${separator.codeUnits}',
+        );
+        expect(
+          html.contains('hljs-built_in">$separator\nType'),
+          isFalse,
+          reason: 'separator ${separator.codeUnits}',
+        );
+      }
+    });
+
+    test('indented calls are still built_in', () {
+      final html = render(suite.replaceFirst('%SEPARATOR%', '    '));
+      expect(html, contains('hljs-built_in">    Click Element'));
+      expect(html, contains('<span class="hljs-title">Click</span>'));
+    });
+  });
 }

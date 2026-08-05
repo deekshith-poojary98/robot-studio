@@ -23,7 +23,7 @@ final Mode langRobot = Mode(
     // Continuation `...`
     Mode(
       className: 'meta',
-      begin: r'^\s*\.\.\.',
+      begin: r'^[ \t]*\.\.\.',
       relevance: 5,
     ),
 
@@ -123,16 +123,18 @@ final Mode langRobot = Mode(
       relevance: 0,
     ),
 
-    // Indented library / user keyword *calls* (BuiltIn + others)
+    // Indented library / user keyword *calls* (BuiltIn + others).
+    // Indent/separator classes are `[ \t]`, never `\s`: `\s` matches newlines,
+    // so a whitespace-only line would swallow the next column-0 keyword name.
     Mode(
       className: 'built_in',
       begin:
-          r'^\s{2,}(?!\[|#|[\$@&%])'
+          r'^[ \t]{2,}(?!\[|#|[\$@&%])'
           r'(?!IF\b|ELSE IF\b|ELSE\b|END\b|FOR\b|WHILE\b|BREAK\b|CONTINUE\b|'
           r'RETURN\b|TRY\b|EXCEPT\b|FINALLY\b|GROUP\b|VAR\b|'
           r'IN RANGE\b|IN ENUMERATE\b|IN ZIP\b|IN\b|WITH NAME\b|AS\b|AND\b)'
           r'[A-Za-z_][\w]*(?: [A-Za-z_][\w]*)*'
-          r'(?=\s{2,}|\t|$)',
+          r'(?=[ \t]{2,}|\t|[ \t]*$)',
       relevance: 0,
     ),
 
@@ -140,12 +142,12 @@ final Mode langRobot = Mode(
     Mode(
       className: 'built_in',
       begin:
-          r'(?<=^\s{2,}[\$@&%]\{[^{}\n]+\}\s{2,})'
+          r'(?<=^[ \t]{2,}[\$@&%]\{[^{}\n]+\}[ \t]{2,})'
           r'(?!\[|#)'
           r'(?!IF\b|ELSE IF\b|ELSE\b|END\b|FOR\b|WHILE\b|BREAK\b|CONTINUE\b|'
           r'RETURN\b|TRY\b|EXCEPT\b|FINALLY\b|GROUP\b|VAR\b)'
           r'[A-Za-z_][\w]*(?: [A-Za-z_][\w]*)*'
-          r'(?=\s{2,}|\t|$)',
+          r'(?=[ \t]{2,}|\t|[ \t]*$)',
       relevance: 0,
     ),
 
