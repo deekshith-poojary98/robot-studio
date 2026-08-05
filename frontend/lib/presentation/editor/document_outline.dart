@@ -175,7 +175,18 @@ class _OutlineBody extends StatefulWidget {
 
 class _OutlineBodyState extends State<_OutlineBody> {
   final _searchController = TextEditingController();
+  final _treeKey = GlobalKey<_TreeOutlineState>();
   String _query = '';
+
+  @override
+  void didUpdateWidget(covariant _OutlineBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The filter belongs to the file it was typed against.
+    if (oldWidget.filePath != widget.filePath && _query.isNotEmpty) {
+      _searchController.clear();
+      setState(() => _query = '');
+    }
+  }
 
   @override
   void dispose() {
@@ -216,49 +227,73 @@ class _OutlineBodyState extends State<_OutlineBody> {
           padding: EdgeInsets.fromLTRB(
             widget.compact ? 8 : 12,
             4,
-            widget.compact ? 8 : 12,
+            widget.compact ? 4 : 8,
             4,
           ),
-          child: TextField(
-            controller: _searchController,
-            style: const TextStyle(fontSize: 12),
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: 'Filter outline…',
-              hintStyle: TextStyle(
-                fontSize: 12,
-                color: context.palette.textMuted,
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  style: const TextStyle(fontSize: 12),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: 'Filter outline…',
+                    hintStyle: TextStyle(
+                      fontSize: 12,
+                      color: context.palette.textMuted,
+                    ),
+                    prefixIcon: const Icon(Icons.search, size: 14),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(
+                        color: context.palette.borderSubtle,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(
+                        color: context.palette.borderSubtle,
+                      ),
+                    ),
+                  ),
+                  onChanged: (value) => setState(() => _query = value.trim()),
+                ),
               ),
-              prefixIcon: const Icon(Icons.search, size: 14),
-              prefixIconConstraints: const BoxConstraints(
-                minWidth: 28,
-                minHeight: 28,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 6,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
-                borderSide: BorderSide(color: context.palette.borderSubtle),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
-                borderSide: BorderSide(color: context.palette.borderSubtle),
-              ),
-            ),
-            onChanged: (value) => setState(() => _query = value.trim()),
+              if (hasTree)
+                IconButton(
+                  key: const Key('outline-collapse-all'),
+                  tooltip: 'Collapse All',
+                  icon: const Icon(Icons.unfold_less, size: 15),
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
+                  padding: EdgeInsets.zero,
+                  color: context.palette.textSecondary,
+                  onPressed: () => _treeKey.currentState?.collapseAll(),
+                ),
+            ],
           ),
         ),
         Expanded(
           child: hasTree
               ? _TreeOutline(
+                  key: _treeKey,
                   root: _filterNode(root, _query) ?? root,
                   filePath: widget.filePath,
                   onSelect: widget.onSelect,
                   selectedId: widget.selectedId,
                   compact: widget.compact,
-                  depth: 0,
                 )
               : ListView.builder(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -314,12 +349,12 @@ class _OutlineBodyState extends State<_OutlineBody> {
   }
 }
 
-class _TreeOutline extends StatelessWidget {
+class _TreeOutline extends StatefulWidget {
   const _TreeOutline({
+    super.key,
     required this.root,
     required this.filePath,
     required this.compact,
-    required this.depth,
     this.onSelect,
     this.selectedId,
   });
@@ -329,41 +364,114 @@ class _TreeOutline extends StatelessWidget {
   final ValueChanged<IndexedSymbolInfo>? onSelect;
   final String? selectedId;
   final bool compact;
-  final int depth;
+
+  @override
+  State<_TreeOutline> createState() => _TreeOutlineState();
+}
+
+class _TreeOutlineState extends State<_TreeOutline> {
+  final Set<String> _expanded = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _seedExpanded();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TreeOutline oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.root.id != widget.root.id) {
+      setState(_seedExpanded);
+    } else if (oldWidget.selectedId != widget.selectedId &&
+        widget.selectedId != null) {
+      setState(() => _expandAncestorsOf(widget.selectedId!));
+    }
+  }
+
+  /// Sections start open (matches previous per-node default); everything else
+  /// stays collapsed until the user expands it.
+  void _seedExpanded() {
+    _expanded
+      ..clear()
+      ..addAll(_sectionIds(widget.root));
+    final selected = widget.selectedId;
+    if (selected != null) {
+      _expandAncestorsOf(selected);
+    }
+  }
+
+  Iterable<String> _sectionIds(DocumentSymbolNode node) sync* {
+    if (node.kind == SymbolKind.section) yield node.id;
+    for (final child in node.children) {
+      yield* _sectionIds(child);
+    }
+  }
+
+  void _expandAncestorsOf(String id) {
+    void walk(DocumentSymbolNode node, List<String> path) {
+      final next = [...path, node.id];
+      if (node.id == id) {
+        _expanded.addAll(path);
+        return;
+      }
+      for (final child in node.children) {
+        walk(child, next);
+      }
+    }
+
+    walk(widget.root, const []);
+  }
+
+  void collapseAll() {
+    setState(_expanded.clear);
+  }
+
+  void _toggle(String id) {
+    setState(() {
+      if (!_expanded.add(id)) {
+        _expanded.remove(id);
+      }
+    });
+  }
+
+  List<DocumentSymbolNode> get _topLevel {
+    final root = widget.root;
+    if (root.kind == SymbolKind.testSuite || root.kind == SymbolKind.resource) {
+      return root.children;
+    }
+    return [root];
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Show suite children (sections) at top level; skip duplicate root chrome.
-    final nodes =
-        depth == 0 &&
-            (root.kind == SymbolKind.testSuite ||
-                root.kind == SymbolKind.resource)
-        ? root.children
-        : [root];
-
     return ListView(
       padding: const EdgeInsets.only(bottom: 8),
       children: [
-        for (final node in nodes)
+        for (final node in _topLevel)
           _TreeNode(
             node: node,
-            filePath: filePath,
-            onSelect: onSelect,
-            selectedId: selectedId,
-            compact: compact,
-            depth: depth == 0 ? 0 : depth,
+            filePath: widget.filePath,
+            onSelect: widget.onSelect,
+            selectedId: widget.selectedId,
+            compact: widget.compact,
+            depth: 0,
+            expanded: _expanded,
+            onToggle: _toggle,
           ),
       ],
     );
   }
 }
 
-class _TreeNode extends StatefulWidget {
+class _TreeNode extends StatelessWidget {
   const _TreeNode({
     required this.node,
     required this.filePath,
     required this.compact,
     required this.depth,
+    required this.expanded,
+    required this.onToggle,
     this.onSelect,
     this.selectedId,
   });
@@ -374,53 +482,30 @@ class _TreeNode extends StatefulWidget {
   final String? selectedId;
   final bool compact;
   final int depth;
-
-  @override
-  State<_TreeNode> createState() => _TreeNodeState();
-}
-
-class _TreeNodeState extends State<_TreeNode> {
-  late bool _expanded = widget.node.kind == SymbolKind.section;
-
-  @override
-  void didUpdateWidget(covariant _TreeNode oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedId != widget.selectedId &&
-        widget.selectedId != null &&
-        _containsId(widget.node, widget.selectedId!)) {
-      _expanded = true;
-    }
-  }
-
-  bool _containsId(DocumentSymbolNode node, String id) {
-    if (node.id == id) return true;
-    return node.children.any((c) => _containsId(c, id));
-  }
+  final Set<String> expanded;
+  final ValueChanged<String> onToggle;
 
   @override
   Widget build(BuildContext context) {
-    final node = widget.node;
-    final selected = node.id == widget.selectedId;
+    final selected = node.id == selectedId;
     final hasKids = node.hasChildren;
-    // Nested calls / control under tests start collapsed.
-    final showKids = hasKids && _expanded;
+    final isExpanded = expanded.contains(node.id);
+    final showKids = hasKids && isExpanded;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         InkWell(
           onTap: () {
-            if (hasKids) {
-              setState(() => _expanded = !_expanded);
-            }
-            widget.onSelect?.call(node.toIndexed(widget.filePath));
+            if (hasKids) onToggle(node.id);
+            onSelect?.call(node.toIndexed(filePath));
           },
           child: Container(
             padding: EdgeInsets.only(
-              left: (widget.compact ? 12 : 8) + widget.depth * 12.0,
+              left: (compact ? 12 : 8) + depth * 12.0,
               right: 8,
-              top: widget.compact ? 3 : 5,
-              bottom: widget.compact ? 3 : 5,
+              top: compact ? 3 : 5,
+              bottom: compact ? 3 : 5,
             ),
             color: selected ? context.palette.accentSoft : Colors.transparent,
             child: Row(
@@ -429,7 +514,7 @@ class _TreeNodeState extends State<_TreeNode> {
                   width: 14,
                   child: hasKids
                       ? Icon(
-                          _expanded
+                          isExpanded
                               ? Icons.keyboard_arrow_down
                               : Icons.keyboard_arrow_right,
                           size: 14,
@@ -468,11 +553,13 @@ class _TreeNodeState extends State<_TreeNode> {
           for (final child in node.children)
             _TreeNode(
               node: child,
-              filePath: widget.filePath,
-              onSelect: widget.onSelect,
-              selectedId: widget.selectedId,
-              compact: widget.compact,
-              depth: widget.depth + 1,
+              filePath: filePath,
+              onSelect: onSelect,
+              selectedId: selectedId,
+              compact: compact,
+              depth: depth + 1,
+              expanded: expanded,
+              onToggle: onToggle,
             ),
       ],
     );

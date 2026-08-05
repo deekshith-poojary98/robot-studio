@@ -11,6 +11,7 @@ import 'presentation/shell/app_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppLogger.initFileLogging();
   AppLogger.info(
     'Robot Studio starting',
     tag: 'Main',
@@ -25,6 +26,16 @@ Future<void> main() async {
       stackTrace: details.stack,
     );
     FlutterError.presentError(details);
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppLogger.error(
+      'Uncaught async error',
+      tag: 'Flutter',
+      error: error,
+      stackTrace: stack,
+    );
+    return true;
   };
 
   // Double-click launches must bring up the bundled sidecar themselves.

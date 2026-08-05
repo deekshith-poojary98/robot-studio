@@ -12,6 +12,7 @@ from robot_studio.api.router import api_router
 from robot_studio.core.config import settings
 from robot_studio.core.container import container
 from robot_studio.core.database import init_database
+from robot_studio.core.logging_setup import configure_logging
 
 
 def _ensure_process_cwd() -> None:
@@ -34,6 +35,7 @@ def _ensure_process_cwd() -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     _ensure_process_cwd()
+    configure_logging(settings.data_dir)
     await container.initialize_async()
     await init_database()
     yield
@@ -67,6 +69,8 @@ def _is_frozen() -> bool:
 
 
 def main() -> None:
+    # File logging before uvicorn so access/error lines land on disk too.
+    configure_logging(settings.data_dir)
     # Pass the app object when frozen so PyInstaller does not need the
     # "robot_studio.main:app" string import path.
     if _is_frozen() or not settings.debug:

@@ -45,7 +45,7 @@ make package-macos     # → dist/macos/Robot Studio.app
 make package-windows   # → dist/windows/RobotStudio/RobotStudio.exe (run on Windows)
 ```
 
-Release builds embed a PyInstaller sidecar under `Contents/Resources/backend/` (macOS) or `backend/` next to the exe (Windows). `BackendHost` (`lib/core/backend_host.dart`) spawns it when `:8765` is not already healthy, waits on `/api/v1/health`, writes `~/.robot-studio/backend.pid`, and the native runner (macOS `applicationWillTerminate` / Windows `OnDestroy`) kills that PID on quit — Flutter `detached` alone is not reliable on desktop. Orphan sidecars from a previous crash are reclaimed via the pid file. App data stays in `~/.robot-studio`.
+Release builds embed a PyInstaller sidecar under `Contents/Resources/backend/` (macOS) or `backend/` next to the exe (Windows). `BackendHost` (`lib/core/backend_host.dart`) spawns it when `:8765` is not already healthy, waits on `/api/v1/health`, writes `~/.robot-studio/backend.pid`, and the native runner (macOS `applicationWillTerminate` / Windows `OnDestroy`) kills that PID on quit — Flutter `detached` alone is not reliable on desktop. Orphan sidecars from a previous crash are reclaimed via the pid file. App data stays in `~/.robot-studio` (settings, DB, pid file, and daily diagnostic logs under `logs/` — retained for 7 days).
 ---
 
 ## Layout

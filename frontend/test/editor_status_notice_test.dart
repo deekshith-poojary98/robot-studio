@@ -67,6 +67,45 @@ void main() {
     expect(notified, 0);
   });
 
+  test('clearActiveDocument drops the outline tree, not just the flat list', () {
+    // Outline renders from documentAnalysis; clearing only documentOutline left
+    // the last file's tree on screen after every tab was closed.
+    controller.documentAnalysis = DocumentAnalysisInfo(
+      filePath: '/ws/login.robot',
+      root: const DocumentSymbolNode(
+        id: 'suite:login',
+        name: 'login',
+        kind: SymbolKind.testSuite,
+        line: 1,
+      ),
+      foldingRanges: const [FoldingRangeInfo(startLine: 1, endLine: 4)],
+    );
+    controller.documentOutline = const [
+      IndexedSymbolInfo(
+        id: 'k1',
+        name: 'Login',
+        kind: SymbolKind.keyword,
+        filePath: '/ws/login.robot',
+        line: 2,
+      ),
+    ];
+    controller.activePath = '/ws/login.robot';
+    controller.selectedOutlineSymbol = controller.documentOutline.first;
+    controller.activeDocumentSymbol = controller.documentAnalysis!.root;
+    controller.diagnostics = const [];
+    controller.cursorLine = 12;
+
+    controller.clearActiveDocument();
+
+    expect(controller.documentAnalysis, isNull);
+    expect(controller.documentOutline, isEmpty);
+    expect(controller.activePath, isNull);
+    expect(controller.selectedOutlineSymbol, isNull);
+    expect(controller.activeDocumentSymbol, isNull);
+    expect(controller.loadingOutline, isFalse);
+    expect(controller.cursorLine, 1);
+  });
+
   testWidgets('editor notice can be dismissed early', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1000, 600));
     addTearDown(() => tester.binding.setSurfaceSize(null));

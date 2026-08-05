@@ -332,20 +332,8 @@ def _walk_body(entries: Any) -> list[dict[str, Any]]:
                         detail="Tags",
                     ),
                 )
-        elif item_type == "Documentation":
-            value = str(getattr(entry, "value", "") or "")
-            if value:
-                nodes.append(
-                    _node(
-                        name=value.split()[0],
-                        kind="documentation",
-                        line=line,
-                        end_line=end,
-                        column=col,
-                        detail="Documentation",
-                        documentation=value,
-                    ),
-                )
+        # Documentation is kept on the parent keyword/test via
+        # `_collect_documentation` — do not mirror it as an outline child.
     return nodes
 
 
@@ -382,16 +370,9 @@ def _settings_child(item: Any) -> dict[str, Any] | None:
             detail="Variables",
         )
     if item_type == "Documentation":
-        value = str(getattr(item, "value", "") or _node_name(item) or "")
-        return _node(
-            name=(value.split()[0] if value else "Documentation"),
-            kind="documentation",
-            line=line,
-            end_line=end,
-            column=col,
-            detail="Documentation",
-            documentation=value,
-        )
+        # Suite Documentation stays on the suite/file metadata; outline only
+        # lists actionable Settings (imports, setup/teardown, tags, …).
+        return None
     if item_type in {"TestTags", "DefaultTags", "ForceTags"}:
         detail = {
             "TestTags": "Test Tags",
@@ -579,16 +560,9 @@ def document_symbols(content: str, file_path: str) -> list[dict[str, Any]]:
                     },
                 )
             elif item_type == "Documentation":
-                value = str(getattr(item, "value", "") or _node_name(item) or path)
-                symbols.append(
-                    {
-                        "name": value.split()[0] if value else Path(path).stem,
-                        "kind": "documentation",
-                        "line": line,
-                        "detail": "Documentation",
-                        "documentation": value,
-                    },
-                )
+                # Documentation text is attached to keywords/tests/suite metadata;
+                # do not index the first word of the doc as its own symbol.
+                continue
             elif item_type in {"TestTags", "DefaultTags"}:
                 detail = "Force Tags" if item_type == "TestTags" else "Default Tags"
                 for tag in getattr(item, "values", ()) or ():

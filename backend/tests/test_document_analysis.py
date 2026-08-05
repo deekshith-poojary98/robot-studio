@@ -15,6 +15,7 @@ from robot_studio.infrastructure.language.robot_parsing_worker import (
 
 SAMPLE = """\
 *** Settings ***
+Documentation    Suite for login flows
 Library    BuiltIn
 Resource   common.resource
 
@@ -23,6 +24,7 @@ ${URL}    https://example.com
 
 *** Keywords ***
 Login
+    [Documentation]    Shared login helper
     [Arguments]    ${user}
     Log    ${user}
     IF    $True
@@ -31,6 +33,7 @@ Login
 
 *** Test Cases ***
 Login Works
+    [Documentation]    Example test case
     Login    admin
     FOR    ${i}    IN RANGE    2
         Log    ${i}
@@ -59,6 +62,30 @@ def test_document_symbol_tree_nested_structure() -> None:
     assert case["name"] == "Login Works"
     assert any(c["name"] == "Login" and c["kind"] == "keyword_call" for c in case["children"])
     assert any(c["kind"] == "control" and "FOR" in c["name"] for c in case["children"])
+
+
+def test_document_symbol_tree_omits_documentation_children() -> None:
+    """Outline must not show [Documentation] under keywords / tests / Settings.
+
+    The text still lives on the parent for hover — only the child row is dropped.
+    """
+    tree = document_symbol_tree(SAMPLE, "tests/login.robot")
+    root = tree["root"]
+
+    settings = next(c for c in root["children"] if c["name"] == "Settings")
+    assert all(c["kind"] != "documentation" for c in settings["children"])
+    assert all(c["detail"] != "Documentation" for c in settings["children"])
+    assert {c["name"] for c in settings["children"]} == {"BuiltIn", "common.resource"}
+
+    keywords = next(c for c in root["children"] if c["name"] == "Keywords")
+    login = keywords["children"][0]
+    assert login["documentation"] == "Shared login helper"
+    assert all(c["kind"] != "documentation" for c in login["children"])
+
+    tests = next(c for c in root["children"] if c["name"] == "Tests")
+    case = tests["children"][0]
+    assert case["documentation"] == "Example test case"
+    assert all(c["kind"] != "documentation" for c in case["children"])
 
 
 def test_document_symbol_tree_model_find_and_fold() -> None:

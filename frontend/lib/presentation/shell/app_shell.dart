@@ -2820,9 +2820,7 @@ class _AppShellState extends State<AppShell> {
       _editor.tabs = updated;
       if (_editor.activePath == path) {
         if (updated.isEmpty) {
-          _editor.activePath = null;
-          _editor.documentOutline = [];
-          _editor.selectedOutlineSymbol = null;
+          _editor.clearActiveDocument();
           _showEditorPage = false;
         } else {
           nextPath = updated.last.path;
@@ -4019,9 +4017,7 @@ class _AppShellState extends State<AppShell> {
       _editor.tabs = updated;
       if (_editor.activePath == path) {
         if (updated.isEmpty) {
-          _editor.activePath = null;
-          _editor.documentOutline = [];
-          _editor.selectedOutlineSymbol = null;
+          _editor.clearActiveDocument();
           _showEditorPage = false;
         } else {
           nextPath = updated.last.path;

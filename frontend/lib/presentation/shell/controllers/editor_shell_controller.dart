@@ -84,30 +84,18 @@ class EditorShellController {
   }
 
   void reset() {
+    clearActiveDocument();
     tabs = [];
-    activePath = null;
-    documentOutline = [];
-    documentAnalysis = null;
-    selectedOutlineSymbol = null;
-    activeDocumentSymbol = null;
-    completionItems = [];
-    diagnostics = [];
     workspaceProblems = [];
-    hoverTooltip = null;
-    peekDefinition = null;
     statusTimer?.cancel();
     statusTimer = null;
     statusMessage = null;
-    jumpToLine = null;
-    jumpToColumn = null;
     fileTree = [];
     expandedDirs.clear();
     childrenByPath.clear();
     loadingDirs.clear();
     loadingFileTree = false;
     recentFiles = [];
-    languageDebounce?.cancel();
-    hoverDebounce?.cancel();
   }
 
   void trackRecentFile(String path) {
@@ -359,6 +347,30 @@ class EditorShellController {
       loadingOutline = false;
       notify();
     }
+  }
+
+  /// Drops every per-document artifact after the last tab closes.
+  ///
+  /// Outline renders from [documentAnalysis], not [documentOutline], so
+  /// clearing only the flat list left the previous file's tree on screen with
+  /// no editor open.
+  void clearActiveDocument() {
+    activePath = null;
+    documentOutline = [];
+    documentAnalysis = null;
+    selectedOutlineSymbol = null;
+    activeDocumentSymbol = null;
+    completionItems = [];
+    diagnostics = [];
+    hoverTooltip = null;
+    peekDefinition = null;
+    loadingOutline = false;
+    jumpToLine = null;
+    jumpToColumn = null;
+    cursorLine = 1;
+    cursorColumn = 1;
+    languageDebounce?.cancel();
+    hoverDebounce?.cancel();
   }
 
   void syncActiveSymbol(int line) {
