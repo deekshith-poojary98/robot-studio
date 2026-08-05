@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:robot_studio/core/gateway/models/execution_info.dart';
+import 'package:robot_studio/core/theme/app_theme.dart';
 import 'package:robot_studio/presentation/reports/run_details_panel.dart';
 import 'package:robot_studio/presentation/shell/status_bar.dart';
 import 'package:robot_studio/presentation/sidebar/sidebar_panel.dart';
@@ -12,10 +13,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: StatusBar(
-            robotVersion: '7.0',
-            pythonVersion: '3.12.8',
-          ),
+          body: StatusBar(robotVersion: '7.0', pythonVersion: '3.12.8'),
         ),
       ),
     );
@@ -27,7 +25,9 @@ void main() {
     expect(find.textContaining('ENV '), findsNothing);
   });
 
-  testWidgets('empty environment chip offers Create and Manage', (tester) async {
+  testWidgets('empty environment chip offers Create and Manage', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1600, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -62,6 +62,48 @@ void main() {
     await tester.pumpAndSettle();
     expect(createTapped, isTrue);
     expect(manageTapped, isFalse);
+  });
+
+  testWidgets('project, environment and branch chips share one height', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppToolbar(
+            projectLabel: 'OrangeHRM',
+            environmentLabel: 'No environment',
+            backendConnected: true,
+            environmentNames: const ['default'],
+            selectedEnvironmentName: 'default',
+            onRun: () {},
+            onRunProject: () {},
+            onStop: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The chips wrap different content, so measure the rendered boxes rather
+    // than trusting that padding happens to add up.
+    double chipHeight(String label) {
+      final box = find
+          .ancestor(of: find.text(label), matching: find.byType(Container))
+          .first;
+      return tester.getSize(box).height;
+    }
+
+    final project = chipHeight('OrangeHRM');
+    final environment = chipHeight('default');
+    final branch = chipHeight('No branch');
+
+    expect(environment, project);
+    expect(branch, project);
+    expect(project, AppControlHeight.toolbarChip);
   });
 
   testWidgets('idle toolbar hides Idle badge and mutes Stop', (tester) async {
@@ -131,14 +173,8 @@ void main() {
   });
 
   testWidgets('sidebar panels expose descriptive tooltips', (tester) async {
-    expect(
-      SidebarPanel.reports.tooltip,
-      contains('HTML reports'),
-    );
-    expect(
-      SidebarPanel.explorer.tooltip,
-      contains('projects'),
-    );
+    expect(SidebarPanel.reports.tooltip, contains('HTML reports'));
+    expect(SidebarPanel.explorer.tooltip, contains('projects'));
   });
 
   testWidgets('run details artifact hyperlinks open report', (tester) async {

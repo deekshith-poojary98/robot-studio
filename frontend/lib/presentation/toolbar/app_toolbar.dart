@@ -281,8 +281,8 @@ class _GitRemoteMenu extends StatelessWidget {
         ),
       ],
       child: Container(
-        height: 28,
-        width: 28,
+        height: AppControlHeight.toolbarChip,
+        width: AppControlHeight.toolbarChip,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -375,7 +375,11 @@ class _EnvironmentSelector extends StatelessWidget {
     if (!enabled) {
       return Tooltip(
         message: 'Backend unavailable — start it to manage environments',
-        child: EnvironmentBadge(label: label, active: false),
+        child: EnvironmentBadge(
+          label: label,
+          active: false,
+          height: AppControlHeight.toolbarChip,
+        ),
       );
     }
 
@@ -438,6 +442,7 @@ class _EnvironmentSelector extends StatelessWidget {
         label: display,
         active: selectedName != null,
         broken: broken,
+        height: AppControlHeight.toolbarChip,
       ),
     );
   }
@@ -462,7 +467,9 @@ class _SelectorChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadii.sm),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        height: AppControlHeight.toolbarChip,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: context.palette.surfaceElevated,
           borderRadius: BorderRadius.circular(AppRadii.sm),

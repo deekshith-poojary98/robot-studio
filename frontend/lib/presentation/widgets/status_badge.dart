@@ -8,16 +8,25 @@ class StatusBadge extends StatelessWidget {
     required this.label,
     this.dotColor,
     this.filled = false,
+    this.height,
   });
 
   final String label;
   final Color? dotColor;
   final bool filled;
 
+  /// Opt-in fixed height, for rows that must line up with taller neighbours
+  /// (the toolbar strip). Left null, the badge hugs its label as before.
+  final double? height;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      height: height,
+      alignment: height == null ? null : Alignment.center,
+      padding: height == null
+          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
+          : const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: filled
             ? context.palette.accentSoft
@@ -61,11 +70,13 @@ class EnvironmentBadge extends StatelessWidget {
     required this.label,
     this.active = false,
     this.broken = false,
+    this.height,
   });
 
   final String label;
   final bool active;
   final bool broken;
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +88,11 @@ class EnvironmentBadge extends StatelessWidget {
     } else {
       dot = context.palette.textMuted;
     }
-    return StatusBadge(label: label, dotColor: dot, filled: active && !broken);
+    return StatusBadge(
+      label: label,
+      dotColor: dot,
+      filled: active && !broken,
+      height: height,
+    );
   }
 }

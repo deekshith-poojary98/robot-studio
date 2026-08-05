@@ -198,8 +198,7 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
     return const FriendlyErrorCopy(
       summary: 'Robot Studio could not find that project or folder.',
       recovery:
-          'It may have been deleted, moved, or renamed. Remove it from '
-          'Recents if it is gone, or open the folder from its new location.',
+          'It may have been deleted, moved, or renamed. Open the folder from its new location.',
     );
   }
 

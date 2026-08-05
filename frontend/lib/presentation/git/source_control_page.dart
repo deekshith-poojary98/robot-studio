@@ -242,27 +242,6 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _NotRepositoryView extends StatelessWidget {
-  const _NotRepositoryView({required this.onInit, required this.isBusy});
-
-  final VoidCallback onInit;
-  final bool isBusy;
-
-  @override
-  Widget build(BuildContext context) {
-    // Kept for API stability; SourceControlPage now uses EmptyState directly.
-    return EmptyState(
-      icon: Icons.source_outlined,
-      title: 'No Git repository in this project',
-      message:
-          'Initialize Git in this project, or open the parent folder as the project '
-          'to use its repository.',
-      actionLabel: isBusy ? null : 'Initialize Git in this project',
-      onAction: isBusy ? null : onInit,
-    );
-  }
-}
-
 class _ChangesView extends StatelessWidget {
   const _ChangesView({
     required this.changes,

@@ -62,6 +62,16 @@ abstract final class AppDialogWidth {
   static const wide = 480.0;
 }
 
+/// Fixed heights for chrome controls that sit side by side.
+///
+/// These must be explicit: the toolbar chips wrap different content (a 14px
+/// icon vs an 11px label with a 6px dot), so intrinsic sizing makes them
+/// disagree by a few pixels and the row stops reading as one strip.
+abstract final class AppControlHeight {
+  /// Toolbar project / environment / branch chips and the git overflow button.
+  static const toolbarChip = 26.0;
+}
+
 /// Builds the full theme from [palette] so light and dark stay in lockstep.
 ///
 /// Both brightnesses run through this one function on purpose: the previous
