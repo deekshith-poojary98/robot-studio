@@ -6,6 +6,44 @@ import '../../core/gateway/models/settings_info.dart';
 import '../../core/settings/app_settings_controller.dart';
 import '../../core/theme/app_theme.dart';
 
+bool _sameSettings(AppSettings a, AppSettings b) =>
+    jsonEncode(a.toJson()) == jsonEncode(b.toJson());
+
+bool _sameList(List<String> a, List<String> b) =>
+    a.length == b.length &&
+    List.generate(a.length, (i) => a[i] == b[i]).every((same) => same);
+
+/// Three-way merge so a settings change made elsewhere lands on the open page
+/// without discarding fields the user is still editing: take `theirs` for
+/// anything untouched, keep `mine` for anything already edited.
+Map<String, dynamic> _mergeSettingsJson({
+  required Map<String, dynamic> base,
+  required Map<String, dynamic> mine,
+  required Map<String, dynamic> theirs,
+}) {
+  final merged = <String, dynamic>{};
+  for (final entry in theirs.entries) {
+    final key = entry.key;
+    final theirValue = entry.value;
+    final baseValue = base[key];
+    final myValue = mine[key];
+    if (theirValue is Map<String, dynamic> &&
+        baseValue is Map<String, dynamic> &&
+        myValue is Map<String, dynamic>) {
+      merged[key] = _mergeSettingsJson(
+        base: baseValue,
+        mine: myValue,
+        theirs: theirValue,
+      );
+    } else if (jsonEncode(myValue) == jsonEncode(baseValue)) {
+      merged[key] = theirValue;
+    } else {
+      merged[key] = myValue;
+    }
+  }
+  return merged;
+}
+
 /// Settings categories. Add a value here to grow the page.
 enum SettingsCategory {
   editor,
@@ -14,34 +52,30 @@ enum SettingsCategory {
   appearance;
 
   String get label => switch (this) {
-        SettingsCategory.editor => 'Editor',
-        SettingsCategory.execution => 'Execution',
-        SettingsCategory.search => 'Search',
-        SettingsCategory.appearance => 'Appearance',
-      };
+    SettingsCategory.editor => 'Editor',
+    SettingsCategory.execution => 'Execution',
+    SettingsCategory.search => 'Search',
+    SettingsCategory.appearance => 'Appearance',
+  };
 
   IconData get icon => switch (this) {
-        SettingsCategory.editor => Icons.edit_outlined,
-        SettingsCategory.execution => Icons.play_circle_outline,
-        SettingsCategory.search => Icons.search_outlined,
-        SettingsCategory.appearance => Icons.palette_outlined,
-      };
+    SettingsCategory.editor => Icons.edit_outlined,
+    SettingsCategory.execution => Icons.play_circle_outline,
+    SettingsCategory.search => Icons.search_outlined,
+    SettingsCategory.appearance => Icons.palette_outlined,
+  };
 
   String get description => switch (this) {
-        SettingsCategory.editor => 'Saving, indentation, and font',
-        SettingsCategory.execution => 'Run confirmations and result panels',
-        SettingsCategory.search => 'Which files Find in Files reads',
-        SettingsCategory.appearance => 'Theme',
-      };
+    SettingsCategory.editor => 'Saving, indentation, and font',
+    SettingsCategory.execution => 'Run confirmations and result panels',
+    SettingsCategory.search => 'Which files Find in Files reads',
+    SettingsCategory.appearance => 'Theme',
+  };
 }
 
 /// Full-page settings — a center view, not a dialog, so categories can grow.
 class PreferencesPage extends StatefulWidget {
-  const PreferencesPage({
-    super.key,
-    required this.controller,
-    this.onClose,
-  });
+  const PreferencesPage({super.key, required this.controller, this.onClose});
 
   final AppSettingsController controller;
   final VoidCallback? onClose;
@@ -52,6 +86,11 @@ class PreferencesPage extends StatefulWidget {
 
 class _PreferencesPageState extends State<PreferencesPage> {
   late AppSettings _draft;
+
+  /// Last controller state this page reconciled against — the merge base for
+  /// settings changed elsewhere (Edit ▸ Word Wrap, palette, another patch).
+  late AppSettings _baseline;
+
   SettingsCategory _category = SettingsCategory.editor;
   bool _saving = false;
   String? _error;
@@ -64,19 +103,67 @@ class _PreferencesPageState extends State<PreferencesPage> {
   @override
   void initState() {
     super.initState();
-    _draft = widget.controller.settings;
+    _baseline = widget.controller.settings;
+    _draft = _baseline;
     _syncTextFields();
+    widget.controller.addListener(_onControllerChanged);
+  }
+
+  /// Adopt settings changed outside this page, keeping fields the user is
+  /// mid-edit on. Without this, toggling Word Wrap from the Edit menu would
+  /// leave a stale switch on screen and Save would write it back.
+  void _onControllerChanged() {
+    if (!mounted || _saving) return;
+    final incoming = widget.controller.settings;
+    if (_sameSettings(incoming, _baseline)) return;
+    final merged = AppSettings.fromJson(
+      _mergeSettingsJson(
+        base: _baseline.toJson(),
+        mine: _pendingSettings.toJson(),
+        theirs: incoming.toJson(),
+      ),
+    );
+    setState(() {
+      _baseline = incoming;
+      _draft = merged;
+      _savedNotice = null;
+      _reconcileTextFields();
+    });
   }
 
   void _syncTextFields() {
     _fontFamilyController.text = _draft.editor.fontFamily;
-    _extensionsController.text =
-        _draft.search.contentSearchExtensions.join(', ');
+    _extensionsController.text = _draft.search.contentSearchExtensions.join(
+      ', ',
+    );
     _ignoreController.text = _draft.search.ignorePatterns.join(', ');
+  }
+
+  /// Rewrite a text field only when its *value* moved, not its formatting, so
+  /// an unrelated external change cannot reset a caret mid-word.
+  void _reconcileTextFields() {
+    if (_fontFamilyController.text.trim() != _draft.editor.fontFamily) {
+      _fontFamilyController.text = _draft.editor.fontFamily;
+    }
+    if (!_sameList(
+      _splitCsv(_extensionsController.text),
+      _draft.search.contentSearchExtensions,
+    )) {
+      _extensionsController.text = _draft.search.contentSearchExtensions.join(
+        ', ',
+      );
+    }
+    if (!_sameList(
+      _splitCsv(_ignoreController.text),
+      _draft.search.ignorePatterns,
+    )) {
+      _ignoreController.text = _draft.search.ignorePatterns.join(', ');
+    }
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
     _fontFamilyController.dispose();
     _extensionsController.dispose();
     _ignoreController.dispose();
@@ -85,20 +172,18 @@ class _PreferencesPageState extends State<PreferencesPage> {
 
   /// Text fields commit on save, so fold them in before comparing / sending.
   AppSettings get _pendingSettings => _draft.copyWith(
-        editor: _draft.editor.copyWith(
-          fontFamily: _fontFamilyController.text.trim().isEmpty
-              ? 'Menlo'
-              : _fontFamilyController.text.trim(),
-        ),
-        search: _draft.search.copyWith(
-          contentSearchExtensions: _splitCsv(_extensionsController.text),
-          ignorePatterns: _splitCsv(_ignoreController.text),
-        ),
-      );
+    editor: _draft.editor.copyWith(
+      fontFamily: _fontFamilyController.text.trim().isEmpty
+          ? 'Menlo'
+          : _fontFamilyController.text.trim(),
+    ),
+    search: _draft.search.copyWith(
+      contentSearchExtensions: _splitCsv(_extensionsController.text),
+      ignorePatterns: _splitCsv(_ignoreController.text),
+    ),
+  );
 
-  bool get _isDirty =>
-      jsonEncode(_pendingSettings.toJson()) !=
-      jsonEncode(widget.controller.settings.toJson());
+  bool get _isDirty => !_sameSettings(_pendingSettings, _baseline);
 
   void _markChanged() => setState(() => _savedNotice = null);
 
@@ -115,7 +200,10 @@ class _PreferencesPageState extends State<PreferencesPage> {
       if (!mounted) return;
       setState(() {
         _saving = false;
+        _baseline = widget.controller.settings;
+        _draft = _baseline;
         _savedNotice = 'Settings saved';
+        _syncTextFields();
       });
     } catch (error) {
       if (!mounted) return;
@@ -128,7 +216,8 @@ class _PreferencesPageState extends State<PreferencesPage> {
 
   void _discard() {
     setState(() {
-      _draft = widget.controller.settings;
+      _baseline = widget.controller.settings;
+      _draft = _baseline;
       _error = null;
       _savedNotice = null;
       _syncTextFields();
@@ -145,7 +234,8 @@ class _PreferencesPageState extends State<PreferencesPage> {
       await widget.controller.reset();
       if (!mounted) return;
       setState(() {
-        _draft = widget.controller.settings;
+        _baseline = widget.controller.settings;
+        _draft = _baseline;
         _syncTextFields();
         _saving = false;
         _savedNotice = 'Restored defaults';
@@ -222,8 +312,8 @@ class _PreferencesPageState extends State<PreferencesPage> {
                     color: _error != null
                         ? AppColors.error
                         : (_isDirty
-                            ? AppColors.warning
-                            : AppColors.textSecondary),
+                              ? AppColors.warning
+                              : AppColors.textSecondary),
                   ),
                 ),
               ],
@@ -249,8 +339,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
             onPressed: (_saving || !_isDirty) ? null : _save,
             child: Text(
               _saving ? 'Saving…' : 'Save',
-              style:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
           if (widget.onClose != null) ...[
@@ -423,8 +512,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
             _markChanged();
             setState(() {
               _draft = _draft.copyWith(
-                execution:
-                    _draft.execution.copyWith(largeRunThreshold: value),
+                execution: _draft.execution.copyWith(largeRunThreshold: value),
               );
             });
           },
@@ -437,8 +525,9 @@ class _PreferencesPageState extends State<PreferencesPage> {
             _markChanged();
             setState(() {
               _draft = _draft.copyWith(
-                execution:
-                    _draft.execution.copyWith(revealExecutionOnRun: value),
+                execution: _draft.execution.copyWith(
+                  revealExecutionOnRun: value,
+                ),
               );
             });
           },
@@ -450,8 +539,9 @@ class _PreferencesPageState extends State<PreferencesPage> {
             _markChanged();
             setState(() {
               _draft = _draft.copyWith(
-                execution:
-                    _draft.execution.copyWith(autoOpenReportOnFailure: value),
+                execution: _draft.execution.copyWith(
+                  autoOpenReportOnFailure: value,
+                ),
               );
             });
           },
@@ -560,8 +650,7 @@ class _CategoryTile extends StatelessWidget {
                     category.label,
                     style: TextStyle(
                       fontSize: 12.5,
-                      fontWeight:
-                          selected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                       color: selected
                           ? AppColors.textPrimary
                           : AppColors.textSecondary,
