@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/settings_info.dart';
 import '../../core/settings/app_settings_controller.dart';
 import '../../core/theme/app_theme.dart';
+import 'editor_font_families.dart';
 
 bool _sameSettings(AppSettings a, AppSettings b) =>
     jsonEncode(a.toJson()) == jsonEncode(b.toJson());
@@ -96,7 +97,6 @@ class _PreferencesPageState extends State<PreferencesPage> {
   String? _error;
   String? _savedNotice;
 
-  final _fontFamilyController = TextEditingController();
   final _extensionsController = TextEditingController();
   final _ignoreController = TextEditingController();
 
@@ -132,7 +132,6 @@ class _PreferencesPageState extends State<PreferencesPage> {
   }
 
   void _syncTextFields() {
-    _fontFamilyController.text = _draft.editor.fontFamily;
     _extensionsController.text = _draft.search.contentSearchExtensions.join(
       ', ',
     );
@@ -142,9 +141,6 @@ class _PreferencesPageState extends State<PreferencesPage> {
   /// Rewrite a text field only when its *value* moved, not its formatting, so
   /// an unrelated external change cannot reset a caret mid-word.
   void _reconcileTextFields() {
-    if (_fontFamilyController.text.trim() != _draft.editor.fontFamily) {
-      _fontFamilyController.text = _draft.editor.fontFamily;
-    }
     if (!_sameList(
       _splitCsv(_extensionsController.text),
       _draft.search.contentSearchExtensions,
@@ -164,7 +160,6 @@ class _PreferencesPageState extends State<PreferencesPage> {
   @override
   void dispose() {
     widget.controller.removeListener(_onControllerChanged);
-    _fontFamilyController.dispose();
     _extensionsController.dispose();
     _ignoreController.dispose();
     super.dispose();
@@ -172,11 +167,6 @@ class _PreferencesPageState extends State<PreferencesPage> {
 
   /// Text fields commit on save, so fold them in before comparing / sending.
   AppSettings get _pendingSettings => _draft.copyWith(
-    editor: _draft.editor.copyWith(
-      fontFamily: _fontFamilyController.text.trim().isEmpty
-          ? 'Menlo'
-          : _fontFamilyController.text.trim(),
-    ),
     search: _draft.search.copyWith(
       contentSearchExtensions: _splitCsv(_extensionsController.text),
       ignorePatterns: _splitCsv(_ignoreController.text),
@@ -488,11 +478,22 @@ class _PreferencesPageState extends State<PreferencesPage> {
             });
           },
         ),
-        _TextRow(
+        _DropdownRow<String>(
           label: 'Font Family',
-          controller: _fontFamilyController,
-          hint: 'Menlo',
-          onChanged: (_) => _markChanged(),
+          value: _draft.editor.fontFamily.trim().isEmpty
+              ? 'Menlo'
+              : _draft.editor.fontFamily.trim(),
+          items: editorFontFamilyChoices(_draft.editor.fontFamily),
+          labelFor: (item) => item,
+          onChanged: (value) {
+            if (value == null) return;
+            _markChanged();
+            setState(() {
+              _draft = _draft.copyWith(
+                editor: _draft.editor.copyWith(fontFamily: value),
+              );
+            });
+          },
         ),
       ],
     );
