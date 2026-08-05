@@ -831,6 +831,7 @@ class _AppShellState extends State<AppShell> {
       setState(() => _selectedPlugin = updated);
       await _loadPlugins();
     } catch (error) {
+      if (!mounted) return;
       await showPluginErrorDialog(
         context,
         title: 'Enable Plugin',
@@ -846,6 +847,7 @@ class _AppShellState extends State<AppShell> {
       setState(() => _selectedPlugin = updated);
       await _loadPlugins();
     } catch (error) {
+      if (!mounted) return;
       await showPluginErrorDialog(
         context,
         title: 'Disable Plugin',
@@ -861,6 +863,7 @@ class _AppShellState extends State<AppShell> {
       setState(() => _selectedPlugin = updated);
       await _loadPlugins();
     } catch (error) {
+      if (!mounted) return;
       await showPluginErrorDialog(
         context,
         title: 'Reload Plugin',
@@ -1712,6 +1715,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
+    if (!mounted) return;
     final name = await showNewProjectDialog(context);
     if (name == null) return;
     await _runProjectAction(
@@ -1903,6 +1907,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
+    if (!mounted) return;
     final path = await showImportProjectDialog(context);
     if (path == null) return;
     await _runProjectAction(
@@ -2257,6 +2262,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
+    if (!mounted) return;
     final result = await showCreateEnvironmentDialog(
       context,
       loadInterpreters: _gateway.listPythonInterpreters,
@@ -2291,6 +2297,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
+    if (!mounted) return;
     final path = await showImportEnvironmentDialog(context);
     if (path == null) return;
     await _runEnvironmentAction(
@@ -2598,7 +2605,7 @@ class _AppShellState extends State<AppShell> {
         return;
       }
       final started = run;
-      if (started == null || !mounted) return;
+      if (!mounted) return;
       setState(() {
         _execution.executionStatus = started.status;
         _execution.currentExecution = started;

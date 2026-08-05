@@ -1,6 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:robot_studio/core/gateway/models/index_info.dart';
-import 'package:robot_studio/core/gateway/models/language_info.dart';
 import 'package:robot_studio/core/gateway/transport_gateway.dart';
 import 'package:robot_studio/presentation/shell/controllers/editor_shell_controller.dart';
 

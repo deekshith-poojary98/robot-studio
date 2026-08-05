@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:robot_studio/core/gateway/models/settings_info.dart';
 import 'package:robot_studio/core/gateway/transport_gateway.dart';
 import 'package:robot_studio/core/settings/app_settings_controller.dart';
 import 'package:robot_studio/core/theme/app_theme.dart';

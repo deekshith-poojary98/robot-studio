@@ -183,7 +183,7 @@ class BackendHost {
     // macOS: also check Resources/backend inside the .app bundle.
     if (Platform.isMacOS) {
       final resources =
-          '$dir${sep}..${sep}Resources${sep}backend$sep$_sidecarName';
+          '$dir$sep..${sep}Resources${sep}backend$sep$_sidecarName';
       if (File(resources).existsSync()) {
         return File(resources).absolute.path;
       }

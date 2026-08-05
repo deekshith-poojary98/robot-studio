@@ -34,7 +34,7 @@ class ProblemsPanel extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       itemCount: diagnostics.length,
-      separatorBuilder: (_, __) =>
+      separatorBuilder: (_, _) =>
           Divider(height: 1, color: context.palette.borderSubtle),
       itemBuilder: (context, index) {
         final item = diagnostics[index];

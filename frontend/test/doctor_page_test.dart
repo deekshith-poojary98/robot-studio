@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:robot_studio/core/gateway/models/doctor_info.dart';
 import 'package:robot_studio/core/gateway/transport_gateway.dart';
 import 'package:robot_studio/core/theme/app_theme.dart';
 import 'package:robot_studio/presentation/doctor/doctor_page.dart';

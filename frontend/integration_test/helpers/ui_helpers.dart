@@ -17,7 +17,9 @@ Future<void> pumpUntilFound(
     }
   }
   throw TestFailure(
-    'Timed out waiting for ${finder.description} (expected >= $minHits)',
+    'Timed out waiting for '
+    '${finder.describeMatch(minHits == 1 ? Plurality.one : Plurality.many)} '
+    '(expected >= $minHits)',
   );
 }
 
@@ -34,7 +36,9 @@ Future<void> pumpUntilAbsent(
       return;
     }
   }
-  throw TestFailure('Timed out waiting for absence of ${finder.description}');
+  throw TestFailure(
+    'Timed out waiting for absence of ${finder.describeMatch(Plurality.zero)}',
+  );
 }
 
 Future<void> waitForBackendReady(
@@ -63,10 +67,7 @@ Future<void> tapText(
   await tester.pump();
 }
 
-Future<void> tapTooltip(
-  WidgetTester tester,
-  String message,
-) async {
+Future<void> tapTooltip(WidgetTester tester, String message) async {
   final finder = find.byTooltip(message);
   await pumpUntilFound(tester, finder);
   await tester.tap(finder.first);
@@ -316,7 +317,9 @@ Future<void> openBottomTab(WidgetTester tester, String label) async {
 }
 
 Future<void> openCommandPalette(WidgetTester tester) async {
-  await tester.tap(find.textContaining('Search commands, files, symbols').first);
+  await tester.tap(
+    find.textContaining('Search commands, files, symbols').first,
+  );
   await tester.pump(const Duration(milliseconds: 300));
   await pumpUntilFound(
     tester,
@@ -330,17 +333,14 @@ Future<void> scrollToAndTap(
   Finder? scrollable,
 }) async {
   await pumpUntilFound(tester, finder);
-  final scrollTarget = scrollable ??
+  final scrollTarget =
+      scrollable ??
       find.descendant(
         of: find.byKey(const Key('workspace-explorer-list')),
         matching: find.byType(Scrollable),
       );
   if (tester.widgetList(scrollTarget).isNotEmpty) {
-    await tester.scrollUntilVisible(
-      finder.first,
-      80,
-      scrollable: scrollTarget,
-    );
+    await tester.scrollUntilVisible(finder.first, 80, scrollable: scrollTarget);
   } else {
     await tester.ensureVisible(finder.first);
   }
@@ -413,10 +413,7 @@ Future<void> waitForEditorOpen(WidgetTester tester) async {
 }
 
 /// Opens the command palette and runs the first item whose title matches [title].
-Future<void> runCommandPaletteAction(
-  WidgetTester tester,
-  String title,
-) async {
+Future<void> runCommandPaletteAction(WidgetTester tester, String title) async {
   await pumpUntilFound(tester, find.text('Search commands, files, symbols…'));
   await tester.tap(find.text('Search commands, files, symbols…'));
   await tester.pumpAndSettle();

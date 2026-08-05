@@ -38,7 +38,7 @@ void main() {
                 ],
               );
             },
-            onOpenMatch: (_, __, ___) {},
+            onOpenMatch: (_, _, _) {},
           ),
         ),
       ),
@@ -54,7 +54,9 @@ void main() {
     expect(find.textContaining('Log    hello'), findsOneWidget);
   });
 
-  testWidgets('Find in Files remembers expansion across searches', (tester) async {
+  testWidgets('Find in Files remembers expansion across searches', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(400, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -88,7 +90,7 @@ void main() {
                 ],
               );
             },
-            onOpenMatch: (_, __, ___) {},
+            onOpenMatch: (_, _, _) {},
           ),
         ),
       ),

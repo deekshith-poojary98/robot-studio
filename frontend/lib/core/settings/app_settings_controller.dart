@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import '../gateway/models/settings_info.dart';
 import '../gateway/transport_gateway.dart';
 import '../logging/app_logger.dart';
 

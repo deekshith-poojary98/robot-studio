@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../core/gateway/models/doctor_info.dart';
 import '../../core/gateway/transport_gateway.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
@@ -606,9 +605,7 @@ class _FilterBar extends StatelessWidget {
             (_SortMode.category, 'Category'),
             (_SortMode.file, 'File'),
           ],
-          onChanged: (v) {
-            if (v != null) onSort(v);
-          },
+          onChanged: onSort,
         ),
       ],
     );

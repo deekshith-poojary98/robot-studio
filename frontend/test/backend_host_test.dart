@@ -18,23 +18,27 @@ void main() {
     expect(found, sidecar.path);
   });
 
-  test('resolveSidecarPath finds Resources/backend on macOS layout', () {
-    final root = Directory.systemTemp.createTempSync('rs-app-');
-    addTearDown(() => root.deleteSync(recursive: true));
-    final macos = Directory('${root.path}/Contents/MacOS')..createSync(recursive: true);
-    final backend = Directory('${root.path}/Contents/Resources/backend')
-      ..createSync(recursive: true);
-    File('${macos.path}/Robot Studio').writeAsStringSync('');
-    final sidecar = File('${backend.path}/robot-studio-backend')
-      ..writeAsStringSync('');
+  test(
+    'resolveSidecarPath finds Resources/backend on macOS layout',
+    () {
+      final root = Directory.systemTemp.createTempSync('rs-app-');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final macos = Directory('${root.path}/Contents/MacOS')
+        ..createSync(recursive: true);
+      final backend = Directory('${root.path}/Contents/Resources/backend')
+        ..createSync(recursive: true);
+      File('${macos.path}/Robot Studio').writeAsStringSync('');
+      File('${backend.path}/robot-studio-backend').writeAsStringSync('');
 
-    final found = BackendHost.resolveSidecarPath(
-      resolvedExecutable: '${macos.path}/Robot Studio',
-    );
-    expect(found, isNotNull);
-    expect(File(found!).existsSync(), isTrue);
-    expect(found, endsWith('robot-studio-backend'));
-  }, skip: !Platform.isMacOS ? 'macOS Resources layout only' : false);
+      final found = BackendHost.resolveSidecarPath(
+        resolvedExecutable: '${macos.path}/Robot Studio',
+      );
+      expect(found, isNotNull);
+      expect(File(found!).existsSync(), isTrue);
+      expect(found, endsWith('robot-studio-backend'));
+    },
+    skip: !Platform.isMacOS ? 'macOS Resources layout only' : false,
+  );
 
   test('resolveSidecarPath returns null when missing', () {
     final dir = Directory.systemTemp.createTempSync('rs-empty-');

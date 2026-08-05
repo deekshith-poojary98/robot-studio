@@ -59,7 +59,7 @@ class HistoryPanel extends StatelessWidget {
                       child: ListView.separated(
                         padding: const EdgeInsets.all(8),
                         itemCount: commits.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 4),
+                        separatorBuilder: (_, _) => const SizedBox(height: 4),
                         itemBuilder: (context, index) {
                           final commit = commits[index];
                           final isSelected = selected?.hash == commit.hash;
