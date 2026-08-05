@@ -123,6 +123,13 @@ async def test_package_api_flow(api_client) -> None:
     assert installed.json()["package"]["name"].lower() == "six"
     assert isinstance(installed.json()["logs"], list)
 
+    missing_requirements = await client.post(
+        "/api/v1/packages/install-requirements",
+        json={"path": str(tmp_path / "missing-requirements.txt")},
+    )
+    assert missing_requirements.status_code == 400
+    assert "not found" in missing_requirements.json()["detail"].lower()
+
     listed = await client.get("/api/v1/packages")
     assert listed.status_code == 200
     names = {item["name"].lower() for item in listed.json()["packages"]}

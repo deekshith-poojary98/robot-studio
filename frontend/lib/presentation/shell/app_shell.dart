@@ -2109,6 +2109,66 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  Future<void> _handleImportRequirements() async {
+    final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Choose a requirements file',
+      type: FileType.custom,
+      allowedExtensions: const ['txt', 'in'],
+      allowMultiple: false,
+    );
+    if (!mounted || result == null || result.files.isEmpty) return;
+    final path = result.files.single.path;
+    if (path == null || path.trim().isEmpty) {
+      await _showError(
+        'Import Requirements',
+        'The selected file does not have a local path.',
+      );
+      return;
+    }
+
+    final fileName = File(path).uri.pathSegments.last;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+        title: Text(
+          'Install Requirements',
+          style: Theme.of(dialogContext).textTheme.titleLarge,
+        ),
+        content: SizedBox(
+          width: AppDialogWidth.form,
+          child: Text(
+            'Install every package listed in “$fileName” into the active '
+            'environment?\n\nExisting packages may be upgraded or downgraded '
+            'to match the file.',
+            style: Theme.of(dialogContext).textTheme.bodyMedium,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Install'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    AppLogger.info('Import requirements selected', tag: 'Shell', data: path);
+    await _runPackageOperation(
+      title: 'Installing Requirements',
+      packageName: fileName,
+      operation: () => _gateway.installRequirements(path),
+      successMessage: 'Installed requirements from',
+    );
+  }
+
   Future<void> _handleInstallRobot() async {
     await _runPackageOperation(
       title: 'Installing Robot Framework',
@@ -5379,6 +5439,7 @@ class _AppShellState extends State<AppShell> {
         },
         onRefresh: _loadPackages,
         onSearchPyPI: _handleSearchPyPI,
+        onImportRequirements: _handleImportRequirements,
         onSelect: _handleSelectPackage,
         onUpdate: _handleUpdatePackage,
         onUninstall: _handleUninstallPackage,

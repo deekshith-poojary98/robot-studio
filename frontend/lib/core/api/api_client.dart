@@ -57,8 +57,7 @@ class ApiClient implements TransportGateway {
   Future<OpenProjectByPathResult> openProjectByPath(
     String path, {
     bool force = false,
-  }) =>
-      _gateway.openProjectByPath(path, force: force);
+  }) => _gateway.openProjectByPath(path, force: force);
 
   @override
   Future<OpenProjectByPathResult> createStandaloneProject({
@@ -139,6 +138,10 @@ class ApiClient implements TransportGateway {
     String name, {
     String? version,
   }) => _gateway.installPackage(name, version: version);
+
+  @override
+  Future<PackageOperationResult> installRequirements(String filePath) =>
+      _gateway.installRequirements(filePath);
 
   @override
   Future<PackageOperationResult> updatePackage(String name) =>
@@ -242,10 +245,10 @@ class ApiClient implements TransportGateway {
     int limit = 500,
     int contextLines = 1,
   }) => _gateway.searchContent(
-        query: query,
-        limit: limit,
-        contextLines: contextLines,
-      );
+    query: query,
+    limit: limit,
+    contextLines: contextLines,
+  );
 
   @override
   Future<RunFailuresInfo> getRunFailures(String runId) =>
@@ -316,8 +319,7 @@ class ApiClient implements TransportGateway {
   Future<DocumentAnalysisInfo> analyzeDocument({
     required String filePath,
     required String content,
-  }) =>
-      _gateway.analyzeDocument(filePath: filePath, content: content);
+  }) => _gateway.analyzeDocument(filePath: filePath, content: content);
 
   @override
   Future<List<IndexedSymbolInfo>> workspaceSymbols({
@@ -463,12 +465,11 @@ class ApiClient implements TransportGateway {
     String profile = 'default',
     String? projectId,
     List<String>? providerIds,
-  }) =>
-      _gateway.runDoctor(
-        profile: profile,
-        projectId: projectId,
-        providerIds: providerIds,
-      );
+  }) => _gateway.runDoctor(
+    profile: profile,
+    projectId: projectId,
+    providerIds: providerIds,
+  );
 
   @override
   Future<DoctorReport> getDoctorReport(String reportId) =>
@@ -478,8 +479,7 @@ class ApiClient implements TransportGateway {
   Future<List<DoctorReportSummary>> getDoctorHistory({
     String? projectId,
     int limit = 20,
-  }) =>
-      _gateway.getDoctorHistory(projectId: projectId, limit: limit);
+  }) => _gateway.getDoctorHistory(projectId: projectId, limit: limit);
 
   @override
   Future<FileContentInfo> readFile(String path) => _gateway.readFile(path);
@@ -494,8 +494,7 @@ class ApiClient implements TransportGateway {
   Future<FileMutationResult> createFile({
     required String path,
     String content = '',
-  }) =>
-      _gateway.createFile(path: path, content: content);
+  }) => _gateway.createFile(path: path, content: content);
 
   @override
   Future<FileMutationResult> createDirectory({required String path}) =>
@@ -505,15 +504,13 @@ class ApiClient implements TransportGateway {
   Future<FileMutationResult> renamePath({
     required String path,
     required String newName,
-  }) =>
-      _gateway.renamePath(path: path, newName: newName);
+  }) => _gateway.renamePath(path: path, newName: newName);
 
   @override
   Future<FileMutationResult> movePath({
     required String path,
     required String destinationDir,
-  }) =>
-      _gateway.movePath(path: path, destinationDir: destinationDir);
+  }) => _gateway.movePath(path: path, destinationDir: destinationDir);
 
   @override
   Future<FileMutationResult> duplicatePath({required String path}) =>

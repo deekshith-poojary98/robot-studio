@@ -33,6 +33,13 @@ class Installer(ABC):
     async def install(self, environment_path: Path, package: str) -> list[str]: ...
 
     @abstractmethod
+    async def install_requirements(
+        self,
+        environment_path: Path,
+        requirements_file: Path,
+    ) -> list[str]: ...
+
+    @abstractmethod
     async def uninstall(self, environment_path: Path, package: str) -> list[str]: ...
 
     @abstractmethod

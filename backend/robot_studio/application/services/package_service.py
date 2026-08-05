@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.events import (
@@ -189,6 +190,88 @@ class PackageService:
             logs=logs,
             robot_framework_installed=robot[0],
             robot_framework_version=robot[1],
+        )
+
+    async def install_requirements(self, file_path: str) -> PackageOperationResult:
+        environment = self._require_environment()
+        raw = file_path.strip()
+        if not raw:
+            raise PackageValidationError("Requirements file path is required")
+        if "\x00" in raw or "\n" in raw or "\r" in raw:
+            raise PackageValidationError("Invalid requirements file path")
+
+        try:
+            requirements = Path(raw).expanduser().resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise PackageValidationError(
+                f"Requirements file was not found: '{raw}'",
+            ) from exc
+        if not requirements.is_file():
+            raise PackageValidationError(
+                f"Requirements path is not a file: '{requirements}'",
+            )
+        if requirements.suffix.lower() not in {".txt", ".in"}:
+            raise PackageValidationError(
+                "Choose a requirements .txt or .in file",
+            )
+        try:
+            if requirements.stat().st_size > 2_000_000:
+                raise PackageValidationError(
+                    "Requirements file is larger than 2 MB",
+                )
+        except OSError as exc:
+            raise PackageValidationError(
+                f"Could not read requirements file: '{requirements}'",
+            ) from exc
+
+        before = await self._installer.list_installed(environment.path)
+        before_versions = {item.name.lower(): item.version for item in before}
+        try:
+            logs = await self._installer.install_requirements(
+                environment.path,
+                requirements,
+            )
+        except PackageInstallError as exc:
+            raise PackageValidationError(str(exc)) from exc
+
+        after = await self._installer.list_installed(environment.path)
+        workspace = self._context.workspace
+        assert workspace is not None
+        for package in after:
+            previous = before_versions.get(package.name.lower())
+            if previous == package.version:
+                continue
+            event = (
+                PackageInstalled(
+                    workspace_id=workspace.id,
+                    environment_id=environment.id,
+                    package_name=package.name,
+                )
+                if previous is None
+                else PackageUpdated(
+                    workspace_id=workspace.id,
+                    environment_id=environment.id,
+                    package_name=package.name,
+                )
+            )
+            await self._event_bus.publish(event)
+
+        robot = self._find_robot(after)
+        robot_was_installed = self._find_robot(before) is not None
+        if robot is not None and not robot_was_installed:
+            await self._event_bus.publish(
+                RobotFrameworkInstalled(
+                    workspace_id=workspace.id,
+                    environment_id=environment.id,
+                    version=robot.version,
+                ),
+            )
+
+        return PackageOperationResult(
+            package=None,
+            logs=logs,
+            robot_framework_installed=robot is not None,
+            robot_framework_version=robot.version if robot else None,
         )
 
     async def update_package(self, name: str) -> PackageOperationResult:

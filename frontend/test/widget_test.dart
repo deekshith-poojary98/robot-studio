@@ -604,6 +604,7 @@ void main() {
   testWidgets('Package manager lists packages and robot status', (
     WidgetTester tester,
   ) async {
+    var importRequirementsTapped = false;
     await tester.binding.setSurfaceSize(const Size(1280, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -631,6 +632,7 @@ void main() {
             onSortChanged: (_) {},
             onRefresh: () {},
             onSearchPyPI: () {},
+            onImportRequirements: () => importRequirementsTapped = true,
             onSelect: (_) {},
             onUpdate: (_) {},
             onUninstall: (_) {},
@@ -644,6 +646,10 @@ void main() {
     expect(find.text('robotframework'), findsOneWidget);
     expect(find.textContaining('Robot Framework 7.0'), findsOneWidget);
     expect(find.text('Update'), findsWidgets);
+    expect(find.text('Import requirements…'), findsOneWidget);
+    await tester.tap(find.text('Import requirements…'));
+    await tester.pump();
+    expect(importRequirementsTapped, isTrue);
   });
 
   testWidgets('Search PyPI dialog returns selected package', (
@@ -1958,6 +1964,15 @@ class _FakeTransportGateway implements TransportGateway {
           name.toLowerCase() == 'robotframework' ||
           _packages.any((item) => item.name.toLowerCase() == 'robotframework'),
       robotFrameworkVersion: '7.0',
+    );
+  }
+
+  @override
+  Future<PackageOperationResult> installRequirements(String filePath) async {
+    return const PackageOperationResult(
+      package: null,
+      logs: ['Successfully installed requirements'],
+      robotFrameworkInstalled: false,
     );
   }
 

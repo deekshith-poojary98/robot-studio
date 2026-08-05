@@ -431,6 +431,9 @@ class RestGateway:
             version=version,
         )
 
+    async def install_requirements(self, file_path: str) -> PackageOperationResult:
+        return await self._package_service.install_requirements(file_path)
+
     async def update_package(self, name: str) -> PackageOperationResult:
         return await self._package_service.update_package(name=name)
 

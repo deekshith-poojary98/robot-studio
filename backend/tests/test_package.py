@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -165,6 +166,52 @@ async def test_update_package(services) -> None:
     updated = await services["package_service"].update_package("six")
     assert updated.package is not None
     assert any(isinstance(e, PackageUpdated) for e in events)
+
+
+@pytest.mark.asyncio
+async def test_install_requirements_uses_active_environment(
+    services,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("robotframework==7.0\nsix==1.16.0\n", encoding="utf-8")
+    installer = services["package_service"]._installer
+    before = [InstalledPackage(name="pip", version="25.0")]
+    after = [
+        *before,
+        InstalledPackage(name="robotframework", version="7.0"),
+        InstalledPackage(name="six", version="1.16.0"),
+    ]
+    list_installed = AsyncMock(side_effect=[before, after])
+    install_requirements = AsyncMock(return_value=["Successfully installed"])
+    monkeypatch.setattr(installer, "list_installed", list_installed)
+    monkeypatch.setattr(installer, "install_requirements", install_requirements)
+
+    result = await services["package_service"].install_requirements(
+        str(requirements),
+    )
+
+    install_requirements.assert_awaited_once_with(
+        services["environment"].path,
+        requirements.resolve(),
+    )
+    assert result.package is None
+    assert result.logs == ["Successfully installed"]
+    assert result.robot_framework_installed is True
+    assert result.robot_framework_version == "7.0"
+
+
+@pytest.mark.asyncio
+async def test_install_requirements_rejects_wrong_file_type(
+    services,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.yaml"
+    requirements.write_text("packages: []\n", encoding="utf-8")
+
+    with pytest.raises(PackageValidationError, match=r"\.txt or \.in"):
+        await services["package_service"].install_requirements(str(requirements))
 
 
 @pytest.mark.asyncio

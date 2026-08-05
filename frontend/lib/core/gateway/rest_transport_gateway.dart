@@ -99,10 +99,7 @@ class RestTransportGateway implements TransportGateway {
   }) async {
     final response = await _post(
       '/projects/open-path',
-      body: {
-        'path': path,
-        'force': force,
-      },
+      body: {'path': path, 'force': force},
       timeout: const Duration(seconds: 60),
     );
     return OpenProjectByPathResult.fromJson(response);
@@ -272,6 +269,16 @@ class RestTransportGateway implements TransportGateway {
         if (version != null && version.isNotEmpty) 'version': version,
       },
       timeout: const Duration(minutes: 10),
+    );
+    return PackageOperationResult.fromJson(response);
+  }
+
+  @override
+  Future<PackageOperationResult> installRequirements(String filePath) async {
+    final response = await _post(
+      '/packages/install-requirements',
+      body: {'path': filePath},
+      timeout: const Duration(minutes: 20),
     );
     return PackageOperationResult.fromJson(response);
   }
@@ -691,10 +698,7 @@ class RestTransportGateway implements TransportGateway {
   }) async {
     final response = await _post(
       '/language/document-analysis',
-      body: {
-        'file_path': filePath,
-        'content': content,
-      },
+      body: {'file_path': filePath, 'content': content},
     );
     return DocumentAnalysisInfo.fromJson(response);
   }
@@ -746,10 +750,7 @@ class RestTransportGateway implements TransportGateway {
   }) async {
     await _post(
       '/language/completion/usage',
-      body: {
-        'label': label,
-        'kind': kind,
-      },
+      body: {'label': label, 'kind': kind},
     );
   }
 
@@ -1286,14 +1287,14 @@ class RestTransportGateway implements TransportGateway {
       final detail = decoded is Map<String, dynamic> ? decoded['detail'] : null;
       if (detail is Map<String, dynamic>) {
         throw GatewayException(
-          detail['message']?.toString() ??
-              detail.toString(),
+          detail['message']?.toString() ?? detail.toString(),
           code: detail['code']?.toString(),
           count: (detail['count'] as num?)?.toInt(),
           threshold: (detail['threshold'] as num?)?.toInt(),
         );
       }
-      final message = detail?.toString() ?? 'Request failed (${response.statusCode})';
+      final message =
+          detail?.toString() ?? 'Request failed (${response.statusCode})';
       AppLogger.warn('HTTP ${response.statusCode}: $message', tag: 'Gateway');
       throw GatewayException(message);
     }

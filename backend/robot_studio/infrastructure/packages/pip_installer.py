@@ -126,6 +126,19 @@ class PipInstaller(Installer):
             error_prefix=f"Failed to install '{package}'",
         )
 
+    async def install_requirements(
+        self,
+        environment_path: Path,
+        requirements_file: Path,
+    ) -> list[str]:
+        python = self._python_for(environment_path)
+        return await asyncio.to_thread(
+            self._pip,
+            python,
+            ["install", "-r", str(requirements_file)],
+            error_prefix=f"Failed to install requirements from '{requirements_file.name}'",
+        )
+
     async def uninstall(self, environment_path: Path, package: str) -> list[str]:
         python = self._python_for(environment_path)
         return await asyncio.to_thread(

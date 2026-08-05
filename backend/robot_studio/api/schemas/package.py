@@ -10,6 +10,10 @@ class PackageNameRequest(BaseModel):
     version: str | None = None
 
 
+class RequirementsFileRequest(BaseModel):
+    path: str = Field(min_length=1)
+
+
 class PackageVersionsResponse(BaseModel):
     name: str
     latest_version: str | None = None

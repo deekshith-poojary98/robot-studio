@@ -109,6 +109,8 @@ abstract class TransportGateway {
 
   Future<PackageOperationResult> installPackage(String name, {String? version});
 
+  Future<PackageOperationResult> installRequirements(String filePath);
+
   Future<PackageOperationResult> updatePackage(String name);
 
   Future<PackageOperationResult> uninstallPackage(String name);
@@ -356,8 +358,7 @@ class GatewayException implements Exception {
   final int? count;
   final int? threshold;
 
-  bool get isLargeRunConfirmation =>
-      code == 'large_run_confirmation_required';
+  bool get isLargeRunConfirmation => code == 'large_run_confirmation_required';
 
   @override
   String toString() => message;

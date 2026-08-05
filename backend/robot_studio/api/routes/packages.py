@@ -9,6 +9,7 @@ from robot_studio.api.schemas.package import (
     PackageResponse,
     PackageSearchResponse,
     PackageVersionsResponse,
+    RequirementsFileRequest,
     to_package_response,
 )
 from robot_studio.application.services.package_service import PackageValidationError
@@ -78,6 +79,23 @@ async def install_package(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return PackageOperationResponse(
         package=to_package_response(result.package) if result.package else None,
+        logs=result.logs,
+        robot_framework_installed=result.robot_framework_installed,
+        robot_framework_version=result.robot_framework_version,
+    )
+
+
+@router.post("/install-requirements", response_model=PackageOperationResponse)
+async def install_requirements(
+    request: RequirementsFileRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> PackageOperationResponse:
+    try:
+        result = await gateway.install_requirements(file_path=request.path)
+    except PackageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return PackageOperationResponse(
+        package=None,
         logs=result.logs,
         robot_framework_installed=result.robot_framework_installed,
         robot_framework_version=result.robot_framework_version,
