@@ -16,6 +16,7 @@ class AppMenuBarActions {
     required this.onNewProject,
     required this.onOpenProject,
     required this.onOpenWorkspace,
+    required this.onCloseProject,
     required this.onSave,
     required this.onSaveAll,
     required this.onCloseEditor,
@@ -62,6 +63,7 @@ class AppMenuBarActions {
   final VoidCallback onNewProject;
   final VoidCallback onOpenProject;
   final VoidCallback onOpenWorkspace;
+  final VoidCallback onCloseProject;
   final VoidCallback onSave;
   final VoidCallback onSaveAll;
   final VoidCallback onCloseEditor;
@@ -177,6 +179,10 @@ class RobotStudioMenuBar extends StatelessWidget {
                 PlatformMenuItem(
                   label: 'Open Workspace…',
                   onSelected: a.onOpenWorkspace,
+                ),
+                PlatformMenuItem(
+                  label: 'Close Project',
+                  onSelected: a.hasWorkspace ? a.onCloseProject : null,
                 ),
               ],
             ),

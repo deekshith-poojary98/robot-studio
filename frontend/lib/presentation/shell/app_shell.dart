@@ -1630,6 +1630,7 @@ class _AppShellState extends State<AppShell> {
       }
     }
     // Fire remaining work without delaying first paint of the shell.
+    unawaited(_live.connect());
     unawaited(_loadExecutionHistory());
     unawaited(_loadIndexStatus());
     unawaited(_editor.loadFileTree());
@@ -3229,6 +3230,26 @@ class _AppShellState extends State<AppShell> {
     await _loadIndexStatus();
   }
 
+  Future<void> _handleCloseProject() async {
+    if (_activeWorkspace == null) return;
+
+    final dirtyPaths = _editorTabs
+        .where((tab) => tab.isDirty)
+        .map((tab) => tab.path)
+        .toList();
+    for (final path in dirtyPaths) {
+      final discard = await _confirmDiscard(path);
+      if (!discard) return;
+    }
+
+    _autoSaveTimer?.cancel();
+    await _execution.disconnectStream();
+    await _live.disconnect();
+    await _unloadActiveWorkspace();
+    if (!mounted) return;
+    _appendLog('[info] Closed project — returned to welcome');
+  }
+
   Future<void> _unloadActiveWorkspace() async {
     setState(() {
       _workspace.activeWorkspace = null;
@@ -3243,15 +3264,18 @@ class _AppShellState extends State<AppShell> {
       _showDoctorPage = false;
       _showSymbolsPage = false;
       _showEditorPage = false;
+      _showExecutionPage = false;
       _showSourceControl = false;
       _showPluginManager = false;
       _editor.reset();
+      _execution.resetForWorkspaceChange();
       _gitStatus = null;
       _gitHistory = [];
       _testTree = null;
       _indexStatus = null;
       _searchResults = [];
       _liveNotification = null;
+      _selectedSuitePath = null;
     });
     await _loadRecent();
   }
@@ -4180,6 +4204,16 @@ class _AppShellState extends State<AppShell> {
         kind: PaletteItemKind.command,
         onSelect: () => unawaited(_handleOpenWorkspace()),
       ),
+      if (hasWorkspace)
+        PaletteItem(
+          id: 'project.close',
+          title: 'Close Project',
+          subtitle: 'Return to the welcome screen',
+          icon: Icons.close,
+          kind: PaletteItemKind.command,
+          keywords: const ['workspace', 'landing', 'welcome', 'exit'],
+          onSelect: () => unawaited(_handleCloseProject()),
+        ),
       PaletteItem(
         id: 'workspace.new',
         title: 'New Workspace',
@@ -4765,6 +4799,7 @@ class _AppShellState extends State<AppShell> {
         onNewProject: () => unawaited(_handleNewStandaloneProject()),
         onOpenProject: () => unawaited(_handleOpenProject()),
         onOpenWorkspace: () => unawaited(_handleOpenWorkspace()),
+        onCloseProject: () => unawaited(_handleCloseProject()),
         onSave: () => unawaited(_saveActive()),
         onSaveAll: () => unawaited(_saveAll()),
         onCloseEditor: () => unawaited(_closeActiveTab()),

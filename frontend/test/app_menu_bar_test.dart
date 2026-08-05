@@ -18,6 +18,7 @@ void main() {
       onNewProject: () {},
       onOpenProject: () {},
       onOpenWorkspace: () {},
+      onCloseProject: () {},
       onSave: () {},
       onSaveAll: () {},
       onCloseEditor: () {},
@@ -97,5 +98,104 @@ void main() {
     expect(save, isNotNull);
     expect(save!.onSelected, isNull);
     expect(save.shortcut, isA<SingleActivator>());
+  });
+
+  testWidgets('Close Project is disabled when no workspace is open', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      RobotStudioMenuBar(
+        actions: actions(hasWorkspace: false),
+        child: const SizedBox.expand(),
+      ),
+    );
+
+    final bar = tester.widget<PlatformMenuBar>(find.byType(PlatformMenuBar));
+    PlatformMenuItem? closeProject;
+    for (final root in bar.menus.whereType<PlatformMenu>()) {
+      for (final entry in root.menus) {
+        if (entry is PlatformMenuItemGroup) {
+          for (final item in entry.members.whereType<PlatformMenuItem>()) {
+            if (item.label == 'Close Project') closeProject = item;
+          }
+        }
+      }
+    }
+
+    expect(closeProject, isNotNull);
+    expect(closeProject!.onSelected, isNull);
+  });
+
+  testWidgets('Close Project is enabled when a workspace is open', (
+    tester,
+  ) async {
+    var closed = false;
+    await tester.pumpWidget(
+      RobotStudioMenuBar(
+        actions: AppMenuBarActions(
+          hasActiveFile: true,
+          hasOpenTabs: true,
+          hasWorkspace: true,
+          wordWrap: true,
+          canStop: false,
+          onNewProject: () {},
+          onOpenProject: () {},
+          onOpenWorkspace: () {},
+          onCloseProject: () => closed = true,
+          onSave: () {},
+          onSaveAll: () {},
+          onCloseEditor: () {},
+          onReopenClosedEditor: () {},
+          onRevealInFolder: () {},
+          onFind: () {},
+          onReplace: () {},
+          onFindInProject: () {},
+          onFormatDocument: () {},
+          onFormatSelection: () {},
+          onToggleWordWrap: () {},
+          onPreferences: () {},
+          onCommandPalette: () {},
+          onQuickOpen: () {},
+          onToggleSidebar: () {},
+          onToggleTerminal: () {},
+          onShowProblems: () {},
+          onShowExplorer: () {},
+          onShowSearch: () {},
+          onShowLibraries: () {},
+          onShowSymbols: () {},
+          onShowSourceControl: () {},
+          onShowTests: () {},
+          onShowReports: () {},
+          onShowDoctor: () {},
+          onGoToDefinition: () {},
+          onPeekDefinition: () {},
+          onFindReferences: () {},
+          onGoToSymbolInFile: () {},
+          onFindSymbolInProject: () {},
+          onShowHover: () {},
+          onRunFile: () {},
+          onRunProject: () {},
+          onStop: () {},
+        ),
+        child: const SizedBox.expand(),
+      ),
+    );
+
+    final bar = tester.widget<PlatformMenuBar>(find.byType(PlatformMenuBar));
+    PlatformMenuItem? closeProject;
+    for (final root in bar.menus.whereType<PlatformMenu>()) {
+      for (final entry in root.menus) {
+        if (entry is PlatformMenuItemGroup) {
+          for (final item in entry.members.whereType<PlatformMenuItem>()) {
+            if (item.label == 'Close Project') closeProject = item;
+          }
+        }
+      }
+    }
+
+    expect(closeProject, isNotNull);
+    expect(closeProject!.onSelected, isNotNull);
+    closeProject.onSelected!();
+    expect(closed, isTrue);
   });
 }
