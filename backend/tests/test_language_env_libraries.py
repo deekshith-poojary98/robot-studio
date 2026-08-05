@@ -65,6 +65,42 @@ async def test_resolve_library_worker_collections() -> None:
     assert any("list" in p["label"].lower() for p in info["parameters"])
 
 
+def test_resolve_library_keeps_complete_keyword_doc(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Keyword:
+        name = "Documented Keyword"
+        short_doc = "One-line summary."
+        doc = (
+            "One-line summary.\n\n"
+            "= Examples =\n"
+            "| Documented Keyword | ${value} |\n\n"
+            "- First detail\n"
+            "- Second detail"
+        )
+        args: list[object] = []
+        tags: list[str] = []
+        deprecated = False
+        lineno = 12
+
+    class _Library:
+        name = "FakeLibrary"
+        source = "/tmp/fake_library.py"
+        keywords = [_Keyword()]
+
+    monkeypatch.setattr(
+        "robot.libdoc.LibraryDocumentation",
+        lambda _name: _Library(),
+    )
+
+    result = resolve_library("FakeLibrary")
+    documentation = result["keyword_info"]["documented keyword"]["documentation"]
+
+    assert documentation == _Keyword.doc
+    assert "= Examples =" in documentation
+    assert "Second detail" in documentation
+
+
 def test_signature_help_keeps_multiword_keywords() -> None:
     content = """*** Test Cases ***
 Demo

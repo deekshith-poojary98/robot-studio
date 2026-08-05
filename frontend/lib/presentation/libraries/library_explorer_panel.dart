@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/library_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/robot_documentation.dart';
 import '../widgets/skeleton_list.dart';
 import 'library_explorer_controller.dart';
 
@@ -331,16 +332,7 @@ class _KeywordDetail extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text(
-          keyword.documentation.isEmpty
-              ? 'No documentation available.'
-              : keyword.documentation,
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.35,
-            color: context.palette.textSecondary,
-          ),
-        ),
+        RobotDocumentation(documentation: keyword.documentation),
         const SizedBox(height: AppSpacing.lg),
         Text(
           'Arguments',

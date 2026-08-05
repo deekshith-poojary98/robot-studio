@@ -981,8 +981,8 @@ def resolve_library(name: str) -> dict:
                 "source_type": source_type,
                 "library_name": library_name,
                 "documentation": str(
-                    getattr(kw, "short_doc", None)
-                    or getattr(kw, "doc", None)
+                    getattr(kw, "doc", None)
+                    or getattr(kw, "short_doc", None)
                     or "",
                 ),
                 "parameters": parameters,
