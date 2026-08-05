@@ -83,17 +83,14 @@ class _ImportEnvironmentDialogState extends State<ImportEnvironmentDialog> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: _browse,
-                  child: const Text('Browse'),
-                ),
+                OutlinedButton(onPressed: _browse, child: const Text('Browse')),
               ],
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),
               Text(
                 _error!,
-                style: const TextStyle(color: AppColors.error, fontSize: 12),
+                style: TextStyle(color: context.palette.error, fontSize: 12),
               ),
             ],
           ],
@@ -104,10 +101,7 @@ class _ImportEnvironmentDialogState extends State<ImportEnvironmentDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('Import'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('Import')),
       ],
     );
   }

@@ -40,13 +40,13 @@ class ExecutionPage extends StatelessWidget {
   final void Function(RunTestFailureInfo failure)? onJumpToFailedTest;
   final void Function(RunTestFailureInfo failure)? onRerunFailedTest;
 
-  Color get _statusDot {
-    if (status.isActive) return AppColors.accent;
+  Color _statusDot(AppPalette palette) {
+    if (status.isActive) return palette.accent;
     return switch (status) {
-      ExecutionStatus.failed || ExecutionStatus.aborted => AppColors.error,
-      ExecutionStatus.finished => AppColors.success,
-      ExecutionStatus.cancelled => AppColors.warning,
-      _ => AppColors.textMuted,
+      ExecutionStatus.failed || ExecutionStatus.aborted => palette.error,
+      ExecutionStatus.finished => palette.success,
+      ExecutionStatus.cancelled => palette.warning,
+      _ => palette.textMuted,
     };
   }
 
@@ -74,7 +74,7 @@ class ExecutionPage extends StatelessWidget {
         !running && (isLoadingFailures || failedTests.isNotEmpty);
 
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -99,10 +99,7 @@ class ExecutionPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        _subtitle,
-                        style: theme.textTheme.bodySmall,
-                      ),
+                      Text(_subtitle, style: theme.textTheme.bodySmall),
                       if (currentRun != null &&
                           currentRun!.suite.isNotEmpty &&
                           running) ...[
@@ -112,7 +109,7 @@ class ExecutionPage extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.labelMedium?.copyWith(
-                            color: AppColors.textSecondary,
+                            color: context.palette.textSecondary,
                           ),
                         ),
                       ],
@@ -122,7 +119,7 @@ class ExecutionPage extends StatelessWidget {
                 const SizedBox(width: AppSpacing.md),
                 StatusBadge(
                   label: _statusLabel.toUpperCase(),
-                  dotColor: _statusDot,
+                  dotColor: _statusDot(context.palette),
                   filled: running,
                 ),
               ],
@@ -159,7 +156,7 @@ class ExecutionPage extends StatelessWidget {
                       const Divider(height: 1),
                       Expanded(
                         child: ColoredBox(
-                          color: AppColors.rail,
+                          color: context.palette.rail,
                           child: ExecutionConsole(lines: consoleLines),
                         ),
                       ),

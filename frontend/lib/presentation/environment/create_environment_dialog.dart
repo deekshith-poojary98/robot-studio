@@ -194,10 +194,10 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
                 key: const Key('create-env.no-python'),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.12),
+                  color: context.palette.warning.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppRadii.sm),
                   border: Border.all(
-                    color: AppColors.warning.withValues(alpha: 0.45),
+                    color: context.palette.warning.withValues(alpha: 0.45),
                   ),
                 ),
                 child: Column(
@@ -328,7 +328,7 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
               const SizedBox(height: 8),
               Text(
                 _error!,
-                style: const TextStyle(color: AppColors.error, fontSize: 12),
+                style: TextStyle(color: context.palette.error, fontSize: 12),
               ),
             ],
           ],

@@ -87,14 +87,12 @@ class _EnvironmentPromptToastState extends State<EnvironmentPromptToast>
             color: Colors.transparent,
             elevation: 0,
             child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: _maxWidth(context),
-              ),
+              constraints: BoxConstraints(maxWidth: _maxWidth(context)),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated,
+                  color: context.palette.surfaceElevated,
                   borderRadius: BorderRadius.circular(AppRadii.md),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: context.palette.border),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x66000000),
@@ -112,12 +110,12 @@ class _EnvironmentPromptToastState extends State<EnvironmentPromptToast>
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Padding(
+                          Padding(
                             padding: EdgeInsets.only(top: 1),
                             child: Icon(
                               Icons.memory_outlined,
                               size: 18,
-                              color: AppColors.warning,
+                              color: context.palette.warning,
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -127,8 +125,8 @@ class _EnvironmentPromptToastState extends State<EnvironmentPromptToast>
                               children: [
                                 Text(
                                   widget.title,
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
+                                  style: TextStyle(
+                                    color: context.palette.textPrimary,
                                     fontSize: 13,
                                     height: 1.3,
                                     fontWeight: FontWeight.w600,
@@ -137,8 +135,8 @@ class _EnvironmentPromptToastState extends State<EnvironmentPromptToast>
                                 const SizedBox(height: 4),
                                 Text(
                                   widget.message,
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
+                                  style: TextStyle(
+                                    color: context.palette.textSecondary,
                                     fontSize: 12,
                                     height: 1.4,
                                   ),
@@ -157,7 +155,7 @@ class _EnvironmentPromptToastState extends State<EnvironmentPromptToast>
                               minHeight: 32,
                             ),
                             iconSize: 18,
-                            color: AppColors.textMuted,
+                            color: context.palette.textMuted,
                             icon: const Icon(Icons.close),
                           ),
                         ],
@@ -242,7 +240,7 @@ class _ActionButton extends StatelessWidget {
           maximumSize: Size(double.infinity, height),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           visualDensity: VisualDensity.standard,
-          foregroundColor: AppColors.textSecondary,
+          foregroundColor: context.palette.textSecondary,
         ),
         child: label,
       ),

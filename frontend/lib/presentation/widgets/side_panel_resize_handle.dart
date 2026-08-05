@@ -4,10 +4,7 @@ import '../../core/theme/app_theme.dart';
 
 /// Vertical drag strip between the side panel and the editor.
 class SidePanelResizeHandle extends StatefulWidget {
-  const SidePanelResizeHandle({
-    super.key,
-    required this.onDragDelta,
-  });
+  const SidePanelResizeHandle({super.key, required this.onDragDelta});
 
   final ValueChanged<double> onDragDelta;
 
@@ -40,7 +37,9 @@ class _SidePanelResizeHandleState extends State<SidePanelResizeHandle> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
               width: active ? 2 : 1,
-              color: active ? AppColors.accent : AppColors.borderSubtle,
+              color: active
+                  ? context.palette.accent
+                  : context.palette.borderSubtle,
             ),
           ),
         ),

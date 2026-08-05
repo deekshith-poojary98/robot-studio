@@ -46,9 +46,11 @@ class RobotCodeEditor extends StatefulWidget {
   final ValueChanged<String> onContentChanged;
   final void Function(int line, int column)? onCursorChanged;
   final VoidCallback? onCtrlClick;
+
   /// Fired after the pointer rests over a code position (VS Code-style hover).
   final void Function(int line, int column)? onHoverRequest;
   final VoidCallback? onHoverExit;
+
   /// Wired to ⌘S / Ctrl+S via re_editor save intent override.
   final VoidCallback? onSave;
   final bool wordWrap;
@@ -59,6 +61,7 @@ class RobotCodeEditor extends StatefulWidget {
   final SignatureHelpInfo? hoverTooltip;
   final IndexedSymbolInfo? peekDefinition;
   final VoidCallback? onClosePeek;
+
   /// Fired when the user accepts an autocomplete item (usage ranking).
   final ValueChanged<CompletionItemInfo>? onCompletionAccepted;
   final List<FoldingRangeInfo> foldingRanges;
@@ -92,7 +95,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
   double get _fontSize => widget.fontSize;
 
-  CodeLineSpanBuilder get _spanBuilder => ({
+  CodeLineSpanBuilder get _spanBuilder =>
+      ({
         required BuildContext context,
         required int index,
         required CodeLine codeLine,
@@ -223,10 +227,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       if (!mounted) return;
       widget.onContentChanged(_controller.text);
       final sel = _controller.selection;
-      widget.onCursorChanged?.call(
-        sel.baseIndex + 1,
-        sel.baseOffset + 1,
-      );
+      widget.onCursorChanged?.call(sel.baseIndex + 1, sel.baseOffset + 1);
     });
   }
 
@@ -278,8 +279,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       for (var i = start; i <= end; i++)
         CodeLine(_controller.codeLines[i].text),
     ];
-    final insertAt =
-        direction == VerticalDirection.down ? end + 1 : start;
+    final insertAt = direction == VerticalDirection.down ? end + 1 : start;
     final all = <CodeLine>[];
     for (var i = 0; i < _controller.lineCount; i++) {
       if (i == insertAt) {
@@ -362,7 +362,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       return;
     }
     final (line, column) = hit;
-    final movedFar = _hoverLocal == null ||
+    final movedFar =
+        _hoverLocal == null ||
         (local - _hoverLocal!).distance > 6 ||
         line != _hoverLine ||
         column != _hoverColumn;
@@ -386,7 +387,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   Widget build(BuildContext context) {
     final isRobot =
         widget.path.endsWith('.robot') || widget.path.endsWith('.resource');
-    final codeTheme = codeThemeForPath(widget.path);
+    final codeTheme = codeThemeForPath(widget.path, context.palette);
 
     final editor = CodeEditor(
       controller: _controller,
@@ -394,11 +395,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       scrollController: _scrollController,
       wordWrap: widget.wordWrap,
       chunkAnalyzer: _chunkAnalyzer,
-      commentFormatter: DefaultCodeCommentFormatter(
-        singleLinePrefix: '#',
-      ),
-      shortcutsActivatorsBuilder:
-          const RobotCodeShortcutsActivatorsBuilder(),
+      commentFormatter: DefaultCodeCommentFormatter(singleLinePrefix: '#'),
+      shortcutsActivatorsBuilder: const RobotCodeShortcutsActivatorsBuilder(),
       shortcutOverrideActions: {
         CodeShortcutSaveIntent: CallbackAction<CodeShortcutSaveIntent>(
           onInvoke: (_) {
@@ -411,32 +409,31 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
         fontSize: _fontSize,
         fontFamily: widget.fontFamily,
         fontHeight: _fontHeight,
-        backgroundColor: AppColors.background,
-        textColor: AppColors.textPrimary,
-        cursorColor: AppColors.accent,
-        selectionColor: AppColors.accentSoft,
-        highlightColor: const Color(0x334A8F90),
+        backgroundColor: context.palette.background,
+        textColor: context.palette.textPrimary,
+        cursorColor: context.palette.accent,
+        selectionColor: context.palette.accentSoft,
+        highlightColor: context.palette.accent.withValues(alpha: 0.2),
         codeTheme: codeTheme,
       ),
-      indicatorBuilder: (context, editingController, chunkController, notifier) {
-        return Row(
-          children: [
-            DefaultCodeLineNumber(
-              controller: editingController,
-              notifier: notifier,
-            ),
-            DefaultCodeChunkIndicator(
-              width: _chunkWidth,
-              controller: chunkController,
-              notifier: notifier,
-            ),
-          ],
-        );
-      },
-      findBuilder: (context, controller, readOnly) => EditorFindPanel(
-        controller: controller,
-        readOnly: readOnly,
-      ),
+      indicatorBuilder:
+          (context, editingController, chunkController, notifier) {
+            return Row(
+              children: [
+                DefaultCodeLineNumber(
+                  controller: editingController,
+                  notifier: notifier,
+                ),
+                DefaultCodeChunkIndicator(
+                  width: _chunkWidth,
+                  controller: chunkController,
+                  notifier: notifier,
+                ),
+              ],
+            );
+          },
+      findBuilder: (context, controller, readOnly) =>
+          EditorFindPanel(controller: controller, readOnly: readOnly),
     );
 
     final wrappedEditor = isRobot
@@ -456,7 +453,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
         : editor;
 
     final tooltip = widget.hoverTooltip;
-    final tooltipPos = _hoverLocal ?? (tooltip != null ? _caretTooltipOffset() : null);
+    final tooltipPos =
+        _hoverLocal ?? (tooltip != null ? _caretTooltipOffset() : null);
 
     return Shortcuts(
       shortcuts: {
@@ -481,13 +479,20 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
         const SingleActivator(LogicalKeyboardKey.escape):
             const _DismissSignatureIntent(),
         // Copy line — VS Code Shift+Option/Alt+↑/↓
-        const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true, alt: true):
-            const CopyLineIntent(VerticalDirection.up),
+        const SingleActivator(
+          LogicalKeyboardKey.arrowUp,
+          shift: true,
+          alt: true,
+        ): const CopyLineIntent(
+          VerticalDirection.up,
+        ),
         const SingleActivator(
           LogicalKeyboardKey.arrowDown,
           shift: true,
           alt: true,
-        ): const CopyLineIntent(VerticalDirection.down),
+        ): const CopyLineIntent(
+          VerticalDirection.down,
+        ),
       },
       child: Actions(
         actions: {
@@ -541,7 +546,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
             onPointerDown: (event) {
               _dismissHover();
               final pressed = HardwareKeyboard.instance.logicalKeysPressed;
-              final ctrl = pressed.contains(LogicalKeyboardKey.controlLeft) ||
+              final ctrl =
+                  pressed.contains(LogicalKeyboardKey.controlLeft) ||
                   pressed.contains(LogicalKeyboardKey.controlRight) ||
                   pressed.contains(LogicalKeyboardKey.metaLeft) ||
                   pressed.contains(LogicalKeyboardKey.metaRight);

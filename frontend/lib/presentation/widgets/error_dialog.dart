@@ -76,20 +76,20 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
   // Raw exception / Future / traceback noise — check the original payload first
   // so cleaning "KeyError: 'x'" into "'x'" cannot leak as the summary.
   if (_any(rawLower, const [
-    'traceback',
-    'stacktrace',
-    'future not completed',
-    'future already completed',
-    'bad state:',
-    'keyerror',
-    'typeerror',
-    'attributeerror',
-    'valueerror',
-    'runtimeerror',
-    'assertionerror',
-    'null check operator',
-    'nosuchmethoderror',
-  ]) &&
+        'traceback',
+        'stacktrace',
+        'future not completed',
+        'future already completed',
+        'bad state:',
+        'keyerror',
+        'typeerror',
+        'attributeerror',
+        'valueerror',
+        'runtimeerror',
+        'assertionerror',
+        'null check operator',
+        'nosuchmethoderror',
+      ]) &&
       !_any(rawLower, const [
         'timeout',
         'timed out',
@@ -130,7 +130,11 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
   }
 
   // Permissions / disk
-  if (_any(text, const ['permission denied', 'errno 13', 'operation not permitted'])) {
+  if (_any(text, const [
+    'permission denied',
+    'errno 13',
+    'operation not permitted',
+  ])) {
     return const FriendlyErrorCopy(
       summary: 'Robot Studio is not allowed to use that file or folder.',
       recovery: 'Pick a different location, or fix the folder permissions.',
@@ -154,7 +158,8 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
   // Deleted workspace/project root (before generic "not found")
   if (text.contains('no longer on disk')) {
     return const FriendlyErrorCopy(
-      summary: 'The folder for this workspace was deleted outside Robot Studio.',
+      summary:
+          'The folder for this workspace was deleted outside Robot Studio.',
       recovery:
           'Nothing was saved, so the deleted folder is not recreated. Restore '
           'the folder from Trash, or close this workspace and open another.',
@@ -174,9 +179,9 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
       summary: 'Could not install Robot Framework into the new environment.',
       recovery: badCwd
           ? 'Pip could not read the working directory. Try Create Environment '
-              'again, or restart Robot Studio and retry.'
+                'again, or restart Robot Studio and retry.'
           : 'Check your network connection and that the selected Python can '
-              'use pip, then try Create Environment again.',
+                'use pip, then try Create Environment again.',
     );
   }
 
@@ -522,8 +527,7 @@ bool _looksLikeRawException(String text) {
   return false;
 }
 
-bool _any(String text, List<String> needles) =>
-    needles.any(text.contains);
+bool _any(String text, List<String> needles) => needles.any(text.contains);
 
 String _venvRecoveryHint() {
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) {
@@ -574,7 +578,9 @@ class _FriendlyErrorDialogState extends State<_FriendlyErrorDialog> {
           Icon(
             widget.warning ? Icons.warning_amber_rounded : Icons.error_outline,
             size: 20,
-            color: widget.warning ? AppColors.warning : AppColors.error,
+            color: widget.warning
+                ? context.palette.warning
+                : context.palette.error,
           ),
           const SizedBox(width: 10),
           Expanded(child: Text(widget.title)),
@@ -608,18 +614,18 @@ class _FriendlyErrorDialogState extends State<_FriendlyErrorDialog> {
                 constraints: const BoxConstraints(maxHeight: 160),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated,
+                  color: context.palette.surfaceElevated,
                   borderRadius: BorderRadius.circular(AppRadii.sm),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: context.palette.border),
                 ),
                 child: SingleChildScrollView(
                   child: SelectableText(
                     widget.details,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'Menlo',
                       fontSize: 11.5,
                       height: 1.4,
-                      color: AppColors.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                 ),

@@ -41,17 +41,14 @@ class FailedTestsPanel extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.error_outline, size: 16, color: AppColors.error),
+              Icon(Icons.error_outline, size: 16, color: context.palette.error),
               const SizedBox(width: AppSpacing.sm),
-              Text(
-                'Failed Tests',
-                style: theme.textTheme.titleMedium,
-              ),
+              Text('Failed Tests', style: theme.textTheme.titleMedium),
               const SizedBox(width: AppSpacing.sm),
               Text(
                 '${failures.length}',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.error,
+                  color: context.palette.error,
                 ),
               ),
             ],
@@ -86,11 +83,7 @@ class FailedTestsPanel extends StatelessWidget {
 }
 
 class _FailureRow extends StatelessWidget {
-  const _FailureRow({
-    required this.failure,
-    this.onJump,
-    this.onRerun,
-  });
+  const _FailureRow({required this.failure, this.onJump, this.onRerun});
 
   final RunTestFailureInfo failure;
   final VoidCallback? onJump;
@@ -116,7 +109,7 @@ class _FailureRow extends StatelessWidget {
           Text(
             failure.name,
             style: theme.textTheme.titleSmall?.copyWith(
-              color: AppColors.textPrimary,
+              color: context.palette.textPrimary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -127,7 +120,7 @@ class _FailureRow extends StatelessWidget {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.error,
+                color: context.palette.error,
               ),
             ),
           ],
@@ -138,7 +131,7 @@ class _FailureRow extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.textMuted,
+                color: context.palette.textMuted,
                 fontFamily: 'Menlo',
                 fontSize: 11,
               ),

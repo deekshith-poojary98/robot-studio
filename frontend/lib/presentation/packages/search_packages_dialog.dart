@@ -92,14 +92,12 @@ class _SearchPackagesDialogState extends State<SearchPackagesDialog> {
       if (!mounted) return;
       final versions = listed.versions.isNotEmpty
           ? listed.versions
-          : [
-              if (item.latestVersion.isNotEmpty) item.latestVersion,
-            ];
+          : [if (item.latestVersion.isNotEmpty) item.latestVersion];
       final latest = listed.latestVersion?.isNotEmpty == true
           ? listed.latestVersion!
           : (item.latestVersion.isNotEmpty
-              ? item.latestVersion
-              : (versions.isNotEmpty ? versions.first : null));
+                ? item.latestVersion
+                : (versions.isNotEmpty ? versions.first : null));
       setState(() {
         _versions = versions;
         _selectedVersion = latest;
@@ -173,7 +171,7 @@ class _SearchPackagesDialogState extends State<SearchPackagesDialog> {
               const SizedBox(height: 10),
               Text(
                 _error!,
-                style: const TextStyle(color: AppColors.error, fontSize: 12),
+                style: TextStyle(color: context.palette.error, fontSize: 12),
               ),
             ],
             const SizedBox(height: 12),
@@ -181,48 +179,48 @@ class _SearchPackagesDialogState extends State<SearchPackagesDialog> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _results.isEmpty
-                      ? Center(
-                          child: Text(
-                            'Search PyPI for packages to install.',
-                            style: Theme.of(context).textTheme.bodySmall,
+                  ? Center(
+                      child: Text(
+                        'Search PyPI for packages to install.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: _results.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final item = _results[index];
+                        final selected = _pending?.name == item.name;
+                        return ListTile(
+                          selected: selected,
+                          title: Text(item.name),
+                          subtitle: Text(
+                            [
+                              if (item.latestVersion.isNotEmpty)
+                                'latest ${item.latestVersion}',
+                              if (item.summary != null) item.summary!,
+                            ].join(' · '),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        )
-                      : ListView.separated(
-                          itemCount: _results.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final item = _results[index];
-                            final selected = _pending?.name == item.name;
-                            return ListTile(
-                              selected: selected,
-                              title: Text(item.name),
-                              subtitle: Text(
-                                [
-                                  if (item.latestVersion.isNotEmpty)
-                                    'latest ${item.latestVersion}',
-                                  if (item.summary != null) item.summary!,
-                                ].join(' · '),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              trailing: FilledButton(
-                                onPressed: _loadingVersions
-                                    ? null
-                                    : () => _selectForInstall(item),
-                                child: Text(selected ? 'Selected' : 'Select'),
-                              ),
-                            );
-                          },
-                        ),
+                          trailing: FilledButton(
+                            onPressed: _loadingVersions
+                                ? null
+                                : () => _selectForInstall(item),
+                            child: Text(selected ? 'Selected' : 'Select'),
+                          ),
+                        );
+                      },
+                    ),
             ),
             if (_pending != null) ...[
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated,
+                  color: context.palette.surfaceElevated,
                   borderRadius: BorderRadius.circular(AppRadii.sm),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: context.palette.border),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -246,7 +244,8 @@ class _SearchPackagesDialogState extends State<SearchPackagesDialog> {
                     else
                       DropdownButtonFormField<String>(
                         // ignore: deprecated_member_use
-                        value: _selectedVersion != null &&
+                        value:
+                            _selectedVersion != null &&
                                 _versions.contains(_selectedVersion)
                             ? _selectedVersion
                             : (_versions.isNotEmpty ? _versions.first : null),

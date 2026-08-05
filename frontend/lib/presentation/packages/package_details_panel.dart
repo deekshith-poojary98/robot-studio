@@ -24,7 +24,7 @@ class PackageDetailsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final pkg = package;
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: ConstrainedBox(
@@ -42,25 +42,25 @@ class PackageDetailsPanel extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                   ],
-                  const Icon(
+                  Icon(
                     Icons.inventory_2_outlined,
                     size: 28,
-                    color: AppColors.accent,
+                    color: context.palette.accent,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       pkg.name,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontSize: 20,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(fontSize: 20),
                     ),
                   ),
                   if (pkg.updateAvailable)
-                    const StatusBadge(
+                    StatusBadge(
                       label: 'Update available',
                       filled: true,
-                      dotColor: AppColors.warning,
+                      dotColor: context.palette.warning,
                     ),
                 ],
               ),
@@ -139,10 +139,7 @@ class _DetailRow extends StatelessWidget {
           const SizedBox(height: 4),
           SelectableText(
             value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: context.palette.textPrimary, fontSize: 13),
           ),
         ],
       ),

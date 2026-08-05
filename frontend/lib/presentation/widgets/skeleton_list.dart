@@ -33,7 +33,7 @@ class SkeletonList extends StatelessWidget {
                 width: 14,
                 height: 14,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceHover,
+                  color: context.palette.surfaceHover,
                   borderRadius: BorderRadius.circular(AppRadii.xs),
                 ),
               ),
@@ -45,7 +45,7 @@ class SkeletonList extends StatelessWidget {
                   child: Container(
                     height: 10,
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceHover,
+                      color: context.palette.surfaceHover,
                       borderRadius: BorderRadius.circular(AppRadii.xs),
                     ),
                   ),

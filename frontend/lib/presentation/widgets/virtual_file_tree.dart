@@ -433,7 +433,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
           context,
           message: error,
           icon: Icons.error_outline,
-          iconColor: AppColors.error,
+          iconColor: context.palette.error,
           duration: const Duration(seconds: 4),
         );
       }
@@ -669,10 +669,10 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
         return DecoratedBox(
           decoration: BoxDecoration(
             color: highlighted
-                ? AppColors.accent.withValues(alpha: 0.08)
+                ? context.palette.accent.withValues(alpha: 0.08)
                 : Colors.transparent,
             border: Border.all(
-              color: highlighted ? AppColors.accent : Colors.transparent,
+              color: highlighted ? context.palette.accent : Colors.transparent,
             ),
             borderRadius: BorderRadius.circular(AppRadii.sm),
           ),
@@ -760,7 +760,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
                     ? Icons.keyboard_arrow_down
                     : Icons.keyboard_arrow_right,
                 size: 14,
-                color: AppColors.textMuted,
+                color: context.palette.textMuted,
               )
             : null,
         onTap: editing
@@ -880,7 +880,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
           child: highlighted
               ? DecoratedBox(
                   decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.accent),
+                    border: Border.all(color: context.palette.accent),
                     borderRadius: BorderRadius.circular(AppRadii.sm),
                   ),
                   child: child,

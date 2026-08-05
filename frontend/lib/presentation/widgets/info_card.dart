@@ -44,15 +44,15 @@ class _QuickActionTileState extends State<QuickActionTile> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: !enabled
-                ? AppColors.surface
+                ? context.palette.surface
                 : _hovered
-                    ? AppColors.surfaceHover
-                    : AppColors.surface,
+                ? context.palette.surfaceHover
+                : context.palette.surface,
             borderRadius: BorderRadius.circular(AppRadii.md),
             border: Border.all(
               color: enabled && _hovered
-                  ? AppColors.accent.withValues(alpha: 0.2)
-                  : AppColors.border,
+                  ? context.palette.accent.withValues(alpha: 0.2)
+                  : context.palette.border,
             ),
           ),
           child: Opacity(
@@ -64,10 +64,14 @@ class _QuickActionTileState extends State<QuickActionTile> {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: AppColors.accentSoft,
+                    color: context.palette.accentSoft,
                     borderRadius: BorderRadius.circular(AppRadii.sm),
                   ),
-                  child: Icon(widget.icon, size: 16, color: AppColors.accent),
+                  child: Icon(
+                    widget.icon,
+                    size: 16,
+                    color: context.palette.accent,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -80,8 +84,8 @@ class _QuickActionTileState extends State<QuickActionTile> {
                         widget.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: context.palette.textPrimary,
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                         ),
@@ -91,8 +95,8 @@ class _QuickActionTileState extends State<QuickActionTile> {
                         widget.subtitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
+                        style: TextStyle(
+                          color: context.palette.textMuted,
                           fontSize: 11,
                         ),
                       ),
@@ -129,31 +133,25 @@ class InfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-            Padding(
+          Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
             child: Row(
               children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
                 const Spacer(),
                 ?action,
               ],
             ),
           ),
           const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: child,
-          ),
+          Padding(padding: const EdgeInsets.all(8), child: child),
         ],
       ),
     );

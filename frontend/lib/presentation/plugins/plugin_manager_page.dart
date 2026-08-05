@@ -33,7 +33,7 @@ class PluginManagerPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -47,9 +47,9 @@ class PluginManagerPage extends StatelessWidget {
                     children: [
                       Text(
                         'Plugin Manager',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontSize: 18,
-                            ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleMedium?.copyWith(fontSize: 18),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -72,29 +72,29 @@ class PluginManagerPage extends StatelessWidget {
             child: isLoading
                 ? const SkeletonList(rows: 4)
                 : plugins.isEmpty
-                    ? const EmptyState(
-                        icon: Icons.extension_outlined,
-                        title: 'No plugins discovered',
-                        message:
-                            'Add plugins to the project Plugins/ folder or ~/.robotstudio/plugins.',
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: plugins.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final plugin = plugins[index];
-                          return _PluginRow(
-                            plugin: plugin,
-                            selected: selected?.id == plugin.id,
-                            onSelect: () => onSelect(plugin),
-                            onEnable: () => onEnable(plugin),
-                            onDisable: () => onDisable(plugin),
-                            onReload: () => onReload(plugin),
-                            onOpenFolder: () => onOpenFolder(plugin),
-                          );
-                        },
-                      ),
+                ? const EmptyState(
+                    icon: Icons.extension_outlined,
+                    title: 'No plugins discovered',
+                    message:
+                        'Add plugins to the project Plugins/ folder or ~/.robotstudio/plugins.',
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: plugins.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final plugin = plugins[index];
+                      return _PluginRow(
+                        plugin: plugin,
+                        selected: selected?.id == plugin.id,
+                        onSelect: () => onSelect(plugin),
+                        onEnable: () => onEnable(plugin),
+                        onDisable: () => onDisable(plugin),
+                        onReload: () => onReload(plugin),
+                        onOpenFolder: () => onOpenFolder(plugin),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -124,14 +124,14 @@ class _PluginRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = switch (plugin.status) {
-      'enabled' => AppColors.success,
-      'failed' => AppColors.error,
-      'disabled' => AppColors.warning,
-      _ => AppColors.textMuted,
+      'enabled' => context.palette.success,
+      'failed' => context.palette.error,
+      'disabled' => context.palette.warning,
+      _ => context.palette.textMuted,
     };
 
     return Material(
-      color: selected ? AppColors.accentSoft : AppColors.surface,
+      color: selected ? context.palette.accentSoft : context.palette.surface,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
@@ -141,7 +141,9 @@ class _PluginRow extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: selected ? AppColors.accent : AppColors.borderSubtle,
+              color: selected
+                  ? context.palette.accent
+                  : context.palette.borderSubtle,
             ),
           ),
           child: Column(
@@ -179,7 +181,8 @@ class _PluginRow extends StatelessWidget {
                           filled: plugin.enabled,
                           dotColor: statusColor,
                         ),
-                        if (plugin.isBuiltin) const StatusBadge(label: 'BUILT-IN'),
+                        if (plugin.isBuiltin)
+                          const StatusBadge(label: 'BUILT-IN'),
                       ],
                     ),
                   ),
@@ -187,7 +190,10 @@ class _PluginRow extends StatelessWidget {
               ),
               if (plugin.description.isNotEmpty) ...[
                 const SizedBox(height: 6),
-                Text(plugin.description, style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  plugin.description,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ],
               if (plugin.capabilities.isNotEmpty) ...[
                 const SizedBox(height: 8),
@@ -195,7 +201,12 @@ class _PluginRow extends StatelessWidget {
                   spacing: 6,
                   runSpacing: 6,
                   children: plugin.capabilities
-                      .map((cap) => Chip(label: Text(cap), visualDensity: VisualDensity.compact))
+                      .map(
+                        (cap) => Chip(
+                          label: Text(cap),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      )
                       .toList(),
                 ),
               ],
@@ -203,7 +214,7 @@ class _PluginRow extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   plugin.error!,
-                  style: const TextStyle(color: AppColors.error, fontSize: 12),
+                  style: TextStyle(color: context.palette.error, fontSize: 12),
                 ),
               ],
               const SizedBox(height: 10),
@@ -212,10 +223,7 @@ class _PluginRow extends StatelessWidget {
                 runSpacing: 0,
                 children: [
                   if (!plugin.enabled)
-                    TextButton(
-                      onPressed: onEnable,
-                      child: const Text('Enable'),
-                    )
+                    TextButton(onPressed: onEnable, child: const Text('Enable'))
                   else
                     TextButton(
                       onPressed: plugin.isBuiltin ? null : onDisable,

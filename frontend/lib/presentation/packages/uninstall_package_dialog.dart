@@ -19,7 +19,7 @@ Future<bool?> showUninstallPackageDialog(
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+          style: FilledButton.styleFrom(backgroundColor: context.palette.error),
           child: const Text('Uninstall'),
         ),
       ],

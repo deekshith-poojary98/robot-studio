@@ -34,7 +34,8 @@ class EditorFindPanel extends StatefulWidget implements PreferredSizeWidget {
     final value = controller.value;
     if (value == null) return Size.zero;
     final rows = value.replaceMode && !readOnly ? 2 : 1;
-    final height = _topMargin +
+    final height =
+        _topMargin +
         _boxPadding * 2 +
         rows * _fieldHeight +
         (rows - 1) * _rowGap;
@@ -160,9 +161,9 @@ class _EditorFindPanelState extends State<EditorFindPanel> {
             width: 460,
             padding: const EdgeInsets.all(EditorFindPanel._boxPadding),
             decoration: BoxDecoration(
-              color: AppColors.surfaceElevated,
+              color: context.palette.surfaceElevated,
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: context.palette.border),
               boxShadow: const [
                 BoxShadow(
                   color: Color(0x66000000),
@@ -215,8 +216,8 @@ class _EditorFindPanelState extends State<EditorFindPanel> {
                         width: 78,
                         child: Text(
                           resultLabel,
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
+                          style: TextStyle(
+                            color: context.palette.textMuted,
                             fontSize: 11,
                           ),
                         ),
@@ -224,8 +225,9 @@ class _EditorFindPanelState extends State<EditorFindPanel> {
                       _IconAction(
                         icon: Icons.arrow_upward,
                         tooltip: 'Previous Match (Shift+Enter)',
-                        onPressed:
-                            result == null ? null : controller.previousMatch,
+                        onPressed: result == null
+                            ? null
+                            : controller.previousMatch,
                       ),
                       _IconAction(
                         icon: Icons.arrow_downward,
@@ -272,8 +274,9 @@ class _EditorFindPanelState extends State<EditorFindPanel> {
                         _IconAction(
                           icon: Icons.done,
                           tooltip: 'Replace',
-                          onPressed:
-                              result == null ? null : controller.replaceMatch,
+                          onPressed: result == null
+                              ? null
+                              : controller.replaceMatch,
                         ),
                         _IconAction(
                           icon: Icons.done_all,
@@ -330,32 +333,32 @@ class _Field extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       onSubmitted: onSubmitted,
-      style: const TextStyle(
-        color: AppColors.textPrimary,
+      style: TextStyle(
+        color: context.palette.textPrimary,
         fontSize: 12,
         fontFamily: 'Menlo',
       ),
-      cursorColor: AppColors.accent,
+      cursorColor: context.palette.accent,
       decoration: InputDecoration(
         isDense: true,
         filled: true,
-        fillColor: AppColors.surface,
+        fillColor: context.palette.surface,
         hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+        hintStyle: TextStyle(color: context.palette.textMuted, fontSize: 12),
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         suffixIcon: suffix,
         suffixIconConstraints: const BoxConstraints(minHeight: 22),
-        border: _border(AppColors.border),
-        enabledBorder: _border(AppColors.border),
-        focusedBorder: _border(AppColors.accent),
+        border: _border(context.palette.border),
+        enabledBorder: _border(context.palette.border),
+        focusedBorder: _border(context.palette.accent),
       ),
     );
   }
 
   static OutlineInputBorder _border(Color color) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: BorderSide(color: color),
-      );
+    borderRadius: BorderRadius.circular(4),
+    borderSide: BorderSide(color: color),
+  );
 }
 
 class _IconAction extends StatelessWidget {
@@ -374,10 +377,10 @@ class _IconAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = onPressed == null
-        ? AppColors.textMuted.withValues(alpha: 0.4)
+        ? context.palette.textMuted.withValues(alpha: 0.4)
         : selected
-            ? AppColors.accent
-            : AppColors.textSecondary;
+        ? context.palette.accent
+        : context.palette.textSecondary;
     return Tooltip(
       message: tooltip,
       waitDuration: const Duration(milliseconds: 400),
@@ -418,13 +421,15 @@ class _Toggle extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 1),
           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
           decoration: BoxDecoration(
-            color: selected ? AppColors.accentSoft : Colors.transparent,
+            color: selected ? context.palette.accentSoft : Colors.transparent,
             borderRadius: BorderRadius.circular(3),
           ),
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? AppColors.accent : AppColors.textMuted,
+              color: selected
+                  ? context.palette.accent
+                  : context.palette.textMuted,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),

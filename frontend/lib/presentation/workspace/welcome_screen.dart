@@ -76,20 +76,20 @@ class WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Robot Studio',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('Robot Studio', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Robot Framework development, project first.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+              style: TextStyle(
+                color: context.palette.textSecondary,
+                fontSize: 12.5,
+              ),
             ),
             if (backendUnavailable) ...[
               const SizedBox(height: 16),
@@ -100,18 +100,18 @@ class WelcomeScreen extends StatelessWidget {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  border: Border.all(color: AppColors.borderSubtle),
+                  color: context.palette.surface,
+                  border: Border.all(color: context.palette.borderSubtle),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   kReleaseMode
                       ? 'Robot Studio could not start its backend service. '
-                          'Quit and reopen the app, or reinstall Robot Studio.'
+                            'Quit and reopen the app, or reinstall Robot Studio.'
                       : 'Backend unavailable. Start it with: '
-                          'make backend   (or: python -m robot_studio.main)',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
+                            'make backend   (or: python -m robot_studio.main)',
+                  style: TextStyle(
+                    color: context.palette.textSecondary,
                     fontSize: 12.5,
                     height: 1.35,
                   ),
@@ -119,10 +119,7 @@ class WelcomeScreen extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 20),
-            Text(
-              'Projects',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text('Projects', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 10),
             LayoutBuilder(
               builder: (context, constraints) {
@@ -179,14 +176,14 @@ class WelcomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Text(
-              'Advanced',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text('Advanced', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Workspaces are optional multi-project containers. Most users can ignore them.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              style: TextStyle(
+                color: context.palette.textSecondary,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 10),
             LayoutBuilder(
@@ -273,11 +270,7 @@ class WelcomeScreen extends StatelessWidget {
                   }
 
                   return Column(
-                    children: [
-                      recent,
-                      const SizedBox(height: 12),
-                      editors,
-                    ],
+                    children: [recent, const SizedBox(height: 12), editors],
                   );
                 },
               ),
@@ -382,14 +375,8 @@ class _DashboardBody extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              _DashboardMetric(
-                label: 'Total Runs',
-                value: '${data.totalRuns}',
-              ),
-              _DashboardMetric(
-                label: 'Pass Rate',
-                value: data.passRateLabel,
-              ),
+              _DashboardMetric(label: 'Total Runs', value: '${data.totalRuns}'),
+              _DashboardMetric(label: 'Pass Rate', value: data.passRateLabel),
               _DashboardMetric(
                 label: 'Average Duration',
                 value: data.averageDurationLabel,
@@ -406,12 +393,11 @@ class _DashboardBody extends StatelessWidget {
           ),
           if (data.recentRuns.isNotEmpty) ...[
             const SizedBox(height: 14),
-            Text(
-              'Recent Runs',
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
+            Text('Recent Runs', style: Theme.of(context).textTheme.labelSmall),
             const SizedBox(height: 6),
-            ...data.recentRuns.take(5).map(
+            ...data.recentRuns
+                .take(5)
+                .map(
                   (run) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
@@ -429,17 +415,17 @@ class _DashboardBody extends StatelessWidget {
                           label: run.resultBadge,
                           filled: run.resultBadge == 'PASS',
                           dotColor: run.resultBadge == 'PASS'
-                              ? AppColors.success
+                              ? context.palette.success
                               : run.resultBadge == 'FAIL'
-                                  ? AppColors.error
-                                  : AppColors.textMuted,
+                              ? context.palette.error
+                              : context.palette.textMuted,
                         ),
                         if (run.durationLabel != '—') ...[
                           const SizedBox(width: 8),
                           Text(
                             run.durationLabel,
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
+                            style: TextStyle(
+                              color: context.palette.textMuted,
                               fontSize: 10,
                             ),
                           ),
@@ -456,7 +442,9 @@ class _DashboardBody extends StatelessWidget {
               style: Theme.of(context).textTheme.labelSmall,
             ),
             const SizedBox(height: 6),
-            ...data.recentFailures.take(3).map(
+            ...data.recentFailures
+                .take(3)
+                .map(
                   (run) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
@@ -473,7 +461,7 @@ class _DashboardBody extends StatelessWidget {
                         StatusBadge(
                           label: run.resultBadge,
                           filled: false,
-                          dotColor: AppColors.error,
+                          dotColor: context.palette.error,
                         ),
                       ],
                     ),
@@ -498,9 +486,9 @@ class _DashboardMetric extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 110),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: context.palette.background,
         borderRadius: BorderRadius.circular(AppRadii.sm),
-        border: Border.all(color: AppColors.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -509,8 +497,8 @@ class _DashboardMetric extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: context.palette.textPrimary,
               fontWeight: FontWeight.w700,
               fontSize: 14,
             ),
@@ -540,7 +528,7 @@ class _RecentRunsBody extends StatelessWidget {
           StatusBadge(
             label: runningStatus!.label,
             filled: true,
-            dotColor: AppColors.accent,
+            dotColor: context.palette.accent,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -583,14 +571,14 @@ class _RecentRunsBody extends StatelessWidget {
               StatusBadge(
                 label: run.status.label,
                 filled: run.status == ExecutionStatus.finished,
-                dotColor: _statusColor(run.status),
+                dotColor: _statusColor(context.palette, run.status),
               ),
               if (run.durationLabel != '—') ...[
                 const SizedBox(width: 8),
                 Text(
                   run.durationLabel,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
+                  style: TextStyle(
+                    color: context.palette.textMuted,
                     fontSize: 10,
                   ),
                 ),
@@ -602,17 +590,16 @@ class _RecentRunsBody extends StatelessWidget {
     );
   }
 
-  Color _statusColor(ExecutionStatus status) {
+  Color _statusColor(AppPalette palette, ExecutionStatus status) {
     return switch (status) {
-      ExecutionStatus.finished => AppColors.success,
-      ExecutionStatus.failed => AppColors.error,
-      ExecutionStatus.cancelled => AppColors.warning,
-      ExecutionStatus.aborted => AppColors.warning,
+      ExecutionStatus.finished => palette.success,
+      ExecutionStatus.failed => palette.error,
+      ExecutionStatus.cancelled => palette.warning,
+      ExecutionStatus.aborted => palette.warning,
       ExecutionStatus.running ||
       ExecutionStatus.starting ||
-      ExecutionStatus.stopping =>
-        AppColors.accent,
-      ExecutionStatus.idle => AppColors.textMuted,
+      ExecutionStatus.stopping => palette.accent,
+      ExecutionStatus.idle => palette.textMuted,
     };
   }
 }
@@ -666,10 +653,7 @@ class _RecentProjectsBody extends StatelessWidget {
 }
 
 class _RecentFilesBody extends StatelessWidget {
-  const _RecentFilesBody({
-    required this.paths,
-    this.onOpen,
-  });
+  const _RecentFilesBody({required this.paths, this.onOpen});
 
   final List<String> paths;
   final ValueChanged<String>? onOpen;
@@ -699,7 +683,7 @@ class _RecentFilesBody extends StatelessWidget {
             path,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
+            style: TextStyle(color: context.palette.textMuted, fontSize: 10),
           ),
         );
       }).toList(),
@@ -708,10 +692,7 @@ class _RecentFilesBody extends StatelessWidget {
 }
 
 class _OpenEditorsBody extends StatelessWidget {
-  const _OpenEditorsBody({
-    required this.paths,
-    this.onOpen,
-  });
+  const _OpenEditorsBody({required this.paths, this.onOpen});
 
   final List<String> paths;
   final ValueChanged<String>? onOpen;

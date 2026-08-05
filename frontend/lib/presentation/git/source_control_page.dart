@@ -68,7 +68,7 @@ class SourceControlPage extends StatelessWidget {
     final isRepository = repository?.isRepository ?? false;
 
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -93,7 +93,9 @@ class SourceControlPage extends StatelessWidget {
                         'Source Control always uses the open Robot Studio project. '
                         'Initialize Git here, or open the parent folder as the project '
                         'if you intentionally want that repository.',
-                    actionLabel: isBusy ? null : 'Initialize Git in this project',
+                    actionLabel: isBusy
+                        ? null
+                        : 'Initialize Git in this project',
                     onAction: isBusy ? null : onInit,
                   )
                 : Row(
@@ -301,9 +303,9 @@ class _ChangesView extends StatelessWidget {
           if (grouped.containsKey(status)) ...[
             Text(
               status.label,
-              style: Theme.of(
-                context,
-              ).textTheme.labelLarge?.copyWith(color: status.color),
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: status.colorFor(context.palette),
+              ),
             ),
             const SizedBox(height: 6),
             ...grouped[status]!.map(
@@ -340,7 +342,7 @@ class _ChangeRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: active ? AppColors.accentSoft : Colors.transparent,
+      color: active ? context.palette.accentSoft : Colors.transparent,
       borderRadius: BorderRadius.circular(AppRadii.sm),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -402,10 +404,7 @@ class _SourceControlSkeleton extends StatelessWidget {
               ),
               Divider(height: 1),
               Expanded(
-                child: SkeletonList(
-                  rows: 7,
-                  padding: EdgeInsets.all(16),
-                ),
+                child: SkeletonList(rows: 7, padding: EdgeInsets.all(16)),
               ),
             ],
           ),
@@ -422,8 +421,8 @@ class _CommitPanelSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.borderSubtle)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -459,7 +458,7 @@ class _SkeletonBlock extends StatelessWidget {
         width: width ?? double.infinity,
         height: height,
         decoration: BoxDecoration(
-          color: AppColors.surfaceHover,
+          color: context.palette.surfaceHover,
           borderRadius: BorderRadius.circular(AppRadii.xs),
         ),
       ),

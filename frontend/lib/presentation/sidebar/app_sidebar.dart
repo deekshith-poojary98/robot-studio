@@ -22,11 +22,9 @@ class AppSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 52,
-      decoration: const BoxDecoration(
-        color: AppColors.rail,
-        border: Border(
-          right: BorderSide(color: AppColors.borderSubtle),
-        ),
+      decoration: BoxDecoration(
+        color: context.palette.rail,
+        border: Border(right: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: Column(
         children: [
@@ -35,14 +33,14 @@ class AppSidebar extends StatelessWidget {
             width: 30,
             height: 30,
             decoration: BoxDecoration(
-              color: AppColors.accentSoft,
+              color: context.palette.accentSoft,
               borderRadius: BorderRadius.circular(9),
               border: Border.all(
-                color: AppColors.accent.withValues(alpha: 0.35),
+                color: context.palette.accent.withValues(alpha: 0.35),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.accent.withValues(alpha: 0.12),
+                  color: context.palette.accent.withValues(alpha: 0.12),
                   blurRadius: 10,
                   spreadRadius: 0,
                 ),
@@ -51,7 +49,7 @@ class AppSidebar extends StatelessWidget {
             child: Icon(
               Icons.precision_manufacturing_outlined,
               size: 17,
-              color: AppColors.accent.withValues(alpha: 0.9),
+              color: context.palette.accent.withValues(alpha: 0.9),
             ),
           ),
           const SizedBox(height: 14),

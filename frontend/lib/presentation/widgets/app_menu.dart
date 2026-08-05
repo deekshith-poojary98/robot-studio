@@ -15,10 +15,7 @@ class AppPopupMenuItem<T> extends PopupMenuItem<T> {
     required super.child,
     super.enabled = true,
     super.onTap,
-  }) : super(
-          height: kAppMenuItemHeight,
-          padding: kAppMenuItemPadding,
-        );
+  }) : super(height: kAppMenuItemHeight, padding: kAppMenuItemPadding);
 
   /// Label + optional leading icon in one compact row.
   factory AppPopupMenuItem.icon({
@@ -36,7 +33,8 @@ class AppPopupMenuItem<T> extends PopupMenuItem<T> {
       onTap: onTap,
       child: Row(
         children: [
-          Icon(icon, size: 15, color: AppColors.textSecondary),
+          // Colour comes from IconTheme so the row follows the active theme.
+          Icon(icon, size: 15),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -57,18 +55,33 @@ class AppCheckedPopupMenuItem<T> extends CheckedPopupMenuItem<T> {
     required super.checked,
     required super.child,
     super.enabled = true,
-  }) : super(
-          height: kAppMenuItemHeight,
-          padding: kAppMenuItemPadding,
-        );
+  }) : super(height: kAppMenuItemHeight, padding: kAppMenuItemPadding);
 }
 
-class AppPopupMenuDivider extends PopupMenuDivider {
-  /// Visible hairline between menu groups (not empty vertical padding).
-  const AppPopupMenuDivider({super.key})
-      : super(
-          height: 9,
-          thickness: 1,
-          color: AppColors.border,
-        );
+/// Visible hairline between menu groups (not empty vertical padding).
+///
+/// Resolves its colour in `build` rather than in the constructor so it stays
+/// `const`-constructible at every call site while still following the theme.
+class AppPopupMenuDivider extends PopupMenuEntry<Never> {
+  const AppPopupMenuDivider({super.key});
+
+  @override
+  double get height => 9;
+
+  @override
+  bool represents(void value) => false;
+
+  @override
+  State<AppPopupMenuDivider> createState() => _AppPopupMenuDividerState();
+}
+
+class _AppPopupMenuDividerState extends State<AppPopupMenuDivider> {
+  @override
+  Widget build(BuildContext context) {
+    return Divider(
+      height: widget.height,
+      thickness: 1,
+      color: context.palette.border,
+    );
+  }
 }

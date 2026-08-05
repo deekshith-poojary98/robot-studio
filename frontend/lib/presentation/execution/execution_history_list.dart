@@ -44,82 +44,84 @@ class ExecutionHistoryList extends StatelessWidget {
           child: isLoading
               ? const Center(child: CircularProgressIndicator())
               : runs.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No executions yet.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    )
-                  : ListView.separated(
+              ? Center(
+                  child: Text(
+                    'No executions yet.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: runs.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final run = runs[index];
+                    return Container(
                       padding: const EdgeInsets.all(12),
-                      itemCount: runs.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final run = runs[index];
-                        return Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(AppRadii.md),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      decoration: BoxDecoration(
+                        color: context.palette.surface,
+                        borderRadius: BorderRadius.circular(AppRadii.md),
+                        border: Border.all(color: context.palette.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      run.projectName.isEmpty
-                                          ? run.suite
-                                          : run.projectName,
-                                      style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                      ),
-                                    ),
+                              Expanded(
+                                child: Text(
+                                  run.projectName.isEmpty
+                                      ? run.suite
+                                      : run.projectName,
+                                  style: TextStyle(
+                                    color: context.palette.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
                                   ),
-                                  StatusBadge(
-                                    label: run.status.label.toUpperCase(),
-                                    filled: run.status == ExecutionStatus.finished,
-                                    dotColor: _statusColor(run.status),
-                                  ),
-                                ],
+                                ),
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                run.suite,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${_formatTime(run.startedAt)}  ·  ${run.durationLabel}',
-                                style: Theme.of(context).textTheme.bodySmall,
+                              StatusBadge(
+                                label: run.status.label.toUpperCase(),
+                                filled: run.status == ExecutionStatus.finished,
+                                dotColor: _statusColor(
+                                  context.palette,
+                                  run.status,
+                                ),
                               ),
                             ],
                           ),
-                        );
-                      },
-                    ),
+                          const SizedBox(height: 6),
+                          Text(
+                            run.suite,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${_formatTime(run.startedAt)}  ·  ${run.durationLabel}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
         ),
       ],
     );
   }
 
-  Color _statusColor(ExecutionStatus status) {
+  Color _statusColor(AppPalette palette, ExecutionStatus status) {
     return switch (status) {
-      ExecutionStatus.finished => AppColors.success,
-      ExecutionStatus.failed => AppColors.error,
-      ExecutionStatus.cancelled => AppColors.warning,
-      ExecutionStatus.aborted => AppColors.warning,
+      ExecutionStatus.finished => palette.success,
+      ExecutionStatus.failed => palette.error,
+      ExecutionStatus.cancelled => palette.warning,
+      ExecutionStatus.aborted => palette.warning,
       ExecutionStatus.running ||
       ExecutionStatus.starting ||
-      ExecutionStatus.stopping =>
-        AppColors.accent,
-      ExecutionStatus.idle => AppColors.textMuted,
+      ExecutionStatus.stopping => palette.accent,
+      ExecutionStatus.idle => palette.textMuted,
     };
   }
 

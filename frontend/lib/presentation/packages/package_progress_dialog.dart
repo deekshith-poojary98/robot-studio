@@ -91,20 +91,14 @@ class _PackageProgressDialogState extends State<_PackageProgressDialog> {
             if (_running) ...[
               const LinearProgressIndicator(),
               const SizedBox(height: 12),
-              Text(
-                'Working…',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              Text('Working…', style: Theme.of(context).textTheme.bodySmall),
             ] else if (_error != null) ...[
               Text(
                 _error!,
-                style: const TextStyle(color: AppColors.error, fontSize: 12),
+                style: TextStyle(color: context.palette.error, fontSize: 12),
               ),
             ] else ...[
-              Text(
-                'Completed',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              Text('Completed', style: Theme.of(context).textTheme.bodySmall),
               if (_logs.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 ConstrainedBox(
@@ -112,9 +106,9 @@ class _PackageProgressDialogState extends State<_PackageProgressDialog> {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated,
+                      color: context.palette.surfaceElevated,
                       borderRadius: BorderRadius.circular(AppRadii.sm),
-                      border: Border.all(color: AppColors.border),
+                      border: Border.all(color: context.palette.border),
                     ),
                     child: ListView.builder(
                       shrinkWrap: true,
@@ -122,8 +116,8 @@ class _PackageProgressDialogState extends State<_PackageProgressDialog> {
                       itemBuilder: (context, index) {
                         return Text(
                           _logs[index],
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
+                          style: TextStyle(
+                            color: context.palette.textSecondary,
                             fontSize: 11,
                             fontFamily: 'Menlo',
                           ),

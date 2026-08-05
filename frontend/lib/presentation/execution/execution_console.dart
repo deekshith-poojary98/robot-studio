@@ -69,17 +69,17 @@ class _ExecutionConsoleState extends State<ExecutionConsole> {
   Color _colorFor(String line) {
     final upper = line.toUpperCase();
     if (upper.contains('| PASS |') || upper.contains('[PASS]')) {
-      return AppColors.success;
+      return context.palette.success;
     }
     if (upper.contains('| FAIL |') || upper.contains('[FAIL]')) {
-      return AppColors.error;
+      return context.palette.error;
     }
     if (upper.contains('| WARN |') || upper.contains('[WARN]')) {
-      return AppColors.warning;
+      return context.palette.warning;
     }
     if (upper.contains('| INFO |') || upper.contains('[INFO]')) {
-      return AppColors.info;
+      return context.palette.info;
     }
-    return AppColors.textSecondary;
+    return context.palette.textSecondary;
   }
 }

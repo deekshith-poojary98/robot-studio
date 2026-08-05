@@ -29,10 +29,10 @@ class _SidebarButtonState extends State<SidebarButton> {
   Widget build(BuildContext context) {
     final active = widget.isActive;
     final color = active
-        ? AppColors.accent
+        ? context.palette.accent
         : _hovered
-            ? AppColors.textPrimary
-            : AppColors.textSecondary;
+        ? context.palette.textPrimary
+        : context.palette.textSecondary;
 
     return Tooltip(
       message: widget.tooltip ?? widget.label,
@@ -51,18 +51,18 @@ class _SidebarButtonState extends State<SidebarButton> {
             margin: const EdgeInsets.symmetric(vertical: 3),
             decoration: BoxDecoration(
               color: active
-                  ? AppColors.accentSoft
+                  ? context.palette.accentSoft
                   : _hovered
-                      ? AppColors.surfaceHover
-                      : Colors.transparent,
+                  ? context.palette.surfaceHover
+                  : Colors.transparent,
               borderRadius: BorderRadius.zero,
               border: active
                   ? Border(
                       top: BorderSide(
-                        color: AppColors.accent.withValues(alpha: 0.22),
+                        color: context.palette.accent.withValues(alpha: 0.22),
                       ),
                       bottom: BorderSide(
-                        color: AppColors.accent.withValues(alpha: 0.22),
+                        color: context.palette.accent.withValues(alpha: 0.22),
                       ),
                     )
                   : null,

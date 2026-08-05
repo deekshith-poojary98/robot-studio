@@ -13,10 +13,7 @@ import '../widgets/empty_state.dart';
 
 /// Interactive shell in the bottom panel (workspace cwd when a project is open).
 class TerminalPanel extends StatefulWidget {
-  const TerminalPanel({
-    super.key,
-    this.workingDirectory,
-  });
+  const TerminalPanel({super.key, this.workingDirectory});
 
   final String? workingDirectory;
 
@@ -154,13 +151,13 @@ class _TerminalPanelState extends State<TerminalPanel> {
 
     if (!_canStartShell) {
       return ColoredBox(
-        color: AppColors.rail,
+        color: context.palette.rail,
         child: Center(
           child: Text(
             'Terminal is available on desktop builds.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.textMuted,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
           ),
         ),
       );
@@ -168,7 +165,7 @@ class _TerminalPanelState extends State<TerminalPanel> {
 
     if (_error != null) {
       return ColoredBox(
-        color: AppColors.rail,
+        color: context.palette.rail,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -181,10 +178,10 @@ class _TerminalPanelState extends State<TerminalPanel> {
               const SizedBox(height: 8),
               Text(
                 _error!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Menlo',
                   fontSize: 12,
-                  color: AppColors.error,
+                  color: context.palette.error,
                 ),
               ),
               const SizedBox(height: 12),
@@ -200,7 +197,7 @@ class _TerminalPanelState extends State<TerminalPanel> {
     }
 
     return ColoredBox(
-      color: AppColors.rail,
+      color: context.palette.rail,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -209,16 +206,20 @@ class _TerminalPanelState extends State<TerminalPanel> {
             child: Row(
               children: [
                 const SizedBox(width: 10),
-                const Icon(Icons.folder_open, size: 14, color: AppColors.textMuted),
+                Icon(
+                  Icons.folder_open,
+                  size: 14,
+                  color: context.palette.textMuted,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     cwd,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: AppColors.textMuted,
+                      color: context.palette.textMuted,
                       fontFamily: 'Menlo',
                     ),
                   ),
@@ -234,7 +235,9 @@ class _TerminalPanelState extends State<TerminalPanel> {
                   icon: const Icon(Icons.close, size: 14),
                   onPressed: () {
                     _tearDownPty();
-                    _terminal.write('\r\n[shell killed — click Restart to open a new session]\r\n');
+                    _terminal.write(
+                      '\r\n[shell killed — click Restart to open a new session]\r\n',
+                    );
                     setState(() {});
                   },
                   visualDensity: VisualDensity.compact,
@@ -248,11 +251,8 @@ class _TerminalPanelState extends State<TerminalPanel> {
               controller: _controller,
               autofocus: false,
               backgroundOpacity: 1,
-              theme: _studioTheme,
-              textStyle: const TerminalStyle(
-                fontSize: 12,
-                fontFamily: 'Menlo',
-              ),
+              theme: _studioTheme(context.palette),
+              textStyle: const TerminalStyle(fontSize: 12, fontFamily: 'Menlo'),
               onSecondaryTapDown: (details, offset) async {
                 final selection = _controller.selection;
                 if (selection != null) {
@@ -274,29 +274,37 @@ class _TerminalPanelState extends State<TerminalPanel> {
     );
   }
 
-  static const _studioTheme = TerminalTheme(
-    cursor: AppColors.accent,
-    selection: Color(0x554A8F90),
-    foreground: AppColors.textPrimary,
-    background: AppColors.rail,
-    black: Color(0xFF000000),
-    red: AppColors.error,
-    green: AppColors.success,
-    yellow: AppColors.warning,
-    blue: AppColors.info,
-    magenta: Color(0xFFBC3FBC),
-    cyan: AppColors.accent,
-    white: AppColors.textPrimary,
-    brightBlack: AppColors.textMuted,
-    brightRed: AppColors.error,
-    brightGreen: AppColors.success,
-    brightYellow: AppColors.warning,
-    brightBlue: AppColors.info,
-    brightMagenta: Color(0xFFD670D6),
-    brightCyan: AppColors.accent,
-    brightWhite: Color(0xFFFFFFFF),
-    searchHitBackground: AppColors.warning,
-    searchHitBackgroundCurrent: AppColors.success,
-    searchHitForeground: Color(0xFF000000),
-  );
+  /// ANSI colours come from the palette, but `black`/`white` and the search-hit
+  /// foreground have to invert with brightness — a black-on-white terminal
+  /// needs the opposite ends of the ramp from a white-on-black one.
+  static TerminalTheme _studioTheme(AppPalette palette) {
+    final isDark = palette.isDark;
+    return TerminalTheme(
+      cursor: palette.accent,
+      selection: palette.accent.withValues(alpha: 0.33),
+      foreground: palette.textPrimary,
+      background: palette.rail,
+      black: isDark ? const Color(0xFF000000) : const Color(0xFF3B3B3B),
+      red: palette.error,
+      green: palette.success,
+      yellow: palette.warning,
+      blue: palette.info,
+      magenta: isDark ? const Color(0xFFBC3FBC) : const Color(0xFF9B2A9B),
+      cyan: palette.accent,
+      white: isDark ? palette.textPrimary : const Color(0xFF6E6E6E),
+      brightBlack: palette.textMuted,
+      brightRed: palette.error,
+      brightGreen: palette.success,
+      brightYellow: palette.warning,
+      brightBlue: palette.info,
+      brightMagenta: isDark ? const Color(0xFFD670D6) : const Color(0xFFB93EB9),
+      brightWhite: isDark ? const Color(0xFFFFFFFF) : const Color(0xFF1F1F1F),
+      brightCyan: palette.accent,
+      searchHitBackground: palette.warning,
+      searchHitBackgroundCurrent: palette.success,
+      searchHitForeground: isDark
+          ? const Color(0xFF000000)
+          : const Color(0xFFFFFFFF),
+    );
+  }
 }

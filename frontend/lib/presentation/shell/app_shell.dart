@@ -86,10 +86,16 @@ class AppShell extends StatefulWidget {
     super.key,
     TransportGateway? gateway,
     TransportGateway? apiClient,
+    this.themePreference,
   }) : _gateway = gateway ?? apiClient;
 
   /// Supports both [gateway] and legacy [apiClient] parameter names.
   final TransportGateway? _gateway;
+
+  /// Publishes the Appearance preference up to [MaterialApp], which owns the
+  /// theme. The shell cannot theme itself — a `Theme` it returns sits below its
+  /// own `State.context`.
+  final ValueNotifier<String>? themePreference;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -296,8 +302,8 @@ class _AppShellState extends State<AppShell> {
         setState(() {
           _liveNotification = message.isEmpty ? null : message;
           final lower = message.toLowerCase();
-          final isProgress = lower.contains('indexing') ||
-              lower.contains('analyzing');
+          final isProgress =
+              lower.contains('indexing') || lower.contains('analyzing');
           if (message.isEmpty ||
               lower.contains('synchronized') ||
               lower.contains('removed')) {
@@ -325,6 +331,7 @@ class _AppShellState extends State<AppShell> {
     if (_editor.wordWrap != wrap) {
       _editor.wordWrap = wrap;
     }
+    widget.themePreference?.value = _settings.appearance.theme.apiValue;
     setState(() {});
   }
 
@@ -1290,7 +1297,8 @@ class _AppShellState extends State<AppShell> {
       return false;
     }
     final env = _activeEnvironment;
-    final installed = _robotFrameworkInstalled ||
+    final installed =
+        _robotFrameworkInstalled ||
         (env?.robotVersion != null && env!.robotVersion!.isNotEmpty);
     if (installed) return true;
     if (!mounted) return false;
@@ -1329,9 +1337,9 @@ class _AppShellState extends State<AppShell> {
   /// Prefer the active editor when it is a `.robot` suite; never silently
   /// fall back to another suite while a non-robot file is focused.
   String? get _runTargetPath => resolveRunTargetPath(
-        activeEditorPath: _activeEditorPath,
-        stickySuitePath: _selectedSuitePath,
-      );
+    activeEditorPath: _activeEditorPath,
+    stickySuitePath: _selectedSuitePath,
+  );
 
   bool get _canRunFile => _canRunTests && _runTargetPath != null;
 
@@ -1406,14 +1414,14 @@ class _AppShellState extends State<AppShell> {
     try {
       count = await _gateway.countTests(tag: tag, projectWide: projectWide);
     } catch (_) {}
-    final wildcard = tag != null &&
+    final wildcard =
+        tag != null &&
         (tag.contains('*') ||
             tag.contains('?') ||
             tag.toUpperCase().contains('OR') ||
             tag.toUpperCase().contains('AND') ||
             tag.toUpperCase().contains('NOT'));
-    final needsConfirm =
-        count > _defaultLargeRunThreshold || wildcard;
+    final needsConfirm = count > _defaultLargeRunThreshold || wildcard;
     if (needsConfirm &&
         !await _showLargeRunConfirmDialog(
           count: count,
@@ -1443,8 +1451,7 @@ class _AppShellState extends State<AppShell> {
         text.contains('could not verify robot framework') ||
         text.contains('robot_missing') ||
         (text.contains('robot framework') &&
-            (text.contains('not installed') ||
-                text.contains('not available')));
+            (text.contains('not installed') || text.contains('not available')));
   }
 
   Future<void> _handleExecutionError(Object error) async {
@@ -2332,7 +2339,8 @@ class _AppShellState extends State<AppShell> {
         ? _executionHistory.first
         : _currentExecution;
     if (latest != null) {
-      final failed = latest.status == ExecutionStatus.failed ||
+      final failed =
+          latest.status == ExecutionStatus.failed ||
           latest.status == ExecutionStatus.aborted ||
           latest.status == ExecutionStatus.cancelled ||
           (latest.failed ?? 0) > 0 ||
@@ -2350,7 +2358,8 @@ class _AppShellState extends State<AppShell> {
 
   void _offerViewReportToast(ExecutionInfo run) {
     if (!mounted) return;
-    final failed = run.status == ExecutionStatus.failed ||
+    final failed =
+        run.status == ExecutionStatus.failed ||
         run.status == ExecutionStatus.aborted ||
         run.status == ExecutionStatus.cancelled ||
         (run.failed ?? 0) > 0 ||
@@ -2371,7 +2380,7 @@ class _AppShellState extends State<AppShell> {
       onAction: () => unawaited(_selectReport(run)),
       duration: const Duration(seconds: 6),
       icon: failed ? Icons.error_outline : Icons.check_circle_outline,
-      iconColor: failed ? AppColors.error : AppColors.success,
+      iconColor: failed ? context.palette.error : context.palette.success,
     );
   }
 
@@ -2388,7 +2397,7 @@ class _AppShellState extends State<AppShell> {
       },
       duration: const Duration(seconds: 8),
       icon: Icons.extension_outlined,
-      iconColor: AppColors.warning,
+      iconColor: context.palette.warning,
     );
   }
 
@@ -2407,7 +2416,7 @@ class _AppShellState extends State<AppShell> {
         context,
         message: 'Installed $packageName',
         icon: Icons.check_circle_outline,
-        iconColor: AppColors.success,
+        iconColor: context.palette.success,
       );
     } catch (error) {
       if (!mounted) return;
@@ -2455,10 +2464,7 @@ class _AppShellState extends State<AppShell> {
     setState(() => _loadingTestTree = true);
     try {
       final q = query ?? _testFilter;
-      final tree = await _gateway.getTestTree(
-        query: q,
-        lazy: q.trim().isEmpty,
-      );
+      final tree = await _gateway.getTestTree(query: q, lazy: q.trim().isEmpty);
       List<IndexedSymbolInfo> suites = const [];
       try {
         suites = await _gateway.searchSymbols(
@@ -3363,8 +3369,7 @@ class _AppShellState extends State<AppShell> {
           label: _activeWorkspace!.name,
           path: _activeWorkspace!.path,
         ),
-      if (project != null)
-        BreadcrumbSegment(label: project, path: projectPath),
+      if (project != null) BreadcrumbSegment(label: project, path: projectPath),
       if (folder != null && folder != project)
         BreadcrumbSegment(label: folder, path: folderPath),
       BreadcrumbSegment(label: fileName, path: tab.path, line: 1),
@@ -3390,8 +3395,7 @@ class _AppShellState extends State<AppShell> {
     final path = segment.path;
     if (path == null || path.isEmpty) return;
     final lower = path.toLowerCase();
-    final isRobotFile =
-        lower.endsWith('.robot') || lower.endsWith('.resource');
+    final isRobotFile = lower.endsWith('.robot') || lower.endsWith('.resource');
     if (isRobotFile || segment.line != null) {
       unawaited(_openFile(path, line: segment.line));
       return;
@@ -3456,7 +3460,8 @@ class _AppShellState extends State<AppShell> {
   Future<void> _editorCtrlClickDefinition() async {
     final tab = _activeEditorTab;
     if (tab == null) return;
-    final token = EditorShellController.extractRobotTokenAt(
+    final token =
+        EditorShellController.extractRobotTokenAt(
           tab.content,
           _cursorLine,
           _cursorColumn,
@@ -3698,11 +3703,11 @@ class _AppShellState extends State<AppShell> {
     final cursorToken = tab == null
         ? null
         : (EditorShellController.extractRobotTokenAt(
-              tab.content,
-              _cursorLine,
-              _cursorColumn,
-            ) ??
-            _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn));
+                tab.content,
+                _cursorLine,
+                _cursorColumn,
+              ) ??
+              _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn));
     final token = cursorToken ?? _editorTokenName();
     if (token == null) {
       setState(() {
@@ -4812,14 +4817,10 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final connected = _workspace.backendStatus == 'connected';
     final activeEnvironment = _activeEnvironment;
-    final theme = resolveAppTheme(
-      preference: _settings.appearance.theme.apiValue,
-      platformBrightness: MediaQuery.platformBrightnessOf(context),
-    );
 
-    return Theme(
-      data: theme,
-      child: RobotStudioMenuBar(
+    // Theme lives on MaterialApp (see main.dart) so this State's own context —
+    // and every dialog route — resolves the active palette.
+    return RobotStudioMenuBar(
       actions: AppMenuBarActions(
         hasActiveFile: _activeEditorPath != null,
         hasOpenTabs: _editorTabs.isNotEmpty,
@@ -4970,7 +4971,7 @@ class _AppShellState extends State<AppShell> {
           child: Focus(
             autofocus: true,
             child: Scaffold(
-              backgroundColor: AppColors.background,
+              backgroundColor: context.palette.background,
               body: Stack(
                 children: [
                   Column(
@@ -5168,7 +5169,7 @@ class _AppShellState extends State<AppShell> {
                                 isLoadingOutline: _loadingOutline,
                                 selectedOutlineId:
                                     _editor.activeDocumentSymbol?.id ??
-                                        _selectedOutlineSymbol?.id,
+                                    _selectedOutlineSymbol?.id,
                                 onOutlineSelect: (symbol) {
                                   setState(() {
                                     _editor.selectedOutlineSymbol = symbol;
@@ -5182,20 +5183,14 @@ class _AppShellState extends State<AppShell> {
                                     _gateway.searchContent(query: query),
                                 onOpenContentMatch: (path, line, column) {
                                   unawaited(
-                                    _openFile(
-                                      path,
-                                      line: line,
-                                      column: column,
-                                    ),
+                                    _openFile(path, line: line, column: column),
                                   );
                                 },
                                 onOpenSymbols: () =>
                                     unawaited(_openSymbolsPage()),
                                 libraryExplorerController: _libraryExplorer,
                                 onLibraryJumpToSource: (path, line) {
-                                  unawaited(
-                                    _openFile(path, line: line ?? 1),
-                                  );
+                                  unawaited(_openFile(path, line: line ?? 1));
                                 },
                               ),
                             if (SidePanel.hasSideContent(_activePanel) &&
@@ -5284,7 +5279,9 @@ class _AppShellState extends State<AppShell> {
                               const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -5311,7 +5308,6 @@ class _AppShellState extends State<AppShell> {
             ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -5605,7 +5601,7 @@ class _WorkspaceOpenPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       alignment: Alignment.center,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(28),
@@ -5614,10 +5610,10 @@ class _WorkspaceOpenPlaceholder extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.folder_open,
                 size: 40,
-                color: AppColors.textMuted,
+                color: context.palette.textMuted,
               ),
               const SizedBox(height: 12),
               Text(

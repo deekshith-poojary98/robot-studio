@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 
-/// Design tokens for Robot Studio (dark-mode first).
+import 'app_palette.dart';
+
+export 'app_palette.dart' show AppPalette, AppPaletteContext;
+
+/// Dark design tokens as compile-time constants.
+///
+/// Prefer `context.palette` in widgets — these constants cannot follow a theme
+/// switch. They remain for `const` contexts and for code with no
+/// [BuildContext]; anything user-visible should migrate to [AppPalette].
 abstract final class AppColors {
   static const background = Color(0xFF141416);
   static const surface = Color(0xFF1B1B1F);
@@ -54,113 +62,117 @@ abstract final class AppDialogWidth {
   static const wide = 480.0;
 }
 
-ThemeData buildAppTheme() {
-  const colorScheme = ColorScheme.dark(
-    brightness: Brightness.dark,
-    primary: AppColors.accent,
-    onPrimary: Color(0xFFE8F2F2),
-    secondary: AppColors.accentMuted,
-    onSecondary: Colors.white,
-    surface: AppColors.surface,
-    onSurface: AppColors.textPrimary,
-    error: AppColors.error,
-    onError: Colors.black,
-    outline: AppColors.border,
+/// Builds the full theme from [palette] so light and dark stay in lockstep.
+///
+/// Both brightnesses run through this one function on purpose: the previous
+/// light theme was `buildAppTheme().copyWith(...)`, which inherited the dark
+/// `textTheme` and rendered near-white text on light surfaces.
+ThemeData buildAppTheme([AppPalette palette = AppPalette.dark]) {
+  final isDark = palette.isDark;
+  final colorScheme = ColorScheme(
+    brightness: palette.brightness,
+    primary: palette.accent,
+    onPrimary: palette.onAccent,
+    secondary: palette.accentMuted,
+    onSecondary: palette.onAccent,
+    surface: palette.surface,
+    onSurface: palette.textPrimary,
+    error: palette.error,
+    onError: isDark ? Colors.black : Colors.white,
+    outline: palette.border,
   );
 
   return ThemeData(
     useMaterial3: true,
-    brightness: Brightness.dark,
+    brightness: palette.brightness,
     colorScheme: colorScheme,
-    scaffoldBackgroundColor: AppColors.background,
-    dividerColor: AppColors.border,
+    scaffoldBackgroundColor: palette.background,
+    dividerColor: palette.border,
     fontFamily: 'SF Pro Text',
     splashFactory: InkSparkle.splashFactory,
     visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.surface,
-      foregroundColor: AppColors.textPrimary,
+    extensions: [palette],
+    appBarTheme: AppBarTheme(
+      backgroundColor: palette.surface,
+      foregroundColor: palette.textPrimary,
       elevation: 0,
       centerTitle: false,
     ),
-    iconTheme: const IconThemeData(
-      color: AppColors.textSecondary,
-      size: 18,
-    ),
-    textTheme: const TextTheme(
+    iconTheme: IconThemeData(color: palette.textSecondary, size: 18),
+    textTheme: TextTheme(
       bodyMedium: TextStyle(
-        color: AppColors.textPrimary,
+        color: palette.textPrimary,
         fontSize: 13,
         height: 1.35,
       ),
       bodySmall: TextStyle(
-        color: AppColors.textSecondary,
+        color: palette.textSecondary,
         fontSize: 12,
         height: 1.35,
       ),
       titleMedium: TextStyle(
-        color: AppColors.textPrimary,
+        color: palette.textPrimary,
         fontSize: 13,
         fontWeight: FontWeight.w600,
       ),
       titleLarge: TextStyle(
-        color: AppColors.textPrimary,
+        color: palette.textPrimary,
         fontSize: 18,
         fontWeight: FontWeight.w600,
       ),
       labelSmall: TextStyle(
-        color: AppColors.textMuted,
+        color: palette.textMuted,
         fontSize: 10,
         letterSpacing: 0.8,
         fontWeight: FontWeight.w600,
       ),
       labelMedium: TextStyle(
-        color: AppColors.textSecondary,
+        color: palette.textSecondary,
         fontSize: 12,
         fontWeight: FontWeight.w500,
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: AppColors.surfaceElevated,
+      fillColor: palette.surfaceElevated,
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadii.sm),
-        borderSide: const BorderSide(color: AppColors.border),
+        borderSide: BorderSide(color: palette.border),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadii.sm),
-        borderSide: const BorderSide(color: AppColors.border),
+        borderSide: BorderSide(color: palette.border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadii.sm),
-        borderSide: const BorderSide(color: AppColors.accent),
+        borderSide: BorderSide(color: palette.accent),
       ),
-      labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-      hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+      labelStyle: TextStyle(color: palette.textSecondary, fontSize: 12),
+      hintStyle: TextStyle(color: palette.textMuted, fontSize: 12),
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: AppColors.surface,
+      backgroundColor: palette.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: palette.border),
       ),
     ),
     popupMenuTheme: PopupMenuThemeData(
-      color: AppColors.surfaceElevated,
+      color: palette.surfaceElevated,
       surfaceTintColor: Colors.transparent,
       elevation: 6,
       menuPadding: const EdgeInsets.symmetric(vertical: 2),
-      textStyle: const TextStyle(
-        color: AppColors.textPrimary,
+      textStyle: TextStyle(
+        color: palette.textPrimary,
         fontSize: 12.5,
         height: 1.2,
       ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.sm),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: palette.border),
       ),
     ),
     menuButtonTheme: MenuButtonThemeData(
@@ -179,22 +191,24 @@ ThemeData buildAppTheme() {
     dropdownMenuTheme: DropdownMenuThemeData(
       textStyle: const TextStyle(fontSize: 12.5, height: 1.2),
       menuStyle: MenuStyle(
-        backgroundColor: const WidgetStatePropertyAll(AppColors.surfaceElevated),
+        backgroundColor: WidgetStatePropertyAll(palette.surfaceElevated),
         surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 4)),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(vertical: 4),
+        ),
         visualDensity: VisualDensity.compact,
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.sm),
-            side: const BorderSide(color: AppColors.border),
+            side: BorderSide(color: palette.border),
           ),
         ),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: AppColors.accent,
-        foregroundColor: const Color(0xFFE8F2F2),
+        backgroundColor: palette.accent,
+        foregroundColor: palette.onAccent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.sm),
         ),
@@ -203,84 +217,85 @@ ThemeData buildAppTheme() {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.textPrimary,
-        side: const BorderSide(color: AppColors.border),
+        foregroundColor: palette.textPrimary,
+        side: BorderSide(color: palette.border),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.sm),
         ),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+      style: TextButton.styleFrom(foregroundColor: palette.textSecondary),
     ),
     tooltipTheme: TooltipThemeData(
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
+        color: palette.surfaceElevated,
         borderRadius: BorderRadius.circular(AppRadii.xs),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.border),
       ),
-      textStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+      textStyle: TextStyle(color: palette.textPrimary, fontSize: 12),
     ),
     snackBarTheme: SnackBarThemeData(
-      backgroundColor: AppColors.surfaceElevated,
-      contentTextStyle: const TextStyle(
-        color: AppColors.textPrimary,
-        fontSize: 12.5,
-      ),
-      actionTextColor: AppColors.accent,
+      backgroundColor: palette.surfaceElevated,
+      contentTextStyle: TextStyle(color: palette.textPrimary, fontSize: 12.5),
+      actionTextColor: palette.accent,
       behavior: SnackBarBehavior.floating,
       elevation: 6,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.md),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: palette.border),
       ),
     ),
-    dividerTheme: const DividerThemeData(
-      color: AppColors.borderSubtle,
+    dividerTheme: DividerThemeData(
+      color: palette.borderSubtle,
       thickness: 1,
       space: 1,
     ),
-    listTileTheme: const ListTileThemeData(
+    listTileTheme: ListTileThemeData(
       dense: true,
       visualDensity: VisualDensity.compact,
       minVerticalPadding: 0,
       minLeadingWidth: 28,
-      contentPadding: EdgeInsets.symmetric(horizontal: 10),
-      iconColor: AppColors.textSecondary,
-      textColor: AppColors.textPrimary,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+      iconColor: palette.textSecondary,
+      textColor: palette.textPrimary,
     ),
   );
 }
 
-/// Minimal light theme for Appearance → Light / System.
-ThemeData buildLightAppTheme() {
-  final base = buildAppTheme();
-  return base.copyWith(
-    brightness: Brightness.light,
-    scaffoldBackgroundColor: const Color(0xFFECECEF),
-    colorScheme: const ColorScheme.light(
-      brightness: Brightness.light,
-      primary: AppColors.accent,
-      onPrimary: Color(0xFFE8F2F2),
-      secondary: AppColors.accentMuted,
-      onSecondary: Colors.white,
-      surface: Color(0xFFF4F4F6),
-      onSurface: Color(0xFF1A1A1F),
-      error: AppColors.error,
-      onError: Colors.white,
-      outline: Color(0xFFD0D0D6),
-    ),
-  );
+ThemeData buildLightAppTheme() => buildAppTheme(AppPalette.light);
+
+/// Maps the Appearance preference onto Flutter's own theme mode, which handles
+/// `system` (including live OS appearance changes) for us.
+ThemeMode appThemeModeFor(String preference) {
+  return switch (preference.toLowerCase()) {
+    'light' => ThemeMode.light,
+    'system' => ThemeMode.system,
+    _ => ThemeMode.dark,
+  };
+}
+
+/// Resolves the Appearance preference (`dark` / `light` / `system`).
+AppPalette resolveAppPalette({
+  required String preference,
+  required Brightness platformBrightness,
+}) {
+  final mode = preference.toLowerCase();
+  if (mode == 'light') return AppPalette.light;
+  if (mode == 'system' && platformBrightness == Brightness.light) {
+    return AppPalette.light;
+  }
+  return AppPalette.dark;
 }
 
 ThemeData resolveAppTheme({
   required String preference,
   required Brightness platformBrightness,
 }) {
-  final mode = preference.toLowerCase();
-  if (mode == 'light') return buildLightAppTheme();
-  if (mode == 'system' && platformBrightness == Brightness.light) {
-    return buildLightAppTheme();
-  }
-  return buildAppTheme();
+  return buildAppTheme(
+    resolveAppPalette(
+      preference: preference,
+      platformBrightness: platformBrightness,
+    ),
+  );
 }

@@ -19,9 +19,11 @@ class StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: filled ? AppColors.accentSoft : AppColors.surfaceElevated,
+        color: filled
+            ? context.palette.accentSoft
+            : context.palette.surfaceElevated,
         borderRadius: BorderRadius.circular(AppRadii.sm),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -40,7 +42,9 @@ class StatusBadge extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: filled ? AppColors.accent : AppColors.textSecondary,
+              color: filled
+                  ? context.palette.accent
+                  : context.palette.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.w500,
             ),
@@ -67,16 +71,12 @@ class EnvironmentBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color? dot;
     if (broken) {
-      dot = AppColors.warning;
+      dot = context.palette.warning;
     } else if (active) {
-      dot = AppColors.accent;
+      dot = context.palette.accent;
     } else {
-      dot = AppColors.textMuted;
+      dot = context.palette.textMuted;
     }
-    return StatusBadge(
-      label: label,
-      dotColor: dot,
-      filled: active && !broken,
-    );
+    return StatusBadge(label: label, dotColor: dot, filled: active && !broken);
   }
 }

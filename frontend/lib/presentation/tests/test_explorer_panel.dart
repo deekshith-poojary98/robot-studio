@@ -202,8 +202,8 @@ class _TestExplorerPanelState extends State<TestExplorerPanel> {
             decoration: InputDecoration(
               isDense: true,
               hintText: 'Filter suites, tests, tags, files…',
-              hintStyle: const TextStyle(
-                color: AppColors.textMuted,
+              hintStyle: TextStyle(
+                color: context.palette.textMuted,
                 fontSize: 12,
               ),
               prefixIcon: const Icon(Icons.search, size: 16),
@@ -212,14 +212,14 @@ class _TestExplorerPanelState extends State<TestExplorerPanel> {
                 minHeight: 28,
               ),
               filled: true,
-              fillColor: AppColors.surfaceElevated,
+              fillColor: context.palette.surfaceElevated,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppRadii.sm),
-                borderSide: const BorderSide(color: AppColors.borderSubtle),
+                borderSide: BorderSide(color: context.palette.borderSubtle),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppRadii.sm),
-                borderSide: const BorderSide(color: AppColors.borderSubtle),
+                borderSide: BorderSide(color: context.palette.borderSubtle),
               ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 8,
@@ -232,39 +232,39 @@ class _TestExplorerPanelState extends State<TestExplorerPanel> {
           child: widget.isLoading && widget.tree == null
               ? const SkeletonList(rows: 6)
               : widget.tree == null
-                  ? const EmptyState(
-                      icon: Icons.science_outlined,
-                      title: 'No tests yet',
-                      message: 'Open a project to browse suites and cases.',
-                      compact: true,
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      itemCount: rows.length,
-                      itemBuilder: (context, index) {
-                        final row = rows[index];
-                        return _TestTreeNodeTile(
-                          node: row.node,
-                          depth: row.depth,
-                          expanded: _expanded.contains(row.node.id),
-                          selected: _selected.contains(row.node.id),
-                          loading: _loadingExpand.contains(row.node.id),
-                          onToggle: () => _toggleExpand(row.node),
-                          onSelect: () {
-                            setState(() {
-                              if (_selected.contains(row.node.id)) {
-                                _selected.remove(row.node.id);
-                              } else {
-                                _selected.add(row.node.id);
-                              }
-                            });
-                          },
-                          onRunNode: widget.onRunNode,
-                          onOpenFile: widget.onOpenFile,
-                          onRevealInExplorer: widget.onRevealInExplorer,
-                        );
+              ? const EmptyState(
+                  icon: Icons.science_outlined,
+                  title: 'No tests yet',
+                  message: 'Open a project to browse suites and cases.',
+                  compact: true,
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  itemCount: rows.length,
+                  itemBuilder: (context, index) {
+                    final row = rows[index];
+                    return _TestTreeNodeTile(
+                      node: row.node,
+                      depth: row.depth,
+                      expanded: _expanded.contains(row.node.id),
+                      selected: _selected.contains(row.node.id),
+                      loading: _loadingExpand.contains(row.node.id),
+                      onToggle: () => _toggleExpand(row.node),
+                      onSelect: () {
+                        setState(() {
+                          if (_selected.contains(row.node.id)) {
+                            _selected.remove(row.node.id);
+                          } else {
+                            _selected.add(row.node.id);
+                          }
+                        });
                       },
-                    ),
+                      onRunNode: widget.onRunNode,
+                      onOpenFile: widget.onOpenFile,
+                      onRevealInExplorer: widget.onRevealInExplorer,
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -366,7 +366,7 @@ class _ToolIcon extends StatelessWidget {
       visualDensity: VisualDensity.compact,
       constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
       padding: EdgeInsets.zero,
-      color: AppColors.textSecondary,
+      color: context.palette.textSecondary,
     );
   }
 }
@@ -400,7 +400,7 @@ class _TestTreeNodeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final canExpand = node.canExpand;
     return Material(
-      color: selected ? AppColors.accentSoft : Colors.transparent,
+      color: selected ? context.palette.accentSoft : Colors.transparent,
       child: InkWell(
         onTap: onSelect,
         onDoubleTap: node.path == null ? null : () => onOpenFile?.call(node),
@@ -409,38 +409,42 @@ class _TestTreeNodeTile extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(8.0 + depth * 12, 3, 6, 3),
           child: Row(
             children: [
-                  SizedBox(
-                    width: 16,
-                    child: canExpand
-                        ? IconButton(
-                            key: Key('test-expand-${node.id}'),
-                            onPressed: onToggle,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 16,
-                              minHeight: 16,
-                            ),
-                            iconSize: 14,
-                            visualDensity: VisualDensity.compact,
-                            icon: loading
-                                ? const SizedBox(
-                                    width: 12,
-                                    height: 12,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 1.5,
-                                    ),
-                                  )
-                                : Icon(
-                                    expanded
-                                        ? Icons.expand_more
-                                        : Icons.chevron_right,
-                                    size: 14,
-                                    color: AppColors.textMuted,
-                                  ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-              Icon(_kindIcon(node.kind), size: 14, color: _kindColor(node)),
+              SizedBox(
+                width: 16,
+                child: canExpand
+                    ? IconButton(
+                        key: Key('test-expand-${node.id}'),
+                        onPressed: onToggle,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        iconSize: 14,
+                        visualDensity: VisualDensity.compact,
+                        icon: loading
+                            ? const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                ),
+                              )
+                            : Icon(
+                                expanded
+                                    ? Icons.expand_more
+                                    : Icons.chevron_right,
+                                size: 14,
+                                color: context.palette.textMuted,
+                              ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              Icon(
+                _kindIcon(node.kind),
+                size: 14,
+                color: _kindColor(context.palette, node),
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -449,7 +453,7 @@ class _TestTreeNodeTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12.2,
-                    color: AppColors.textPrimary,
+                    color: context.palette.textPrimary,
                     fontStyle: node.kind == 'setup' || node.kind == 'teardown'
                         ? FontStyle.italic
                         : FontStyle.normal,
@@ -461,9 +465,9 @@ class _TestTreeNodeTile extends StatelessWidget {
                   padding: const EdgeInsets.only(right: 4),
                   child: Text(
                     node.tags.take(2).join(','),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
-                      color: AppColors.textMuted,
+                      color: context.palette.textMuted,
                     ),
                   ),
                 ),
@@ -471,8 +475,7 @@ class _TestTreeNodeTile extends StatelessWidget {
               if (node.isRunnable)
                 IconButton(
                   key: Key('test-run-${node.id}'),
-                  onPressed:
-                      onRunNode == null ? null : () => onRunNode!(node),
+                  onPressed: onRunNode == null ? null : () => onRunNode!(node),
                   tooltip: 'Run',
                   icon: const Icon(Icons.play_arrow, size: 14),
                   visualDensity: VisualDensity.compact,
@@ -481,7 +484,7 @@ class _TestTreeNodeTile extends StatelessWidget {
                     minHeight: 22,
                   ),
                   padding: EdgeInsets.zero,
-                  color: AppColors.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
             ],
           ),
@@ -490,10 +493,7 @@ class _TestTreeNodeTile extends StatelessWidget {
     );
   }
 
-  Future<void> _showMenu(
-    BuildContext context,
-    TapDownDetails details,
-  ) async {
+  Future<void> _showMenu(BuildContext context, TapDownDetails details) async {
     final selected = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -535,13 +535,13 @@ class _TestTreeNodeTile extends StatelessWidget {
     };
   }
 
-  Color _kindColor(TestNodeInfo node) {
+  Color _kindColor(AppPalette palette, TestNodeInfo node) {
     return switch (node.status) {
-      TestNodeStatus.pass => AppColors.success,
-      TestNodeStatus.fail => AppColors.error,
-      TestNodeStatus.skip => AppColors.warning,
-      TestNodeStatus.running => AppColors.info,
-      TestNodeStatus.notRun => AppColors.textMuted,
+      TestNodeStatus.pass => palette.success,
+      TestNodeStatus.fail => palette.error,
+      TestNodeStatus.skip => palette.warning,
+      TestNodeStatus.running => palette.info,
+      TestNodeStatus.notRun => palette.textMuted,
     };
   }
 }
@@ -564,11 +564,11 @@ class _StatusDot extends StatelessWidget {
       );
     }
     final color = switch (status) {
-      TestNodeStatus.pass => AppColors.success,
-      TestNodeStatus.fail => AppColors.error,
-      TestNodeStatus.skip => AppColors.warning,
-      TestNodeStatus.running => AppColors.info,
-      TestNodeStatus.notRun => AppColors.border,
+      TestNodeStatus.pass => context.palette.success,
+      TestNodeStatus.fail => context.palette.error,
+      TestNodeStatus.skip => context.palette.warning,
+      TestNodeStatus.running => context.palette.info,
+      TestNodeStatus.notRun => context.palette.border,
     };
     return Container(
       width: 7,

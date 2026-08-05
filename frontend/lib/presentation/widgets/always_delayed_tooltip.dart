@@ -84,16 +84,19 @@ class _AlwaysDelayedTooltipState extends State<AlwaysDelayedTooltip> {
         child: IgnorePointer(
           child: Material(
             elevation: 4,
-            color: AppColors.surfaceElevated,
+            color: context.palette.surfaceElevated,
             borderRadius: BorderRadius.circular(AppRadii.sm),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 child: Text(
                   widget.message,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary,
+                    color: context.palette.textPrimary,
                     fontFamily: 'Menlo',
                     fontSize: 11,
                     height: 1.3,

@@ -30,10 +30,7 @@ class HistoryPanel extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Row(
             children: [
-              Text(
-                'History',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
+              Text('History', style: Theme.of(context).textTheme.titleSmall),
               const Spacer(),
               IconButton(
                 tooltip: 'Refresh history',
@@ -48,103 +45,99 @@ class HistoryPanel extends StatelessWidget {
           child: isLoading
               ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
               : commits.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No commits yet',
-                        style: TextStyle(color: AppColors.textMuted),
-                      ),
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: ListView.separated(
-                            padding: const EdgeInsets.all(8),
-                            itemCount: commits.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 4),
-                            itemBuilder: (context, index) {
-                              final commit = commits[index];
-                              final isSelected = selected?.hash == commit.hash;
-                              return Material(
-                                color: isSelected
-                                    ? AppColors.accentSoft
-                                    : Colors.transparent,
-                                borderRadius:
-                                    BorderRadius.circular(AppRadii.sm),
-                                child: InkWell(
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadii.sm),
-                                  onTap: () => onSelect(commit),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(10),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+              ? Center(
+                  child: Text(
+                    'No commits yet',
+                    style: TextStyle(color: context.palette.textMuted),
+                  ),
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(8),
+                        itemCount: commits.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 4),
+                        itemBuilder: (context, index) {
+                          final commit = commits[index];
+                          final isSelected = selected?.hash == commit.hash;
+                          return Material(
+                            color: isSelected
+                                ? context.palette.accentSoft
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(AppRadii.sm),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(AppRadii.sm),
+                              onTap: () => onSelect(commit),
+                              child: Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
                                       children: [
-                                        Row(
-                                          children: [
-                                            Text(
-                                              commit.shortHash,
-                                              style: const TextStyle(
-                                                fontFamily: 'monospace',
-                                                color: AppColors.accent,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                commit.author,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodySmall,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
                                         Text(
-                                          commit.message,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyMedium,
+                                          commit.shortHash,
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            color: context.palette.accent,
+                                            fontSize: 12,
+                                          ),
                                         ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          _formatDate(commit.date),
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .labelSmall,
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            commit.author,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                          ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const VerticalDivider(width: 1),
-                        Expanded(
-                          flex: 3,
-                          child: detail == null
-                              ? const Center(
-                                  child: Text(
-                                    'Select a commit to view details',
-                                    style: TextStyle(
-                                      color: AppColors.textMuted,
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      commit.message,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
                                     ),
-                                  ),
-                                )
-                              : _CommitDetailView(detail: detail!),
-                        ),
-                      ],
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _formatDate(commit.date),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.labelSmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
+                    const VerticalDivider(width: 1),
+                    Expanded(
+                      flex: 3,
+                      child: detail == null
+                          ? Center(
+                              child: Text(
+                                'Select a commit to view details',
+                                style: TextStyle(
+                                  color: context.palette.textMuted,
+                                ),
+                              ),
+                            )
+                          : _CommitDetailView(detail: detail!),
+                    ),
+                  ],
+                ),
         ),
       ],
     );
@@ -169,10 +162,7 @@ class _CommitDetailView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(
-          detail.message,
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
+        Text(detail.message, style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
         Text(
           '${detail.author} <${detail.email}>',
@@ -180,22 +170,19 @@ class _CommitDetailView extends StatelessWidget {
         ),
         Text(
           detail.hash,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'monospace',
-            color: AppColors.textMuted,
+            color: context.palette.textMuted,
             fontSize: 11,
           ),
         ),
         const SizedBox(height: 16),
-        Text(
-          'Changed files',
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
+        Text('Changed files', style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 8),
         if (detail.files.isEmpty)
-          const Text(
+          Text(
             'No files recorded',
-            style: TextStyle(color: AppColors.textMuted),
+            style: TextStyle(color: context.palette.textMuted),
           )
         else
           ...detail.files.map(
@@ -233,7 +220,7 @@ class GitStatusBadge extends StatelessWidget {
       child: Text(
         status.badge,
         style: TextStyle(
-          color: status.color,
+          color: status.colorFor(context.palette),
           fontWeight: FontWeight.w600,
           fontSize: 11,
         ),

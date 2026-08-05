@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'core/backend_host.dart';
+import 'core/gateway/transport_gateway.dart';
 import 'core/logging/app_logger.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/shell/app_shell.dart';
@@ -43,9 +44,13 @@ Future<void> main() async {
 }
 
 class RobotStudioApp extends StatefulWidget {
-  const RobotStudioApp({super.key, this.home});
+  const RobotStudioApp({super.key, this.home, this.gateway});
 
   final Widget? home;
+
+  /// Injectable transport for tests that need the real shell wiring rather
+  /// than a hand-built [home].
+  final TransportGateway? gateway;
 
   @override
   State<RobotStudioApp> createState() => _RobotStudioAppState();
@@ -53,6 +58,9 @@ class RobotStudioApp extends StatefulWidget {
 
 class _RobotStudioAppState extends State<RobotStudioApp>
     with WidgetsBindingObserver {
+  /// Set by [AppShell] once settings load; drives [MaterialApp.themeMode].
+  final _themePreference = ValueNotifier<String>('dark');
+
   @override
   void initState() {
     super.initState();
@@ -73,16 +81,27 @@ class _RobotStudioAppState extends State<RobotStudioApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     BackendHost.instance?.stopSync();
+    _themePreference.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Robot Studio',
-      debugShowCheckedModeBanner: false,
-      theme: buildAppTheme(),
-      home: widget.home ?? const AppShell(),
+    return ValueListenableBuilder<String>(
+      valueListenable: _themePreference,
+      builder: (context, preference, _) => MaterialApp(
+        title: 'Robot Studio',
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(AppPalette.light),
+        darkTheme: buildAppTheme(AppPalette.dark),
+        themeMode: appThemeModeFor(preference),
+        home:
+            widget.home ??
+            AppShell(
+              gateway: widget.gateway,
+              themePreference: _themePreference,
+            ),
+      ),
     );
   }
 }

@@ -163,17 +163,16 @@ class _FindInFilesPanelState extends State<FindInFilesPanel> {
               ),
             ),
           ),
-        if (_searching)
-          const LinearProgressIndicator(minHeight: 2),
+        if (_searching) const LinearProgressIndicator(minHeight: 2),
         if (result != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
             child: Text(
               result.truncated
                   ? '${result.totalMatches}+ matches in ${result.files.length} files'
-                      ' (truncated · ${result.filesScanned} scanned)'
+                        ' (truncated · ${result.filesScanned} scanned)'
                   : '${result.totalMatches} matches in ${result.files.length} files'
-                      ' (${result.filesScanned} scanned)',
+                        ' (${result.filesScanned} scanned)',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -226,11 +225,9 @@ class _FindInFilesPanelState extends State<FindInFilesPanel> {
               child: Row(
                 children: [
                   Icon(
-                    expanded
-                        ? Icons.expand_more
-                        : Icons.chevron_right,
+                    expanded ? Icons.expand_more : Icons.chevron_right,
                     size: 16,
-                    color: AppColors.textSecondary,
+                    color: context.palette.textSecondary,
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -238,10 +235,10 @@ class _FindInFilesPanelState extends State<FindInFilesPanel> {
                       file.fileName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 12.5,
-                        color: AppColors.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                   ),
@@ -266,9 +263,9 @@ class _FindInFilesPanelState extends State<FindInFilesPanel> {
                 if (enclosing != null)
                   Text(
                     '${enclosing.kind} · ${enclosing.name}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10.5,
-                      color: AppColors.accent,
+                      color: context.palette.accent,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -276,10 +273,10 @@ class _FindInFilesPanelState extends State<FindInFilesPanel> {
                   'L${match.line}:${match.column}  ${match.text.trim()}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontFamily: 'Menlo',
-                    color: AppColors.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 if (match.before.isNotEmpty || match.after.isNotEmpty)
@@ -293,7 +290,9 @@ class _FindInFilesPanelState extends State<FindInFilesPanel> {
                     style: TextStyle(
                       fontSize: 11,
                       fontFamily: 'Menlo',
-                      color: AppColors.textSecondary.withValues(alpha: 0.9),
+                      color: context.palette.textSecondary.withValues(
+                        alpha: 0.9,
+                      ),
                     ),
                   ),
               ],
@@ -307,14 +306,14 @@ class _FindInFilesPanelState extends State<FindInFilesPanel> {
 
 class _Row {
   const _Row.file(this.file, this.expanded)
-      : path = null,
-        match = null,
-        isFile = true;
+    : path = null,
+      match = null,
+      isFile = true;
 
   const _Row.match(this.path, this.match)
-      : file = null,
-        expanded = false,
-        isFile = false;
+    : file = null,
+      expanded = false,
+      isFile = false;
 
   final bool isFile;
   final ContentFileHitsInfo? file;

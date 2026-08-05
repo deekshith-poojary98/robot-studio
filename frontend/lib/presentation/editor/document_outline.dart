@@ -49,9 +49,9 @@ class DocumentOutlinePanel extends StatelessWidget {
 
     return Container(
       width: 240,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(left: BorderSide(color: AppColors.borderSubtle)),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        border: Border(left: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -124,13 +124,10 @@ class _EmbeddedOutlineState extends State<_EmbeddedOutline> {
                       ? Icons.keyboard_arrow_down
                       : Icons.keyboard_arrow_right,
                   size: 16,
-                  color: AppColors.textMuted,
+                  color: context.palette.textMuted,
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  'OUTLINE',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
+                Text('OUTLINE', style: Theme.of(context).textTheme.labelSmall),
               ],
             ),
           ),
@@ -228,17 +225,26 @@ class _OutlineBodyState extends State<_OutlineBody> {
             decoration: InputDecoration(
               isDense: true,
               hintText: 'Filter outline…',
-              hintStyle: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+              hintStyle: TextStyle(
+                fontSize: 12,
+                color: context.palette.textMuted,
+              ),
               prefixIcon: const Icon(Icons.search, size: 14),
-              prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 28,
+                minHeight: 28,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 6,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(4),
-                borderSide: const BorderSide(color: AppColors.borderSubtle),
+                borderSide: BorderSide(color: context.palette.borderSubtle),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(4),
-                borderSide: const BorderSide(color: AppColors.borderSubtle),
+                borderSide: BorderSide(color: context.palette.borderSubtle),
               ),
             ),
             onChanged: (value) => setState(() => _query = value.trim()),
@@ -290,7 +296,8 @@ class _OutlineBodyState extends State<_OutlineBody> {
       final filtered = _filterNode(child, query);
       if (filtered != null) kept.add(filtered);
     }
-    final selfMatch = node.name.toLowerCase().contains(needle) ||
+    final selfMatch =
+        node.name.toLowerCase().contains(needle) ||
         node.detail.toLowerCase().contains(needle);
     if (!selfMatch && kept.isEmpty) return null;
     return DocumentSymbolNode(
@@ -327,8 +334,10 @@ class _TreeOutline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Show suite children (sections) at top level; skip duplicate root chrome.
-    final nodes = depth == 0 &&
-            (root.kind == SymbolKind.testSuite || root.kind == SymbolKind.resource)
+    final nodes =
+        depth == 0 &&
+            (root.kind == SymbolKind.testSuite ||
+                root.kind == SymbolKind.resource)
         ? root.children
         : [root];
 
@@ -336,14 +345,14 @@ class _TreeOutline extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       children: [
         for (final node in nodes)
-            _TreeNode(
-              node: node,
-              filePath: filePath,
-              onSelect: onSelect,
-              selectedId: selectedId,
-              compact: compact,
-              depth: depth == 0 ? 0 : depth,
-            ),
+          _TreeNode(
+            node: node,
+            filePath: filePath,
+            onSelect: onSelect,
+            selectedId: selectedId,
+            compact: compact,
+            depth: depth == 0 ? 0 : depth,
+          ),
       ],
     );
   }
@@ -413,7 +422,7 @@ class _TreeNodeState extends State<_TreeNode> {
               top: widget.compact ? 3 : 5,
               bottom: widget.compact ? 3 : 5,
             ),
-            color: selected ? AppColors.accentSoft : Colors.transparent,
+            color: selected ? context.palette.accentSoft : Colors.transparent,
             child: Row(
               children: [
                 SizedBox(
@@ -424,14 +433,16 @@ class _TreeNodeState extends State<_TreeNode> {
                               ? Icons.keyboard_arrow_down
                               : Icons.keyboard_arrow_right,
                           size: 14,
-                          color: AppColors.textMuted,
+                          color: context.palette.textMuted,
                         )
                       : const SizedBox.shrink(),
                 ),
                 Icon(
                   _iconForKind(node.kind),
                   size: 13,
-                  color: selected ? AppColors.accent : AppColors.textSecondary,
+                  color: selected
+                      ? context.palette.accent
+                      : context.palette.textSecondary,
                 ),
                 const SizedBox(width: 5),
                 Expanded(
@@ -443,10 +454,9 @@ class _TreeNodeState extends State<_TreeNode> {
                       fontSize: 12.5,
                       height: 1.2,
                       color: selected
-                          ? AppColors.accent
-                          : AppColors.textPrimary,
-                      fontWeight:
-                          selected ? FontWeight.w600 : FontWeight.w400,
+                          ? context.palette.accent
+                          : context.palette.textPrimary,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                     ),
                   ),
                 ),
@@ -510,13 +520,15 @@ class _FlatRow extends StatelessWidget {
           top: compact ? 3 : 6,
           bottom: compact ? 3 : 6,
         ),
-        color: selected ? AppColors.accentSoft : Colors.transparent,
+        color: selected ? context.palette.accentSoft : Colors.transparent,
         child: Row(
           children: [
             Icon(
               Icons.circle_outlined,
               size: 14,
-              color: selected ? AppColors.accent : AppColors.textSecondary,
+              color: selected
+                  ? context.palette.accent
+                  : context.palette.textSecondary,
             ),
             const SizedBox(width: 6),
             Expanded(
@@ -527,7 +539,9 @@ class _FlatRow extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12.5,
                   height: 1.2,
-                  color: selected ? AppColors.accent : AppColors.textPrimary,
+                  color: selected
+                      ? context.palette.accent
+                      : context.palette.textPrimary,
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),

@@ -99,7 +99,9 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
 
   List<PaletteItem> get _visibleItems {
     final query = _controller.text;
-    final commands = widget.commands.where((item) => item.matches(query)).toList();
+    final commands = widget.commands
+        .where((item) => item.matches(query))
+        .toList();
     if (query.trim().isEmpty) {
       return commands.take(12).toList();
     }
@@ -190,10 +192,10 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
       child: Dialog(
         alignment: Alignment.topCenter,
         insetPadding: const EdgeInsets.only(top: 72, left: 48, right: 48),
-        backgroundColor: AppColors.surfaceElevated,
+        backgroundColor: context.palette.surfaceElevated,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
-          side: const BorderSide(color: AppColors.border),
+          side: BorderSide(color: context.palette.border),
         ),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640, maxHeight: 460),
@@ -245,7 +247,7 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
                           final isSelected = index == selected;
                           return Material(
                             color: isSelected
-                                ? AppColors.accentSoft
+                                ? context.palette.accentSoft
                                 : Colors.transparent,
                             child: ListTile(
                               dense: true,
@@ -254,8 +256,8 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
                                 item.icon ?? _iconFor(item.kind),
                                 size: 18,
                                 color: isSelected
-                                    ? AppColors.accent
-                                    : AppColors.textSecondary,
+                                    ? context.palette.accent
+                                    : context.palette.textSecondary,
                               ),
                               title: Text(
                                 item.title,
@@ -271,8 +273,8 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
                                     ),
                               trailing: Text(
                                 _kindLabel(item.kind),
-                                style: const TextStyle(
-                                  color: AppColors.textMuted,
+                                style: TextStyle(
+                                  color: context.palette.textMuted,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -285,7 +287,10 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
               ),
               const Divider(height: 1),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     Text(
@@ -293,10 +298,7 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const Spacer(),
-                    Text(
-                      '⌘K',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                    Text('⌘K', style: Theme.of(context).textTheme.bodySmall),
                   ],
                 ),
               ),

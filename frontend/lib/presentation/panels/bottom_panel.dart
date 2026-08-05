@@ -34,6 +34,7 @@ class BottomPanel extends StatefulWidget {
   final int problemCount;
   final String? workingDirectory;
   final int? revealTerminalToken;
+
   /// Flip Terminal open/closed (⌘` / Ctrl+`).
   final int? toggleTerminalToken;
   final int? revealProblemsToken;
@@ -101,9 +102,9 @@ class _BottomPanelState extends State<BottomPanel> {
         onExpand: () => setState(() => _expanded = true),
         onOpenProblems: widget.problemCount > 0
             ? () => setState(() {
-                  _activeTab = BottomPanelTab.problems;
-                  _expanded = true;
-                })
+                _activeTab = BottomPanelTab.problems;
+                _expanded = true;
+              })
             : null,
       );
     }
@@ -122,22 +123,22 @@ class _BottomPanelState extends State<BottomPanel> {
             },
             child: Container(
               height: 4,
-              color: AppColors.borderSubtle,
+              color: context.palette.borderSubtle,
               alignment: Alignment.center,
               child: Container(
                 width: 36,
                 height: 2,
-                color: AppColors.border,
+                color: context.palette.border,
               ),
             ),
           ),
         ),
         Container(
           height: _height,
-          decoration: const BoxDecoration(
-            color: AppColors.surface,
+          decoration: BoxDecoration(
+            color: context.palette.surface,
             border: Border(
-              top: BorderSide(color: AppColors.borderSubtle),
+              top: BorderSide(color: context.palette.borderSubtle),
             ),
           ),
           child: Column(
@@ -163,9 +164,7 @@ class _BottomPanelState extends State<BottomPanel> {
                             ]
                           : widget.logLines,
                     ),
-                    TerminalPanel(
-                      workingDirectory: widget.workingDirectory,
-                    ),
+                    TerminalPanel(workingDirectory: widget.workingDirectory),
                     ProblemsPanel(
                       diagnostics: widget.problems,
                       isLoading: widget.isLoadingProblems,
@@ -200,9 +199,9 @@ class _CollapsedBar extends StatelessWidget {
     return Container(
       height: 28,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.borderSubtle)),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        border: Border(top: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: Row(
         children: [
@@ -230,8 +229,8 @@ class _CollapsedBar extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 child: Text(
                   'PROBLEMS $problemCount',
-                  style: const TextStyle(
-                    color: AppColors.error,
+                  style: TextStyle(
+                    color: context.palette.error,
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                   ),
@@ -262,8 +261,8 @@ class _TabBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 32,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.borderSubtle)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: Row(
         children: [
@@ -310,7 +309,7 @@ class _Tab extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: isActive ? AppColors.accent : Colors.transparent,
+              color: isActive ? context.palette.accent : Colors.transparent,
               width: 2,
             ),
           ),
@@ -320,7 +319,9 @@ class _Tab extends StatelessWidget {
           style: TextStyle(
             fontSize: 10,
             letterSpacing: 0.5,
-            color: isActive ? AppColors.textPrimary : AppColors.textMuted,
+            color: isActive
+                ? context.palette.textPrimary
+                : context.palette.textMuted,
             fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
@@ -342,12 +343,12 @@ class _LogView extends StatelessWidget {
       itemBuilder: (context, index) {
         final line = lines[index];
         final color = line.contains('[error]')
-            ? AppColors.error
+            ? context.palette.error
             : line.contains('[warn]')
-                ? AppColors.warning
-                : line.contains('[PASS]') || line.contains('[pass]')
-                    ? AppColors.success
-                    : AppColors.textSecondary;
+            ? context.palette.warning
+            : line.contains('[PASS]') || line.contains('[pass]')
+            ? context.palette.success
+            : context.palette.textSecondary;
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 4),

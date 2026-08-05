@@ -85,9 +85,9 @@ class AppToolbar extends StatelessWidget {
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.borderSubtle)),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        border: Border(bottom: BorderSide(color: context.palette.borderSubtle)),
       ),
       clipBehavior: Clip.hardEdge,
       child: Row(
@@ -178,10 +178,10 @@ class AppToolbar extends StatelessWidget {
                                 : 'Last: $executionStatusLabel',
                             filled: isExecutionRunning,
                             dotColor: isExecutionRunning
-                                ? AppColors.accent
+                                ? context.palette.accent
                                 : executionStatusLabel == 'Failed'
-                                ? AppColors.error
-                                : AppColors.textMuted,
+                                ? context.palette.error
+                                : context.palette.textMuted,
                           ),
                         ),
                       ),
@@ -286,13 +286,13 @@ class _GitRemoteMenu extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadii.sm),
-          border: Border.all(color: AppColors.border),
-          color: AppColors.surfaceElevated,
+          border: Border.all(color: context.palette.border),
+          color: context.palette.surfaceElevated,
         ),
-        child: const Icon(
+        child: Icon(
           Icons.more_horiz,
           size: 15,
-          color: AppColors.textSecondary,
+          color: context.palette.textSecondary,
         ),
       ),
     );
@@ -318,26 +318,29 @@ class _SearchField extends StatelessWidget {
         height: 30,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: AppColors.surfaceElevated,
+          color: context.palette.surfaceElevated,
           borderRadius: BorderRadius.circular(AppRadii.sm),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: context.palette.border),
         ),
         alignment: Alignment.centerLeft,
         child: Row(
           children: [
-            const Icon(Icons.search, size: 14, color: AppColors.textMuted),
+            Icon(Icons.search, size: 14, color: context.palette.textMuted),
             const SizedBox(width: 6),
-            const Expanded(
+            Expanded(
               child: Text(
                 'Search commands, files, symbols…',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                style: TextStyle(
+                  color: context.palette.textMuted,
+                  fontSize: 12,
+                ),
               ),
             ),
             Text(
               _shortcutLabel,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
+              style: TextStyle(color: context.palette.textMuted, fontSize: 10),
             ),
           ],
         ),
@@ -461,31 +464,31 @@ class _SelectorChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-          color: AppColors.surfaceElevated,
+          color: context.palette.surfaceElevated,
           borderRadius: BorderRadius.circular(AppRadii.sm),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: context.palette.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: AppColors.textSecondary),
+            Icon(icon, size: 14, color: context.palette.textSecondary),
             const SizedBox(width: 6),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 160),
               child: Text(
                 label,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: context.palette.textPrimary,
                   fontSize: 11.5,
                 ),
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(
+            Icon(
               Icons.keyboard_arrow_down,
               size: 14,
-              color: AppColors.textMuted,
+              color: context.palette.textMuted,
             ),
           ],
         ),

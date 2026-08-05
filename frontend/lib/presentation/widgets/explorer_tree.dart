@@ -50,10 +50,10 @@ class _ToolSectionState extends State<ToolSection> {
                 AnimatedRotation(
                   turns: _expanded ? 0.25 : 0,
                   duration: const Duration(milliseconds: 160),
-                  child: const Icon(
+                  child: Icon(
                     Icons.chevron_right,
                     size: 16,
-                    color: AppColors.textMuted,
+                    color: context.palette.textMuted,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
@@ -62,8 +62,8 @@ class _ToolSectionState extends State<ToolSection> {
                     widget.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: context.palette.textPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -80,8 +80,9 @@ class _ToolSectionState extends State<ToolSection> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: widget.children,
           ),
-          crossFadeState:
-              _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          crossFadeState: _expanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
           duration: const Duration(milliseconds: 160),
           sizeCurve: Curves.easeOutCubic,
         ),
@@ -114,8 +115,10 @@ class ExplorerTreeItem extends StatefulWidget {
   }) : assert(icon != null || leading != null);
 
   final String label;
+
   /// Material icon used when [leading] is null.
   final IconData? icon;
+
   /// Prefer this for Seti / dynamic file icons (keeps package colors).
   final Widget? leading;
   final int indent;
@@ -218,14 +221,14 @@ class _ExplorerTreeItemState extends State<ExplorerTreeItem> {
               ),
               decoration: BoxDecoration(
                 color: selected || widget.isEditing
-                    ? AppColors.accentSoft
+                    ? context.palette.accentSoft
                     : _hovered
-                        ? AppColors.surfaceHover
-                        : Colors.transparent,
+                    ? context.palette.surfaceHover
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(AppRadii.sm),
                 border: selected || widget.isEditing
                     ? Border.all(
-                        color: AppColors.accent.withValues(alpha: 0.28),
+                        color: context.palette.accent.withValues(alpha: 0.28),
                       )
                     : Border.all(color: Colors.transparent),
               ),
@@ -237,13 +240,14 @@ class _ExplorerTreeItemState extends State<ExplorerTreeItem> {
                       SizedBox(
                         width: 16,
                         height: 16,
-                        child: widget.leading ??
+                        child:
+                            widget.leading ??
                             Icon(
                               widget.icon,
                               size: 16,
                               color: selected || widget.isEditing
-                                  ? AppColors.accent
-                                  : AppColors.textSecondary,
+                                  ? context.palette.accent
+                                  : context.palette.textSecondary,
                             ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
@@ -258,28 +262,30 @@ class _ExplorerTreeItemState extends State<ExplorerTreeItem> {
                                 },
                                 child: Actions(
                                   actions: {
-                                    _CancelIntent: CallbackAction<_CancelIntent>(
-                                      onInvoke: (_) {
-                                        widget.onEditCancel?.call();
-                                        return null;
-                                      },
-                                    ),
-                                    _SubmitIntent: CallbackAction<_SubmitIntent>(
-                                      onInvoke: (_) {
-                                        _submit();
-                                        return null;
-                                      },
-                                    ),
+                                    _CancelIntent:
+                                        CallbackAction<_CancelIntent>(
+                                          onInvoke: (_) {
+                                            widget.onEditCancel?.call();
+                                            return null;
+                                          },
+                                        ),
+                                    _SubmitIntent:
+                                        CallbackAction<_SubmitIntent>(
+                                          onInvoke: (_) {
+                                            _submit();
+                                            return null;
+                                          },
+                                        ),
                                   },
                                   child: TextField(
                                     controller: _controller,
                                     focusNode: _focusNode,
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
+                                    style: TextStyle(
+                                      color: context.palette.textPrimary,
                                       fontSize: 12.5,
                                       height: 1.25,
                                     ),
-                                    cursorColor: AppColors.accent,
+                                    cursorColor: context.palette.accent,
                                     decoration: InputDecoration(
                                       isDense: true,
                                       hintText: widget.editHint,
@@ -292,11 +298,11 @@ class _ExplorerTreeItemState extends State<ExplorerTreeItem> {
                                       // chip) can commit first and clear editing.
                                       WidgetsBinding.instance
                                           .addPostFrameCallback((_) {
-                                        if (!mounted || !widget.isEditing) {
-                                          return;
-                                        }
-                                        _submit();
-                                      });
+                                            if (!mounted || !widget.isEditing) {
+                                              return;
+                                            }
+                                            _submit();
+                                          });
                                     },
                                     onChanged: (value) {
                                       widget.onEditChanged?.call(value);
@@ -311,8 +317,8 @@ class _ExplorerTreeItemState extends State<ExplorerTreeItem> {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: selected
-                                      ? AppColors.accent
-                                      : AppColors.textPrimary,
+                                      ? context.palette.accent
+                                      : context.palette.textPrimary,
                                   fontSize: 12.5,
                                   height: 1.25,
                                   fontWeight: selected
@@ -335,7 +341,7 @@ class _ExplorerTreeItemState extends State<ExplorerTreeItem> {
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          foregroundColor: AppColors.accent,
+                          foregroundColor: context.palette.accent,
                         ),
                         onPressed: widget.onApplySuggestion,
                         child: Text(

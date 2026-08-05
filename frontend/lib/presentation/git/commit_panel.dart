@@ -26,8 +26,8 @@ class CommitPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.borderSubtle)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -36,7 +36,7 @@ class ReportsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -50,9 +50,9 @@ class ReportsPage extends StatelessWidget {
                     children: [
                       Text(
                         'Reports',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontSize: 18,
-                            ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleMedium?.copyWith(fontSize: 18),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -82,22 +82,23 @@ class ReportsPage extends StatelessWidget {
             child: isLoading && selected == null
                 ? const Center(child: CircularProgressIndicator())
                 : selected == null
-                    ? EmptyState(
-                        icon: Icons.assessment_outlined,
-                        title: 'No run selected',
-                        message: 'Pick a run in the Reports list to open its '
-                            'log, report, and statistics.',
-                        actionLabel: onRunSuite == null ? null : 'Run Suite',
-                        onAction: onRunSuite,
-                      )
-                    : RunDetailsPanel(
-                        run: selected!,
-                        onOpenXml: onOpenXml,
-                        onOpenLog: onOpenLog,
-                        onOpenReport: onOpenReport,
-                        onReveal: onReveal,
-                        onDelete: onDelete,
-                      ),
+                ? EmptyState(
+                    icon: Icons.assessment_outlined,
+                    title: 'No run selected',
+                    message:
+                        'Pick a run in the Reports list to open its '
+                        'log, report, and statistics.',
+                    actionLabel: onRunSuite == null ? null : 'Run Suite',
+                    onAction: onRunSuite,
+                  )
+                : RunDetailsPanel(
+                    run: selected!,
+                    onOpenXml: onOpenXml,
+                    onOpenLog: onOpenLog,
+                    onOpenReport: onOpenReport,
+                    onReveal: onReveal,
+                    onDelete: onDelete,
+                  ),
           ),
         ],
       ),
@@ -106,10 +107,7 @@ class ReportsPage extends StatelessWidget {
 }
 
 class _DashboardStrip extends StatelessWidget {
-  const _DashboardStrip({
-    required this.dashboard,
-    required this.isLoading,
-  });
+  const _DashboardStrip({required this.dashboard, required this.isLoading});
 
   final DashboardSummary? dashboard;
   final bool isLoading;
@@ -127,9 +125,9 @@ class _DashboardStrip extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(AppRadii.md),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: context.palette.border),
         ),
         child: Text(
           'No runs yet — run a suite to collect pass/fail statistics.',
@@ -145,10 +143,7 @@ class _DashboardStrip extends StatelessWidget {
         _MetricChip(label: 'Total Runs', value: '${data.totalRuns}'),
         _MetricChip(label: 'Pass Rate', value: data.passRateLabel),
         _MetricChip(label: 'Avg Duration', value: data.averageDurationLabel),
-        _MetricChip(
-          label: 'Last Run',
-          value: data.lastRun?.resultBadge ?? '—',
-        ),
+        _MetricChip(label: 'Last Run', value: data.lastRun?.resultBadge ?? '—'),
         _MetricChip(
           label: 'Recent Failures',
           value: '${data.recentFailures.length}',
@@ -170,9 +165,9 @@ class _MetricChip extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 120),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,8 +176,8 @@ class _MetricChip extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: context.palette.textPrimary,
               fontWeight: FontWeight.w700,
               fontSize: 15,
             ),

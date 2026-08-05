@@ -166,7 +166,7 @@ class SidePanel extends StatelessWidget {
     return SizedBox(
       width: width.clamp(minWidth, maxWidth),
       child: DecoratedBox(
-        decoration: const BoxDecoration(color: AppColors.surface),
+        decoration: BoxDecoration(color: context.palette.surface),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -174,8 +174,8 @@ class SidePanel extends StatelessWidget {
               title: panel == SidebarPanel.search
                   ? 'Find in Files'
                   : panel == SidebarPanel.libraries
-                      ? 'Libraries'
-                      : panel.label,
+                  ? 'Libraries'
+                  : panel.label,
             ),
             Expanded(child: _buildBody(context)),
           ],
@@ -304,13 +304,14 @@ class SidePanel extends StatelessWidget {
     if (panel == SidebarPanel.search) {
       return FindInFilesPanel(
         hasProject: workspace != null,
-        onSearch: onContentSearch ??
+        onSearch:
+            onContentSearch ??
             ((_) async => const ContentSearchResultInfo(
-                  query: '',
-                  truncated: false,
-                  filesScanned: 0,
-                  files: [],
-                )),
+              query: '',
+              truncated: false,
+              filesScanned: 0,
+              files: [],
+            )),
         onOpenMatch: onOpenContentMatch ?? (path, line, column) {},
         onOpenSymbols: onOpenSymbols,
       );

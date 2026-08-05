@@ -32,13 +32,13 @@ class DiffViewer extends StatelessWidget {
           child: isLoading
               ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
               : diff == null || diff!.lines.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'Select a changed file to view diff',
-                        style: TextStyle(color: AppColors.textMuted),
-                      ),
-                    )
-                  : _SideBySideDiff(lines: diff!.lines),
+              ? Center(
+                  child: Text(
+                    'Select a changed file to view diff',
+                    style: TextStyle(color: context.palette.textMuted),
+                  ),
+                )
+              : _SideBySideDiff(lines: diff!.lines),
         ),
       ],
     );
@@ -55,9 +55,13 @@ class _SideBySideDiff extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(child: _DiffColumn(side: _DiffSide.left, lines: lines)),
+        Expanded(
+          child: _DiffColumn(side: _DiffSide.left, lines: lines),
+        ),
         const VerticalDivider(width: 1),
-        Expanded(child: _DiffColumn(side: _DiffSide.right, lines: lines)),
+        Expanded(
+          child: _DiffColumn(side: _DiffSide.right, lines: lines),
+        ),
       ],
     );
   }
@@ -79,10 +83,11 @@ class _DiffColumn extends StatelessWidget {
       itemBuilder: (context, index) {
         final line = lines[index];
         final text = side == _DiffSide.left ? line.left : line.right;
-        final lineNumber =
-            side == _DiffSide.left ? line.leftLine : line.rightLine;
-        final background = _backgroundFor(line.kind, side);
-        final foreground = _foregroundFor(line.kind);
+        final lineNumber = side == _DiffSide.left
+            ? line.leftLine
+            : line.rightLine;
+        final background = _backgroundFor(context.palette, line.kind, side);
+        final foreground = _foregroundFor(context.palette, line.kind);
 
         if (text.isEmpty && lineNumber == null) {
           return const SizedBox(height: 20);
@@ -99,8 +104,8 @@ class _DiffColumn extends StatelessWidget {
                   child: Text(
                     lineNumber?.toString() ?? '',
                     textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
+                    style: TextStyle(
+                      color: context.palette.textMuted,
                       fontSize: 11,
                       fontFamily: 'monospace',
                     ),
@@ -127,22 +132,28 @@ class _DiffColumn extends StatelessWidget {
     );
   }
 
-  Color _backgroundFor(String kind, _DiffSide side) {
+  Color _backgroundFor(AppPalette palette, String kind, _DiffSide side) {
+    // A wash of the semantic colour, so the tint reads on either brightness
+    // instead of being a fixed dark overlay.
+    const alpha = 0.13;
     return switch (kind) {
-      'added' when side == _DiffSide.right =>
-        const Color(0x221A4D2E),
-      'removed' when side == _DiffSide.left => const Color(0x224D1A1A),
-      'modified' => const Color(0x223A3A1A),
+      'added' when side == _DiffSide.right => palette.success.withValues(
+        alpha: alpha,
+      ),
+      'removed' when side == _DiffSide.left => palette.error.withValues(
+        alpha: alpha,
+      ),
+      'modified' => palette.warning.withValues(alpha: alpha),
       _ => Colors.transparent,
     };
   }
 
-  Color _foregroundFor(String kind) {
+  Color _foregroundFor(AppPalette palette, String kind) {
     return switch (kind) {
-      'added' => AppColors.success,
-      'removed' => AppColors.error,
-      'modified' => AppColors.warning,
-      _ => AppColors.textPrimary,
+      'added' => palette.success,
+      'removed' => palette.error,
+      'modified' => palette.warning,
+      _ => palette.textPrimary,
     };
   }
 }

@@ -4,7 +4,8 @@ import 'package:re_editor/re_editor.dart';
 import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
 
-class RobotAutocompletePromptsBuilder implements CodeAutocompletePromptsBuilder {
+class RobotAutocompletePromptsBuilder
+    implements CodeAutocompletePromptsBuilder {
   RobotAutocompletePromptsBuilder(this.items);
 
   List<CompletionItemInfo> items;
@@ -27,23 +28,21 @@ class RobotAutocompletePromptsBuilder implements CodeAutocompletePromptsBuilder 
 
     final prompts = items
         .where((item) => prefix.isEmpty || _labelMatches(item, prefix))
-        .map(
-          (item) {
-            final insert = item.insertText;
-            final caret = item.kind == 'parameter' && insert.endsWith('=')
-                ? insert.length
-                : insert.length;
-            return CodeFieldPrompt(
+        .map((item) {
+          final insert = item.insertText;
+          final caret = item.kind == 'parameter' && insert.endsWith('=')
+              ? insert.length
+              : insert.length;
+          return CodeFieldPrompt(
+            word: insert,
+            type: item.kind,
+            customAutocomplete: CodeAutocompleteResult(
+              input: prefix,
               word: insert,
-              type: item.kind,
-              customAutocomplete: CodeAutocompleteResult(
-                input: prefix,
-                word: insert,
-                selection: TextSelection.collapsed(offset: caret),
-              ),
-            );
-          },
-        )
+              selection: TextSelection.collapsed(offset: caret),
+            ),
+          );
+        })
         .toList();
     if (prompts.isEmpty) return null;
     return CodeAutocompleteEditingValue(
@@ -102,10 +101,8 @@ class RobotAutocompleteListView extends StatefulWidget
   final ValueChanged<CodeAutocompleteResult> onSelected;
 
   @override
-  Size get preferredSize => Size(
-        320,
-        (itemHeight * notifier.value.prompts.length.clamp(1, 8)) + 2,
-      );
+  Size get preferredSize =>
+      Size(320, (itemHeight * notifier.value.prompts.length.clamp(1, 8)) + 2);
 
   @override
   State<RobotAutocompleteListView> createState() =>
@@ -132,7 +129,7 @@ class _RobotAutocompleteListViewState extends State<RobotAutocompleteListView> {
     final value = widget.notifier.value;
     return Material(
       elevation: 6,
-      color: AppColors.surface,
+      color: context.palette.surface,
       borderRadius: BorderRadius.circular(6),
       child: ConstrainedBox(
         constraints: BoxConstraints.loose(widget.preferredSize),
@@ -143,21 +140,20 @@ class _RobotAutocompleteListViewState extends State<RobotAutocompleteListView> {
             final prompt = value.prompts[index];
             final selected = index == value.index;
             return InkWell(
-              onTap: () => widget.onSelected(
-                value.copyWith(index: index).autocomplete,
-              ),
+              onTap: () =>
+                  widget.onSelected(value.copyWith(index: index).autocomplete),
               child: Container(
                 height: RobotAutocompleteListView.itemHeight,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                color: selected ? AppColors.accentSoft : null,
+                color: selected ? context.palette.accentSoft : null,
                 alignment: Alignment.centerLeft,
                 child: Text(
                   prompt.word,
                   style: TextStyle(
                     fontSize: 12,
                     color: selected
-                        ? AppColors.textPrimary
-                        : AppColors.textSecondary,
+                        ? context.palette.textPrimary
+                        : context.palette.textSecondary,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -178,16 +174,17 @@ TextSpan buildDiagnosticLineSpan({
   required TextStyle style,
   required List<DiagnosticInfo> diagnostics,
 }) {
-  final lineDiagnostics =
-      diagnostics.where((item) => item.line == lineNumber).toList();
+  final lineDiagnostics = diagnostics
+      .where((item) => item.line == lineNumber)
+      .toList();
   if (lineDiagnostics.isEmpty) {
     return textSpan;
   }
   final severity = lineDiagnostics.first.severity;
   final color = switch (severity) {
-    DiagnosticSeverity.error => AppColors.error,
-    DiagnosticSeverity.warning => AppColors.warning,
-    DiagnosticSeverity.information => AppColors.accent,
+    DiagnosticSeverity.error => context.palette.error,
+    DiagnosticSeverity.warning => context.palette.warning,
+    DiagnosticSeverity.information => context.palette.accent,
   };
   return TextSpan(
     style: style.copyWith(

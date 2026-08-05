@@ -43,10 +43,10 @@ class _DeleteEnvironmentDialogState extends State<DeleteEnvironmentDialog> {
             ),
             if (env.active) ...[
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'This environment is active and cannot be deleted. '
                 'Activate another environment first.',
-                style: TextStyle(color: AppColors.error, fontSize: 12),
+                style: TextStyle(color: context.palette.error, fontSize: 12),
               ),
             ] else ...[
               const SizedBox(height: 12),
@@ -71,7 +71,7 @@ class _DeleteEnvironmentDialogState extends State<DeleteEnvironmentDialog> {
           onPressed: env.active
               ? null
               : () => Navigator.of(context).pop(_deleteFiles),
-          style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+          style: FilledButton.styleFrom(backgroundColor: context.palette.error),
           child: const Text('Delete'),
         ),
       ],

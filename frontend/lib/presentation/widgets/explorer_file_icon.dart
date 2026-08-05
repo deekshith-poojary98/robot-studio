@@ -3,8 +3,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:vector_graphics/vector_graphics.dart';
 import 'package:vscode_material_icon_theme/vscode_material_icon_theme.dart';
 
-import '../../core/theme/app_theme.dart';
-
 /// VS Code Material Icon Theme glyphs for explorer rows.
 ///
 /// Uses [SvgPicture] with compiled `.vec` loaders (same as the package docs).
@@ -21,20 +19,17 @@ Widget explorerFileIcon({
     loading
         ? Icons.hourglass_empty
         : isDirectory
-            ? (expanded ? Icons.folder_open_outlined : Icons.folder_outlined)
-            : Icons.insert_drive_file_outlined,
+        ? (expanded ? Icons.folder_open_outlined : Icons.folder_outlined)
+        : Icons.insert_drive_file_outlined,
     size: size,
-    color: AppColors.textSecondary,
+    // Inherits IconTheme (palette.textSecondary) so it follows the theme.
   );
 
   if (loading) return fallback;
 
   final key = name.trim().toLowerCase();
   final loader = isDirectory
-      ? directoryToIcon(
-          key.isEmpty ? '/' : key,
-          isExpanded: expanded,
-        )
+      ? directoryToIcon(key.isEmpty ? '/' : key, isExpanded: expanded)
       : _fileLoader(key);
 
   return SvgPicture(

@@ -112,33 +112,33 @@ class _LibraryExplorerPanelState extends State<LibraryExplorerPanel> {
   Widget _body() {
     return switch (_c.level) {
       LibraryExplorerLevel.libraries => _LibraryList(
-          libraries: _c.libraries,
-          onOpen: _openLibrary,
-        ),
+        libraries: _c.libraries,
+        onOpen: _openLibrary,
+      ),
       LibraryExplorerLevel.keywords => _KeywordList(
-          library: _c.selectedLibrary,
-          filterController: _filterController,
-          keywords: _c.filteredKeywords,
-          loading: _c.loadingDetail,
-          onFilterChanged: (value) {
-            _c.setKeywordFilter(value);
-            setState(() {});
-          },
-          onOpen: (kw) {
-            _c.openKeyword(kw);
-            setState(() {});
-          },
-        ),
+        library: _c.selectedLibrary,
+        filterController: _filterController,
+        keywords: _c.filteredKeywords,
+        loading: _c.loadingDetail,
+        onFilterChanged: (value) {
+          _c.setKeywordFilter(value);
+          setState(() {});
+        },
+        onOpen: (kw) {
+          _c.openKeyword(kw);
+          setState(() {});
+        },
+      ),
       LibraryExplorerLevel.detail => _KeywordDetail(
-          keyword: _c.selectedKeyword!,
-          libraryName: _c.selectedLibrary?.name ?? '',
-          onJump: _c.selectedKeyword!.canJumpToSource
-              ? () => widget.onJumpToSource(
-                    _c.selectedKeyword!.sourcePath,
-                    _c.selectedKeyword!.sourceLine,
-                  )
-              : null,
-        ),
+        keyword: _c.selectedKeyword!,
+        libraryName: _c.selectedLibrary?.name ?? '',
+        onJump: _c.selectedKeyword!.canJumpToSource
+            ? () => widget.onJumpToSource(
+                _c.selectedKeyword!.sourcePath,
+                _c.selectedKeyword!.sourceLine,
+              )
+            : null,
+      ),
     };
   }
 }
@@ -160,15 +160,19 @@ class _BackBar extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.arrow_back, size: 16, color: AppColors.textSecondary),
+            Icon(
+              Icons.arrow_back,
+              size: 16,
+              color: context.palette.textSecondary,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: context.palette.textPrimary,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -200,20 +204,18 @@ class _LibraryList extends StatelessWidget {
       itemCount: libraries.length,
       itemBuilder: (context, index) {
         final lib = libraries[index];
-        final countLabel =
-            lib.keywordCount > 0 ? '${lib.keywordCount} keywords' : 'Imported · tap to load';
+        final countLabel = lib.keywordCount > 0
+            ? '${lib.keywordCount} keywords'
+            : 'Imported · tap to load';
         return ListTile(
           dense: true,
           title: Text(
             lib.name,
-            style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+            style: TextStyle(fontSize: 13, color: context.palette.textPrimary),
           ),
           subtitle: Text(
-            [
-              if (lib.builtin) 'BuiltIn',
-              countLabel,
-            ].join(' · '),
-            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+            [if (lib.builtin) 'BuiltIn', countLabel].join(' · '),
+            style: TextStyle(fontSize: 11, color: context.palette.textMuted),
           ),
           onTap: () => onOpen(lib),
         );
@@ -280,9 +282,9 @@ class _KeywordList extends StatelessWidget {
                       dense: true,
                       title: Text(
                         kw.name,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
-                          color: AppColors.textPrimary,
+                          color: context.palette.textPrimary,
                         ),
                       ),
                       onTap: () => onOpen(kw),
@@ -313,19 +315,19 @@ class _KeywordDetail extends StatelessWidget {
       children: [
         Text(
           keyword.name,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
+            color: context.palette.textPrimary,
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
-        const Text(
+        Text(
           'Documentation',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: AppColors.textMuted,
+            color: context.palette.textMuted,
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
@@ -333,26 +335,29 @@ class _KeywordDetail extends StatelessWidget {
           keyword.documentation.isEmpty
               ? 'No documentation available.'
               : keyword.documentation,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             height: 1.35,
-            color: AppColors.textSecondary,
+            color: context.palette.textSecondary,
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
-        const Text(
+        Text(
           'Arguments',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: AppColors.textMuted,
+            color: context.palette.textMuted,
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
         if (keyword.parameters.isEmpty)
-          const Text(
+          Text(
             'None',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(
+              fontSize: 12,
+              color: context.palette.textSecondary,
+            ),
           )
         else
           for (final param in keyword.parameters)
@@ -362,25 +367,26 @@ class _KeywordDetail extends StatelessWidget {
                 param.displayLabel,
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight:
-                      param.required ? FontWeight.w600 : FontWeight.w400,
-                  color: AppColors.textPrimary,
+                  fontWeight: param.required
+                      ? FontWeight.w600
+                      : FontWeight.w400,
+                  color: context.palette.textPrimary,
                 ),
               ),
             ),
         const SizedBox(height: AppSpacing.lg),
-        const Text(
+        Text(
           'Defined in',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: AppColors.textMuted,
+            color: context.palette.textMuted,
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
           keyword.libraryName.isNotEmpty ? keyword.libraryName : libraryName,
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 12, color: context.palette.textSecondary),
         ),
         if (onJump != null) ...[
           const SizedBox(height: AppSpacing.lg),

@@ -36,31 +36,33 @@ class _ToolbarButtonState extends State<ToolbarButton> {
     final danger = widget.danger && enabled;
     final bg = !enabled
         ? (primary
-            ? AppColors.accent.withValues(alpha: 0.22)
-            : Colors.transparent)
+              ? context.palette.accent.withValues(alpha: 0.22)
+              : Colors.transparent)
         : primary
-            ? AppColors.accent
-            : danger && _hovered
-                ? AppColors.error.withValues(alpha: 0.12)
-                : _hovered
-                    ? AppColors.surfaceHover
-                    : Colors.transparent;
+        ? context.palette.accent
+        : danger && _hovered
+        ? context.palette.error.withValues(alpha: 0.12)
+        : _hovered
+        ? context.palette.surfaceHover
+        : Colors.transparent;
     final fg = !enabled
-        ? AppColors.textMuted.withValues(alpha: 0.55)
+        ? context.palette.textMuted.withValues(alpha: 0.55)
         : primary
-            ? const Color(0xFFE8F2F2)
-            : danger
-                ? AppColors.error
-                : AppColors.textPrimary;
+        ? context.palette.onAccent
+        : danger
+        ? context.palette.error
+        : context.palette.textPrimary;
     final borderColor = !enabled
         ? (primary || danger
-            ? AppColors.border.withValues(alpha: 0.35)
-            : Colors.transparent)
+              ? context.palette.border.withValues(alpha: 0.35)
+              : Colors.transparent)
         : primary
-            ? Colors.transparent
-            : danger
-                ? AppColors.error.withValues(alpha: _hovered ? 0.55 : 0.35)
-                : (_hovered ? AppColors.border : AppColors.border.withValues(alpha: 0.5));
+        ? Colors.transparent
+        : danger
+        ? context.palette.error.withValues(alpha: _hovered ? 0.55 : 0.35)
+        : (_hovered
+              ? context.palette.border
+              : context.palette.border.withValues(alpha: 0.5));
 
     final child = AnimatedContainer(
       duration: const Duration(milliseconds: 100),

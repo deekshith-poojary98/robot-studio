@@ -35,7 +35,7 @@ class ProblemsPanel extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       itemCount: diagnostics.length,
       separatorBuilder: (_, __) =>
-          const Divider(height: 1, color: AppColors.borderSubtle),
+          Divider(height: 1, color: context.palette.borderSubtle),
       itemBuilder: (context, index) {
         final item = diagnostics[index];
         return ListTile(
@@ -44,7 +44,7 @@ class ProblemsPanel extends StatelessWidget {
           leading: Icon(
             _iconFor(item.severity),
             size: 16,
-            color: _colorFor(item.severity),
+            color: _colorFor(context.palette, item.severity),
           ),
           title: Text(
             item.message,
@@ -72,11 +72,11 @@ class ProblemsPanel extends StatelessWidget {
     };
   }
 
-  Color _colorFor(DiagnosticSeverity severity) {
+  Color _colorFor(AppPalette palette, DiagnosticSeverity severity) {
     return switch (severity) {
-      DiagnosticSeverity.error => AppColors.error,
-      DiagnosticSeverity.warning => AppColors.warning,
-      DiagnosticSeverity.information => AppColors.accent,
+      DiagnosticSeverity.error => palette.error,
+      DiagnosticSeverity.warning => palette.warning,
+      DiagnosticSeverity.information => palette.accent,
     };
   }
 }

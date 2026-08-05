@@ -1,3 +1,5 @@
+import 'dart:ui' show Brightness;
+
 import 'package:flutter/painting.dart';
 import 'package:re_highlight/re_highlight.dart';
 
@@ -21,16 +23,13 @@ final Mode langRobot = Mode(
     Mode(className: 'comment', begin: '#', end: r'$'),
 
     // Continuation `...`
-    Mode(
-      className: 'meta',
-      begin: r'^[ \t]*\.\.\.',
-      relevance: 5,
-    ),
+    Mode(className: 'meta', begin: r'^[ \t]*\.\.\.', relevance: 5),
 
     // *** Settings *** / legacy singular / Comments
     Mode(
       className: 'section',
-      begin: r'^\*{3}\s*('
+      begin:
+          r'^\*{3}\s*('
           r'Settings?|Variables?|Test Cases?|Tasks?|Keywords?|Comments?'
           r')\s*\*{3}',
       end: r'$',
@@ -39,11 +38,7 @@ final Mode langRobot = Mode(
 
     // ${x} @{x} &{x} %{x} — match early so keyword rules never swallow
     // assignment cells like `${source}    Create Dictionary`.
-    Mode(
-      className: 'variable',
-      begin: r'[\$@&%]\{[^{}\n]+\}',
-      relevance: 10,
-    ),
+    Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}', relevance: 10),
 
     // Local [Documentation] … rest of line — exclusive mode so IF/FOR/IN
     // inside doc text are not painted as control-flow keywords.
@@ -53,15 +48,8 @@ final Mode langRobot = Mode(
       end: r'$',
       returnBegin: true,
       contains: <Mode>[
-        Mode(
-          className: 'meta',
-          begin: r'\[Documentation\]',
-          relevance: 10,
-        ),
-        Mode(
-          className: 'variable',
-          begin: r'[\$@&%]\{[^{}\n]+\}',
-        ),
+        Mode(className: 'meta', begin: r'\[Documentation\]', relevance: 10),
+        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
       ],
       relevance: 10,
     ),
@@ -73,15 +61,8 @@ final Mode langRobot = Mode(
       end: r'$',
       returnBegin: true,
       contains: <Mode>[
-        Mode(
-          className: 'keyword',
-          begin: r'^Documentation\b',
-          relevance: 10,
-        ),
-        Mode(
-          className: 'variable',
-          begin: r'[\$@&%]\{[^{}\n]+\}',
-        ),
+        Mode(className: 'keyword', begin: r'^Documentation\b', relevance: 10),
+        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
       ],
       relevance: 10,
     ),
@@ -89,8 +70,7 @@ final Mode langRobot = Mode(
     // Other local settings: [Tags] / [Setup] / …
     Mode(
       className: 'meta',
-      begin:
-          r'\[(Tags|Setup|Teardown|Timeout|Arguments|Template|Return)\]',
+      begin: r'\[(Tags|Setup|Teardown|Timeout|Arguments|Template|Return)\]',
     ),
 
     // Suite / import settings at column 0 (Documentation handled above)
@@ -107,7 +87,8 @@ final Mode langRobot = Mode(
     // so doc text does not pick these up.
     Mode(
       className: 'keyword',
-      begin: r'\b('
+      begin:
+          r'\b('
           r'IF|ELSE IF|ELSE|END|FOR|WHILE|BREAK|CONTINUE|RETURN|'
           r'TRY|EXCEPT|FINALLY|GROUP|VAR|'
           r'IN RANGE|IN ENUMERATE|IN ZIP|IN|'
@@ -117,11 +98,7 @@ final Mode langRobot = Mode(
     ),
 
     // Named arguments: user=
-    Mode(
-      className: 'attr',
-      begin: r'\b[A-Za-z_][\w]*=',
-      relevance: 0,
-    ),
+    Mode(className: 'attr', begin: r'\b[A-Za-z_][\w]*=', relevance: 0),
 
     // Indented library / user keyword *calls* (BuiltIn + others).
     // Indent/separator classes are `[ \t]`, never `\s`: `\s` matches newlines,
@@ -181,10 +158,21 @@ final Mode langRobot = Mode(
   ],
 );
 
+/// Robot Framework token colours, one map per editor brightness.
+///
+/// Dark follows VS Code **Dark+**, light follows **Light+** — the same token
+/// roles, re-picked for a white background. Reusing Dark+ hues on light would
+/// wash out (`#DCDCAA` yellow on white is roughly 1.5:1).
+Map<String, TextStyle> robotHighlightTheme(Brightness brightness) {
+  return brightness == Brightness.light
+      ? robotStudioHighlightThemeLight
+      : robotStudioHighlightThemeDark;
+}
+
 /// VS Code Dark+ / Robot Framework extension palette.
 /// Magenta = DSL (sections handled separately; settings + control flow).
 /// Teal = library keyword calls (BuiltIn + user libraries).
-final Map<String, TextStyle> robotStudioHighlightTheme = {
+final Map<String, TextStyle> robotStudioHighlightThemeDark = {
   'root': const TextStyle(color: Color(0xFFD4D4D4)),
   'comment': const TextStyle(
     color: Color(0xFF6A9955),
@@ -223,4 +211,43 @@ final Map<String, TextStyle> robotStudioHighlightTheme = {
   'string': const TextStyle(color: Color(0xFFCE9178)),
   'number': const TextStyle(color: Color(0xFFB5CEA8)),
   'params': const TextStyle(color: Color(0xFFD4D4D4)),
+};
+
+/// VS Code Light+ equivalents, role for role with the dark map above.
+final Map<String, TextStyle> robotStudioHighlightThemeLight = {
+  'root': const TextStyle(color: Color(0xFF1F1F1F)),
+  'comment': const TextStyle(
+    color: Color(0xFF008000),
+    fontStyle: FontStyle.italic,
+  ),
+  // *** Settings *** — dark blue (Light+ variable)
+  'section': const TextStyle(
+    color: Color(0xFF001080),
+    fontWeight: FontWeight.w700,
+  ),
+  // Suite settings / control-flow DSL — purple (Light+ control keyword)
+  'keyword': const TextStyle(
+    color: Color(0xFFAF00DB),
+    fontWeight: FontWeight.w700,
+  ),
+  'meta': const TextStyle(
+    color: Color(0xFFAF00DB),
+    fontWeight: FontWeight.w700,
+  ),
+  // Library keyword calls — dark teal (Light+ type)
+  'built_in': const TextStyle(
+    color: Color(0xFF267F99),
+    fontWeight: FontWeight.w700,
+  ),
+  // Test / keyword names — olive (Light+ function)
+  'title': const TextStyle(
+    color: Color(0xFF795E26),
+    fontWeight: FontWeight.w700,
+  ),
+  'variable': const TextStyle(color: Color(0xFF001080)),
+  'template-variable': const TextStyle(color: Color(0xFF001080)),
+  'attr': const TextStyle(color: Color(0xFF795E26)),
+  'string': const TextStyle(color: Color(0xFFA31515)),
+  'number': const TextStyle(color: Color(0xFF098658)),
+  'params': const TextStyle(color: Color(0xFF1F1F1F)),
 };

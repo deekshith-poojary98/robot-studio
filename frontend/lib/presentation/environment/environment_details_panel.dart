@@ -24,7 +24,7 @@ class EnvironmentDetailsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final env = environment;
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       alignment: Alignment.topCenter,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
@@ -35,18 +35,18 @@ class EnvironmentDetailsPanel extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.memory_outlined,
                     size: 28,
-                    color: AppColors.accent,
+                    color: context.palette.accent,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       env.name,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontSize: 20,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(fontSize: 20),
                     ),
                   ),
                   if (env.active)
@@ -88,17 +88,17 @@ class EnvironmentDetailsPanel extends StatelessWidget {
                 label: 'Robot Version',
                 value: env.robotVersion ?? 'Not installed',
               ),
-              _DetailRow(label: 'Interpreter Path', value: env.pythonExecutable),
+              _DetailRow(
+                label: 'Interpreter Path',
+                value: env.pythonExecutable,
+              ),
               _DetailRow(label: 'Pip Path', value: env.pipExecutable),
               _DetailRow(
                 label: 'Robot Path',
                 value: env.robotExecutable ?? '—',
               ),
               _DetailRow(label: 'Platform', value: env.platform ?? '—'),
-              _DetailRow(
-                label: 'Architecture',
-                value: env.architecture ?? '—',
-              ),
+              _DetailRow(label: 'Architecture', value: env.architecture ?? '—'),
               _DetailRow(
                 label: 'Package Count',
                 value: env.packageCount.toString(),
@@ -148,10 +148,7 @@ class _DetailRow extends StatelessWidget {
           const SizedBox(height: 4),
           SelectableText(
             value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: context.palette.textPrimary, fontSize: 13),
           ),
         ],
       ),

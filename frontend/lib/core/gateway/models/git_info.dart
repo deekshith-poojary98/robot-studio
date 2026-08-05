@@ -18,31 +18,33 @@ enum GitFileStatus {
   }
 
   String get label => switch (this) {
-        GitFileStatus.modified => 'Modified',
-        GitFileStatus.added => 'Added',
-        GitFileStatus.deleted => 'Deleted',
-        GitFileStatus.renamed => 'Renamed',
-        GitFileStatus.untracked => 'Untracked',
-        GitFileStatus.copied => 'Copied',
-      };
+    GitFileStatus.modified => 'Modified',
+    GitFileStatus.added => 'Added',
+    GitFileStatus.deleted => 'Deleted',
+    GitFileStatus.renamed => 'Renamed',
+    GitFileStatus.untracked => 'Untracked',
+    GitFileStatus.copied => 'Copied',
+  };
 
   String get badge => switch (this) {
-        GitFileStatus.modified => 'M',
-        GitFileStatus.added => 'A',
-        GitFileStatus.deleted => 'D',
-        GitFileStatus.renamed => 'R',
-        GitFileStatus.untracked => 'U',
-        GitFileStatus.copied => 'C',
-      };
+    GitFileStatus.modified => 'M',
+    GitFileStatus.added => 'A',
+    GitFileStatus.deleted => 'D',
+    GitFileStatus.renamed => 'R',
+    GitFileStatus.untracked => 'U',
+    GitFileStatus.copied => 'C',
+  };
 
-  Color get color => switch (this) {
-        GitFileStatus.modified => AppColors.warning,
-        GitFileStatus.added => AppColors.success,
-        GitFileStatus.deleted => AppColors.error,
-        GitFileStatus.renamed => AppColors.info,
-        GitFileStatus.untracked => AppColors.textMuted,
-        GitFileStatus.copied => AppColors.accent,
-      };
+  /// Takes the palette rather than exposing a `color` getter, so status badges
+  /// follow the active theme instead of pinning to dark tokens.
+  Color colorFor(AppPalette palette) => switch (this) {
+    GitFileStatus.modified => palette.warning,
+    GitFileStatus.added => palette.success,
+    GitFileStatus.deleted => palette.error,
+    GitFileStatus.renamed => palette.info,
+    GitFileStatus.untracked => palette.textMuted,
+    GitFileStatus.copied => palette.accent,
+  };
 }
 
 class GitRepositoryInfo {
@@ -95,10 +97,7 @@ class GitFileChangeInfo {
 }
 
 class GitStatusInfo {
-  const GitStatusInfo({
-    required this.repository,
-    this.changes = const [],
-  });
+  const GitStatusInfo({required this.repository, this.changes = const []});
 
   factory GitStatusInfo.fromJson(Map<String, dynamic> json) {
     final changes = (json['changes'] as List<dynamic>? ?? [])
@@ -221,11 +220,7 @@ class GitDiffLineInfo {
 }
 
 class GitDiffInfo {
-  const GitDiffInfo({
-    this.filePath,
-    this.oldPath,
-    this.lines = const [],
-  });
+  const GitDiffInfo({this.filePath, this.oldPath, this.lines = const []});
 
   factory GitDiffInfo.fromJson(Map<String, dynamic> json) {
     final lines = (json['lines'] as List<dynamic>? ?? [])

@@ -22,26 +22,29 @@ class IndexStatusCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text('Index Status', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                'Index Status',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const Spacer(),
               if (data != null)
                 StatusBadge(
                   label: data.state.toUpperCase(),
                   filled: data.state == 'ready',
                   dotColor: data.state == 'ready'
-                      ? AppColors.success
+                      ? context.palette.success
                       : data.state == 'indexing'
-                          ? AppColors.accent
-                          : AppColors.textMuted,
+                      ? context.palette.accent
+                      : context.palette.textMuted,
                 ),
               if (onRebuild != null) ...[
                 const SizedBox(width: 8),
@@ -90,9 +93,9 @@ class _Metric extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 110),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
+        color: context.palette.surfaceElevated,
         borderRadius: BorderRadius.circular(AppRadii.sm),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,8 +104,8 @@ class _Metric extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: context.palette.textPrimary,
               fontWeight: FontWeight.w700,
               fontSize: 14,
             ),

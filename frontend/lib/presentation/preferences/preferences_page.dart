@@ -260,7 +260,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -270,10 +270,10 @@ class _PreferencesPageState extends State<PreferencesPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _categoryRail(context),
-                const VerticalDivider(
+                VerticalDivider(
                   width: 1,
                   thickness: 1,
-                  color: AppColors.borderSubtle,
+                  color: context.palette.borderSubtle,
                 ),
                 Expanded(child: _content(context)),
               ],
@@ -293,9 +293,9 @@ class _PreferencesPageState extends State<PreferencesPage> {
         AppSpacing.lg,
         AppSpacing.md,
       ),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.borderSubtle)),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        border: Border(bottom: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: Row(
         children: [
@@ -310,10 +310,10 @@ class _PreferencesPageState extends State<PreferencesPage> {
                   style: TextStyle(
                     fontSize: 12,
                     color: _error != null
-                        ? AppColors.error
+                        ? context.palette.error
                         : (_isDirty
-                              ? AppColors.warning
-                              : AppColors.textSecondary),
+                              ? context.palette.warning
+                              : context.palette.textSecondary),
                   ),
                 ),
               ],
@@ -349,7 +349,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
               iconSize: 18,
               visualDensity: VisualDensity.compact,
               onPressed: widget.onClose,
-              icon: const Icon(Icons.close, color: AppColors.textSecondary),
+              icon: Icon(Icons.close, color: context.palette.textSecondary),
             ),
           ],
         ],
@@ -366,7 +366,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
   Widget _categoryRail(BuildContext context) {
     return Container(
       width: 208,
-      color: AppColors.surface,
+      color: context.palette.surface,
       child: ListView(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
         children: [
@@ -626,12 +626,12 @@ class _CategoryTile extends StatelessWidget {
         vertical: 1,
       ),
       child: Material(
-        color: selected ? AppColors.accentSoft : Colors.transparent,
+        color: selected ? context.palette.accentSoft : Colors.transparent,
         borderRadius: BorderRadius.circular(AppRadii.sm),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(AppRadii.sm),
-          hoverColor: AppColors.surfaceHover,
+          hoverColor: context.palette.surfaceHover,
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
@@ -642,7 +642,9 @@ class _CategoryTile extends StatelessWidget {
                 Icon(
                   category.icon,
                   size: 15,
-                  color: selected ? AppColors.accent : AppColors.textSecondary,
+                  color: selected
+                      ? context.palette.accent
+                      : context.palette.textSecondary,
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -652,8 +654,8 @@ class _CategoryTile extends StatelessWidget {
                       fontSize: 12.5,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                       color: selected
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
+                          ? context.palette.textPrimary
+                          : context.palette.textSecondary,
                     ),
                   ),
                 ),
@@ -708,9 +710,9 @@ class _RowShell extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     hint!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11.5,
-                      color: AppColors.textMuted,
+                      color: context.palette.textMuted,
                     ),
                   ),
                 ],
@@ -941,7 +943,7 @@ class _DropdownRow<T> extends StatelessWidget {
       trailing: DropdownButton<T>(
         value: value,
         underline: const SizedBox.shrink(),
-        style: const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+        style: TextStyle(fontSize: 12.5, color: context.palette.textPrimary),
         items: [
           for (final item in items)
             DropdownMenuItem(value: item, child: Text(labelFor(item))),

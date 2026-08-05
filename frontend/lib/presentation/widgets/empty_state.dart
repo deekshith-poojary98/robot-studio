@@ -42,7 +42,7 @@ class EmptyState extends StatelessWidget {
                 Icon(
                   icon,
                   size: compact ? 28 : 36,
-                  color: AppColors.textMuted,
+                  color: context.palette.textMuted,
                 ),
                 SizedBox(height: compact ? AppSpacing.md : AppSpacing.md + 2),
                 Text(
@@ -60,10 +60,7 @@ class EmptyState extends StatelessWidget {
                 ),
                 if (actionLabel != null && onAction != null) ...[
                   SizedBox(height: compact ? AppSpacing.md : AppSpacing.lg),
-                  FilledButton(
-                    onPressed: onAction,
-                    child: Text(actionLabel!),
-                  ),
+                  FilledButton(onPressed: onAction, child: Text(actionLabel!)),
                 ],
                 if (secondaryActionLabel != null &&
                     onSecondaryAction != null) ...[

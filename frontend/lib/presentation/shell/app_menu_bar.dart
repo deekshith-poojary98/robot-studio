@@ -119,8 +119,8 @@ class RobotStudioMenuBar extends StatelessWidget {
 
   static SingleActivator _mod(LogicalKeyboardKey key, {bool shift = false}) =>
       isMac
-          ? SingleActivator(key, meta: true, shift: shift)
-          : SingleActivator(key, control: true, shift: shift);
+      ? SingleActivator(key, meta: true, shift: shift)
+      : SingleActivator(key, control: true, shift: shift);
 
   @override
   Widget build(BuildContext context) {
@@ -382,8 +382,7 @@ class RobotStudioMenuBar extends StatelessWidget {
                 ),
                 PlatformMenuItem(
                   label: 'Find Symbol in Project…',
-                  onSelected:
-                      a.hasWorkspace ? a.onFindSymbolInProject : null,
+                  onSelected: a.hasWorkspace ? a.onFindSymbolInProject : null,
                 ),
                 PlatformMenuItem(
                   label: 'Show Hover Info',
@@ -399,10 +398,9 @@ class RobotStudioMenuBar extends StatelessWidget {
             PlatformMenuItem(
               label: 'Run File',
               shortcut: const SingleActivator(LogicalKeyboardKey.f5),
-              onSelected:
-                  a.hasActiveFile && a.hasWorkspace && a.canRun
-                      ? a.onRunFile
-                      : null,
+              onSelected: a.hasActiveFile && a.hasWorkspace && a.canRun
+                  ? a.onRunFile
+                  : null,
             ),
             PlatformMenuItem(
               label: 'Run Project',

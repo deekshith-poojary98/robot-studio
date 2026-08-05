@@ -18,10 +18,8 @@ Future<({String name, String location})?> showNewStandaloneProjectDialog(
 }) {
   return showDialog<({String name, String location})>(
     context: context,
-    builder: (context) => NewProjectDialog(
-      askLocation: true,
-      initialLocation: initialLocation,
-    ),
+    builder: (context) =>
+        NewProjectDialog(askLocation: true, initialLocation: initialLocation),
   );
 }
 
@@ -106,10 +104,7 @@ class _NewProjectDialogState extends State<NewProjectDialog> {
       titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
       contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-      title: Text(
-        'New Project',
-        style: theme.textTheme.titleLarge,
-      ),
+      title: Text('New Project', style: theme.textTheme.titleLarge),
       content: SizedBox(
         width: AppDialogWidth.form,
         child: Column(
@@ -119,9 +114,7 @@ class _NewProjectDialogState extends State<NewProjectDialog> {
             TextField(
               controller: _nameController,
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Project name',
-              ),
+              decoration: const InputDecoration(labelText: 'Project name'),
               onChanged: (_) => setState(() => _error = null),
               onSubmitted: (_) {
                 if (_nameController.text.trim().isNotEmpty) {
@@ -177,7 +170,7 @@ class _NewProjectDialogState extends State<NewProjectDialog> {
               const SizedBox(height: 12),
               Text(
                 _error!,
-                style: const TextStyle(color: AppColors.error, fontSize: 12),
+                style: TextStyle(color: context.palette.error, fontSize: 12),
               ),
             ],
           ],

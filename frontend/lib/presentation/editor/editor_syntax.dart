@@ -6,19 +6,17 @@ import 'package:re_highlight/re_highlight.dart';
 import '../../core/theme/app_theme.dart';
 import 'robot_language.dart';
 
-/// Maps a file path to a `re_editor` highlight theme.
+/// Maps a file path to a `re_editor` highlight theme for the active [palette].
 ///
 /// - `.robot` / `.resource` → custom [langRobot]
 /// - other extensions → matching `re_highlight` builtin grammar when known
 /// - unknown types → no highlighting (plain text)
-CodeHighlightTheme? codeThemeForPath(String path) {
+CodeHighlightTheme? codeThemeForPath(String path, AppPalette palette) {
   final resolved = _resolveLanguage(path);
   if (resolved == null) return null;
   return CodeHighlightTheme(
-    languages: {
-      resolved.id: CodeHighlightThemeMode(mode: resolved.mode),
-    },
-    theme: editorHighlightTheme,
+    languages: {resolved.id: CodeHighlightThemeMode(mode: resolved.mode)},
+    theme: editorHighlightTheme(palette),
   );
 }
 
@@ -223,56 +221,44 @@ const _extensionLanguages = <String, String>{
 };
 
 /// Full token theme for builtin grammars + Robot Studio palette.
-final Map<String, TextStyle> editorHighlightTheme = {
-  'root': const TextStyle(color: AppColors.textPrimary),
-  'comment': const TextStyle(
-    color: AppColors.textMuted,
-    fontStyle: FontStyle.italic,
-  ),
-  'quote': const TextStyle(
-    color: AppColors.textMuted,
-    fontStyle: FontStyle.italic,
-  ),
-  'doctag': const TextStyle(color: AppColors.info, fontWeight: FontWeight.w600),
-  'keyword': const TextStyle(color: AppColors.info, fontWeight: FontWeight.w600),
-  'formula': const TextStyle(color: AppColors.info),
-  'section': const TextStyle(
-    color: AppColors.accent,
-    fontWeight: FontWeight.w700,
-  ),
-  'name': const TextStyle(color: AppColors.error),
-  'selector-tag': const TextStyle(color: AppColors.error),
-  'deletion': const TextStyle(color: AppColors.error),
-  'subst': const TextStyle(color: AppColors.error),
-  'literal': const TextStyle(color: AppColors.accent),
-  'string': const TextStyle(color: AppColors.success),
-  'regexp': const TextStyle(color: AppColors.success),
-  'addition': const TextStyle(color: AppColors.success),
-  'attribute': const TextStyle(color: AppColors.success),
-  'meta-string': const TextStyle(color: AppColors.success),
-  'attr': const TextStyle(color: AppColors.warning),
-  'variable': const TextStyle(color: AppColors.warning),
-  'template-variable': const TextStyle(color: AppColors.warning),
-  'type': const TextStyle(color: AppColors.warning),
-  'selector-class': const TextStyle(color: AppColors.warning),
-  'selector-attr': const TextStyle(color: AppColors.warning),
-  'selector-pseudo': const TextStyle(color: AppColors.warning),
-  'number': const TextStyle(color: AppColors.warning),
-  'symbol': const TextStyle(color: AppColors.info),
-  'bullet': const TextStyle(color: AppColors.info),
-  'link': const TextStyle(color: AppColors.info),
-  'meta': const TextStyle(color: AppColors.accentMuted),
-  'selector-id': const TextStyle(color: AppColors.info),
-  'title': const TextStyle(
-    color: AppColors.textPrimary,
-    fontWeight: FontWeight.w600,
-  ),
-  'built_in': const TextStyle(color: AppColors.info),
-  'title.class_': const TextStyle(color: AppColors.warning),
-  'class-title': const TextStyle(color: AppColors.warning),
-  'params': const TextStyle(color: AppColors.textSecondary),
-  'emphasis': const TextStyle(fontStyle: FontStyle.italic),
-  'strong': const TextStyle(fontWeight: FontWeight.bold),
+Map<String, TextStyle> editorHighlightTheme(AppPalette palette) => {
+  'root': TextStyle(color: palette.textPrimary),
+  'comment': TextStyle(color: palette.textMuted, fontStyle: FontStyle.italic),
+  'quote': TextStyle(color: palette.textMuted, fontStyle: FontStyle.italic),
+  'doctag': TextStyle(color: palette.info, fontWeight: FontWeight.w600),
+  'keyword': TextStyle(color: palette.info, fontWeight: FontWeight.w600),
+  'formula': TextStyle(color: palette.info),
+  'section': TextStyle(color: palette.accent, fontWeight: FontWeight.w700),
+  'name': TextStyle(color: palette.error),
+  'selector-tag': TextStyle(color: palette.error),
+  'deletion': TextStyle(color: palette.error),
+  'subst': TextStyle(color: palette.error),
+  'literal': TextStyle(color: palette.accent),
+  'string': TextStyle(color: palette.success),
+  'regexp': TextStyle(color: palette.success),
+  'addition': TextStyle(color: palette.success),
+  'attribute': TextStyle(color: palette.success),
+  'meta-string': TextStyle(color: palette.success),
+  'attr': TextStyle(color: palette.warning),
+  'variable': TextStyle(color: palette.warning),
+  'template-variable': TextStyle(color: palette.warning),
+  'type': TextStyle(color: palette.warning),
+  'selector-class': TextStyle(color: palette.warning),
+  'selector-attr': TextStyle(color: palette.warning),
+  'selector-pseudo': TextStyle(color: palette.warning),
+  'number': TextStyle(color: palette.warning),
+  'symbol': TextStyle(color: palette.info),
+  'bullet': TextStyle(color: palette.info),
+  'link': TextStyle(color: palette.info),
+  'meta': TextStyle(color: palette.accentMuted),
+  'selector-id': TextStyle(color: palette.info),
+  'title': TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w600),
+  'built_in': TextStyle(color: palette.info),
+  'title.class_': TextStyle(color: palette.warning),
+  'class-title': TextStyle(color: palette.warning),
+  'params': TextStyle(color: palette.textSecondary),
+  'emphasis': TextStyle(fontStyle: FontStyle.italic),
+  'strong': TextStyle(fontWeight: FontWeight.bold),
   // Robot-specific aliases from langRobot (section/keyword/variable/string…)
-  ...robotStudioHighlightTheme,
+  ...robotHighlightTheme(palette.brightness),
 };

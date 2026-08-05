@@ -37,7 +37,7 @@ class EnvironmentManagerPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -51,9 +51,9 @@ class EnvironmentManagerPage extends StatelessWidget {
                     children: [
                       Text(
                         'Environment Manager',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontSize: 18,
-                            ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleMedium?.copyWith(fontSize: 18),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -81,15 +81,15 @@ class EnvironmentManagerPage extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
               children: [
-                Text(
-                  'Sort by',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
+                Text('Sort by', style: Theme.of(context).textTheme.labelSmall),
                 const SizedBox(width: 10),
                 DropdownButton<EnvironmentSort>(
                   value: sort,
                   isDense: true,
-                  style: const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: context.palette.textPrimary,
+                  ),
                   underline: const SizedBox.shrink(),
                   items: EnvironmentSort.values
                       .map(
@@ -112,36 +112,36 @@ class EnvironmentManagerPage extends StatelessWidget {
             child: isLoading
                 ? const SkeletonList(rows: 5)
                 : environments.isEmpty
-                    ? EmptyState(
-                        icon: Icons.memory_outlined,
-                        title: 'No environments yet',
-                        message:
-                            'Create a virtual environment or import an existing one.',
-                        actionLabel: 'Create Environment',
-                        onAction: onCreate,
-                        secondaryActionLabel: 'Import…',
-                        onSecondaryAction: onImport,
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        itemCount: environments.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final env = environments[index];
-                          final isSelected = selected?.id == env.id;
-                          return _EnvironmentRow(
-                            environment: env,
-                            selected: isSelected,
-                            onTap: () => onSelect(env),
-                            onActivate: () => onActivate(env),
-                            onClone: () => onClone(env),
-                            onDelete: () => onDelete(env),
-                          );
-                        },
-                      ),
+                ? EmptyState(
+                    icon: Icons.memory_outlined,
+                    title: 'No environments yet',
+                    message:
+                        'Create a virtual environment or import an existing one.',
+                    actionLabel: 'Create Environment',
+                    onAction: onCreate,
+                    secondaryActionLabel: 'Import…',
+                    onSecondaryAction: onImport,
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    itemCount: environments.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final env = environments[index];
+                      final isSelected = selected?.id == env.id;
+                      return _EnvironmentRow(
+                        environment: env,
+                        selected: isSelected,
+                        onTap: () => onSelect(env),
+                        onActivate: () => onActivate(env),
+                        onClone: () => onClone(env),
+                        onDelete: () => onDelete(env),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -170,7 +170,7 @@ class _EnvironmentRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final env = environment;
     return Material(
-      color: selected ? AppColors.accentSoft : AppColors.surface,
+      color: selected ? context.palette.accentSoft : context.palette.surface,
       borderRadius: BorderRadius.circular(AppRadii.md),
       child: InkWell(
         onTap: onTap,
@@ -180,7 +180,7 @@ class _EnvironmentRow extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadii.md),
             border: Border.all(
-              color: selected ? AppColors.accent : AppColors.border,
+              color: selected ? context.palette.accent : context.palette.border,
             ),
           ),
           child: Row(
@@ -193,8 +193,8 @@ class _EnvironmentRow extends StatelessWidget {
                       children: [
                         Text(
                           env.name,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            color: context.palette.textPrimary,
                             fontSize: 13.5,
                             fontWeight: FontWeight.w600,
                           ),
@@ -227,14 +227,8 @@ class _EnvironmentRow extends StatelessWidget {
                   onPressed: onActivate,
                   child: const Text('Activate'),
                 ),
-              TextButton(
-                onPressed: onClone,
-                child: const Text('Clone'),
-              ),
-              TextButton(
-                onPressed: onDelete,
-                child: const Text('Delete'),
-              ),
+              TextButton(onPressed: onClone, child: const Text('Clone')),
+              TextButton(onPressed: onDelete, child: const Text('Delete')),
             ],
           ),
         ),

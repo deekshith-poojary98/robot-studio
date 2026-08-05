@@ -22,9 +22,9 @@ class PluginDetailsPanel extends StatelessWidget {
     final selected = plugin;
     return Container(
       width: 320,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(left: BorderSide(color: AppColors.borderSubtle)),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        border: Border(left: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: selected == null
           ? Center(
@@ -36,7 +36,10 @@ class PluginDetailsPanel extends StatelessWidget {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Text(selected.name, style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  selected.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 4),
                 Text('${selected.id} • v${selected.version}'),
                 if (selected.author.isNotEmpty) ...[
@@ -44,18 +47,25 @@ class PluginDetailsPanel extends StatelessWidget {
                   Text('Author: ${selected.author}'),
                 ],
                 const SizedBox(height: 8),
-                Text(selected.description.isEmpty ? 'No description.' : selected.description),
+                Text(
+                  selected.description.isEmpty
+                      ? 'No description.'
+                      : selected.description,
+                ),
                 const SizedBox(height: 12),
                 Text('Status: ${selected.status}'),
                 if (selected.path != null) ...[
                   const SizedBox(height: 8),
-                  Text('Path: ${selected.path!}', style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    'Path: ${selected.path!}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ],
                 if (selected.error != null) ...[
                   const SizedBox(height: 12),
                   Text(
                     selected.error!,
-                    style: const TextStyle(color: AppColors.error),
+                    style: TextStyle(color: context.palette.error),
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -72,7 +82,10 @@ class PluginDetailsPanel extends StatelessWidget {
                         onPressed: onDisable,
                         child: const Text('Disable'),
                       ),
-                    OutlinedButton(onPressed: onReload, child: const Text('Reload')),
+                    OutlinedButton(
+                      onPressed: onReload,
+                      child: const Text('Reload'),
+                    ),
                   ],
                 ),
               ],

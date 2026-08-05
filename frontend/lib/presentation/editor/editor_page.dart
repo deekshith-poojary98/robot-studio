@@ -62,7 +62,7 @@ class EditorPage extends StatefulWidget {
   final ValueChanged<String> onSelectTab;
   final ValueChanged<String> onCloseTab;
   final void Function(String path, EditorTabContextAction action)?
-      onTabContextAction;
+  onTabContextAction;
   final void Function(String path, String content) onContentChanged;
   final VoidCallback onSave;
   final void Function(int line, int column) onHoverRequest;
@@ -104,7 +104,7 @@ class EditorPageState extends State<EditorPage> {
     final active = _active;
     return Container(
       key: const Key('editor.page'),
-      color: AppColors.background,
+      color: context.palette.background,
       child: Column(
         children: [
           EditorTabsBar(
@@ -127,7 +127,7 @@ class EditorPageState extends State<EditorPage> {
                 top: 4,
                 bottom: 4,
               ),
-              color: AppColors.accentSoft,
+              color: context.palette.accentSoft,
               child: Row(
                 children: [
                   Expanded(
@@ -140,12 +140,12 @@ class EditorPageState extends State<EditorPage> {
                     InkWell(
                       onTap: widget.onDismissStatusMessage,
                       borderRadius: BorderRadius.circular(4),
-                      child: const Padding(
+                      child: Padding(
                         padding: EdgeInsets.all(3),
                         child: Icon(
                           Icons.close,
                           size: 13,
-                          color: AppColors.textSecondary,
+                          color: context.palette.textSecondary,
                         ),
                       ),
                     ),
@@ -216,9 +216,9 @@ class _LanguageSidePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(left: BorderSide(color: AppColors.borderSubtle)),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        border: Border(left: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: ListView(
         padding: const EdgeInsets.all(12),

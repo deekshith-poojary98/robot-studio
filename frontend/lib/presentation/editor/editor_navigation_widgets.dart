@@ -27,17 +27,21 @@ class EditorBreadcrumbBar extends StatelessWidget {
     return Container(
       height: 28,
       padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.borderSubtle)),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        border: Border(bottom: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: Row(
         children: [
           for (var i = 0; i < segments.length; i++) ...[
             if (i > 0)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(horizontal: 4),
-                child: Icon(Icons.chevron_right, size: 14, color: AppColors.textMuted),
+                child: Icon(
+                  Icons.chevron_right,
+                  size: 14,
+                  color: context.palette.textMuted,
+                ),
               ),
             _BreadcrumbChip(
               segment: segments[i],
@@ -96,7 +100,7 @@ class _BreadcrumbChip extends StatelessWidget {
         onTap != null && (segment.path != null || segment.line != null);
     final style = TextStyle(
       fontSize: 11,
-      color: isLast ? AppColors.textPrimary : AppColors.textMuted,
+      color: isLast ? context.palette.textPrimary : context.palette.textMuted,
       fontWeight: isLast ? FontWeight.w600 : FontWeight.w400,
     );
 
@@ -115,10 +119,7 @@ class _BreadcrumbChip extends StatelessWidget {
 }
 
 class SignatureHelpOverlay extends StatelessWidget {
-  const SignatureHelpOverlay({
-    super.key,
-    required this.signature,
-  });
+  const SignatureHelpOverlay({super.key, required this.signature});
 
   final SignatureHelpInfo signature;
 
@@ -130,10 +131,7 @@ class SignatureHelpOverlay extends StatelessWidget {
 
 /// VS Code-style hover / signature card shown near the pointer.
 class EditorHoverTooltip extends StatelessWidget {
-  const EditorHoverTooltip({
-    super.key,
-    required this.signature,
-  });
+  const EditorHoverTooltip({super.key, required this.signature});
 
   final SignatureHelpInfo signature;
 
@@ -141,14 +139,14 @@ class EditorHoverTooltip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       elevation: 8,
-      color: AppColors.surface,
+      color: context.palette.surface,
       borderRadius: BorderRadius.circular(6),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 440, minWidth: 180),
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AppColors.borderSubtle),
+            border: Border.all(color: context.palette.borderSubtle),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
@@ -158,19 +156,19 @@ class EditorHoverTooltip extends StatelessWidget {
               children: [
                 Text(
                   signature.keyword,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
-                    color: AppColors.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 if (signature.libraryName.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
                     signature.libraryName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
-                      color: AppColors.textMuted,
+                      color: context.palette.textMuted,
                     ),
                   ),
                 ],
@@ -191,9 +189,9 @@ class EditorHoverTooltip extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     signature.detail,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: AppColors.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                 ],
@@ -203,10 +201,10 @@ class EditorHoverTooltip extends StatelessWidget {
                     signature.documentation,
                     maxLines: 8,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       height: 1.35,
-                      color: AppColors.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                 ],
@@ -220,10 +218,7 @@ class EditorHoverTooltip extends StatelessWidget {
 }
 
 class _ParameterChip extends StatelessWidget {
-  const _ParameterChip({
-    required this.parameter,
-    required this.active,
-  });
+  const _ParameterChip({required this.parameter, required this.active});
 
   final SignatureParameterInfo parameter;
   final bool active;
@@ -234,10 +229,10 @@ class _ParameterChip extends StatelessWidget {
     final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: active ? AppColors.accentSoft : AppColors.rail,
+        color: active ? context.palette.accentSoft : context.palette.rail,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: active ? AppColors.accent : AppColors.borderSubtle,
+          color: active ? context.palette.accent : context.palette.borderSubtle,
         ),
       ),
       child: Text(
@@ -247,7 +242,9 @@ class _ParameterChip extends StatelessWidget {
           fontWeight: parameter.required || active
               ? FontWeight.w600
               : FontWeight.w400,
-          color: active ? AppColors.textPrimary : AppColors.textSecondary,
+          color: active
+              ? context.palette.textPrimary
+              : context.palette.textSecondary,
         ),
       ),
     );
@@ -276,21 +273,26 @@ class PeekDefinitionPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 320,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(left: BorderSide(color: AppColors.borderSubtle)),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        border: Border(left: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: AppColors.borderSubtle)),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: context.palette.borderSubtle),
+              ),
             ),
             child: Row(
               children: [
-                const Text('Peek Definition', style: TextStyle(fontWeight: FontWeight.w600)),
+                const Text(
+                  'Peek Definition',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.open_in_new, size: 16),

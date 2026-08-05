@@ -34,7 +34,7 @@ void showAppToast(
       duration: duration,
       corner: corner,
       icon: icon,
-      iconColor: iconColor ?? AppColors.info,
+      iconColor: iconColor ?? context.palette.info,
       onDismiss: () {
         entry.remove();
         if (identical(_activeToast, entry)) {
@@ -116,7 +116,10 @@ class _AppToastCardState extends State<_AppToastCard>
   @override
   Widget build(BuildContext context) {
     final top = widget.corner == AppToastCorner.topRight;
-    final maxWidth = (MediaQuery.sizeOf(context).width - 32).clamp(240.0, 380.0);
+    final maxWidth = (MediaQuery.sizeOf(context).width - 32).clamp(
+      240.0,
+      380.0,
+    );
 
     return Positioned(
       right: 16,
@@ -132,9 +135,9 @@ class _AppToastCardState extends State<_AppToastCard>
               constraints: BoxConstraints(maxWidth: maxWidth),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated,
+                  color: context.palette.surfaceElevated,
                   borderRadius: BorderRadius.circular(AppRadii.md),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: context.palette.border),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x66000000),
@@ -153,8 +156,8 @@ class _AppToastCardState extends State<_AppToastCard>
                       Expanded(
                         child: Text(
                           widget.message,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            color: context.palette.textPrimary,
                             fontSize: 12.5,
                             height: 1.3,
                           ),
@@ -169,7 +172,7 @@ class _AppToastCardState extends State<_AppToastCard>
                             unawaited(_dismiss());
                           },
                           style: TextButton.styleFrom(
-                            foregroundColor: AppColors.accent,
+                            foregroundColor: context.palette.accent,
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                             minimumSize: const Size(0, 28),
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -194,7 +197,7 @@ class _AppToastCardState extends State<_AppToastCard>
                           minHeight: 28,
                         ),
                         iconSize: 16,
-                        color: AppColors.textMuted,
+                        color: context.palette.textMuted,
                         icon: const Icon(Icons.close),
                       ),
                     ],

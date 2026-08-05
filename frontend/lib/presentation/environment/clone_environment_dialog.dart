@@ -74,7 +74,7 @@ class _CloneEnvironmentDialogState extends State<CloneEnvironmentDialog> {
               const SizedBox(height: 12),
               Text(
                 _error!,
-                style: const TextStyle(color: AppColors.error, fontSize: 12),
+                style: TextStyle(color: context.palette.error, fontSize: 12),
               ),
             ],
           ],
@@ -85,10 +85,7 @@ class _CloneEnvironmentDialogState extends State<CloneEnvironmentDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('Clone'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('Clone')),
       ],
     );
   }

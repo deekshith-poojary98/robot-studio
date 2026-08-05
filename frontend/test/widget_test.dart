@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:robot_studio/core/gateway/transport_gateway.dart';
+import 'package:robot_studio/core/theme/app_theme.dart';
 import 'package:robot_studio/main.dart';
 import 'package:robot_studio/presentation/editor/editor_page.dart';
 import 'package:robot_studio/presentation/editor/editor_tabs_bar.dart';
@@ -108,7 +109,10 @@ void main() {
       ),
     );
 
-    expect(find.byKey(const Key('welcome.backend-unavailable')), findsOneWidget);
+    expect(
+      find.byKey(const Key('welcome.backend-unavailable')),
+      findsOneWidget,
+    );
     expect(find.textContaining('make backend'), findsOneWidget);
   });
 
@@ -232,67 +236,68 @@ void main() {
     expect(await future, '/tmp/robot');
   });
 
-  testWidgets('Project explorer lists projects without env/package/report sections', (
-    WidgetTester tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(1280, 800));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+  testWidgets(
+    'Project explorer lists projects without env/package/report sections',
+    (WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    var newTapped = false;
-    var importTapped = false;
-    ProjectInfo? selected;
+      var newTapped = false;
+      var importTapped = false;
+      ProjectInfo? selected;
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SizedBox(
-            width: 300,
-            height: 800,
-            child: WorkspaceExplorer(
-              workspace: WorkspaceInfo(
-                id: 'w1',
-                name: 'WS',
-                path: '/tmp/WS',
-                createdAt: DateTime.utc(2026, 1, 1),
-              ),
-              projects: [
-                ProjectInfo(
-                  id: 'p1',
-                  workspaceId: 'w1',
-                  name: 'Demo Project',
-                  path: '/tmp/WS/Projects/Demo Project',
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 300,
+              height: 800,
+              child: WorkspaceExplorer(
+                workspace: WorkspaceInfo(
+                  id: 'w1',
+                  name: 'WS',
+                  path: '/tmp/WS',
                   createdAt: DateTime.utc(2026, 1, 1),
                 ),
-              ],
-              isLoadingProjects: false,
-              selectedProject: null,
-              onSelectProject: (project) => selected = project,
-              onNewProject: () => newTapped = true,
-              onImportProject: () => importTapped = true,
+                projects: [
+                  ProjectInfo(
+                    id: 'p1',
+                    workspaceId: 'w1',
+                    name: 'Demo Project',
+                    path: '/tmp/WS/Projects/Demo Project',
+                    createdAt: DateTime.utc(2026, 1, 1),
+                  ),
+                ],
+                isLoadingProjects: false,
+                selectedProject: null,
+                onSelectProject: (project) => selected = project,
+                onNewProject: () => newTapped = true,
+                onImportProject: () => importTapped = true,
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('Demo Project'), findsOneWidget);
-    expect(find.text('Shared'), findsNothing);
-    expect(find.text('Environments'), findsNothing);
-    expect(find.text('Packages'), findsNothing);
-    expect(find.text('Reports'), findsNothing);
+      expect(find.text('Demo Project'), findsOneWidget);
+      expect(find.text('Shared'), findsNothing);
+      expect(find.text('Environments'), findsNothing);
+      expect(find.text('Packages'), findsNothing);
+      expect(find.text('Reports'), findsNothing);
 
-    await tester.tap(find.byTooltip('New Project'));
-    await tester.pump();
-    expect(newTapped, isTrue);
+      await tester.tap(find.byTooltip('New Project'));
+      await tester.pump();
+      expect(newTapped, isTrue);
 
-    await tester.tap(find.byTooltip('Import Project'));
-    await tester.pump();
-    expect(importTapped, isTrue);
+      await tester.tap(find.byTooltip('Import Project'));
+      await tester.pump();
+      expect(importTapped, isTrue);
 
-    await tester.tap(find.text('Demo Project'));
-    await tester.pump();
-    expect(selected?.name, 'Demo Project');
-  });
+      await tester.tap(find.text('Demo Project'));
+      await tester.pump();
+      expect(selected?.name, 'Demo Project');
+    },
+  );
 
   testWidgets('Create Environment dialog validates fields', (
     WidgetTester tester,
@@ -482,6 +487,77 @@ void main() {
     expect(find.text('Recent Workspaces'), findsOneWidget);
     expect(find.text('Recent Projects'), findsOneWidget);
     expect(find.text('Alpha'), findsOneWidget);
+  });
+
+  testWidgets('Appearance preference themes the whole app', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    Future<AppPalette> pumpWith(AppThemePreference preference) async {
+      // Fully tear down between runs: reusing the tree would keep the previous
+      // shell State (so settings never reload), and RobotStudioMenuBar asserts
+      // if a second PlatformMenuBar registers while the first is alive.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+
+      await tester.pumpWidget(
+        RobotStudioApp(
+          gateway: _FakeTransportGateway(
+            settings: AppSettings(
+              appearance: AppearanceSettings(theme: preference),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      // MaterialApp lerps theme changes over kThemeAnimationDuration, so a
+      // mid-flight frame still reports the outgoing brightness.
+      await tester.pump(const Duration(milliseconds: 400));
+      return tester.element(find.text('Recent Workspaces')).palette;
+    }
+
+    expect(
+      (await pumpWith(AppThemePreference.dark)).brightness,
+      Brightness.dark,
+    );
+
+    // The bug this guards: setting Light stored the preference but nothing
+    // consumed it, so every surface stayed on dark constants.
+    final light = await pumpWith(AppThemePreference.light);
+    expect(light.brightness, Brightness.light);
+    expect(light.background, AppPalette.light.background);
+    expect(light.textPrimary, AppPalette.light.textPrimary);
+
+    // Catch any surface still painted from a dark token. This is what a
+    // half-finished migration looks like: the theme flips but panels don't.
+    final darkOnly = <Color>{
+      AppPalette.dark.background,
+      AppPalette.dark.surface,
+      AppPalette.dark.surfaceElevated,
+      AppPalette.dark.surfaceHover,
+      AppPalette.dark.rail,
+      AppPalette.dark.statusBar,
+      AppPalette.dark.textPrimary,
+    };
+
+    final offenders = <String>[];
+    for (final widget in tester.allWidgets) {
+      final color = switch (widget) {
+        ColoredBox(:final color) => color,
+        Material(:final color) => color,
+        Container(:final color) => color,
+        DecoratedBox(decoration: BoxDecoration(:final color)) => color,
+        Text(style: TextStyle(:final color)) => color,
+        _ => null,
+      };
+      if (color != null && darkOnly.contains(color)) {
+        offenders.add('${widget.runtimeType} -> $color');
+      }
+    }
+    expect(offenders, isEmpty, reason: 'dark tokens painted in light mode');
   });
 
   testWidgets('Activation flow via environment manager', (
@@ -1507,9 +1583,13 @@ void main() {
 }
 
 class _FakeTransportGateway implements TransportGateway {
-  _FakeTransportGateway({this.withWorkspace = false});
+  _FakeTransportGateway({
+    this.withWorkspace = false,
+    this.settings = const AppSettings(),
+  });
 
   final bool withWorkspace;
+  final AppSettings settings;
   String? activatedId;
 
   List<EnvironmentInfo> _environments = [
@@ -2266,18 +2346,16 @@ class _FakeTransportGateway implements TransportGateway {
           ),
         ],
       ),
-      foldingRanges: const [
-        FoldingRangeInfo(startLine: 2, endLine: 7),
-      ],
+      foldingRanges: const [FoldingRangeInfo(startLine: 2, endLine: 7)],
     );
   }
 
   @override
-  Future<AppSettings> getSettings() async => const AppSettings();
+  Future<AppSettings> getSettings() async => settings;
 
   @override
   Future<AppSettings> updateSettings(Map<String, dynamic> patch) async =>
-      const AppSettings();
+      settings;
 
   @override
   Future<AppSettings> resetSettings() async => const AppSettings();
@@ -2532,7 +2610,11 @@ class _FakeTransportGateway implements TransportGateway {
           id: 'quick',
           title: 'Quick',
           description: 'Correctness + dependency blockers only.',
-          providerIds: ['missing_import', 'circular_dependency', 'duplicate_keyword'],
+          providerIds: [
+            'missing_import',
+            'circular_dependency',
+            'duplicate_keyword',
+          ],
         ),
         DoctorProfileInfo(
           id: 'default',
@@ -2609,7 +2691,8 @@ class _FakeTransportGateway implements TransportGateway {
               message: "Unresolved import '../resources/missing.resource'",
               confidence: 'low',
               category: 'dependencies',
-              rationale: 'A Resource import path could not be resolved on disk.',
+              rationale:
+                  'A Resource import path could not be resolved on disk.',
               supportsFix: true,
               fixId: 'fix_missing_import',
               filePath: 'tests/login.robot',
@@ -2639,7 +2722,8 @@ class _FakeTransportGateway implements TransportGateway {
         DoctorRecommendation(
           rank: 1,
           findingId: 'f1',
-          reason: 'Critical correctness / dependency issue — fix before shipping.',
+          reason:
+              'Critical correctness / dependency issue — fix before shipping.',
           finding: DoctorFinding(
             id: 'f1',
             inspectionId: 'missing_import',

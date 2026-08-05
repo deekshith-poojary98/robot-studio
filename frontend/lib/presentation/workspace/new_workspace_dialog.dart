@@ -80,9 +80,7 @@ class _NewWorkspaceDialogState extends State<NewWorkspaceDialog> {
             TextField(
               controller: _nameController,
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Workspace name',
-              ),
+              decoration: const InputDecoration(labelText: 'Workspace name'),
               onChanged: (_) => setState(() => _error = null),
             ),
             const SizedBox(height: 16),
@@ -91,24 +89,19 @@ class _NewWorkspaceDialogState extends State<NewWorkspaceDialog> {
                 Expanded(
                   child: TextField(
                     controller: _locationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Location',
-                    ),
+                    decoration: const InputDecoration(labelText: 'Location'),
                     onChanged: (_) => setState(() => _error = null),
                   ),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: _browse,
-                  child: const Text('Browse'),
-                ),
+                OutlinedButton(onPressed: _browse, child: const Text('Browse')),
               ],
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),
               Text(
                 _error!,
-                style: const TextStyle(color: AppColors.error, fontSize: 12),
+                style: TextStyle(color: context.palette.error, fontSize: 12),
               ),
             ],
           ],
@@ -119,10 +112,7 @@ class _NewWorkspaceDialogState extends State<NewWorkspaceDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('Create'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('Create')),
       ],
     );
   }

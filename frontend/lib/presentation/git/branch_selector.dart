@@ -29,8 +29,9 @@ class BranchSelector extends StatelessWidget {
       return _BranchChip(label: label, enabled: false);
     }
 
-    final localBranches =
-        branches.where((branch) => !branch.remote).toList(growable: false);
+    final localBranches = branches
+        .where((branch) => !branch.remote)
+        .toList(growable: false);
 
     return PopupMenuButton<String>(
       tooltip: 'Switch branch',
@@ -72,13 +73,14 @@ class BranchSelector extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12.5,
                         height: 1.2,
-                        fontWeight:
-                            branch.current ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: branch.current
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                     ),
                   ),
                   if (branch.current)
-                    const Icon(Icons.check, size: 14, color: AppColors.accent),
+                    Icon(Icons.check, size: 14, color: context.palette.accent),
                   if (!branch.current && branch.name != currentBranch) ...[
                     const SizedBox(width: 8),
                     InkWell(
@@ -86,10 +88,10 @@ class BranchSelector extends StatelessWidget {
                         Navigator.pop(context);
                         onDeleteBranch(branch.name);
                       },
-                      child: const Icon(
+                      child: Icon(
                         Icons.delete_outline,
                         size: 14,
-                        color: AppColors.textMuted,
+                        color: context.palette.textMuted,
                       ),
                     ),
                   ],
@@ -151,9 +153,9 @@ class _BranchChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
+        color: context.palette.surfaceElevated,
         borderRadius: BorderRadius.circular(AppRadii.sm),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -161,7 +163,9 @@ class _BranchChip extends StatelessWidget {
           Icon(
             Icons.call_split,
             size: 14,
-            color: enabled ? AppColors.textSecondary : AppColors.textMuted,
+            color: enabled
+                ? context.palette.textSecondary
+                : context.palette.textMuted,
           ),
           const SizedBox(width: 6),
           ConstrainedBox(
@@ -170,17 +174,19 @@ class _BranchChip extends StatelessWidget {
               label,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: enabled ? AppColors.textPrimary : AppColors.textMuted,
+                color: enabled
+                    ? context.palette.textPrimary
+                    : context.palette.textMuted,
                 fontSize: 11.5,
               ),
             ),
           ),
           if (enabled) ...[
             const SizedBox(width: 4),
-            const Icon(
+            Icon(
               Icons.keyboard_arrow_down,
               size: 14,
-              color: AppColors.textMuted,
+              color: context.palette.textMuted,
             ),
           ],
         ],

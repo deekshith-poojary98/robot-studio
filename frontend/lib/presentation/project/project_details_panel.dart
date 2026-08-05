@@ -11,7 +11,7 @@ class ProjectDetailsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       alignment: Alignment.topCenter,
       padding: const EdgeInsets.all(32),
       child: ConstrainedBox(
@@ -21,28 +21,25 @@ class ProjectDetailsPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.folder_open_outlined,
                   size: 28,
-                  color: AppColors.accent,
+                  color: context.palette.accent,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     project.name,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontSize: 20,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(fontSize: 20),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 24),
             _DetailRow(label: 'Location', value: project.path),
-            _DetailRow(
-              label: 'Created',
-              value: _formatDate(project.createdAt),
-            ),
+            _DetailRow(label: 'Created', value: _formatDate(project.createdAt)),
           ],
         ),
       ),
@@ -78,10 +75,7 @@ class _DetailRow extends StatelessWidget {
           const SizedBox(height: 4),
           SelectableText(
             value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: context.palette.textPrimary, fontSize: 13),
           ),
         ],
       ),

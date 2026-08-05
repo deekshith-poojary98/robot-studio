@@ -56,7 +56,7 @@ class SymbolsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -67,9 +67,9 @@ class SymbolsPage extends StatelessWidget {
               children: [
                 Text(
                   'Symbols',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontSize: 18,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(fontSize: 18),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -106,7 +106,10 @@ class SymbolsPage extends StatelessWidget {
                 DropdownButton<SymbolKind?>(
                   value: kind,
                   isDense: true,
-                  style: const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: context.palette.textPrimary,
+                  ),
                   hint: const Text('All kinds'),
                   items: [
                     const DropdownMenuItem<SymbolKind?>(
@@ -123,10 +126,7 @@ class SymbolsPage extends StatelessWidget {
                   onChanged: onKindChanged,
                 ),
                 const SizedBox(width: 10),
-                FilledButton(
-                  onPressed: onSearch,
-                  child: const Text('Search'),
-                ),
+                FilledButton(onPressed: onSearch, child: const Text('Search')),
               ],
             ),
           ),
@@ -201,7 +201,9 @@ class _ResultsList extends StatelessWidget {
         final item = results[index];
         final selected = item.id == selectedId;
         return Material(
-          color: selected ? AppColors.accentSoft : AppColors.surface,
+          color: selected
+              ? context.palette.accentSoft
+              : context.palette.surface,
           borderRadius: BorderRadius.circular(AppRadii.md),
           child: InkWell(
             borderRadius: BorderRadius.circular(AppRadii.md),
@@ -211,7 +213,9 @@ class _ResultsList extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(AppRadii.md),
                 border: Border.all(
-                  color: selected ? AppColors.accent : AppColors.border,
+                  color: selected
+                      ? context.palette.accent
+                      : context.palette.border,
                 ),
               ),
               child: Column(
@@ -222,8 +226,8 @@ class _ResultsList extends StatelessWidget {
                       Expanded(
                         child: Text(
                           item.name,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            color: context.palette.textPrimary,
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
                           ),
@@ -329,9 +333,9 @@ class _DetailPane extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.accentSoft,
+              color: context.palette.accentSoft,
               borderRadius: BorderRadius.circular(AppRadii.sm),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: context.palette.border),
             ),
             child: Text(navigationMessage!),
           ),
@@ -362,8 +366,8 @@ class _DetailPane extends StatelessWidget {
                 children: [
                   Text(
                     '${ref.filePath}:${ref.line}',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: context.palette.textPrimary,
                       fontWeight: FontWeight.w600,
                       fontSize: 12.5,
                     ),

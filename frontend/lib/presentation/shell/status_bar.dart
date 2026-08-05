@@ -33,14 +33,15 @@ class StatusBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Semantics(
       container: true,
       label: 'Status bar',
       child: Container(
         height: 24,
-        decoration: const BoxDecoration(
-          color: AppColors.statusBar,
-          border: Border(top: BorderSide(color: AppColors.borderSubtle)),
+        decoration: BoxDecoration(
+          color: palette.statusBar,
+          border: Border(top: BorderSide(color: palette.borderSubtle)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm + 2),
         child: Row(
@@ -49,6 +50,7 @@ class StatusBar extends StatelessWidget {
               child: Row(
                 children: [
                   _flexItem(
+                    palette,
                     projectName?.toUpperCase() ?? 'NO PROJECT',
                     flex: 2,
                     tooltip: projectName == null
@@ -57,48 +59,60 @@ class StatusBar extends StatelessWidget {
                   ),
                   if (fileName != null)
                     _flexItem(
+                      palette,
                       fileName!.toUpperCase(),
                       flex: 3,
                       tooltip: fileName,
                     ),
                   if (cursorLabel != null)
-                    _item(cursorLabel!, tooltip: 'Cursor position'),
-                  if (dirty) _item('MODIFIED', tooltip: 'Unsaved changes'),
+                    _item(palette, cursorLabel!, tooltip: 'Cursor position'),
+                  if (dirty)
+                    _item(palette, 'MODIFIED', tooltip: 'Unsaved changes'),
                   if (errorCount > 0)
                     _clickableItem(
+                      palette,
                       'ERRORS $errorCount',
                       onProblemsTap,
                       tooltip: 'Open Problems panel',
                     ),
                   if (warningCount > 0)
                     _clickableItem(
+                      palette,
                       'WARNINGS $warningCount',
                       onProblemsTap,
                       tooltip: 'Open Problems panel',
                     ),
                   if (notification != null && notification!.isNotEmpty)
-                    _flexItem(notification!, flex: 3, tooltip: notification),
+                    _flexItem(
+                      palette,
+                      notification!,
+                      flex: 3,
+                      tooltip: notification,
+                    ),
                 ],
               ),
             ),
             if (robotVersion != null && robotVersion!.isNotEmpty)
               _item(
+                palette,
                 'ROBOT $robotVersion',
                 tooltip: 'Robot Framework version',
                 trailing: false,
               ),
             if (pythonVersion != null && pythonVersion!.isNotEmpty)
               _item(
+                palette,
                 'PYTHON $pythonVersion',
                 tooltip: 'Python version',
                 trailing: false,
               ),
             if (backendUnavailable)
               _item(
+                palette,
                 'BACKEND UNAVAILABLE',
                 tooltip: kReleaseMode
                     ? 'Robot Studio could not reach its backend service. '
-                        'Quit and reopen the app, or reinstall.'
+                          'Quit and reopen the app, or reinstall.'
                     : 'Start the backend with: make backend',
                 trailing: false,
               ),
@@ -108,25 +122,35 @@ class StatusBar extends StatelessWidget {
     );
   }
 
-  static const _labelStyle = TextStyle(
-    color: AppColors.statusBarText,
+  static TextStyle _labelStyle(AppPalette palette) => TextStyle(
+    color: palette.statusBarText,
     fontSize: 10,
     fontWeight: FontWeight.w500,
     letterSpacing: 0.3,
   );
 
-  Widget _item(String label, {String? tooltip, bool trailing = true}) {
+  Widget _item(
+    AppPalette palette,
+    String label, {
+    String? tooltip,
+    bool trailing = true,
+  }) {
     final child = Padding(
       padding: trailing
           ? const EdgeInsets.only(right: AppSpacing.md)
           : const EdgeInsets.only(left: AppSpacing.md),
-      child: Text(label, style: _labelStyle),
+      child: Text(label, style: _labelStyle(palette)),
     );
     if (tooltip == null) return child;
     return Tooltip(message: tooltip, child: child);
   }
 
-  Widget _flexItem(String label, {required int flex, String? tooltip}) {
+  Widget _flexItem(
+    AppPalette palette,
+    String label, {
+    required int flex,
+    String? tooltip,
+  }) {
     return Flexible(
       flex: flex,
       child: Padding(
@@ -136,7 +160,7 @@ class StatusBar extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: _labelStyle,
+                style: _labelStyle(palette),
               )
             : Tooltip(
                 message: tooltip,
@@ -144,7 +168,7 @@ class StatusBar extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _labelStyle,
+                  style: _labelStyle(palette),
                 ),
               ),
       ),
@@ -152,6 +176,7 @@ class StatusBar extends StatelessWidget {
   }
 
   Widget _clickableItem(
+    AppPalette palette,
     String label,
     VoidCallback? onTap, {
     String? tooltip,
@@ -162,13 +187,13 @@ class StatusBar extends StatelessWidget {
         onTap: onTap,
         child: Text(
           label,
-          style: const TextStyle(
-            color: AppColors.statusBarText,
+          style: TextStyle(
+            color: palette.statusBarText,
             fontSize: 10,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.3,
             decoration: TextDecoration.underline,
-            decorationColor: AppColors.statusBarText,
+            decorationColor: palette.statusBarText,
           ),
         ),
       ),

@@ -46,7 +46,7 @@ class PackageManagerPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -60,9 +60,9 @@ class PackageManagerPage extends StatelessWidget {
                     children: [
                       Text(
                         'Package Manager',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontSize: 18,
-                            ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleMedium?.copyWith(fontSize: 18),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -96,13 +96,13 @@ class PackageManagerPage extends StatelessWidget {
                   StatusBadge(
                     label: 'Robot Framework ${robotVersion ?? ''}'.trim(),
                     filled: true,
-                    dotColor: AppColors.success,
+                    dotColor: context.palette.success,
                   )
                 else
                   StatusBadge(
                     label: 'Robot Framework Missing',
                     filled: false,
-                    dotColor: AppColors.warning,
+                    dotColor: context.palette.warning,
                   ),
                 if (!robotInstalled && hasActiveEnvironment) ...[
                   const SizedBox(width: 10),
@@ -126,7 +126,10 @@ class PackageManagerPage extends StatelessWidget {
                 DropdownButton<PackageSort>(
                   value: sort,
                   isDense: true,
-                  style: const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: context.palette.textPrimary,
+                  ),
                   underline: const SizedBox.shrink(),
                   items: PackageSort.values
                       .map(
@@ -154,36 +157,35 @@ class PackageManagerPage extends StatelessWidget {
                         'Create or activate a virtual environment, then open Package Manager.',
                   )
                 : isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : packages.isEmpty
-                        ? EmptyState(
-                            icon: Icons.inventory_2_outlined,
-                            title: 'No packages found',
-                            message: query.isEmpty
-                                ? 'Search PyPI to install your first package.'
-                                : 'No installed packages match "$query".',
-                            actionLabel: 'Search PyPI',
-                            onAction: onSearchPyPI,
-                          )
-                        : ListView.separated(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            itemCount: packages.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(height: 8),
-                            itemBuilder: (context, index) {
-                              final package = packages[index];
-                              return _PackageRow(
-                                package: package,
-                                selected: selected?.name == package.name,
-                                onTap: () => onSelect(package),
-                                onUpdate: () => onUpdate(package),
-                                onUninstall: () => onUninstall(package),
-                              );
-                            },
-                          ),
+                ? const Center(child: CircularProgressIndicator())
+                : packages.isEmpty
+                ? EmptyState(
+                    icon: Icons.inventory_2_outlined,
+                    title: 'No packages found',
+                    message: query.isEmpty
+                        ? 'Search PyPI to install your first package.'
+                        : 'No installed packages match "$query".',
+                    actionLabel: 'Search PyPI',
+                    onAction: onSearchPyPI,
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    itemCount: packages.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final package = packages[index];
+                      return _PackageRow(
+                        package: package,
+                        selected: selected?.name == package.name,
+                        onTap: () => onSelect(package),
+                        onUpdate: () => onUpdate(package),
+                        onUninstall: () => onUninstall(package),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -210,7 +212,7 @@ class _PackageRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final pkg = package;
     return Material(
-      color: selected ? AppColors.accentSoft : AppColors.surface,
+      color: selected ? context.palette.accentSoft : context.palette.surface,
       borderRadius: BorderRadius.circular(AppRadii.md),
       child: InkWell(
         onTap: onTap,
@@ -220,7 +222,7 @@ class _PackageRow extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadii.md),
             border: Border.all(
-              color: selected ? AppColors.accent : AppColors.border,
+              color: selected ? context.palette.accent : context.palette.border,
             ),
           ),
           child: Row(
@@ -233,18 +235,18 @@ class _PackageRow extends StatelessWidget {
                       children: [
                         Text(
                           pkg.name,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            color: context.palette.textPrimary,
                             fontSize: 13.5,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(width: 8),
                         if (pkg.updateAvailable)
-                          const StatusBadge(
+                          StatusBadge(
                             label: 'Update',
                             filled: true,
-                            dotColor: AppColors.warning,
+                            dotColor: context.palette.warning,
                           ),
                       ],
                     ),
@@ -262,7 +264,10 @@ class _PackageRow extends StatelessWidget {
               ),
               if (pkg.updateAvailable)
                 TextButton(onPressed: onUpdate, child: const Text('Update')),
-              TextButton(onPressed: onUninstall, child: const Text('Uninstall')),
+              TextButton(
+                onPressed: onUninstall,
+                child: const Text('Uninstall'),
+              ),
             ],
           ),
         ),

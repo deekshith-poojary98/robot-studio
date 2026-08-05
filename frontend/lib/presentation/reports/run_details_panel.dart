@@ -25,7 +25,7 @@ class RunDetailsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
@@ -34,34 +34,34 @@ class RunDetailsPanel extends StatelessWidget {
               Expanded(
                 child: Text(
                   run.projectName.isEmpty ? 'Run Details' : run.projectName,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontSize: 18,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(fontSize: 18),
                 ),
               ),
               StatusBadge(
                 label: run.resultBadge,
                 filled: run.resultBadge == 'PASS',
                 dotColor: run.resultBadge == 'PASS'
-                    ? AppColors.success
+                    ? context.palette.success
                     : run.resultBadge == 'FAIL'
-                        ? AppColors.error
-                        : AppColors.warning,
+                    ? context.palette.error
+                    : context.palette.warning,
               ),
             ],
           ),
           const SizedBox(height: 4),
-          Text(
-            run.suite,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          Text(run.suite, style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 18),
           _Section(
             title: 'General',
             child: Column(
               children: [
                 _DetailRow(label: 'Status', value: run.status.label),
-                _DetailRow(label: 'Started', value: _formatDateTime(run.startedAt)),
+                _DetailRow(
+                  label: 'Started',
+                  value: _formatDateTime(run.startedAt),
+                ),
                 _DetailRow(
                   label: 'Finished',
                   value: run.finishedAt == null
@@ -75,7 +75,9 @@ class RunDetailsPanel extends StatelessWidget {
                 ),
                 _DetailRow(
                   label: 'Environment',
-                  value: run.environmentName.isEmpty ? '—' : run.environmentName,
+                  value: run.environmentName.isEmpty
+                      ? '—'
+                      : run.environmentName,
                 ),
                 _DetailRow(
                   label: 'Robot Version',
@@ -92,9 +94,21 @@ class RunDetailsPanel extends StatelessWidget {
               runSpacing: 10,
               children: [
                 _StatCard(label: 'Total', value: _n(run.totalTests)),
-                _StatCard(label: 'Passed', value: _n(run.passed), color: AppColors.success),
-                _StatCard(label: 'Failed', value: _n(run.failed), color: AppColors.error),
-                _StatCard(label: 'Skipped', value: _n(run.skipped), color: AppColors.warning),
+                _StatCard(
+                  label: 'Passed',
+                  value: _n(run.passed),
+                  color: context.palette.success,
+                ),
+                _StatCard(
+                  label: 'Failed',
+                  value: _n(run.failed),
+                  color: context.palette.error,
+                ),
+                _StatCard(
+                  label: 'Skipped',
+                  value: _n(run.skipped),
+                  color: context.palette.warning,
+                ),
               ],
             ),
           ),
@@ -132,7 +146,9 @@ class RunDetailsPanel extends StatelessWidget {
                       onPressed: onDelete,
                       icon: const Icon(Icons.delete_outline, size: 16),
                       label: const Text('Delete Run'),
-                      style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                      style: TextButton.styleFrom(
+                        foregroundColor: context.palette.error,
+                      ),
                     ),
                   ],
                 ),
@@ -170,9 +186,9 @@ class _Section extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,16 +216,13 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 120,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
+              style: TextStyle(
+                color: context.palette.textPrimary,
                 fontSize: 12.5,
               ),
             ),
@@ -221,11 +234,7 @@ class _DetailRow extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-    this.color,
-  });
+  const _StatCard({required this.label, required this.value, this.color});
 
   final String label;
   final String value;
@@ -237,9 +246,9 @@ class _StatCard extends StatelessWidget {
       width: 100,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
+        color: context.palette.surfaceElevated,
         borderRadius: BorderRadius.circular(AppRadii.sm),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,7 +258,7 @@ class _StatCard extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              color: color ?? AppColors.textPrimary,
+              color: color ?? context.palette.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
@@ -261,11 +270,7 @@ class _StatCard extends StatelessWidget {
 }
 
 class _ArtifactRow extends StatelessWidget {
-  const _ArtifactRow({
-    required this.label,
-    this.path,
-    this.onOpen,
-  });
+  const _ArtifactRow({required this.label, this.path, this.onOpen});
 
   final String label;
   final String? path;
@@ -283,7 +288,9 @@ class _ArtifactRow extends StatelessWidget {
                 ? Icons.insert_drive_file_outlined
                 : Icons.description_outlined,
             size: 16,
-            color: path == null ? AppColors.textMuted : AppColors.textSecondary,
+            color: path == null
+                ? context.palette.textMuted
+                : context.palette.textSecondary,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -298,11 +305,13 @@ class _ArtifactRow extends StatelessWidget {
                     Text(
                       label,
                       style: TextStyle(
-                        color: canOpen ? AppColors.accent : AppColors.textPrimary,
+                        color: canOpen
+                            ? context.palette.accent
+                            : context.palette.textPrimary,
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                         decoration: canOpen ? TextDecoration.underline : null,
-                        decorationColor: AppColors.accent,
+                        decorationColor: context.palette.accent,
                       ),
                     ),
                     Text(

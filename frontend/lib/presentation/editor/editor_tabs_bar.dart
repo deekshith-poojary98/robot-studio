@@ -33,16 +33,16 @@ class EditorTabsBar extends StatelessWidget {
   final ValueChanged<String> onSelect;
   final ValueChanged<String> onClose;
   final void Function(String path, EditorTabContextAction action)?
-      onContextAction;
+  onContextAction;
 
   @override
   Widget build(BuildContext context) {
     if (tabs.isEmpty) return const SizedBox.shrink();
     return Container(
       height: 36,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.borderSubtle)),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        border: Border(bottom: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
@@ -84,7 +84,7 @@ class _EditorTabChip extends StatefulWidget {
   final VoidCallback onSelect;
   final VoidCallback onClose;
   final void Function(String path, EditorTabContextAction action)?
-      onContextAction;
+  onContextAction;
 
   @override
   State<_EditorTabChip> createState() => _EditorTabChipState();
@@ -97,8 +97,7 @@ class _EditorTabChipState extends State<_EditorTabChip> {
     final onAction = widget.onContextAction;
     if (onAction == null) return;
 
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final position = RelativeRect.fromRect(
       globalPosition & const Size(1, 1),
       Offset.zero & overlay.size,
@@ -158,10 +157,10 @@ class _EditorTabChipState extends State<_EditorTabChip> {
     final tab = widget.tab;
     final active = widget.active;
     final bg = active
-        ? AppColors.background
+        ? context.palette.background
         : _hovered
-            ? AppColors.surfaceHover
-            : Colors.transparent;
+        ? context.palette.surfaceHover
+        : Colors.transparent;
 
     return Semantics(
       button: true,
@@ -189,12 +188,12 @@ class _EditorTabChipState extends State<_EditorTabChip> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (tab.isDirty)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.only(right: AppSpacing.xs + 2),
                         child: Icon(
                           Icons.circle,
                           size: 8,
-                          color: AppColors.accent,
+                          color: context.palette.accent,
                         ),
                       ),
                     Flexible(
@@ -204,11 +203,12 @@ class _EditorTabChipState extends State<_EditorTabChip> {
                         maxLines: 1,
                         style: TextStyle(
                           color: active
-                              ? AppColors.textPrimary
-                              : AppColors.textSecondary,
+                              ? context.palette.textPrimary
+                              : context.palette.textSecondary,
                           fontSize: 12,
-                          fontWeight:
-                              active ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight: active
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                         ),
                       ),
                     ),
@@ -219,12 +219,12 @@ class _EditorTabChipState extends State<_EditorTabChip> {
                       child: InkWell(
                         onTap: widget.onClose,
                         borderRadius: BorderRadius.circular(AppRadii.xs),
-                        child: const Padding(
+                        child: Padding(
                           padding: EdgeInsets.all(2),
                           child: Icon(
                             Icons.close,
                             size: 14,
-                            color: AppColors.textMuted,
+                            color: context.palette.textMuted,
                           ),
                         ),
                       ),

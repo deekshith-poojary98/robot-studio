@@ -7,19 +7,12 @@ import '../../core/gateway/transport_gateway.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
 
-typedef DoctorJumpToSource = void Function(
-  String path, {
-  int? line,
-  int? column,
-});
+typedef DoctorJumpToSource =
+    void Function(String path, {int? line, int? column});
 
 /// First-class Project Health Center — not a Problems panel.
 class DoctorPage extends StatefulWidget {
-  const DoctorPage({
-    super.key,
-    required this.gateway,
-    this.onJumpToSource,
-  });
+  const DoctorPage({super.key, required this.gateway, this.onJumpToSource});
 
   final TransportGateway gateway;
   final DoctorJumpToSource? onJumpToSource;
@@ -126,22 +119,22 @@ class _DoctorPageState extends State<DoctorPage> {
       items = items.where((f) => f.category == _categoryFilter).toList();
     }
     int sevRank(String s) => switch (s) {
-          'error' => 4,
-          'warning' => 3,
-          'info' => 2,
-          'hint' => 1,
-          _ => 0,
-        };
+      'error' => 4,
+      'warning' => 3,
+      'info' => 2,
+      'hint' => 1,
+      _ => 0,
+    };
     switch (_sort) {
       case _SortMode.priority:
         // Keep server priority order (already sorted), just filtered.
         break;
       case _SortMode.severity:
-        items.sort((a, b) => sevRank(b.severity).compareTo(sevRank(a.severity)));
-      case _SortMode.category:
         items.sort(
-          (a, b) => (a.category ?? '').compareTo(b.category ?? ''),
+          (a, b) => sevRank(b.severity).compareTo(sevRank(a.severity)),
         );
+      case _SortMode.category:
+        items.sort((a, b) => (a.category ?? '').compareTo(b.category ?? ''));
       case _SortMode.file:
         items.sort((a, b) => a.filePath.compareTo(b.filePath));
     }
@@ -160,7 +153,7 @@ class _DoctorPageState extends State<DoctorPage> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: context.palette.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -183,9 +176,9 @@ class _DoctorPageState extends State<DoctorPage> {
               ),
               child: Text(
                 _error!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.error,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: context.palette.error),
               ),
             ),
           if (_report != null)
@@ -235,33 +228,32 @@ class _DoctorPageState extends State<DoctorPage> {
             child: _loadingProfiles || (_running && _report == null)
                 ? const Center(child: CircularProgressIndicator())
                 : _report == null
-                    ? EmptyState(
-                        icon: Icons.health_and_safety_outlined,
-                        title: 'Run Robot Doctor',
-                        message:
-                            'Analyze project health — prioritized findings, not a dump of every warning.',
-                        actionLabel: 'Run Doctor',
-                        onAction: () => unawaited(_runDoctor()),
-                      )
-                    : _visibleFindings.isEmpty
-                        ? EmptyState(
-                            icon: Icons.verified_outlined,
-                            title: _report!.findings.isEmpty
-                                ? 'Looking healthy'
-                                : 'No matching findings',
-                            message: _report!.findings.isEmpty
-                                ? 'Doctor found nothing for this profile. Try Full to include execution knowledge.'
-                                : 'Adjust filters or search to see more findings.',
-                          )
-                        : _FindingsList(
-                            grouped: _groupedVisible,
-                            expandedId: _expandedFindingId,
-                            onToggle: (id) => setState(() {
-                              _expandedFindingId =
-                                  _expandedFindingId == id ? null : id;
-                            }),
-                            onJump: widget.onJumpToSource,
-                          ),
+                ? EmptyState(
+                    icon: Icons.health_and_safety_outlined,
+                    title: 'Run Robot Doctor',
+                    message:
+                        'Analyze project health — prioritized findings, not a dump of every warning.',
+                    actionLabel: 'Run Doctor',
+                    onAction: () => unawaited(_runDoctor()),
+                  )
+                : _visibleFindings.isEmpty
+                ? EmptyState(
+                    icon: Icons.verified_outlined,
+                    title: _report!.findings.isEmpty
+                        ? 'Looking healthy'
+                        : 'No matching findings',
+                    message: _report!.findings.isEmpty
+                        ? 'Doctor found nothing for this profile. Try Full to include execution knowledge.'
+                        : 'Adjust filters or search to see more findings.',
+                  )
+                : _FindingsList(
+                    grouped: _groupedVisible,
+                    expandedId: _expandedFindingId,
+                    onToggle: (id) => setState(() {
+                      _expandedFindingId = _expandedFindingId == id ? null : id;
+                    }),
+                    onJump: widget.onJumpToSource,
+                  ),
           ),
         ],
       ),
@@ -301,9 +293,9 @@ class _Header extends StatelessWidget {
               children: [
                 Text(
                   'Robot Doctor',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontSize: 18,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(fontSize: 18),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
@@ -372,9 +364,9 @@ class _HealthSummaryStrip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: AppColors.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       child: Wrap(
         spacing: AppSpacing.lg,
@@ -387,10 +379,7 @@ class _HealthSummaryStrip extends StatelessWidget {
             value: '${s.criticalIssues}',
             emphasize: s.criticalIssues > 0,
           ),
-          _StatChip(
-            label: 'Errors',
-            value: '${s.bySeverity['error'] ?? 0}',
-          ),
+          _StatChip(label: 'Errors', value: '${s.bySeverity['error'] ?? 0}'),
           _StatChip(
             label: 'Warnings',
             value: '${s.bySeverity['warning'] ?? 0}',
@@ -400,8 +389,8 @@ class _HealthSummaryStrip extends StatelessWidget {
             value: report.graphVersion.isEmpty
                 ? '—'
                 : report.graphVersion.length > 8
-                    ? report.graphVersion.substring(0, 8)
-                    : report.graphVersion,
+                ? report.graphVersion.substring(0, 8)
+                : report.graphVersion,
           ),
           if (exec != null)
             _StatChip(label: 'Linked runs', value: '${exec.linkedRuns}'),
@@ -411,16 +400,13 @@ class _HealthSummaryStrip extends StatelessWidget {
               value: trend.deltaTotal == 0
                   ? 'unchanged'
                   : trend.deltaTotal < 0
-                      ? '${trend.deltaTotal} vs last'
-                      : '+${trend.deltaTotal} vs last',
+                  ? '${trend.deltaTotal} vs last'
+                  : '+${trend.deltaTotal} vs last',
               emphasize: trend.improved,
               positive: trend.improved,
             ),
           ...s.byCategory.entries.map(
-            (e) => _StatChip(
-              label: _categoryLabel(e.key),
-              value: '${e.value}',
-            ),
+            (e) => _StatChip(label: _categoryLabel(e.key), value: '${e.value}'),
           ),
         ],
       ),
@@ -444,27 +430,26 @@ class _StatChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = positive
-        ? AppColors.success
+        ? context.palette.success
         : emphasize
-            ? AppColors.error
-            : AppColors.textPrimary;
+        ? context.palette.error
+        : context.palette.textPrimary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label.toUpperCase(),
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppColors.textMuted,
-                letterSpacing: 0.4,
-              ),
+            color: context.palette.textMuted,
+            letterSpacing: 0.4,
+          ),
         ),
         const SizedBox(height: 2),
         Text(
           value,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: color,
-                fontSize: 14,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(color: color, fontSize: 14),
         ),
       ],
     );
@@ -485,10 +470,7 @@ class _RecommendationsStrip extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Fix first',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Text('Fix first', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppSpacing.sm),
         ...recommendations.take(3).map((r) {
           return Padding(
@@ -503,17 +485,17 @@ class _RecommendationsStrip extends StatelessWidget {
                   vertical: AppSpacing.sm,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated,
+                  color: context.palette.surfaceElevated,
                   borderRadius: BorderRadius.circular(AppRadii.sm),
-                  border: Border.all(color: AppColors.borderSubtle),
+                  border: Border.all(color: context.palette.borderSubtle),
                 ),
                 child: Row(
                   children: [
                     Text(
                       '#${r.rank}',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: AppColors.accent,
-                          ),
+                        color: context.palette.accent,
+                      ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
@@ -653,9 +635,9 @@ class _FilterDropdown<T> extends StatelessWidget {
       children: [
         Text(
           '$label:',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppColors.textMuted,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(color: context.palette.textMuted),
         ),
         const SizedBox(width: AppSpacing.xs),
         DropdownButtonHideUnderline(
@@ -663,15 +645,10 @@ class _FilterDropdown<T> extends StatelessWidget {
             value: value,
             isDense: true,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: AppColors.textPrimary,
-                ),
+              color: context.palette.textPrimary,
+            ),
             items: items
-                .map(
-                  (e) => DropdownMenuItem(
-                    value: e.$1,
-                    child: Text(e.$2),
-                  ),
-                )
+                .map((e) => DropdownMenuItem(value: e.$1, child: Text(e.$2)))
                 .toList(),
             onChanged: (v) {
               if (v != null || items.any((e) => e.$1 == null)) {
@@ -757,16 +734,18 @@ class _FindingTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.xs),
       child: Material(
-        color: expanded ? AppColors.surfaceElevated : AppColors.surface,
+        color: expanded
+            ? context.palette.surfaceElevated
+            : context.palette.surface,
         borderRadius: BorderRadius.circular(AppRadii.sm),
         child: InkWell(
           onTap: onToggle,
           borderRadius: BorderRadius.circular(AppRadii.sm),
-          hoverColor: AppColors.surfaceHover,
+          hoverColor: context.palette.surfaceHover,
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadii.sm),
-              border: Border.all(color: AppColors.borderSubtle),
+              border: Border.all(color: context.palette.borderSubtle),
             ),
             padding: const EdgeInsets.all(AppSpacing.md),
             child: Column(
@@ -790,8 +769,8 @@ class _FindingTile extends StatelessWidget {
                       Text(
                         finding.locationLabel,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: AppColors.textMuted,
-                            ),
+                          color: context.palette.textMuted,
+                        ),
                       ),
                   ],
                 ),
@@ -800,8 +779,8 @@ class _FindingTile extends StatelessWidget {
                   Text(
                     'Why is this reported?',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                      color: context.palette.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
@@ -820,10 +799,10 @@ class _FindingTile extends StatelessWidget {
                           onPressed: onJump == null
                               ? null
                               : () => onJump!(
-                                    finding.filePath,
-                                    line: finding.line,
-                                    column: finding.column,
-                                  ),
+                                  finding.filePath,
+                                  line: finding.line,
+                                  column: finding.column,
+                                ),
                           icon: const Icon(Icons.open_in_new, size: 14),
                           label: const Text('Jump to source'),
                         ),
@@ -847,10 +826,10 @@ class _SeverityBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (severity) {
-      'error' => AppColors.error,
-      'warning' => AppColors.warning,
-      'info' => AppColors.info,
-      _ => AppColors.textMuted,
+      'error' => context.palette.error,
+      'warning' => context.palette.warning,
+      'info' => context.palette.info,
+      _ => context.palette.textMuted,
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -862,9 +841,9 @@ class _SeverityBadge extends StatelessWidget {
       child: Text(
         severity.toUpperCase(),
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -880,15 +859,17 @@ class _ConfidenceBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.accentSoft,
+        color: context.palette.accentSoft,
         borderRadius: BorderRadius.circular(AppRadii.xs),
-        border: Border.all(color: AppColors.accentMuted.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: context.palette.accentMuted.withValues(alpha: 0.5),
+        ),
       ),
       child: Text(
         confidence,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.accent,
-            ),
+        style: Theme.of(
+          context,
+        ).textTheme.labelSmall?.copyWith(color: context.palette.accent),
       ),
     );
   }
