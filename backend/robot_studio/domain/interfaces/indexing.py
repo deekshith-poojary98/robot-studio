@@ -46,6 +46,7 @@ class IndexStore(ABC):
         query: str,
         *,
         project_id: UUID | None = None,
+        workspace_id: UUID | None = None,
         kind: SymbolKind | None = None,
         limit: int = 100,
     ) -> list[dict]: ...

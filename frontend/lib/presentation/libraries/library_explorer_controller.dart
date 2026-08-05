@@ -64,8 +64,14 @@ class LibraryExplorerController {
       selectedKeyword = null;
       keywordFilter = '';
       level = LibraryExplorerLevel.keywords;
+      if (detail == null ||
+          (detail.keywords.isEmpty && detail.keywordCount == 0 && !detail.builtin)) {
+        error =
+            "'${summary.name}' is imported in this project but is not installed "
+            'in the active environment.';
+      }
       // Refresh summary count in list if we got a full load.
-      if (detail != null) {
+      if (detail != null && detail.keywordCount > 0) {
         final idx = libraries.indexWhere(
           (item) => item.name.toLowerCase() == detail.name.toLowerCase(),
         );

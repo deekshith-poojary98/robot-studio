@@ -290,6 +290,7 @@ class SqliteIndexStore(IndexStore):
         query: str,
         *,
         project_id: UUID | None = None,
+        workspace_id: UUID | None = None,
         kind: SymbolKind | None = None,
         limit: int = 100,
     ) -> list[dict]:
@@ -299,6 +300,9 @@ class SqliteIndexStore(IndexStore):
         if project_id:
             clauses.append("project_id = ?")
             params.append(str(project_id))
+        if workspace_id:
+            clauses.append("workspace_id = ?")
+            params.append(str(workspace_id))
         if kind:
             clauses.append("kind = ?")
             params.append(kind.value)

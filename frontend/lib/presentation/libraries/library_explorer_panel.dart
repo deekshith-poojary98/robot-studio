@@ -201,7 +201,7 @@ class _LibraryList extends StatelessWidget {
       itemBuilder: (context, index) {
         final lib = libraries[index];
         final countLabel =
-            lib.keywordCount > 0 ? '${lib.keywordCount} keywords' : 'Open to load';
+            lib.keywordCount > 0 ? '${lib.keywordCount} keywords' : 'Imported · tap to load';
         return ListTile(
           dense: true,
           title: Text(

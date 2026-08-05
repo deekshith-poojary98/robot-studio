@@ -35,4 +35,18 @@ void main() {
     controller.back();
     expect(controller.level, LibraryExplorerLevel.libraries);
   });
+
+  test('openLibrary explains missing package when resolve returns empty', () async {
+    final controller = LibraryExplorerController(
+      listLibraries: () async => [
+        const LibraryInfo(name: 'Browser', keywordCount: 0),
+      ],
+      getLibrary: (_) async => null,
+    );
+
+    await controller.loadLibraries();
+    await controller.openLibrary(controller.libraries.first);
+    expect(controller.error, contains('not installed'));
+    expect(controller.error, contains('Browser'));
+  });
 }

@@ -131,10 +131,12 @@ class RobotLanguageService(LanguageService):
         async def discover_imports() -> list[str]:
             names: list[str] = []
             seen: set[str] = set()
+            workspace = self.context.workspace
             try:
                 symbols = await self.store.search_symbols(
                     "",
                     kind=SymbolKind.LIBRARY,
+                    workspace_id=workspace.id if workspace is not None else None,
                     limit=200,
                 )
             except Exception:  # noqa: BLE001

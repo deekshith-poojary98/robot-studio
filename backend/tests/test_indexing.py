@@ -306,6 +306,53 @@ async def test_deleted_file_removed_from_index(index_stack) -> None:
 
 
 @pytest.mark.asyncio
+async def test_search_symbols_can_scope_libraries_to_workspace(tmp_path: Path) -> None:
+    """Library Explorer must not list imports from other workspaces."""
+    db = tmp_path / "index.db"
+    store = SqliteIndexStore(db)
+    await store.initialize()
+
+    ws_a = uuid4()
+    ws_b = uuid4()
+    from robot_studio.domain.models import IndexedSymbol
+
+    await store.upsert_symbols(
+        [
+            IndexedSymbol(
+                id="lib-a",
+                name="SeleniumLibrary",
+                kind=SymbolKind.LIBRARY.value,
+                file_path=tmp_path / "a" / "suite.robot",
+                line=2,
+                workspace_id=ws_a,
+                project_id=uuid4(),
+            ),
+            IndexedSymbol(
+                id="lib-b",
+                name="Browser",
+                kind=SymbolKind.LIBRARY.value,
+                file_path=tmp_path / "b" / "suite.robot",
+                line=2,
+                workspace_id=ws_b,
+                project_id=uuid4(),
+            ),
+        ]
+    )
+
+    scoped = await store.search_symbols(
+        "",
+        kind=SymbolKind.LIBRARY,
+        workspace_id=ws_a,
+        limit=50,
+    )
+    names = {item["name"] for item in scoped}
+    assert names == {"SeleniumLibrary"}
+
+    unscoped = await store.search_symbols("", kind=SymbolKind.LIBRARY, limit=50)
+    assert {item["name"] for item in unscoped} == {"SeleniumLibrary", "Browser"}
+
+
+@pytest.mark.asyncio
 async def test_watcher_detects_new_file(index_stack, tmp_path: Path) -> None:
     service, store, _facade, suite, _lib, _bus, workspace, project = index_stack
     root = suite.parent
