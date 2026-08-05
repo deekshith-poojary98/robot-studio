@@ -1223,7 +1223,7 @@ class RestTransportGateway implements TransportGateway {
 
   @override
   Future<AppSettings> resetSettings() async {
-    final response = await _post('/settings/reset');
+    final response = await _post('/settings/reset', body: {});
     return AppSettings.fromJson(response);
   }
 
