@@ -74,6 +74,7 @@ async def install_package(
         result = await gateway.install_package(
             name=request.name,
             version=request.version,
+            force=request.force,
         )
     except PackageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

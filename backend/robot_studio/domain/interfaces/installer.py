@@ -30,7 +30,13 @@ class Installer(ABC):
     ) -> InstalledPackage | None: ...
 
     @abstractmethod
-    async def install(self, environment_path: Path, package: str) -> list[str]: ...
+    async def install(
+        self,
+        environment_path: Path,
+        package: str,
+        *,
+        force: bool = False,
+    ) -> list[str]: ...
 
     @abstractmethod
     async def install_requirements(

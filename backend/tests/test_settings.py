@@ -41,6 +41,7 @@ def test_defaults_and_persist(tmp_path: Path) -> None:
     assert snap.editor.font_size == 13
     assert snap.execution.large_run_threshold == 100
     assert snap.appearance.restore_last_project is True
+    assert snap.appearance.accent == "teal"
     assert Path(tmp_path / "settings.json").is_file()
 
 
@@ -52,7 +53,11 @@ async def test_update_merges_and_survives_reload(tmp_path: Path) -> None:
         {
             "editor": {"word_wrap": False, "font_size": 16},
             "execution": {"large_run_threshold": 5},
-            "appearance": {"theme": "system", "restore_last_project": False},
+            "appearance": {
+                "theme": "system",
+                "accent": "blue",
+                "restore_last_project": False,
+            },
         },
     )
     assert updated.editor.word_wrap is False
@@ -60,11 +65,13 @@ async def test_update_merges_and_survives_reload(tmp_path: Path) -> None:
     assert updated.editor.font_family == "Menlo"
     assert updated.execution.large_run_threshold == 5
     assert updated.appearance.theme == "system"
+    assert updated.appearance.accent == "blue"
     assert updated.appearance.restore_last_project is False
 
     reloaded = SettingsService(data_dir=tmp_path).load()
     assert reloaded.editor.font_size == 16
     assert reloaded.execution.large_run_threshold == 5
+    assert reloaded.appearance.accent == "blue"
     assert reloaded.appearance.restore_last_project is False
 
 
@@ -108,8 +115,17 @@ async def test_settings_api(api_client) -> None:
 
     again = await client.get("/api/v1/settings")
     assert again.json()["editor"]["auto_save"] is True
+    assert again.json()["appearance"]["accent"] == "teal"
 
     reset = await client.post("/api/v1/settings/reset")
     assert reset.status_code == 200
     assert reset.json()["editor"]["auto_save"] is False
+    assert reset.json()["appearance"]["accent"] == "teal"
     assert AppSettings.from_api(reset.json()).editor.tab_width == 4
+
+
+def test_invalid_accent_falls_back_to_teal() -> None:
+    from robot_studio.domain.models.app_settings import AppearanceSettings
+
+    assert AppearanceSettings.from_api({"accent": "purple"}).accent == "teal"
+    assert AppearanceSettings.from_api({"accent": "BLUE"}).accent == "blue"

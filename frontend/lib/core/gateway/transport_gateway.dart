@@ -107,7 +107,11 @@ abstract class TransportGateway {
 
   Future<PackageInfo> getPackage(String name);
 
-  Future<PackageOperationResult> installPackage(String name, {String? version});
+  Future<PackageOperationResult> installPackage(
+    String name, {
+    String? version,
+    bool force = false,
+  });
 
   Future<PackageOperationResult> installRequirements(String filePath);
 

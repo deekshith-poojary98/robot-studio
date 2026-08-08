@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_accent.dart';
+
 /// Robot Studio's colour tokens, resolved per theme.
 ///
 /// Widgets must read these through `Theme.of(context)` (see the `palette`
@@ -117,6 +119,21 @@ class AppPalette extends ThemeExtension<AppPalette> {
     statusBar: Color(0xFFE6EBEC),
     statusBarText: Color(0xFF3D4A4C),
   );
+
+  /// Base surface tokens for [brightness], with accent colours from [accent].
+  factory AppPalette.forAccent(
+    AppAccentPreference accent, {
+    required Brightness brightness,
+  }) {
+    final base = brightness == Brightness.dark ? dark : light;
+    final tokens = accent.tokensFor(brightness);
+    return base.copyWith(
+      accent: tokens.accent,
+      accentMuted: tokens.accentMuted,
+      accentSoft: tokens.accentSoft,
+      onAccent: tokens.onAccent,
+    );
+  }
 
   static AppPalette of(BuildContext context) =>
       Theme.of(context).extension<AppPalette>() ?? dark;

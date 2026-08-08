@@ -70,7 +70,7 @@ enum SettingsCategory {
     SettingsCategory.editor => 'Saving, indentation, and font',
     SettingsCategory.execution => 'Run confirmations and result panels',
     SettingsCategory.search => 'Which files Find in Files reads',
-    SettingsCategory.appearance => 'Theme',
+    SettingsCategory.appearance => 'Theme and accent colour',
   };
 }
 
@@ -603,6 +603,32 @@ class _PreferencesPageState extends State<PreferencesPage> {
             });
           },
         ),
+        _DropdownRow<AppAccentPreference>(
+          label: 'Accent',
+          value: _draft.appearance.accent,
+          items: AppAccentPreference.values,
+          labelFor: (item) => item.label,
+          leadingFor: (item) => Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: item.swatch,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: context.palette.border,
+              ),
+            ),
+          ),
+          onChanged: (value) {
+            if (value == null) return;
+            _markChanged();
+            setState(() {
+              _draft = _draft.copyWith(
+                appearance: _draft.appearance.copyWith(accent: value),
+              );
+            });
+          },
+        ),
         _SwitchRow(
           label: 'Restore Last Project',
           hint: 'Reopen the last project or workspace when Robot Studio starts',
@@ -944,13 +970,28 @@ class _DropdownRow<T> extends StatelessWidget {
     required this.items,
     required this.labelFor,
     required this.onChanged,
+    this.leadingFor,
   });
 
   final String label;
   final T value;
   final List<T> items;
   final String Function(T) labelFor;
+  final Widget Function(T)? leadingFor;
   final ValueChanged<T?> onChanged;
+
+  Widget _itemChild(T item) {
+    final leading = leadingFor?.call(item);
+    if (leading == null) return Text(labelFor(item));
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        leading,
+        const SizedBox(width: AppSpacing.sm),
+        Text(labelFor(item)),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -960,9 +1001,12 @@ class _DropdownRow<T> extends StatelessWidget {
         value: value,
         underline: const SizedBox.shrink(),
         style: TextStyle(fontSize: 12.5, color: context.palette.textPrimary),
+        selectedItemBuilder: (context) => [
+          for (final item in items) _itemChild(item),
+        ],
         items: [
           for (final item in items)
-            DropdownMenuItem(value: item, child: Text(labelFor(item))),
+            DropdownMenuItem(value: item, child: _itemChild(item)),
         ],
         onChanged: onChanged,
       ),

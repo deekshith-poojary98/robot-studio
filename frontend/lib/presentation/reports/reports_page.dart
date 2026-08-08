@@ -18,7 +18,6 @@ class ReportsPage extends StatelessWidget {
     this.onOpenReport,
     this.onReveal,
     this.onDelete,
-    this.onRunSuite,
   });
 
   final bool isLoading;
@@ -31,7 +30,12 @@ class ReportsPage extends StatelessWidget {
   final VoidCallback? onOpenReport;
   final VoidCallback? onReveal;
   final VoidCallback? onDelete;
-  final VoidCallback? onRunSuite;
+
+  bool get _showDashboard {
+    if (isLoadingDashboard && dashboard == null) return true;
+    final data = dashboard;
+    return data != null && data.totalRuns > 0;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,26 +74,25 @@ class ReportsPage extends StatelessWidget {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-            child: _DashboardStrip(
-              dashboard: dashboard,
-              isLoading: isLoadingDashboard,
+          if (_showDashboard)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+              child: _DashboardStrip(
+                dashboard: dashboard,
+                isLoading: isLoadingDashboard,
+              ),
             ),
-          ),
           const Divider(height: 1),
           Expanded(
             child: isLoading && selected == null
                 ? const Center(child: CircularProgressIndicator())
                 : selected == null
-                ? EmptyState(
+                ? const EmptyState(
                     icon: Icons.assessment_outlined,
                     title: 'No run selected',
                     message:
                         'Pick a run in the Reports list to open its '
                         'log, report, and statistics.',
-                    actionLabel: onRunSuite == null ? null : 'Run Suite',
-                    onAction: onRunSuite,
                   )
                 : RunDetailsPanel(
                     run: selected!,
@@ -122,18 +125,7 @@ class _DashboardStrip extends StatelessWidget {
     }
     final data = dashboard;
     if (data == null || data.totalRuns == 0) {
-      return Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: context.palette.surface,
-          borderRadius: BorderRadius.circular(AppRadii.md),
-          border: Border.all(color: context.palette.border),
-        ),
-        child: Text(
-          'No runs yet — run a suite to collect pass/fail statistics.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      );
+      return const SizedBox.shrink();
     }
 
     return Wrap(

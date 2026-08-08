@@ -137,7 +137,8 @@ class ApiClient implements TransportGateway {
   Future<PackageOperationResult> installPackage(
     String name, {
     String? version,
-  }) => _gateway.installPackage(name, version: version);
+    bool force = false,
+  }) => _gateway.installPackage(name, version: version, force: force);
 
   @override
   Future<PackageOperationResult> installRequirements(String filePath) =>

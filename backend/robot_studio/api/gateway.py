@@ -425,10 +425,12 @@ class RestGateway:
         name: str,
         *,
         version: str | None = None,
+        force: bool = False,
     ) -> PackageOperationResult:
         return await self._package_service.install_package(
             name=name,
             version=version,
+            force=force,
         )
 
     async def install_requirements(self, file_path: str) -> PackageOperationResult:

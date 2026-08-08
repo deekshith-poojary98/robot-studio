@@ -118,9 +118,10 @@ class SearchSettings:
 
 @dataclass(frozen=True)
 class AppearanceSettings:
-    """Theme: dark | light | system."""
+    """Theme: dark | light | system. Accent: curated accent colour id."""
 
     theme: str = "dark"
+    accent: str = "teal"
     restore_last_project: bool = True
 
     def to_api(self) -> dict[str, Any]:
@@ -132,8 +133,12 @@ class AppearanceSettings:
         theme = str(raw.get("theme") or "dark").strip().lower()
         if theme not in {"dark", "light", "system"}:
             theme = "dark"
+        accent = str(raw.get("accent") or "teal").strip().lower()
+        if accent not in {"teal", "blue", "green", "amber", "rose", "slate"}:
+            accent = "teal"
         return AppearanceSettings(
             theme=theme,
+            accent=accent,
             restore_last_project=bool(raw.get("restore_last_project", True)),
         )
 

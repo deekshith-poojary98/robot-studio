@@ -117,12 +117,23 @@ class PipInstaller(Installer):
                 return item
         return None
 
-    async def install(self, environment_path: Path, package: str) -> list[str]:
+    async def install(
+        self,
+        environment_path: Path,
+        package: str,
+        *,
+        force: bool = False,
+    ) -> list[str]:
         python = self._python_for(environment_path)
+        args = ["install"]
+        if force:
+            # Same version is normally a no-op; force reinstalls the wheel/sdist.
+            args.append("--force-reinstall")
+        args.append(package)
         return await asyncio.to_thread(
             self._pip,
             python,
-            ["install", package],
+            args,
             error_prefix=f"Failed to install '{package}'",
         )
 

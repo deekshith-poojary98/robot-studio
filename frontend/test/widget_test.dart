@@ -11,6 +11,7 @@ import 'package:robot_studio/presentation/environment/delete_environment_dialog.
 import 'package:robot_studio/presentation/environment/environment_manager_page.dart';
 import 'package:robot_studio/presentation/execution/execution_console.dart';
 import 'package:robot_studio/presentation/execution/execution_history_list.dart';
+import 'package:robot_studio/presentation/packages/already_installed_package_dialog.dart';
 import 'package:robot_studio/presentation/packages/package_manager_page.dart';
 import 'package:robot_studio/presentation/packages/search_packages_dialog.dart';
 import 'package:robot_studio/presentation/packages/uninstall_package_dialog.dart';
@@ -632,6 +633,48 @@ void main() {
     expect(offenders, isEmpty, reason: 'dark tokens painted in light mode');
   });
 
+  testWidgets('Appearance accent colours the whole app', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    Future<AppPalette> pumpWith(AppAccentPreference accent) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+
+      await tester.pumpWidget(
+        RobotStudioApp(
+          gateway: _FakeTransportGateway(
+            settings: AppSettings(
+              appearance: AppearanceSettings(
+                accent: accent,
+                restoreLastProject: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 400));
+      return tester.element(find.text('Recent Workspaces')).palette;
+    }
+
+    final teal = await pumpWith(AppAccentPreference.teal);
+    expect(teal.accent, AppPalette.dark.accent);
+
+    final blue = await pumpWith(AppAccentPreference.blue);
+    expect(
+      blue.accent,
+      AppPalette.forAccent(
+        AppAccentPreference.blue,
+        brightness: Brightness.dark,
+      ).accent,
+    );
+    expect(blue.background, AppPalette.dark.background);
+  });
+
   testWidgets('Activation flow via environment manager', (
     WidgetTester tester,
   ) async {
@@ -841,6 +884,51 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Uninstall'));
     await tester.pumpAndSettle();
     expect(await future, isTrue);
+  });
+
+  testWidgets('Already installed dialog offers Force Install', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: SizedBox())),
+    );
+
+    final future = showAlreadyInstalledPackageDialog(
+      tester.element(find.byType(SizedBox)),
+      name: 'six',
+      version: '1.16.0',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Already Installed'), findsOneWidget);
+    expect(find.textContaining('already installed'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Force Install'));
+    await tester.pumpAndSettle();
+    expect(await future, isTrue);
+  });
+
+  testWidgets('Already installed dialog Cancel returns false', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: SizedBox())),
+    );
+
+    final future = showAlreadyInstalledPackageDialog(
+      tester.element(find.byType(SizedBox)),
+      name: 'six',
+      version: '1.16.0',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(await future, isFalse);
   });
 
   testWidgets('Toolbar shows environment selector without Robot badge', (
@@ -2024,13 +2112,16 @@ class _FakeTransportGateway implements TransportGateway {
 
   @override
   Future<PackageInfo> getPackage(String name) async {
-    return _packages.firstWhere((item) => item.name == name);
+    return _packages.firstWhere(
+      (item) => item.name.toLowerCase() == name.toLowerCase(),
+    );
   }
 
   @override
   Future<PackageOperationResult> installPackage(
     String name, {
     String? version,
+    bool force = false,
   }) async {
     final package = PackageInfo(
       name: name,
@@ -2038,10 +2129,15 @@ class _FakeTransportGateway implements TransportGateway {
       latestVersion: version ?? '1.0.0',
       summary: 'Installed $name',
     );
-    _packages = [..._packages, package];
+    _packages = [
+      for (final item in _packages)
+        if (item.name.toLowerCase() != name.toLowerCase()) item,
+      package,
+    ];
     return PackageOperationResult(
       package: package,
       logs: [
+        if (force) 'Force reinstalling $name',
         'Installing $name${version == null ? '' : '==$version'}',
         'Successfully installed $name',
       ],

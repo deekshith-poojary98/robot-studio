@@ -120,6 +120,31 @@ void main() {
     expect(gateway.stored.appearance.restoreLastProject, isFalse);
   });
 
+  testWidgets('Appearance Accent defaults to Teal and saves another colour', (
+    tester,
+  ) async {
+    final gateway = _SettingsGateway();
+    final controller = AppSettingsController(gateway: gateway);
+    await controller.load();
+    await _pump(tester, controller);
+
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Teal (Default)'), findsOneWidget);
+    expect(gateway.stored.appearance.accent, AppAccentPreference.teal);
+
+    await tester.tap(find.text('Teal (Default)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Blue').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.stored.appearance.accent, AppAccentPreference.blue);
+  });
+
   testWidgets('Save stays disabled until something changes', (tester) async {
     final gateway = _SettingsGateway();
     final controller = AppSettingsController(gateway: gateway);

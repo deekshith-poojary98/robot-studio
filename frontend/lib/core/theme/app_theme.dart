@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'app_accent.dart';
 import 'app_palette.dart';
 
+export 'app_accent.dart';
 export 'app_palette.dart' show AppPalette, AppPaletteContext;
 
 /// Dark design tokens as compile-time constants.
@@ -292,23 +294,30 @@ ThemeMode appThemeModeFor(String preference) {
 AppPalette resolveAppPalette({
   required String preference,
   required Brightness platformBrightness,
+  String accent = 'teal',
 }) {
   final mode = preference.toLowerCase();
-  if (mode == 'light') return AppPalette.light;
-  if (mode == 'system' && platformBrightness == Brightness.light) {
-    return AppPalette.light;
-  }
-  return AppPalette.dark;
+  final brightness =
+      (mode == 'light' ||
+          (mode == 'system' && platformBrightness == Brightness.light))
+      ? Brightness.light
+      : Brightness.dark;
+  return AppPalette.forAccent(
+    AppAccentPreference.fromApi(accent),
+    brightness: brightness,
+  );
 }
 
 ThemeData resolveAppTheme({
   required String preference,
   required Brightness platformBrightness,
+  String accent = 'teal',
 }) {
   return buildAppTheme(
     resolveAppPalette(
       preference: preference,
       platformBrightness: platformBrightness,
+      accent: accent,
     ),
   );
 }

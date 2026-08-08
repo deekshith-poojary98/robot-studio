@@ -261,12 +261,14 @@ class RestTransportGateway implements TransportGateway {
   Future<PackageOperationResult> installPackage(
     String name, {
     String? version,
+    bool force = false,
   }) async {
     final response = await _post(
       '/packages/install',
       body: {
         'name': name,
         if (version != null && version.isNotEmpty) 'version': version,
+        if (force) 'force': true,
       },
       timeout: const Duration(minutes: 10),
     );

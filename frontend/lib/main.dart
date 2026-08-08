@@ -72,6 +72,9 @@ class _RobotStudioAppState extends State<RobotStudioApp>
   /// Set by [AppShell] once settings load; drives [MaterialApp.themeMode].
   final _themePreference = ValueNotifier<String>('dark');
 
+  /// Curated accent id (`teal` default); rebuilds light/dark [AppPalette]s.
+  final _accentPreference = ValueNotifier<String>('teal');
+
   @override
   void initState() {
     super.initState();
@@ -93,6 +96,7 @@ class _RobotStudioAppState extends State<RobotStudioApp>
     WidgetsBinding.instance.removeObserver(this);
     BackendHost.instance?.stopSync();
     _themePreference.dispose();
+    _accentPreference.dispose();
     super.dispose();
   }
 
@@ -100,19 +104,38 @@ class _RobotStudioAppState extends State<RobotStudioApp>
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
       valueListenable: _themePreference,
-      builder: (context, preference, _) => MaterialApp(
-        title: 'Robot Studio',
-        debugShowCheckedModeBanner: false,
-        theme: buildAppTheme(AppPalette.light),
-        darkTheme: buildAppTheme(AppPalette.dark),
-        themeMode: appThemeModeFor(preference),
-        home:
-            widget.home ??
-            AppShell(
-              gateway: widget.gateway,
-              themePreference: _themePreference,
-            ),
-      ),
+      builder: (context, preference, _) {
+        return ValueListenableBuilder<String>(
+          valueListenable: _accentPreference,
+          builder: (context, accent, _) {
+            final accentPref = AppAccentPreference.fromApi(accent);
+            return MaterialApp(
+              title: 'Robot Studio',
+              debugShowCheckedModeBanner: false,
+              theme: buildAppTheme(
+                AppPalette.forAccent(
+                  accentPref,
+                  brightness: Brightness.light,
+                ),
+              ),
+              darkTheme: buildAppTheme(
+                AppPalette.forAccent(
+                  accentPref,
+                  brightness: Brightness.dark,
+                ),
+              ),
+              themeMode: appThemeModeFor(preference),
+              home:
+                  widget.home ??
+                  AppShell(
+                    gateway: widget.gateway,
+                    themePreference: _themePreference,
+                    accentPreference: _accentPreference,
+                  ),
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -8,6 +8,7 @@ from robot_studio.domain.models import InstalledPackage, PackageSearchResult
 class PackageNameRequest(BaseModel):
     name: str = Field(min_length=1)
     version: str | None = None
+    force: bool = False
 
 
 class RequirementsFileRequest(BaseModel):

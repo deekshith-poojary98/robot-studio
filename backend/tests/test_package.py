@@ -302,3 +302,30 @@ async def test_search_packages_reranks_registry_hits(services, monkeypatch) -> N
         "robotframework",
         "zzz-robot",
     ]
+
+
+@pytest.mark.asyncio
+async def test_force_install_passes_force_reinstall(services, monkeypatch) -> None:
+    captured: list[list[str]] = []
+
+    def fake_pip(python, args, *, error_prefix):
+        captured.append(list(args))
+        return ["Successfully installed six"]
+
+    monkeypatch.setattr(services["package_service"]._installer, "_pip", fake_pip)
+    monkeypatch.setattr(
+        services["package_service"]._installer,
+        "show",
+        AsyncMock(
+            return_value=InstalledPackage(name="six", version="1.16.0"),
+        ),
+    )
+
+    await services["package_service"].install_package(
+        "six",
+        version="1.16.0",
+        force=True,
+    )
+    assert captured
+    assert captured[0][:2] == ["install", "--force-reinstall"]
+    assert captured[0][-1] == "six==1.16.0"

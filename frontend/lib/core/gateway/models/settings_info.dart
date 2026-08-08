@@ -1,6 +1,10 @@
 /// Typed application preferences — mirror of backend AppSettings.
 library;
 
+import '../../theme/app_accent.dart';
+
+export '../../theme/app_accent.dart' show AppAccentPreference;
+
 class EditorSettings {
   const EditorSettings({
     this.autoSave = false,
@@ -166,30 +170,38 @@ class SearchSettings {
 class AppearanceSettings {
   const AppearanceSettings({
     this.theme = AppThemePreference.dark,
+    this.accent = AppAccentPreference.teal,
     this.restoreLastProject = true,
   });
 
   factory AppearanceSettings.fromJson(Map<String, dynamic> json) {
     return AppearanceSettings(
       theme: AppThemePreference.fromApi(json['theme'] as String? ?? 'dark'),
+      accent: AppAccentPreference.fromApi(
+        json['accent'] as String? ?? 'teal',
+      ),
       restoreLastProject: json['restore_last_project'] as bool? ?? true,
     );
   }
 
   final AppThemePreference theme;
+  final AppAccentPreference accent;
   final bool restoreLastProject;
 
   Map<String, dynamic> toJson() => {
-    'theme': theme.apiValue,
-    'restore_last_project': restoreLastProject,
-  };
+        'theme': theme.apiValue,
+        'accent': accent.apiValue,
+        'restore_last_project': restoreLastProject,
+      };
 
   AppearanceSettings copyWith({
     AppThemePreference? theme,
+    AppAccentPreference? accent,
     bool? restoreLastProject,
   }) {
     return AppearanceSettings(
       theme: theme ?? this.theme,
+      accent: accent ?? this.accent,
       restoreLastProject: restoreLastProject ?? this.restoreLastProject,
     );
   }

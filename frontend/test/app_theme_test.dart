@@ -81,6 +81,37 @@ void main() {
         );
       }
     });
+
+    test('forAccent keeps teal identical to the stock palettes', () {
+      expect(
+        AppPalette.forAccent(
+          AppAccentPreference.teal,
+          brightness: Brightness.dark,
+        ).accent,
+        AppPalette.dark.accent,
+      );
+      expect(
+        AppPalette.forAccent(
+          AppAccentPreference.teal,
+          brightness: Brightness.light,
+        ).accent,
+        AppPalette.light.accent,
+      );
+    });
+
+    test('forAccent swaps only accent tokens', () {
+      final blue = AppPalette.forAccent(
+        AppAccentPreference.blue,
+        brightness: Brightness.dark,
+      );
+      expect(blue.accent, isNot(AppPalette.dark.accent));
+      expect(blue.background, AppPalette.dark.background);
+      expect(blue.textPrimary, AppPalette.dark.textPrimary);
+      expect(
+        _contrast(blue.onAccent, blue.accent),
+        greaterThanOrEqualTo(3.0),
+      );
+    });
   });
 
   group('appThemeModeFor', () {

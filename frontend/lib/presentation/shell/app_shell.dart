@@ -26,6 +26,7 @@ import '../execution/run_target.dart';
 import '../git/source_control_page.dart';
 import '../packages/package_details_panel.dart';
 import '../packages/package_manager_page.dart';
+import '../packages/already_installed_package_dialog.dart';
 import '../packages/package_progress_dialog.dart';
 import '../packages/search_packages_dialog.dart';
 import '../packages/uninstall_package_dialog.dart';
@@ -87,6 +88,7 @@ class AppShell extends StatefulWidget {
     TransportGateway? gateway,
     TransportGateway? apiClient,
     this.themePreference,
+    this.accentPreference,
   }) : _gateway = gateway ?? apiClient;
 
   /// Supports both [gateway] and legacy [apiClient] parameter names.
@@ -96,6 +98,10 @@ class AppShell extends StatefulWidget {
   /// theme. The shell cannot theme itself — a `Theme` it returns sits below its
   /// own `State.context`.
   final ValueNotifier<String>? themePreference;
+
+  /// Publishes the accent colour id (`teal`, `blue`, …) for [MaterialApp]
+  /// light/dark palettes.
+  final ValueNotifier<String>? accentPreference;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -332,6 +338,7 @@ class _AppShellState extends State<AppShell> {
       _editor.wordWrap = wrap;
     }
     widget.themePreference?.value = _settings.appearance.theme.apiValue;
+    widget.accentPreference?.value = _settings.appearance.accent.apiValue;
     setState(() {});
   }
 
@@ -2171,13 +2178,48 @@ class _AppShellState extends State<AppShell> {
       tag: 'Shell',
       data: '${selected.name}==${selected.version}',
     );
+
+    var force = false;
+    final installed = await _findInstalledPackage(selected.name);
+    if (!mounted) return;
+    if (installed != null &&
+        _samePackageVersion(installed.version, selected.version)) {
+      final proceed = await showAlreadyInstalledPackageDialog(
+        context,
+        name: installed.name,
+        version: installed.version,
+      );
+      if (proceed != true) return;
+      force = true;
+    }
+
     await _runPackageOperation(
-      title: 'Installing Package',
+      title: force ? 'Force Installing Package' : 'Installing Package',
       packageName: '${selected.name} ${selected.version}',
-      operation: () =>
-          _gateway.installPackage(selected.name, version: selected.version),
-      successMessage: 'Installed package',
+      operation: () => _gateway.installPackage(
+        selected.name,
+        version: selected.version,
+        force: force,
+      ),
+      successMessage: force ? 'Reinstalled package' : 'Installed package',
     );
+  }
+
+  Future<PackageInfo?> _findInstalledPackage(String name) async {
+    final needle = name.trim().toLowerCase();
+    if (needle.isEmpty) return null;
+    for (final package in _packages) {
+      if (package.name.toLowerCase() == needle) return package;
+    }
+    try {
+      return await _gateway.getPackage(name);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static bool _samePackageVersion(String installed, String selected) {
+    return installed.trim().toLowerCase() == selected.trim().toLowerCase();
   }
 
   Future<void> _handleImportRequirements() async {
@@ -5631,7 +5673,6 @@ class _AppShellState extends State<AppShell> {
         onOpenReport: _openReportHtml,
         onReveal: _revealReport,
         onDelete: _deleteSelectedReport,
-        onRunSuite: _selectedProject == null ? null : _handleRunProject,
       ),
       _CenterView.doctor => DoctorPage(
         gateway: _gateway,

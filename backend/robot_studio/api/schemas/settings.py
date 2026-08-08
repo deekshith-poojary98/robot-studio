@@ -29,6 +29,7 @@ class SearchSettingsResponse(BaseModel):
 
 class AppearanceSettingsResponse(BaseModel):
     theme: str = "dark"
+    accent: str = "teal"
     restore_last_project: bool = True
 
 
@@ -68,6 +69,7 @@ class SearchSettingsPatch(BaseModel):
 
 class AppearanceSettingsPatch(BaseModel):
     theme: str | None = None
+    accent: str | None = None
     restore_last_project: bool | None = None
 
 

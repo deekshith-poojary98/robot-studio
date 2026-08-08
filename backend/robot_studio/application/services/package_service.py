@@ -142,6 +142,7 @@ class PackageService:
         name: str,
         *,
         version: str | None = None,
+        force: bool = False,
     ) -> PackageOperationResult:
         environment = self._require_environment()
         cleaned = name.strip()
@@ -156,7 +157,11 @@ class PackageService:
             requirement = f"{cleaned}=={selected}"
 
         try:
-            logs = await self._installer.install(environment.path, requirement)
+            logs = await self._installer.install(
+                environment.path,
+                requirement,
+                force=force,
+            )
         except PackageInstallError as exc:
             raise PackageValidationError(str(exc)) from exc
 
