@@ -6,9 +6,11 @@
   <img alt="Robot Studio Logo" src="https://raw.githubusercontent.com/deekshith-poojary98/robot-studio/main/docs/branding/logo-wordmark-readme-light.png" width="200">
 </picture>
 
+<p>A cross-platform desktop IDE for <a href="https://robotframework.org/">Robot Framework</a> development.</p>
+
 </div>
 
-A cross-platform desktop IDE for [Robot Framework](https://robotframework.org/) development.
+
 
 Robot Studio pairs a **Flutter desktop** UI with a local **Python FastAPI** backend. Workspaces, projects, environments, packages, indexing, language intelligence, test execution, reports, Git, and plugins are coordinated through clean-architecture services, an in-process event bus, and a transport gateway (REST + WebSocket today).
 
