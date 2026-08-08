@@ -139,7 +139,7 @@ Tests avoid arbitrary `sleep()` and wait for visible UI states instead.
 
 After the pre-M14 UX polish pass, suites reach language navigation through the editor
 overflow menu is gone — use `tapEditorMenuAction(tester, 'definition' | 'peek' | 'references' | 'hover' | …)` (command palette) or the window **Go** / **Edit** menus
-rather than permanent toolbar buttons, and the bottom panel has Console / Terminal /
+rather than permanent toolbar buttons, and the bottom panel has Terminal / 
 Problems — run output is on the Tests view; SH-08 asserts Execution Logs is gone.
 
 ---

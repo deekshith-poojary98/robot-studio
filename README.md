@@ -17,7 +17,7 @@ Robot Studio pairs a **Flutter desktop** UI with a local **Python FastAPI** back
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Flutter Desktop                                        │
-│  Shell · Explorer · Editor · Git · Reports · Console    │
+│  Shell · Explorer · Editor · Git · Reports    │
 └──────────────────────────┬──────────────────────────────┘
                            │  REST + WebSocket (localhost)
 ┌──────────────────────────▼──────────────────────────────┐

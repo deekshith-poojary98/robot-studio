@@ -174,7 +174,7 @@
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | **Priority**      | P1                                                                                                                                       |
 | **Preconditions** | Workspace open                                                                                                                           |
-| **Steps**         | Open Console / Problems / Terminal. Collapse / expand.                                                              |
+| **Steps**         | Open Problems / Terminal. Collapse / expand.                                                              |
 | **Expected**      | Tabs switch; collapse does not hide critical welcome CTAs permanently after reopen; Terminal shows milestone placeholder if not shipped. |
 
 

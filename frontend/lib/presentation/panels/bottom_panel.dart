@@ -6,7 +6,6 @@ import '../panels/problems_panel.dart';
 import '../panels/terminal_panel.dart';
 
 enum BottomPanelTab {
-  console('Console'),
   terminal('Terminal'),
   problems('Problems');
 
@@ -17,7 +16,6 @@ enum BottomPanelTab {
 class BottomPanel extends StatefulWidget {
   const BottomPanel({
     super.key,
-    this.logLines = const [],
     this.problems = const [],
     this.isLoadingProblems = false,
     this.problemCount = 0,
@@ -28,7 +26,6 @@ class BottomPanel extends StatefulWidget {
     this.onProblemSelected,
   });
 
-  final List<String> logLines;
   final List<DiagnosticInfo> problems;
   final bool isLoadingProblems;
   final int problemCount;
@@ -45,7 +42,7 @@ class BottomPanel extends StatefulWidget {
 }
 
 class _BottomPanelState extends State<BottomPanel> {
-  BottomPanelTab _activeTab = BottomPanelTab.console;
+  BottomPanelTab _activeTab = BottomPanelTab.terminal;
   bool _expanded = false;
   double _height = 180;
 
@@ -156,14 +153,6 @@ class _BottomPanelState extends State<BottomPanel> {
                   index: _activeTab.index,
                   sizing: StackFit.expand,
                   children: [
-                    _LogView(
-                      lines: widget.logLines.isEmpty
-                          ? const [
-                              '[info] Robot Studio ready.',
-                              '[info] Open a project to get started.',
-                            ]
-                          : widget.logLines,
-                    ),
                     TerminalPanel(workingDirectory: widget.workingDirectory),
                     ProblemsPanel(
                       diagnostics: widget.problems,
@@ -326,43 +315,6 @@ class _Tab extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _LogView extends StatelessWidget {
-  const _LogView({required this.lines});
-
-  final List<String> lines;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: lines.length,
-      itemBuilder: (context, index) {
-        final line = lines[index];
-        final color = line.contains('[error]')
-            ? context.palette.error
-            : line.contains('[warn]')
-            ? context.palette.warning
-            : line.contains('[PASS]') || line.contains('[pass]')
-            ? context.palette.success
-            : context.palette.textSecondary;
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Text(
-            line,
-            style: TextStyle(
-              fontFamily: 'Menlo',
-              fontSize: 12,
-              color: color,
-              height: 1.4,
-            ),
-          ),
-        );
-      },
     );
   }
 }

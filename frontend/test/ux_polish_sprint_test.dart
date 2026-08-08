@@ -174,9 +174,7 @@ void main() {
 
   test('cleanErrorMessage strips exception wrappers', () {
     expect(
-      cleanErrorMessage(
-        "GatewayException: Path does not exist: '/tmp/gone'",
-      ),
+      cleanErrorMessage("GatewayException: Path does not exist: '/tmp/gone'"),
       "Path does not exist: '/tmp/gone'",
     );
     expect(
@@ -194,7 +192,8 @@ void main() {
           children: [
             EnvironmentPromptToast(
               title: 'Python environment required',
-              message: 'Select an existing environment or create one to enable '
+              message:
+                  'Select an existing environment or create one to enable '
                   'Robot Framework features.',
               actions: [
                 EnvironmentPromptAction(
@@ -216,7 +215,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Python environment required'), findsOneWidget);
-    expect(find.textContaining('Select an existing environment'), findsOneWidget);
+    expect(
+      find.textContaining('Select an existing environment'),
+      findsOneWidget,
+    );
     expect(find.text('Create Environment'), findsOneWidget);
     // The ✕ is the only dismiss affordance; "Skip" was redundant.
     expect(find.text('Skip'), findsNothing);
@@ -286,10 +288,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: SidePanel(
-            panel: SidebarPanel.packages,
-            workspace: workspace,
-          ),
+          body: SidePanel(panel: SidebarPanel.packages, workspace: workspace),
         ),
       ),
     );
@@ -297,14 +296,15 @@ void main() {
   });
 
   testWidgets('bottom panel exposes only implemented tabs', (tester) async {
-    expect(
-      BottomPanelTab.values.map((tab) => tab.label),
-      ['Console', 'Terminal', 'Problems'],
-    );
+    expect(BottomPanelTab.values.map((tab) => tab.label), [
+      'Terminal',
+      'Problems',
+    ]);
 
     await tester.pumpWidget(
       const MaterialApp(home: Scaffold(body: BottomPanel())),
     );
+    expect(find.text('Console'), findsNothing);
     expect(find.text('OUTPUT'), findsNothing);
     expect(find.text('EXECUTION LOGS'), findsNothing);
   });

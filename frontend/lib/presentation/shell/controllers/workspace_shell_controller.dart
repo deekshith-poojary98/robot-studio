@@ -28,7 +28,6 @@ class WorkspaceShellController {
 
   String backendStatus = 'connecting';
   String? backendVersion;
-  List<String> logLines = [];
 
   WorkspaceInfo? activeWorkspace;
   ProjectInfo? selectedProject;
@@ -114,14 +113,12 @@ class WorkspaceShellController {
       }
       backendStatus = 'connected';
       backendVersion = health.version;
-      logLines = [
-        '[info] Connected to backend v${health.version}',
-        '[info] ${health.modules.length} modules registered',
-      ];
       notify();
-      for (final line in logLines) {
-        AppLogger.fromConsoleLine(line, tag: 'Shell');
-      }
+      AppLogger.info('Connected to backend v${health.version}', tag: 'Shell');
+      AppLogger.info(
+        '${health.modules.length} modules registered',
+        tag: 'Shell',
+      );
       AppLogger.info(
         'Backend connected',
         tag: 'Shell',
@@ -153,11 +150,6 @@ class WorkspaceShellController {
         backendStatus = 'offline';
         backendVersion = null;
         _loggedOffline = true;
-        logLines = [
-          ...logLines,
-          '[error] Backend connection lost: $error',
-          '[info] Waiting for backend…',
-        ];
         notify();
         final onDisconnected = _onBackendDisconnected;
         if (onDisconnected != null) {
@@ -174,10 +166,6 @@ class WorkspaceShellController {
           stackTrace: stackTrace,
         );
         backendStatus = 'offline';
-        logLines = [
-          '[error] Backend unavailable: $error',
-          '[info] Waiting for backend…',
-        ];
         notify();
       } else if (backendStatus != 'offline') {
         backendStatus = 'offline';
@@ -246,7 +234,9 @@ class WorkspaceShellController {
     }
   }
 
-  Future<void> loadEnvironments({EnvironmentSort sort = EnvironmentSort.active}) async {
+  Future<void> loadEnvironments({
+    EnvironmentSort sort = EnvironmentSort.active,
+  }) async {
     if (activeWorkspace == null || !backendConnected) {
       environments = [];
       loadingEnvironments = false;
@@ -278,7 +268,5 @@ class WorkspaceShellController {
 
   void append(String line) {
     AppLogger.fromConsoleLine(line, tag: 'Shell');
-    logLines = [...logLines, line];
-    notify();
   }
 }

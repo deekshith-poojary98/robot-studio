@@ -204,7 +204,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   List<SymbolReferenceInfo> _editorReferences = [];
 
   String get _backendStatus => _workspace.backendStatus;
-  List<String> get _logLines => _workspace.logLines;
   WorkspaceInfo? get _activeWorkspace => _workspace.activeWorkspace;
   List<ProjectInfo> get _projects => _workspace.projects;
   List<EnvironmentInfo> get _environments => _workspace.environments;
@@ -5471,7 +5470,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                         ),
                       ),
                       BottomPanel(
-                        logLines: _logLines,
                         problems: _workspaceProblems,
                         isLoadingProblems: false,
                         problemCount: _workspaceProblems.length,

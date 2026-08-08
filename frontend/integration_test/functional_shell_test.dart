@@ -15,8 +15,7 @@ void main() {
   setUpAll(() async => harness.setUpAll());
   tearDownAll(() async => harness.tearDownAll());
 
-  testWidgets('SH-01 cold start with backend up shows welcome',
-      (tester) async {
+  testWidgets('SH-01 cold start with backend up shows welcome', (tester) async {
     await harness.launchApp(tester);
 
     expect(find.text('Robot Studio'), findsWidgets);
@@ -43,8 +42,9 @@ void main() {
     skip: true,
   );
 
-  testWidgets('SH-04 status bar ROBOT PYTHON match active environment',
-      (tester) async {
+  testWidgets('SH-04 status bar ROBOT PYTHON match active environment', (
+    tester,
+  ) async {
     await harness.seedWorkspace(name: 'SH Status', suffix: 'sh-status');
     await harness.seedEnvironment(name: 'sh-env', installRobot: true);
     await harness.seedProject(name: 'SHProj');
@@ -143,8 +143,9 @@ void main() {
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('SH-07 view switching does not stick prior empty state',
-      (tester) async {
+  testWidgets('SH-07 view switching does not stick prior empty state', (
+    tester,
+  ) async {
     await harness.seedWorkspace(name: 'SH Views', suffix: 'sh-views');
     await harness.seedEnvironment(name: 'sh-views', installRobot: false);
     await harness.seedProject(name: 'SHView');
@@ -171,14 +172,15 @@ void main() {
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('SH-08 bottom panel exposes only implemented tabs',
-      (tester) async {
+  testWidgets('SH-08 bottom panel exposes only implemented tabs', (
+    tester,
+  ) async {
     await harness.seedWorkspace(name: 'SH Bottom', suffix: 'sh-bottom');
     await harness.launchAppWithWorkspace(tester, workspaceName: 'SH Bottom');
 
     await openBottomTab(tester, 'Problems');
-    await openBottomTab(tester, 'Console');
     await openBottomTab(tester, 'Terminal');
+    expect(find.text('Console'), findsNothing);
     expect(find.text('OUTPUT'), findsNothing);
     expect(find.text('EXECUTION LOGS'), findsNothing);
 
