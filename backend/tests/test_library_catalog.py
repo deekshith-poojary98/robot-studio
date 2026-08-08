@@ -51,12 +51,14 @@ async def test_catalog_list_is_summary_only_and_stable_identity() -> None:
         _discover_imports=discover,
     )
     summaries = await catalog.list_libraries()
-    assert resolve_calls == []
+    # Discovered imports are resolved during membership so unavailable names
+    # never appear in Library Explorer.
+    assert resolve_calls == ["Collections"]
     assert any(lib.name == "BuiltIn" for lib in summaries)
     assert any(lib.name == "Collections" for lib in summaries)
     collections = next(lib for lib in summaries if lib.name == "Collections")
-    assert collections.keywords == ()
-    assert collections.keyword_count == 0
+    assert collections.keyword_count == 2
+    assert len(collections.keywords) == 2
 
     again = await catalog.list_libraries()
     assert again[0] is summaries[0]
@@ -73,6 +75,38 @@ async def test_catalog_list_is_summary_only_and_stable_identity() -> None:
     detail2 = await catalog.get_library("Collections")
     assert detail2 is detail
     assert resolve_calls == ["Collections"]
+
+
+@pytest.mark.asyncio
+async def test_catalog_list_skips_unavailable_imports() -> None:
+    async def resolve_raw(name: str) -> dict:
+        if name.casefold() in {"asd", "wef"}:
+            return {"available": False, "name": name, "error": "missing"}
+        return {
+            "available": True,
+            "name": name,
+            "keywords": ["Log"],
+            "keyword_info": {
+                "log": {
+                    "name": "Log",
+                    "parameters": [],
+                    "source_type": "library",
+                    "library_name": name,
+                },
+            },
+        }
+
+    async def discover() -> list[str]:
+        return ["OperatingSystem", "asd", "wef"]
+
+    catalog = LibraryCatalogService(
+        _resolve_raw=resolve_raw,
+        _discover_imports=discover,
+    )
+    names = {lib.name for lib in await catalog.list_libraries()}
+    assert names == {"BuiltIn", "OperatingSystem"}
+    assert await catalog.get_library("asd") is None
+    assert await catalog.get_library("wef") is None
 
 
 @pytest.mark.asyncio

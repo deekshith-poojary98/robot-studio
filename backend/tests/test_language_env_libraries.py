@@ -327,6 +327,76 @@ Demo
 
 
 @pytest.mark.asyncio
+async def test_missing_library_survives_indexed_import_symbol(tmp_path: Path) -> None:
+    """Indexed Library import names must not silence Missing library after save."""
+    from robot_studio.domain.interfaces.indexing import SymbolKind
+    from robot_studio.domain.models import IndexedSymbol
+
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").UTC,
+        ),
+    )
+    await context.open(workspace)
+
+    env_path = tmp_path / "new-env"
+    (env_path / "bin").mkdir(parents=True)
+    (env_path / "bin" / "python").write_text("", encoding="utf-8")
+    await context.set_active_environment(
+        Environment(
+            id=uuid4(),
+            workspace_id=workspace.id,
+            name="new-env",
+            path=env_path,
+            python_version="3.13",
+            python_executable=env_path / "bin" / "python",
+            pip_executable=env_path / "bin" / "pip",
+            created_at=workspace.created_at,
+            is_active=True,
+        ),
+    )
+
+    # Simulate post-save reindex: unresolved Library import is stored as LIBRARY.
+    await store.upsert_symbols(
+        [
+            IndexedSymbol(
+                id="lib-missing",
+                name="MissingLib",
+                kind=SymbolKind.LIBRARY.value,
+                file_path=tmp_path / "demo.robot",
+                line=2,
+                workspace_id=workspace.id,
+            ),
+        ],
+    )
+
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge({}),  # type: ignore[arg-type]
+    )
+    content = """*** Settings ***
+Library    MissingLib
+
+*** Test Cases ***
+Demo
+    Log    hi
+"""
+    diagnostics: list[dict] = []
+    await service._append_semantic_diagnostics(content, "demo.robot", diagnostics)
+    messages = [item["message"] for item in diagnostics]
+    assert any("Missing library 'MissingLib'" in msg for msg in messages)
+
+
+@pytest.mark.asyncio
 async def test_completion_suggests_imported_library_keywords(tmp_path: Path) -> None:
     bus = InMemoryEventBus()
     context = WorkspaceContext(bus)

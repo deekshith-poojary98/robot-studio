@@ -1197,8 +1197,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         context: context,
         title: 'Nothing to run',
         message:
-            'Open a .robot suite file, then press Run. '
-            'The current editor is not a Robot Framework test file.',
+            'Open a .robot suite file in the editor, then press Run. '
+            'Selecting a file in Explorer is not enough.',
         primaryLabel: 'OK',
         onPrimary: () {},
         dismissLabel: 'Close',
@@ -1455,12 +1455,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   /// Suites Robot Framework can execute (`.resource` is not a run target).
   static bool _isRunnableSuitePath(String? path) => isRunnableSuitePath(path);
 
-  /// Prefer the active editor when it is a `.robot` suite; never silently
-  /// fall back to another suite while a non-robot file is focused.
-  String? get _runTargetPath => resolveRunTargetPath(
-    activeEditorPath: _activeEditorPath,
-    stickySuitePath: _selectedSuitePath,
-  );
+  /// Prefer the active editor when it is a `.robot` suite.
+  String? get _runTargetPath =>
+      resolveRunTargetPath(activeEditorPath: _activeEditorPath);
 
   bool get _canRunFile => _canRunTests && _runTargetPath != null;
 
@@ -3925,7 +3922,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       setState(() {
         tab.savedContent = tab.content;
         tab.mtime = result.mtime;
-        _editor.setStatusMessage('Saved ${_fileNameFromPath(path)}');
       });
       _appendLog('[info] Saved "$path"');
       await _loadGitStatus();

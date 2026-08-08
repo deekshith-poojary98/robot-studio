@@ -199,8 +199,10 @@ class AppToolbar extends StatelessWidget {
                               ? 'Active environment is missing on disk — recreate or select another'
                               : !canRun && !robotFrameworkReady
                               ? "Robot Framework isn't installed in the selected environment.\nInstall Robot Framework…"
-                              : !canRun
+                              : !canRun && !canRunProject
                               ? 'Open a project to run the current file'
+                              : !canRun
+                              ? 'Open a .robot suite file to run'
                               : isExecutionRunning
                               ? 'Stop the current run first'
                               : 'Run current file',

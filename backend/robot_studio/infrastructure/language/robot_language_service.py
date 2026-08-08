@@ -810,23 +810,21 @@ class RobotLanguageService(LanguageService):
         known_keywords.update(name.casefold() for name in _CONTROL_MARKERS)
         known_keywords.update(name.casefold() for name in _LOCAL_SETTINGS)
         known_keywords.update(name.casefold() for name in self._collect_local_keyword_names(lines))
-        known_libraries = {
-            item["name"].casefold()
-            for item in await self.store.search_symbols("", kind=SymbolKind.LIBRARY, limit=200)
-        }
         declared_variables = self._collect_declared_variables(lines)
 
-        # Resolve Library imports against the active env (site-packages), not only
-        # the workspace index — .robotstudio/ (and legacy Environments/) are
-        # excluded from discovery.
+        # Resolve Library imports against the active env only. Do not seed
+        # "known" libraries from the workspace index — the indexer records
+        # Library *import* names as LIBRARY symbols even when unresolved, which
+        # made Missing library warnings disappear right after save/reindex.
         imported_libraries = self._imported_libraries(content)
+        resolved_libraries: set[str] = set()
 
         for library_name in imported_libraries:
             resolved = await self.library_catalog().get_library(library_name)
             if resolved is None:
                 continue
-            known_libraries.add(library_name.casefold())
-            known_libraries.add(resolved.name.casefold())
+            resolved_libraries.add(library_name.casefold())
+            resolved_libraries.add(resolved.name.casefold())
             for keyword in resolved.keywords:
                 known_keywords.add(keyword.name.casefold())
 
@@ -863,7 +861,7 @@ class RobotLanguageService(LanguageService):
                 continue
             if line.lower().startswith("library "):
                 token = line.split(None, 1)[1].strip().split("    ")[0].strip()
-                if token.casefold() not in known_libraries:
+                if token.casefold() not in resolved_libraries:
                     diagnostics.append(
                         self._diag(
                             file_path,

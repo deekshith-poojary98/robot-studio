@@ -65,9 +65,9 @@ class LibraryCatalogService:
 
         raw = await self._resolve_raw(cleaned)
         if not raw.get("available"):
-            # Keep / create unavailable stub so callers see a stable miss.
-            if existing is not None:
-                return existing
+            # Never keep unavailable import stubs — they would pollute Library
+            # Explorer as "Imported · tap to load" after an invalid Library line.
+            self._cache.pop(key, None)
             return None
 
         full = self._from_resolve(raw, requested_name=cleaned)
@@ -166,14 +166,30 @@ class LibraryCatalogService:
             key = name.casefold()
             if key in seen:
                 continue
+            # Index stores Library *import* names even when unresolved (and can
+            # retain stale imports). Only keep libraries that resolve in the
+            # active environment.
+            try:
+                resolved = await self._resolve_raw(name)
+            except Exception:  # noqa: BLE001
+                continue
+            if not resolved.get("available"):
+                continue
+            full = self._from_resolve(resolved, requested_name=name)
+            display = full.name or name
+            display_key = display.casefold()
+            if display_key in seen:
+                continue
+            seen.add(display_key)
             seen.add(key)
-            names.append(name)
-        # Preserve already-cached resolved display names order preference: BuiltIn first
+            names.append(display)
+            self._cache[display_key] = full
+            if key != display_key:
+                self._cache[key] = full
         self._membership_order = names
         self._membership_ready = True
-        # Ensure summary stubs exist (same instances for list)
-        for name in self._membership_order:
-            self._summary_for(name)
+        # BuiltIn stays a summary until first explicit get_library (common path).
+        self._summary_for("BuiltIn")
 
     @staticmethod
     def _from_resolve(raw: dict[str, Any], *, requested_name: str) -> LibraryMetadata:

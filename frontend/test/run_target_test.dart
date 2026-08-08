@@ -16,56 +16,22 @@ void main() {
   group('resolveRunTargetPath', () {
     test('uses focused .robot suite', () {
       expect(
-        resolveRunTargetPath(
-          activeEditorPath: 'tests/login.robot',
-          stickySuitePath: 'tests/other.robot',
-        ),
+        resolveRunTargetPath(activeEditorPath: 'tests/login.robot'),
         'tests/login.robot',
       );
     });
 
-    test('refuses sticky suite while non-robot editor is focused', () {
+    test('returns null when non-robot editor is focused', () {
+      expect(resolveRunTargetPath(activeEditorPath: 'notes.txt'), isNull);
       expect(
-        resolveRunTargetPath(
-          activeEditorPath: 'notes.txt',
-          stickySuitePath: 'tests/login.robot',
-        ),
-        isNull,
-      );
-      expect(
-        resolveRunTargetPath(
-          activeEditorPath: 'keywords/helpers.resource',
-          stickySuitePath: 'tests/login.robot',
-        ),
+        resolveRunTargetPath(activeEditorPath: 'keywords/helpers.resource'),
         isNull,
       );
     });
 
-    test('allows sticky suite only when no editor is focused', () {
-      expect(
-        resolveRunTargetPath(
-          activeEditorPath: null,
-          stickySuitePath: 'tests/login.robot',
-        ),
-        'tests/login.robot',
-      );
-      expect(
-        resolveRunTargetPath(
-          activeEditorPath: '',
-          stickySuitePath: 'tests/login.robot',
-        ),
-        'tests/login.robot',
-      );
-    });
-
-    test('returns null when sticky is not runnable', () {
-      expect(
-        resolveRunTargetPath(
-          activeEditorPath: null,
-          stickySuitePath: 'helpers.resource',
-        ),
-        isNull,
-      );
+    test('returns null when no editor is open', () {
+      expect(resolveRunTargetPath(activeEditorPath: null), isNull);
+      expect(resolveRunTargetPath(activeEditorPath: ''), isNull);
     });
   });
 }
