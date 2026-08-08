@@ -77,6 +77,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   static const _fontHeight = 1.45;
   static const _chunkWidth = 14.0;
   static const _hoverDelay = Duration(milliseconds: 400);
+  static const _hoverDismissDelay = Duration(milliseconds: 280);
 
   late CodeLineEditingController _controller;
   late CodeFindController _findController;
@@ -86,10 +87,17 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   List<DiagnosticInfo> _diagnostics = [];
   bool _listening = false;
   Timer? _hoverTimer;
+  Timer? _hoverDismissTimer;
   Offset? _hoverLocal;
   int? _hoverLine;
   int? _hoverColumn;
   double _charWidth = 7.8;
+  bool _pointerOverTooltip = false;
+  final GlobalKey _hoverTooltipKey = GlobalKey();
+  Size _hoverTooltipSize = const Size(
+    EditorHoverTooltip.maxWidth,
+    EditorHoverTooltip.maxHeight,
+  );
 
   CodeLineEditingController get controller => _controller;
 
@@ -213,6 +221,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   @override
   void dispose() {
     _hoverTimer?.cancel();
+    _hoverDismissTimer?.cancel();
     if (_listening) {
       _controller.removeListener(_onChanged);
     }
@@ -315,17 +324,50 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     return sel.endIndex + 1;
   }
 
-  void _dismissHover() {
+  void _dismissHover({bool immediate = false}) {
+    if (!immediate && _pointerOverTooltip) return;
     _hoverTimer?.cancel();
     _hoverTimer = null;
+    _hoverDismissTimer?.cancel();
+    _hoverDismissTimer = null;
+    _pointerOverTooltip = false;
     final hadTooltip = widget.hoverTooltip != null || _hoverLocal != null;
     _hoverLocal = null;
     _hoverLine = null;
     _hoverColumn = null;
+    _hoverTooltipSize = const Size(
+      EditorHoverTooltip.maxWidth,
+      EditorHoverTooltip.maxHeight,
+    );
     if (hadTooltip) {
       widget.onHoverExit?.call();
       if (mounted) setState(() {});
     }
+  }
+
+  void _scheduleDismissHover() {
+    _hoverDismissTimer?.cancel();
+    _hoverDismissTimer = Timer(_hoverDismissDelay, () {
+      if (!mounted || _pointerOverTooltip) return;
+      _dismissHover(immediate: true);
+    });
+  }
+
+  bool _isPointerOverTooltip(Offset localInEditor) {
+    final box =
+        _hoverTooltipKey.currentContext?.findRenderObject() as RenderBox?;
+    final editorBox = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || editorBox == null) return false;
+    final global = editorBox.localToGlobal(localInEditor);
+    final tooltipLocal = box.globalToLocal(global);
+    // Slightly inflate so the gap between caret and card is still "sticky".
+    final hit = Rect.fromLTWH(
+      -8,
+      -8,
+      box.size.width + 16,
+      box.size.height + 16,
+    );
+    return hit.contains(tooltipLocal);
   }
 
   Offset _caretTooltipOffset() {
@@ -356,9 +398,19 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
   void _onPointerHover(PointerHoverEvent event) {
     final local = event.localPosition;
+    _hoverDismissTimer?.cancel();
+
+    // Keep the card while the pointer is on (or near) it so the user can
+    // scroll long docs — IgnorePointer used to make this impossible.
+    if (widget.hoverTooltip != null && _isPointerOverTooltip(local)) {
+      _pointerOverTooltip = true;
+      return;
+    }
+    _pointerOverTooltip = false;
+
     final hit = _lineColumnAt(local);
     if (hit == null) {
-      _dismissHover();
+      _scheduleDismissHover();
       return;
     }
     final (line, column) = hit;
@@ -371,12 +423,11 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _hoverLine = line;
     _hoverColumn = column;
     if (movedFar) {
-      if (widget.hoverTooltip != null) {
-        widget.onHoverExit?.call();
-      }
+      // Do not clear the existing tooltip immediately — clearing on every
+      // small move made the card vanish before the pointer could reach it.
       _hoverTimer?.cancel();
       _hoverTimer = Timer(_hoverDelay, () {
-        if (!mounted) return;
+        if (!mounted || _pointerOverTooltip) return;
         widget.onHoverRequest?.call(line, column);
         setState(() {});
       });
@@ -528,7 +579,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
           ),
           _DismissSignatureIntent: CallbackAction<_DismissSignatureIntent>(
             onInvoke: (_) {
-              _dismissHover();
+              _dismissHover(immediate: true);
               return null;
             },
           ),
@@ -540,11 +591,11 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
           ),
         },
         child: MouseRegion(
-          onExit: (_) => _dismissHover(),
+          onExit: (_) => _scheduleDismissHover(),
           child: Listener(
             onPointerHover: _onPointerHover,
             onPointerDown: (event) {
-              _dismissHover();
+              _dismissHover(immediate: true);
               final pressed = HardwareKeyboard.instance.logicalKeysPressed;
               final ctrl =
                   pressed.contains(LogicalKeyboardKey.controlLeft) ||
@@ -555,35 +606,107 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
                 widget.onCtrlClick?.call();
               }
             },
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                wrappedEditor,
-                if (tooltip != null && tooltipPos != null)
-                  Positioned(
-                    left: math.max(8, tooltipPos.dx + 12),
-                    top: math.max(8, tooltipPos.dy + _lineHeight + 4),
-                    child: IgnorePointer(
-                      child: EditorHoverTooltip(signature: tooltip),
-                    ),
-                  ),
-                if (widget.peekDefinition != null)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: PeekDefinitionPanel(
-                      symbol: widget.peekDefinition!,
-                      onOpen: widget.onCtrlClick ?? () {},
-                      onClose: widget.onClosePeek ?? () {},
-                    ),
-                  ),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final viewport = Size(
+                  constraints.maxWidth,
+                  constraints.maxHeight,
+                );
+                final placement =
+                    tooltip != null &&
+                        tooltipPos != null &&
+                        viewport.width.isFinite &&
+                        viewport.height.isFinite
+                    ? computeHoverTooltipPlacement(
+                        anchor: tooltipPos,
+                        viewport: viewport,
+                        tooltipSize: _hoverTooltipSize,
+                        lineHeight: _lineHeight,
+                      )
+                    : null;
+
+                if (tooltip != null &&
+                    tooltipPos != null &&
+                    placement != null) {
+                  final anchor = tooltipPos;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _refineHoverTooltipPlacement(
+                      anchor: anchor,
+                      viewport: viewport,
+                      current: placement,
+                    );
+                  });
+                }
+
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    wrappedEditor,
+                    if (tooltip != null && placement != null)
+                      Positioned(
+                        left: placement.left,
+                        top: placement.top,
+                        child: MouseRegion(
+                          onEnter: (_) {
+                            _pointerOverTooltip = true;
+                            _hoverDismissTimer?.cancel();
+                          },
+                          onExit: (_) {
+                            _pointerOverTooltip = false;
+                            _scheduleDismissHover();
+                          },
+                          child: EditorHoverTooltip(
+                            key: _hoverTooltipKey,
+                            signature: tooltip,
+                          ),
+                        ),
+                      ),
+                    if (widget.peekDefinition != null)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        child: PeekDefinitionPanel(
+                          symbol: widget.peekDefinition!,
+                          onOpen: widget.onCtrlClick ?? () {},
+                          onClose: widget.onClosePeek ?? () {},
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         ),
       ),
     );
+  }
+
+  void _refineHoverTooltipPlacement({
+    required Offset anchor,
+    required Size viewport,
+    required HoverTooltipPlacement current,
+  }) {
+    if (!mounted || widget.hoverTooltip == null) return;
+    final box =
+        _hoverTooltipKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    if ((box.size.width - _hoverTooltipSize.width).abs() > 0.5 ||
+        (box.size.height - _hoverTooltipSize.height).abs() > 0.5) {
+      _hoverTooltipSize = box.size;
+      setState(() {});
+      return;
+    }
+    final refined = computeHoverTooltipPlacement(
+      anchor: anchor,
+      viewport: viewport,
+      tooltipSize: box.size,
+      lineHeight: _lineHeight,
+    );
+    if ((refined.left - current.left).abs() > 0.5 ||
+        (refined.top - current.top).abs() > 0.5) {
+      setState(() {});
+    }
   }
 }
 
