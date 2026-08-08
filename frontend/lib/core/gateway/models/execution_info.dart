@@ -16,15 +16,15 @@ enum ExecutionStatus {
   }
 
   String get label => switch (this) {
-        ExecutionStatus.idle => 'Idle',
-        ExecutionStatus.starting => 'Starting',
-        ExecutionStatus.running => 'Running',
-        ExecutionStatus.stopping => 'Stopping',
-        ExecutionStatus.finished => 'Finished',
-        ExecutionStatus.failed => 'Failed',
-        ExecutionStatus.cancelled => 'Cancelled',
-        ExecutionStatus.aborted => 'Aborted',
-      };
+    ExecutionStatus.idle => 'Idle',
+    ExecutionStatus.starting => 'Starting',
+    ExecutionStatus.running => 'Running',
+    ExecutionStatus.stopping => 'Stopping',
+    ExecutionStatus.finished => 'Finished',
+    ExecutionStatus.failed => 'Failed',
+    ExecutionStatus.cancelled => 'Cancelled',
+    ExecutionStatus.aborted => 'Aborted',
+  };
 
   bool get isActive =>
       this == ExecutionStatus.starting ||
@@ -125,7 +125,9 @@ class ExecutionInfo {
 
   String get resultBadge {
     if (status == ExecutionStatus.cancelled) return 'CANCELLED';
-    if (status == ExecutionStatus.failed || (failed ?? 0) > 0 || (exitCode ?? 0) != 0) {
+    if (status == ExecutionStatus.failed ||
+        (failed ?? 0) > 0 ||
+        (exitCode ?? 0) != 0) {
       return 'FAIL';
     }
     if (status == ExecutionStatus.finished) return 'PASS';
@@ -161,15 +163,12 @@ class ExecutionInfo {
     return 'Run $short';
   }
 
-  /// Compact sidebar / list title: run number + result.
-  String get sidebarLabel => '$runNumberLabel · $resultBadge';
+  /// Compact sidebar / list title (result is shown via icon colour).
+  String get sidebarLabel => runNumberLabel;
 }
 
 class ExecutionStatusInfo {
-  const ExecutionStatusInfo({
-    required this.status,
-    this.run,
-  });
+  const ExecutionStatusInfo({required this.status, this.run});
 
   factory ExecutionStatusInfo.fromJson(Map<String, dynamic> json) {
     final runJson = json['run'];

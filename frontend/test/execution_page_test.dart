@@ -13,8 +13,6 @@ void main() {
         home: Scaffold(
           body: ExecutionPage(
             consoleLines: ['[log] hello'],
-            history: [],
-            isLoadingHistory: false,
             status: ExecutionStatus.running,
             currentRun: null,
           ),
@@ -24,7 +22,7 @@ void main() {
 
     expect(find.text('Execution'), findsOneWidget);
     expect(find.text('Live Output'), findsOneWidget);
-    expect(find.text('Recent Runs'), findsOneWidget);
+    expect(find.text('Recent Runs'), findsNothing);
     expect(find.textContaining('RUNNING'), findsNothing);
     expect(find.text('FINISHED'), findsNothing);
     expect(find.text('Run File'), findsNothing);
@@ -42,8 +40,6 @@ void main() {
         home: Scaffold(
           body: ExecutionPage(
             consoleLines: [],
-            history: [],
-            isLoadingHistory: false,
             status: ExecutionStatus.idle,
             currentRun: null,
           ),

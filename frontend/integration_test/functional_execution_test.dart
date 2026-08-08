@@ -371,8 +371,7 @@ Will Fail
     expect(history.length, greaterThanOrEqualTo(2));
 
     await tapSidebarPanel(tester, 'Tests');
-    await pumpUntilFound(tester, find.text('Recent Runs'));
-    expect(find.textContaining('No runs yet'), findsNothing);
+    await pumpUntilFound(tester, find.text('Live Output'));
 
     harness.expectNoFlutterErrors();
   });

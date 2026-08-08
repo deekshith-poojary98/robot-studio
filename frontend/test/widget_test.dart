@@ -10,7 +10,6 @@ import 'package:robot_studio/presentation/environment/create_environment_dialog.
 import 'package:robot_studio/presentation/environment/delete_environment_dialog.dart';
 import 'package:robot_studio/presentation/environment/environment_manager_page.dart';
 import 'package:robot_studio/presentation/execution/execution_console.dart';
-import 'package:robot_studio/presentation/execution/execution_history_list.dart';
 import 'package:robot_studio/presentation/packages/already_installed_package_dialog.dart';
 import 'package:robot_studio/presentation/packages/package_manager_page.dart';
 import 'package:robot_studio/presentation/packages/search_packages_dialog.dart';
@@ -1074,61 +1073,6 @@ void main() {
     await tester.tap(find.byKey(const Key('toolbar.stop')));
     await tester.pump();
     expect(stopTapped, isTrue);
-  });
-
-  testWidgets('Execution history list shows runs and empty state', (
-    WidgetTester tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(480, 640));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(body: ExecutionHistoryList(runs: [])),
-      ),
-    );
-    expect(find.text('No executions yet.'), findsOneWidget);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ExecutionHistoryList(
-            runs: [
-              ExecutionInfo(
-                id: 'run-1',
-                workspaceId: 'ws',
-                projectId: 'p1',
-                environmentId: 'e1',
-                projectName: 'Login Suite',
-                suite: 'tests/login.robot',
-                status: ExecutionStatus.finished,
-                startedAt: DateTime.utc(2026, 7, 19, 10, 0, 0),
-                durationMs: 1500,
-                exitCode: 0,
-              ),
-              ExecutionInfo(
-                id: 'run-2',
-                workspaceId: 'ws',
-                projectId: 'p1',
-                environmentId: 'e1',
-                projectName: 'Checkout',
-                suite: 'tests/checkout.robot',
-                status: ExecutionStatus.failed,
-                startedAt: DateTime.utc(2026, 7, 19, 11, 0, 0),
-                durationMs: 2200,
-                exitCode: 1,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    expect(find.text('Login Suite'), findsOneWidget);
-    expect(find.text('Checkout'), findsOneWidget);
-    expect(find.text('FINISHED'), findsOneWidget);
-    expect(find.text('FAILED'), findsOneWidget);
   });
 
   testWidgets('Welcome screen shows recent runs card', (

@@ -57,8 +57,6 @@ void main() {
         home: Scaffold(
           body: ExecutionPage(
             consoleLines: const [],
-            history: const [],
-            isLoadingHistory: false,
             status: ExecutionStatus.failed,
             currentRun: null,
             failedTests: const [failure],
@@ -83,8 +81,6 @@ void main() {
         home: Scaffold(
           body: ExecutionPage(
             consoleLines: [],
-            history: [],
-            isLoadingHistory: false,
             status: ExecutionStatus.running,
             currentRun: null,
             failedTests: [failure],

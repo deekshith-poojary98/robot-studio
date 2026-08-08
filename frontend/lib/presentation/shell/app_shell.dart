@@ -5800,11 +5800,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _CenterView.project => ProjectDetailsPanel(project: _selectedProject!),
       _CenterView.execution => ExecutionPage(
         consoleLines: _executionLines,
-        history: _executionHistory,
-        isLoadingHistory: _loadingHistory,
         status: _executionStatus,
         currentRun: _currentExecution,
-        onRefreshHistory: _loadExecutionHistory,
         failedTests: _failedTests,
         isLoadingFailures: _loadingFailures,
         onJumpToFailedTest: (failure) {

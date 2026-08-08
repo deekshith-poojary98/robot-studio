@@ -258,7 +258,11 @@ class SidePanel extends StatelessWidget {
             children: [
               for (final run in recentRuns)
                 ExplorerTreeItem(
-                  icon: Icons.assessment_outlined,
+                  leading: Icon(
+                    Icons.assessment_outlined,
+                    size: 16,
+                    color: _runResultIconColor(context.palette, run),
+                  ),
                   label: run.sidebarLabel,
                   semanticLabel:
                       '${run.runNumberLabel}, ${run.resultBadge}, ${run.suite.isEmpty ? run.projectName : run.suite}',
@@ -336,4 +340,14 @@ class SidePanel extends StatelessWidget {
 
     return const SizedBox.shrink();
   }
+}
+
+Color _runResultIconColor(AppPalette palette, ExecutionInfo run) {
+  return switch (run.resultBadge) {
+    'PASS' => palette.success,
+    'FAIL' => palette.error,
+    'CANCELLED' || 'ABORTED' => palette.warning,
+    'RUNNING' || 'STARTING' || 'STOPPING' => palette.info,
+    _ => palette.textMuted,
+  };
 }

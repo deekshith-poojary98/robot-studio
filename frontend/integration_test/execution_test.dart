@@ -15,7 +15,9 @@ void main() {
   setUpAll(() async => harness.setUpAll());
   tearDownAll(() async => harness.tearDownAll());
 
-  testWidgets('run robot test updates console, history, and reports', (tester) async {
+  testWidgets('run robot test updates console, history, and reports', (
+    tester,
+  ) async {
     await harness.seedWorkspace(name: 'Execution Flow WS', suffix: 'execution');
     await harness.seedEnvironment(name: 'execution-env', installRobot: true);
 
@@ -25,26 +27,26 @@ void main() {
     Directory('$projectPath/tests').createSync(recursive: true);
     File(suitePath).writeAsStringSync(IntegrationFixtures.sampleRobot);
 
-    await harness.launchAppWithWorkspace(tester, workspaceName: 'Execution Flow WS');
+    await harness.launchAppWithWorkspace(
+      tester,
+      workspaceName: 'Execution Flow WS',
+    );
 
     await openProjectInExplorer(tester, projectName: 'ExecutionProject');
     await openRobotFileInExplorer(tester, 'run.robot');
 
-    await harness.performance.measureAsync(
-      'execution_startup',
-      () async {
-        await tapToolbarAction(tester, 'Run');
-        final status = await waitForExecutionFinished(harness.api);
-        expect(status['status'], 'finished');
-        return status;
-      },
-    );
+    await harness.performance.measureAsync('execution_startup', () async {
+      await tapToolbarAction(tester, 'Run');
+      final status = await waitForExecutionFinished(harness.api);
+      expect(status['status'], 'finished');
+      return status;
+    });
 
     await tapSidebarPanel(tester, 'Tests');
     await pumpUntilFound(tester, find.textContaining('integration test'));
 
     await tapSidebarPanel(tester, 'Tests');
-    await pumpUntilFound(tester, find.text('Recent Runs'));
+    await pumpUntilFound(tester, find.text('Live Output'));
 
     final history = await harness.api.executionHistory();
     expect(history, isNotEmpty);

@@ -4,22 +4,19 @@ import '../../core/gateway/models/execution_info.dart';
 import '../../core/gateway/models/run_failure_info.dart';
 import '../../core/theme/app_theme.dart';
 import 'execution_console.dart';
-import 'execution_history_list.dart';
 import 'failed_tests_panel.dart';
 
-/// Tests center view: monitor live output and recent runs.
+/// Tests center view: monitor live output for the current run.
 ///
 /// Global launch controls live on the top toolbar (Run / Run Project / Stop),
 /// menus, shortcuts, and the Test Explorer tree — not here.
+/// Run history lives on Reports (and the welcome screen).
 class ExecutionPage extends StatelessWidget {
   const ExecutionPage({
     super.key,
     required this.consoleLines,
-    required this.history,
-    required this.isLoadingHistory,
     required this.status,
     required this.currentRun,
-    this.onRefreshHistory,
     this.failedTests = const [],
     this.isLoadingFailures = false,
     this.onJumpToFailedTest,
@@ -27,11 +24,8 @@ class ExecutionPage extends StatelessWidget {
   });
 
   final List<String> consoleLines;
-  final List<ExecutionInfo> history;
-  final bool isLoadingHistory;
   final ExecutionStatus status;
   final ExecutionInfo? currentRun;
-  final VoidCallback? onRefreshHistory;
   final List<RunTestFailureInfo> failedTests;
   final bool isLoadingFailures;
   final void Function(RunTestFailureInfo failure)? onJumpToFailedTest;
@@ -44,7 +38,7 @@ class ExecutionPage extends StatelessWidget {
     if (currentRun != null && currentRun!.suite.isNotEmpty) {
       return 'Last suite: ${currentRun!.suite}';
     }
-    return 'Watch live output and recent runs. Start from the toolbar or Test Explorer.';
+    return 'Watch live output. Start from the toolbar or Test Explorer.';
   }
 
   @override
@@ -100,42 +94,26 @@ class ExecutionPage extends StatelessWidget {
               onRerunTest: onRerunFailedTest,
             ),
           Expanded(
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.lg,
-                          AppSpacing.md,
-                          AppSpacing.lg,
-                          AppSpacing.sm,
-                        ),
-                        child: Text(
-                          'Live Output',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                      ),
-                      const Divider(height: 1),
-                      Expanded(
-                        child: ColoredBox(
-                          color: context.palette.rail,
-                          child: ExecutionConsole(lines: consoleLines),
-                        ),
-                      ),
-                    ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.md,
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                  ),
+                  child: Text(
+                    'Live Output',
+                    style: theme.textTheme.titleMedium,
                   ),
                 ),
-                const VerticalDivider(width: 1),
+                const Divider(height: 1),
                 Expanded(
-                  flex: 2,
-                  child: ExecutionHistoryList(
-                    runs: history,
-                    isLoading: isLoadingHistory,
-                    onRefresh: onRefreshHistory,
+                  child: ColoredBox(
+                    color: context.palette.rail,
+                    child: ExecutionConsole(lines: consoleLines),
                   ),
                 ),
               ],
