@@ -13,14 +13,12 @@ class AppDelegate: FlutterAppDelegate {
 
   /// Flutter's AppLifecycleState.detached is unreliable on macOS desktop quit.
   /// Kill the packaged sidecar using the PID file written by BackendHost.
+  ///
+  /// Do not override applicationShouldTerminate to force .terminateNow — that
+  /// bypasses Dart's WidgetsBindingObserver.didRequestAppExit (unsaved prompts).
   override func applicationWillTerminate(_ notification: Notification) {
     Self.terminatePackagedBackendIfNeeded()
     super.applicationWillTerminate(notification)
-  }
-
-  override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-    Self.terminatePackagedBackendIfNeeded()
-    return .terminateNow
   }
 
   private static func terminatePackagedBackendIfNeeded() {

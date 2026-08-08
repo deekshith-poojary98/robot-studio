@@ -4,6 +4,7 @@ import 'package:robot_studio/core/gateway/transport_gateway.dart';
 import 'package:robot_studio/core/settings/app_settings_controller.dart';
 import 'package:robot_studio/core/theme/app_theme.dart';
 import 'package:robot_studio/presentation/preferences/editor_font_families.dart';
+import 'package:robot_studio/presentation/preferences/preferences_leave_binding.dart';
 import 'package:robot_studio/presentation/preferences/preferences_page.dart';
 
 class _SettingsGateway implements TransportGateway {
@@ -70,12 +71,18 @@ Future<void> _tapSwitch(WidgetTester tester, String label) async {
 
 Future<void> _pump(
   WidgetTester tester,
-  AppSettingsController controller,
-) async {
+  AppSettingsController controller, {
+  PreferencesLeaveBinding? leaveBinding,
+}) async {
   await tester.pumpWidget(
     MaterialApp(
       theme: buildAppTheme(),
-      home: Scaffold(body: PreferencesPage(controller: controller)),
+      home: Scaffold(
+        body: PreferencesPage(
+          controller: controller,
+          leaveBinding: leaveBinding,
+        ),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -300,5 +307,57 @@ void main() {
     expect(gateway.stored.editor.autoSave, isTrue);
     expect(gateway.stored.editor.wordWrap, isFalse);
     expect(find.text('Settings saved'), findsOneWidget);
+  });
+
+  testWidgets('leave binding prompts and discards unsaved settings', (
+    tester,
+  ) async {
+    final gateway = _SettingsGateway();
+    final controller = AppSettingsController(gateway: gateway);
+    final leave = PreferencesLeaveBinding();
+    await controller.load();
+    await _pump(tester, controller, leaveBinding: leave);
+
+    await _tapSwitch(tester, 'Auto Save');
+    expect(leave.isDirty, isTrue);
+
+    final leaveFuture = leave.confirmLeave();
+    await tester.pumpAndSettle();
+    expect(find.text('Unsaved Settings'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Discard'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(await leaveFuture, isTrue);
+    expect(leave.isDirty, isFalse);
+    expect(gateway.stored.editor.autoSave, isFalse);
+  });
+
+  testWidgets('leave binding save persists the draft', (tester) async {
+    final gateway = _SettingsGateway();
+    final controller = AppSettingsController(gateway: gateway);
+    final leave = PreferencesLeaveBinding();
+    await controller.load();
+    await _pump(tester, controller, leaveBinding: leave);
+
+    await _tapSwitch(tester, 'Auto Save');
+
+    final leaveFuture = leave.confirmLeave();
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(FilledButton, 'Save'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(await leaveFuture, isTrue);
+    expect(gateway.stored.editor.autoSave, isTrue);
+    expect(leave.isDirty, isFalse);
   });
 }

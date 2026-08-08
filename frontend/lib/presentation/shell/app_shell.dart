@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -11,7 +12,9 @@ import '../../core/gateway/transport_gateway.dart';
 import '../../core/logging/app_logger.dart';
 import '../../core/settings/app_settings_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../preferences/preferences_leave_binding.dart';
 import '../preferences/preferences_page.dart';
+import '../widgets/unsaved_changes_dialog.dart';
 import '../environment/clone_environment_dialog.dart';
 import '../environment/create_environment_dialog.dart';
 import '../environment/delete_environment_dialog.dart';
@@ -107,7 +110,7 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   SidebarPanel _activePanel = SidebarPanel.explorer;
 
   late final TransportGateway _gateway;
@@ -177,6 +180,7 @@ class _AppShellState extends State<AppShell> {
   bool _showReportsPage = false;
   bool _showDoctorPage = false;
   bool _showSettingsPage = false;
+  final _preferencesLeave = PreferencesLeaveBinding();
   String _searchQuery = '';
   SymbolKind? _searchKind;
   List<IndexedSymbolInfo> _searchResults = [];
@@ -260,6 +264,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _gitCommitController = TextEditingController();
     _gitCommitController.addListener(() {
       if (mounted) setState(() {});
@@ -345,6 +350,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void dispose() {
     AppLogger.debug('AppShell dispose', tag: 'Shell');
+    WidgetsBinding.instance.removeObserver(this);
     _autoSaveTimer?.cancel();
     _settings.removeListener(_onSettingsChanged);
     _settings.dispose();
@@ -633,6 +639,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _showPluginManager = true;
       _showSourceControl = false;
@@ -748,6 +755,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _showSourceControl = true;
       _showReportsPage = false;
@@ -973,6 +981,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _showReportsPage = true;
       _showDoctorPage = false;
@@ -1001,6 +1010,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _showDoctorPage = true;
       _showReportsPage = false;
@@ -1020,6 +1030,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _selectReport(ExecutionInfo run) async {
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _execution.selectedReport = run;
       _showReportsPage = true;
@@ -1420,19 +1431,23 @@ class _AppShellState extends State<AppShell> {
   bool get _canRunFile => _canRunTests && _runTargetPath != null;
 
   /// Bring the Execution monitor to the front (Run / Tests), keeping tabs mounted.
-  void _revealExecutionCenter() {
+  Future<void> _revealExecutionCenter() async {
     _execution.prepareNewRun();
     if (!_settings.execution.revealExecutionOnRun) return;
-    _showExecutionPage = true;
-    _showSettingsPage = false;
-    _showEditorPage = false;
-    _showSymbolsPage = false;
-    _showReportsPage = false;
-    _showDoctorPage = false;
-    _showSourceControl = false;
-    _showPackageManager = false;
-    _showPluginManager = false;
-    _showEnvironmentManager = false;
+    if (!await _prepareLeaveSettings()) return;
+    if (!mounted) return;
+    setState(() {
+      _showExecutionPage = true;
+      _showSettingsPage = false;
+      _showEditorPage = false;
+      _showSymbolsPage = false;
+      _showReportsPage = false;
+      _showDoctorPage = false;
+      _showSourceControl = false;
+      _showPackageManager = false;
+      _showPluginManager = false;
+      _showEnvironmentManager = false;
+    });
   }
 
   Future<void> _maybeSaveBeforeRun() async {
@@ -1656,6 +1671,7 @@ class _AppShellState extends State<AppShell> {
     ProjectInfo? selectedProject,
     List<DetectedEnvironmentInfo> detectedEnvironments = const [],
   }) async {
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _workspace.activeWorkspace = workspace;
       _selectedProject = selectedProject;
@@ -2008,6 +2024,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _revealTests() async {
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _activePanel = SidebarPanel.tests;
       _showExecutionPage = true;
@@ -2052,7 +2069,8 @@ class _AppShellState extends State<AppShell> {
     await _closeTab(path);
   }
 
-  void _openProjectSearch() {
+  Future<void> _openProjectSearch() async {
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _activePanel = SidebarPanel.search;
       _sidePanelCollapsed = false;
@@ -2112,6 +2130,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     // Keep `_selectedProject` so Run still works after creating/activating an env.
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _showEnvironmentManager = true;
       _showPackageManager = false;
@@ -2131,6 +2150,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _showPackageManager = true;
       _showSourceControl = false;
@@ -2150,6 +2170,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleSelectPackage(PackageInfo package) async {
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _selectedPackage = package;
       _showPackageManager = true;
@@ -2880,6 +2901,7 @@ class _AppShellState extends State<AppShell> {
     final existingIndex = _editorTabs.indexWhere((tab) => tab.path == path);
     if (existingIndex >= 0) {
       AppLogger.debug('Reusing open tab', tag: 'Shell', data: path);
+      if (!await _prepareLeaveSettings()) return;
       setState(() {
         _editor.activePath = path;
         _showEditorPage = true;
@@ -2906,6 +2928,10 @@ class _AppShellState extends State<AppShell> {
     try {
       final file = await _gateway.readFile(path);
       if (!mounted) return;
+      if (!await _prepareLeaveSettings()) {
+        if (mounted) setState(() => _busy = false);
+        return;
+      }
       setState(() {
         _editor.tabs = [
           ..._editorTabs,
@@ -2943,26 +2969,23 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<bool> _confirmDiscard(String path) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Unsaved Changes'),
-        content: Text(
-          'Save changes to "${_fileNameFromPath(path)}" before closing?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
+    final choice = await showUnsavedChangesDialog(
+      context,
+      title: 'Unsaved Changes',
+      message: 'Save changes to "${_fileNameFromPath(path)}" before closing?',
+      discardLabel: "Don't Save",
     );
-    return confirmed ?? false;
+    switch (choice) {
+      case UnsavedChangesChoice.cancel:
+        return false;
+      case UnsavedChangesChoice.discard:
+        return true;
+      case UnsavedChangesChoice.save:
+        await _saveTab(path);
+        final index = _editorTabs.indexWhere((tab) => tab.path == path);
+        if (index < 0) return true;
+        return !_editorTabs[index].isDirty;
+    }
   }
 
   String _fileNameFromPath(String path) {
@@ -3082,6 +3105,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
 
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _editor.activePath = path;
       _showEditorPage = true;
@@ -3447,6 +3471,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _unloadActiveWorkspace() async {
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _workspace.activeWorkspace = null;
       _selectedProject = null;
@@ -3762,7 +3787,8 @@ class _AppShellState extends State<AppShell> {
     setState(() => _revealProblemsToken++);
   }
 
-  void _showSidebarPanel(SidebarPanel panel) {
+  Future<void> _showSidebarPanel(SidebarPanel panel) async {
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _activePanel = panel;
       _sidePanelCollapsed = false;
@@ -4299,9 +4325,10 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  void _handleContinueWorking() {
+  Future<void> _handleContinueWorking() async {
     if (_editorTabs.isNotEmpty) {
       final path = _activeEditorPath ?? _editorTabs.first.path;
+      if (!await _prepareLeaveSettings()) return;
       setState(() {
         _showEditorPage = true;
         _showSettingsPage = false;
@@ -4320,6 +4347,7 @@ class _AppShellState extends State<AppShell> {
     )) {
       return;
     }
+    if (!await _prepareLeaveSettings()) return;
     setState(() {
       _showSymbolsPage = true;
       _showSettingsPage = false;
@@ -4359,9 +4387,67 @@ class _AppShellState extends State<AppShell> {
     setState(() => _showSettingsPage = true);
   }
 
-  void _closePreferences() {
+  Future<void> _closePreferences() async {
+    if (!await _prepareLeaveSettings()) return;
     if (!mounted) return;
     setState(() => _showSettingsPage = false);
+  }
+
+  /// Prompt when Settings has an unsaved draft. Call before clearing
+  /// [_showSettingsPage] on any navigation path.
+  Future<bool> _prepareLeaveSettings() async {
+    if (!_showSettingsPage) return true;
+    return _preferencesLeave.confirmLeave();
+  }
+
+  @override
+  Future<AppExitResponse> didRequestAppExit() async {
+    final allowed = await _confirmQuitIfNeeded();
+    return allowed ? AppExitResponse.exit : AppExitResponse.cancel;
+  }
+
+  Future<bool> _confirmQuitIfNeeded() async {
+    if (!mounted) return true;
+
+    final settingsDirty = _showSettingsPage && _preferencesLeave.isDirty;
+    final dirtyTabs = _editorTabs.where((tab) => tab.isDirty).toList();
+    if (!settingsDirty && dirtyTabs.isEmpty) return true;
+
+    final parts = <String>[];
+    if (settingsDirty) {
+      parts.add('unsaved Settings changes');
+    }
+    if (dirtyTabs.length == 1) {
+      parts.add('unsaved file "${_fileNameFromPath(dirtyTabs.first.path)}"');
+    } else if (dirtyTabs.length > 1) {
+      parts.add('${dirtyTabs.length} unsaved files');
+    }
+
+    final choice = await showUnsavedChangesDialog(
+      context,
+      title: 'Unsaved Changes',
+      message:
+          'You have ${parts.join(' and ')}. Save before quitting, '
+          "or discard them?",
+      saveLabel: dirtyTabs.length > 1 || settingsDirty ? 'Save All' : 'Save',
+    );
+
+    switch (choice) {
+      case UnsavedChangesChoice.cancel:
+        return false;
+      case UnsavedChangesChoice.discard:
+        return true;
+      case UnsavedChangesChoice.save:
+        if (settingsDirty) {
+          final saved = await _preferencesLeave.savePending();
+          if (!saved) return false;
+        }
+        if (dirtyTabs.isNotEmpty) {
+          await _saveAll();
+          if (_editorTabs.any((tab) => tab.isDirty)) return false;
+        }
+        return true;
+    }
   }
 
   Future<void> _toggleWordWrap() async {
@@ -5199,7 +5285,8 @@ class _AppShellState extends State<AppShell> {
                               onSettings: _showSettingsPage
                                   ? _closePreferences
                                   : _openPreferences,
-                              onPanelSelected: (panel) {
+                              onPanelSelected: (panel) async {
+                                if (!await _prepareLeaveSettings()) return;
                                 setState(() {
                                   _activePanel = panel;
                                   _showSettingsPage = false;
@@ -5341,7 +5428,8 @@ class _AppShellState extends State<AppShell> {
                                 selectedOutlineId:
                                     _editor.activeDocumentSymbol?.id ??
                                     _selectedOutlineSymbol?.id,
-                                onOutlineSelect: (symbol) {
+                                onOutlineSelect: (symbol) async {
+                                  if (!await _prepareLeaveSettings()) return;
                                   setState(() {
                                     _editor.selectedOutlineSymbol = symbol;
                                     _editor.jumpToLine = symbol.line;
@@ -5486,7 +5574,10 @@ class _AppShellState extends State<AppShell> {
 
   Widget _buildCenter() {
     return switch (_centerView) {
-      _CenterView.settings => PreferencesPage(controller: _settings),
+      _CenterView.settings => PreferencesPage(
+        controller: _settings,
+        leaveBinding: _preferencesLeave,
+      ),
       _CenterView.welcome => WelcomeScreen(
         recentWorkspaces: _recentWorkspaces,
         recentProjects: _recentProjects,

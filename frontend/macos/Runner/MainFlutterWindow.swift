@@ -9,7 +9,7 @@ class MainFlutterWindow: NSWindow {
     self.setFrame(windowFrame, display: true)
 
     // IDE chrome (rail + sidebar + editor + bottom panel) needs a real floor.
-    let minimumSize = NSSize(width: 1280, height: 720)
+    let minimumSize = NSSize(width: 1360, height: 800)
     self.minSize = minimumSize
     if frame.width < minimumSize.width || frame.height < minimumSize.height {
       setContentSize(minimumSize)

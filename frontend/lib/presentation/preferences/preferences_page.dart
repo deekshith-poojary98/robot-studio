@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/settings_info.dart';
 import '../../core/settings/app_settings_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/unsaved_changes_dialog.dart';
 import 'editor_font_families.dart';
+import 'preferences_leave_binding.dart';
 
 bool _sameSettings(AppSettings a, AppSettings b) =>
     jsonEncode(a.toJson()) == jsonEncode(b.toJson());
@@ -76,9 +78,16 @@ enum SettingsCategory {
 
 /// Full-page settings — a center view, not a dialog, so categories can grow.
 class PreferencesPage extends StatefulWidget {
-  const PreferencesPage({super.key, required this.controller});
+  const PreferencesPage({
+    super.key,
+    required this.controller,
+    this.leaveBinding,
+  });
 
   final AppSettingsController controller;
+
+  /// When set, the shell can prompt before leaving with unsaved draft changes.
+  final PreferencesLeaveBinding? leaveBinding;
 
   @override
   State<PreferencesPage> createState() => _PreferencesPageState();
@@ -106,6 +115,33 @@ class _PreferencesPageState extends State<PreferencesPage> {
     _draft = _baseline;
     _syncTextFields();
     widget.controller.addListener(_onControllerChanged);
+    widget.leaveBinding?.bind(
+      confirmLeave: _confirmLeave,
+      savePending: _savePending,
+      isDirty: () => _isDirty,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant PreferencesPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.leaveBinding != widget.leaveBinding) {
+      oldWidget.leaveBinding?.unbind();
+      widget.leaveBinding?.bind(
+        confirmLeave: _confirmLeave,
+        savePending: _savePending,
+        isDirty: () => _isDirty,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.leaveBinding?.unbind();
+    widget.controller.removeListener(_onControllerChanged);
+    _extensionsController.dispose();
+    _ignoreController.dispose();
+    super.dispose();
   }
 
   /// Adopt settings changed outside this page, keeping fields the user is
@@ -156,14 +192,6 @@ class _PreferencesPageState extends State<PreferencesPage> {
     }
   }
 
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onControllerChanged);
-    _extensionsController.dispose();
-    _ignoreController.dispose();
-    super.dispose();
-  }
-
   /// Text fields commit on save, so fold them in before comparing / sending.
   AppSettings get _pendingSettings => _draft.copyWith(
     search: _draft.search.copyWith(
@@ -175,6 +203,34 @@ class _PreferencesPageState extends State<PreferencesPage> {
   bool get _isDirty => !_sameSettings(_pendingSettings, _baseline);
 
   void _markChanged() => setState(() => _savedNotice = null);
+
+  Future<bool> _confirmLeave() async {
+    if (!_isDirty) return true;
+    if (!mounted) return false;
+    final choice = await showUnsavedChangesDialog(
+      context,
+      title: 'Unsaved Settings',
+      message:
+          'You have unsaved settings changes. Save them before leaving, '
+          'or discard them?',
+      discardLabel: 'Discard',
+    );
+    switch (choice) {
+      case UnsavedChangesChoice.cancel:
+        return false;
+      case UnsavedChangesChoice.discard:
+        _discard();
+        return true;
+      case UnsavedChangesChoice.save:
+        return _savePending();
+    }
+  }
+
+  Future<bool> _savePending() async {
+    if (!_isDirty) return true;
+    await _save();
+    return !_isDirty && _error == null;
+  }
 
   Future<void> _save() async {
     final pending = _pendingSettings;
