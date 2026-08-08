@@ -38,11 +38,15 @@ class LibraryExplorerController {
     error = null;
     try {
       final items = await listLibraries();
-      libraries = List<LibraryInfo>.from(items)
-        ..sort((a, b) {
-          if (a.builtin != b.builtin) return a.builtin ? -1 : 1;
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        });
+      final seen = <String>{};
+      libraries =
+          [
+            for (final item in items)
+              if (seen.add(item.name.toLowerCase())) item,
+          ]..sort((a, b) {
+            if (a.builtin != b.builtin) return a.builtin ? -1 : 1;
+            return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          });
       level = LibraryExplorerLevel.libraries;
       selectedLibrary = null;
       selectedKeyword = null;
@@ -65,7 +69,9 @@ class LibraryExplorerController {
       keywordFilter = '';
       level = LibraryExplorerLevel.keywords;
       if (detail == null ||
-          (detail.keywords.isEmpty && detail.keywordCount == 0 && !detail.builtin)) {
+          (detail.keywords.isEmpty &&
+              detail.keywordCount == 0 &&
+              !detail.builtin)) {
         error =
             "'${summary.name}' is imported in this project but is not installed "
             'in the active environment.';

@@ -49,10 +49,21 @@ class _FakeBridge:
 
             return completion_context(content, file_path, line, column)
         assert op == "resolve_library"
-        return self._libraries.get(
-            library.casefold(),
-            {"available": False, "name": library, "keywords": [], "keyword_info": {}},
-        )
+        key = library.casefold()
+        if key in self._libraries:
+            return self._libraries[key]
+        # Path-style: allow lookup by basename stem (CustomLib.py → customlib).
+        from pathlib import Path as _Path
+
+        stem = _Path(library).stem.casefold()
+        if stem in self._libraries:
+            return self._libraries[stem]
+        return {
+            "available": False,
+            "name": library,
+            "keywords": [],
+            "keyword_info": {},
+        }
 
 
 @pytest.mark.asyncio
@@ -399,6 +410,130 @@ Demo
     messages = [item["message"] for item in diagnostics]
     assert not any("Missing library" in msg for msg in messages)
     assert not any("Unknown keyword" in msg for msg in messages)
+
+
+@pytest.mark.asyncio
+async def test_discover_library_imports_resolves_custom_py_and_skips_resources(
+    tmp_path: Path,
+) -> None:
+    helpers = tmp_path / "helpers"
+    tests = tmp_path / "tests"
+    resources = tmp_path / "resources"
+    helpers.mkdir()
+    tests.mkdir()
+    resources.mkdir()
+    custom = helpers / "CustomLib.py"
+    custom.write_text(
+        "class CustomLib:\n"
+        "    def custom_keyword(self):\n"
+        "        pass\n",
+        encoding="utf-8",
+    )
+    suite = tests / "login.robot"
+    resource = resources / "login.resource"
+    resource.write_text("*** Keywords ***\nDummy\n    No Operation\n", encoding="utf-8")
+
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").UTC,
+        ),
+    )
+    await context.open(workspace)
+
+    from robot_studio.domain.interfaces.indexing import SymbolKind
+    from robot_studio.domain.models import IndexedSymbol
+
+    await store.upsert_symbols(
+        [
+            IndexedSymbol(
+                id="lib-path",
+                name="../helpers/CustomLib.py",
+                kind=SymbolKind.LIBRARY.value,
+                file_path=suite,
+                line=6,
+                workspace_id=workspace.id,
+            ),
+            IndexedSymbol(
+                id="lib-py",
+                name="CustomLib",
+                kind=SymbolKind.LIBRARY.value,
+                file_path=custom,
+                line=1,
+                workspace_id=workspace.id,
+                detail="python",
+            ),
+            IndexedSymbol(
+                id="lib-res",
+                name="../resources/login.resource",
+                kind=SymbolKind.LIBRARY.value,
+                file_path=suite,
+                line=7,
+                workspace_id=workspace.id,
+            ),
+            IndexedSymbol(
+                id="lib-sel",
+                name="SeleniumLibrary",
+                kind=SymbolKind.LIBRARY.value,
+                file_path=suite,
+                line=3,
+                workspace_id=workspace.id,
+            ),
+        ],
+    )
+
+    env_path = tmp_path / "new-env"
+    (env_path / "bin").mkdir(parents=True)
+    (env_path / "bin" / "python").write_text("", encoding="utf-8")
+    await context.set_active_environment(
+        Environment(
+            id=uuid4(),
+            workspace_id=workspace.id,
+            name="new-env",
+            path=env_path,
+            python_version="3.13",
+            python_executable=env_path / "bin" / "python",
+            pip_executable=env_path / "bin" / "pip",
+            created_at=workspace.created_at,
+            is_active=True,
+        ),
+    )
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge({}),  # type: ignore[arg-type]
+    )
+    discovered = await service._discover_library_imports()
+    names = [name for name, _source in discovered]
+    abs_custom = str(custom.resolve())
+    assert abs_custom in names
+    assert "SeleniumLibrary" in names
+    assert not any(item.endswith(".resource") for item in names)
+    assert not any("login.resource" in item for item in names)
+
+    # End-to-end: relative/absolute custom lib appears in Library docs list.
+    async def resolve_raw(name: str, file_path: str = "") -> dict:
+        from robot_studio.infrastructure.language.robot_parsing_worker import (
+            resolve_library as real_resolve,
+        )
+
+        return real_resolve(name, file_path)
+
+    from robot_studio.infrastructure.language.library_catalog import LibraryCatalogService
+
+    catalog = LibraryCatalogService(
+        _resolve_raw=resolve_raw,
+        _discover_imports=service._discover_library_imports,
+    )
+    listed = {lib.name for lib in await catalog.list_libraries()}
+    assert "CustomLib" in listed
+    assert "BuiltIn" in listed
 
 
 @pytest.mark.asyncio

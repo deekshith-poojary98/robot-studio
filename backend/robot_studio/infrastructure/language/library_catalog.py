@@ -10,6 +10,8 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from pathlib import Path
+import asyncio
 from typing import Any
 
 from robot_studio.domain.models.keyword_metadata import (
@@ -18,8 +20,10 @@ from robot_studio.domain.models.keyword_metadata import (
 )
 from robot_studio.domain.models.library_metadata import LibraryMetadata
 
-ResolveLibraryRaw = Callable[[str], Awaitable[dict[str, Any]]]
-DiscoverImports = Callable[[], Awaitable[list[str]]]
+# resolve(name, file_path="") — file_path is the importing suite (for relative libs).
+ResolveLibraryRaw = Callable[..., Awaitable[dict[str, Any]]]
+# Each entry: (import_name, importing_file_path)
+DiscoverImports = Callable[[], Awaitable[list[tuple[str, str]]]]
 
 
 @dataclass
@@ -31,6 +35,7 @@ class LibraryCatalogService:
     _cache: dict[str, LibraryMetadata] = field(default_factory=dict, init=False)
     _membership_order: list[str] = field(default_factory=list, init=False)
     _membership_ready: bool = field(default=False, init=False)
+    _membership_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
 
     def invalidate(self) -> None:
         """Drop all cached instances (env / imports / index generation changed)."""
@@ -39,15 +44,17 @@ class LibraryCatalogService:
         self._membership_ready = False
 
     async def list_libraries(self, *, extra_imports: list[str] | None = None) -> list[LibraryMetadata]:
-        """Return summary ``LibraryMetadata`` instances (stable identity until invalidate).
+        """Return library summaries for Library Explorer.
 
-        Does **not** eagerly resolve keywords for every library.
+        Re-syncs discovery on every list so path-style custom ``.py`` imports
+        appear after save/reindex without requiring an app restart.
         """
-        await self._ensure_membership(extra_imports=extra_imports)
-        result: list[LibraryMetadata] = []
-        for name in self._membership_order:
-            result.append(self._summary_for(name))
-        return result
+        async with self._membership_lock:
+            if not self._membership_ready:
+                await self._ensure_membership(extra_imports=extra_imports)
+            else:
+                await self._sync_discovered_imports(extra_imports=extra_imports)
+            return self._ordered_unique_libraries()
 
     async def get_library(self, name: str) -> LibraryMetadata | None:
         """Return the canonical instance for *name*, lazy-loading keywords once."""
@@ -150,26 +157,60 @@ class LibraryCatalogService:
         self._cache[key] = summary
         return summary
 
+    def _ordered_unique_libraries(self) -> list[LibraryMetadata]:
+        """Dedupe membership by casefold name (guards concurrent list races)."""
+        result: list[LibraryMetadata] = []
+        seen: set[str] = set()
+        unique_order: list[str] = []
+        for name in self._membership_order:
+            key = name.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_order.append(name)
+            result.append(self._summary_for(name))
+        self._membership_order = unique_order
+        return result
+
     async def _ensure_membership(self, *, extra_imports: list[str] | None = None) -> None:
         if self._membership_ready and not extra_imports:
             return
-        names: list[str] = ["BuiltIn"]
-        seen = {"builtin"}
+        self._membership_order = ["BuiltIn"]
+        self._summary_for("BuiltIn")
+        await self._sync_discovered_imports(extra_imports=extra_imports)
+        self._membership_ready = True
+
+    async def _sync_discovered_imports(
+        self,
+        *,
+        extra_imports: list[str] | None = None,
+    ) -> None:
+        """Resolve discovered imports and append any newly available libraries."""
+        seen = {n.casefold() for n in self._membership_order}
         try:
             discovered = await self._discover_imports()
         except Exception:  # noqa: BLE001
             discovered = []
-        for raw in [*discovered, *(extra_imports or [])]:
+        entries: list[tuple[str, str]] = list(discovered)
+        for raw in extra_imports or []:
             name = (raw or "").strip()
+            if name:
+                entries.append((name, ""))
+
+        for import_name, source_file in entries:
+            name = (import_name or "").strip()
             if not name:
                 continue
-            key = name.casefold()
-            if key in seen:
+            probe = {name.casefold()}
+            stem = Path(name).stem.casefold()
+            if stem:
+                probe.add(stem)
+            if probe & seen:
                 continue
-            # Index stores Library *import* names even when unresolved (and can
-            # retain stale imports). Only keep libraries that resolve in the
-            # active environment.
             try:
+                resolved = await self._resolve_raw(name, file_path=source_file or "")
+            except TypeError:
+                # Test doubles that only accept ``name``.
                 resolved = await self._resolve_raw(name)
             except Exception:  # noqa: BLE001
                 continue
@@ -179,17 +220,19 @@ class LibraryCatalogService:
             display = full.name or name
             display_key = display.casefold()
             if display_key in seen:
+                # Refresh keywords if we only had a summary stub.
+                existing = self._cache.get(display_key)
+                if existing is not None and existing.last_updated is None:
+                    self._cache[display_key] = full
                 continue
             seen.add(display_key)
-            seen.add(key)
-            names.append(display)
+            self._membership_order.append(display)
             self._cache[display_key] = full
-            if key != display_key:
-                self._cache[key] = full
-        self._membership_order = names
-        self._membership_ready = True
-        # BuiltIn stays a summary until first explicit get_library (common path).
-        self._summary_for("BuiltIn")
+            name_key = name.casefold()
+            if name_key != display_key:
+                self._cache[name_key] = full
+            if stem and stem != display_key:
+                self._cache[stem] = full
 
     @staticmethod
     def _from_resolve(raw: dict[str, Any], *, requested_name: str) -> LibraryMetadata:

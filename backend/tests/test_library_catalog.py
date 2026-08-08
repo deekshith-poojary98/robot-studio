@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 
 import pytest
@@ -19,7 +20,7 @@ from robot_studio.infrastructure.language.library_catalog import LibraryCatalogS
 async def test_catalog_list_is_summary_only_and_stable_identity() -> None:
     resolve_calls: list[str] = []
 
-    async def resolve_raw(name: str) -> dict:
+    async def resolve_raw(name: str, file_path: str = "") -> dict:
         resolve_calls.append(name)
         return {
             "available": True,
@@ -43,8 +44,8 @@ async def test_catalog_list_is_summary_only_and_stable_identity() -> None:
             },
         }
 
-    async def discover() -> list[str]:
-        return ["Collections"]
+    async def discover() -> list[tuple[str, str]]:
+        return [("Collections", "")]
 
     catalog = LibraryCatalogService(
         _resolve_raw=resolve_raw,
@@ -79,7 +80,7 @@ async def test_catalog_list_is_summary_only_and_stable_identity() -> None:
 
 @pytest.mark.asyncio
 async def test_catalog_list_skips_unavailable_imports() -> None:
-    async def resolve_raw(name: str) -> dict:
+    async def resolve_raw(name: str, file_path: str = "") -> dict:
         if name.casefold() in {"asd", "wef"}:
             return {"available": False, "name": name, "error": "missing"}
         return {
@@ -96,8 +97,12 @@ async def test_catalog_list_skips_unavailable_imports() -> None:
             },
         }
 
-    async def discover() -> list[str]:
-        return ["OperatingSystem", "asd", "wef"]
+    async def discover() -> list[tuple[str, str]]:
+        return [
+            ("OperatingSystem", ""),
+            ("asd", ""),
+            ("wef", ""),
+        ]
 
     catalog = LibraryCatalogService(
         _resolve_raw=resolve_raw,
@@ -110,8 +115,47 @@ async def test_catalog_list_skips_unavailable_imports() -> None:
 
 
 @pytest.mark.asyncio
+async def test_catalog_list_dedupes_concurrent_sync() -> None:
+    """Parallel list_libraries must not duplicate membership rows."""
+    resolve_count = 0
+
+    async def resolve_raw(name: str, file_path: str = "") -> dict:
+        nonlocal resolve_count
+        resolve_count += 1
+        await asyncio.sleep(0.01)
+        return {
+            "available": True,
+            "name": name,
+            "keywords": ["K"],
+            "keyword_info": {
+                "k": {
+                    "name": "K",
+                    "parameters": [],
+                    "source_type": "library",
+                    "library_name": name,
+                },
+            },
+        }
+
+    async def discover() -> list[tuple[str, str]]:
+        return [("ExcelSage", ""), ("OperatingSystem", "")]
+
+    catalog = LibraryCatalogService(
+        _resolve_raw=resolve_raw,
+        _discover_imports=discover,
+    )
+    first, second = await asyncio.gather(
+        catalog.list_libraries(),
+        catalog.list_libraries(),
+    )
+    names = [lib.name for lib in first]
+    assert names == ["BuiltIn", "ExcelSage", "OperatingSystem"]
+    assert [lib.name for lib in second] == names
+
+
+@pytest.mark.asyncio
 async def test_catalog_invalidate_replaces_instances() -> None:
-    async def resolve_raw(name: str) -> dict:
+    async def resolve_raw(name: str, file_path: str = "") -> dict:
         return {
             "available": True,
             "name": "BuiltIn",
@@ -126,7 +170,7 @@ async def test_catalog_invalidate_replaces_instances() -> None:
             },
         }
 
-    async def discover() -> list[str]:
+    async def discover() -> list[tuple[str, str]]:
         return []
 
     catalog = LibraryCatalogService(

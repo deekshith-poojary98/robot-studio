@@ -129,25 +129,7 @@ class RobotLanguageService(LanguageService):
             return self._library_catalog
 
         async def discover_imports() -> list[str]:
-            names: list[str] = []
-            seen: set[str] = set()
-            workspace = self.context.workspace
-            try:
-                symbols = await self.store.search_symbols(
-                    "",
-                    kind=SymbolKind.LIBRARY,
-                    workspace_id=workspace.id if workspace is not None else None,
-                    limit=200,
-                )
-            except Exception:  # noqa: BLE001
-                symbols = []
-            for item in symbols:
-                name = str(item.get("name") or "").strip()
-                if not name or name.casefold() in seen:
-                    continue
-                seen.add(name.casefold())
-                names.append(name)
-            return names
+            return await self._discover_library_imports()
 
         async def resolve_raw(name: str) -> dict[str, Any]:
             return await self._resolve_library_raw(name)
@@ -157,6 +139,76 @@ class RobotLanguageService(LanguageService):
             _discover_imports=discover_imports,
         )
         return self._library_catalog
+
+    async def _discover_library_imports(self) -> list[tuple[str, str]]:
+        """Library docs membership: resolvable Library imports + project ``.py`` libs.
+
+        Returns ``(import_name, importing_file)`` so relative path libraries can be
+        resolved against the suite that imported them.
+
+        Resource files (``.robot`` / ``.resource``) are intentionally excluded —
+        they are not test libraries; browse them in Explorer / Outline instead.
+        """
+        entries: list[tuple[str, str]] = []
+        seen: set[str] = set()
+        workspace = self.context.workspace
+        try:
+            symbols = await self.store.search_symbols(
+                "",
+                kind=SymbolKind.LIBRARY,
+                workspace_id=workspace.id if workspace is not None else None,
+                limit=200,
+            )
+        except Exception:  # noqa: BLE001
+            symbols = []
+        for item in symbols:
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            source = str(item.get("file_path") or "")
+            detail = str(item.get("detail") or "").casefold()
+
+            # Resource files are not libraries — keep them out of Library docs.
+            if self._is_resource_path(name):
+                continue
+
+            if self._looks_like_library_path(name):
+                # Prefer absolute path when the suite path is known; still pass
+                # the suite as file_path so libdoc can fall back.
+                target = self._library_resolve_target(name, source)
+                key = target.casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                entries.append((target, source))
+            elif (
+                detail == "python"
+                or (
+                    source.lower().endswith(".py")
+                    and Path(source).is_file()
+                    and Path(source).stem.casefold() == name.casefold()
+                )
+            ):
+                target = str(Path(source).expanduser().resolve())
+                if self._is_resource_path(target):
+                    continue
+                key = target.casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                entries.append((target, source))
+            else:
+                key = name.casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                entries.append((name, source))
+        return entries
+
+    @staticmethod
+    def _is_resource_path(token: str) -> bool:
+        lower = token.strip().strip("'\"").lower().replace("\\", "/")
+        return lower.endswith((".robot", ".resource"))
 
     def document_analysis(self) -> DocumentAnalysisService:
         """Canonical owner of buffer → DocumentSymbolTree (Outline / fold / crumbs)."""
@@ -1090,11 +1142,18 @@ class RobotLanguageService(LanguageService):
         except ValueError:
             return False
 
-    async def _resolve_library_raw(self, name: str) -> dict[str, Any]:
+    async def _resolve_library_raw(
+        self,
+        name: str,
+        file_path: str = "",
+    ) -> dict[str, Any]:
         """Worker transport only — LibraryCatalogService is the sole caller/cache."""
         cleaned = name.strip()
         if not cleaned:
             return {"available": False, "keywords": []}
+        # Absolutize path-style imports before the worker when we know the suite.
+        if file_path and self._looks_like_library_path(cleaned):
+            cleaned = self._library_resolve_target(cleaned, file_path)
         try:
             python = self._python_executable()
         except RobotParsingError:
@@ -1104,6 +1163,7 @@ class RobotLanguageService(LanguageService):
                 python,
                 op="resolve_library",
                 library=cleaned,
+                file_path=file_path,
             )
             if not isinstance(result, dict):
                 result = {"available": False, "keywords": []}
