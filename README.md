@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="docs/branding/logo-wordmark-readme.png" alt="Robot Studio" width="320" />
+</p>
+
+
 # Robot Studio
 
 A cross-platform desktop IDE for [Robot Framework](https://robotframework.org/) development.

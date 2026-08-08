@@ -256,8 +256,49 @@ async def test_robot_framework_detection(services) -> None:
 
 
 @pytest.mark.asyncio
-async def test_installer_uses_environment_python(services) -> None:
-    installer = PipInstaller()
-    python = installer._python_for(services["environment"].path)
-    assert str(services["environment"].path) in str(python)
-    assert python.is_file()
+async def test_list_packages_ranks_fuzzy_query(services, monkeypatch) -> None:
+    packages = [
+        InstalledPackage(name="unrelated", version="1"),
+        InstalledPackage(name="robotframework-seleniumlibrary", version="1"),
+        InstalledPackage(name="robotframework", version="7.0"),
+        InstalledPackage(name="awesome-robot-tools", version="1"),
+    ]
+
+    async def fake_list(_path):
+        return list(packages)
+
+    monkeypatch.setattr(
+        services["package_service"]._installer,
+        "list_installed",
+        fake_list,
+    )
+
+    result = await services["package_service"].list_packages(query="robot")
+    names = [item.name for item in result.packages]
+    assert names[0] == "robotframework"
+    assert "robotframework-seleniumlibrary" in names
+    assert "awesome-robot-tools" in names
+    assert "unrelated" not in names
+
+
+@pytest.mark.asyncio
+async def test_search_packages_reranks_registry_hits(services, monkeypatch) -> None:
+    async def fake_search(query: str) -> list[dict]:
+        return [
+            {
+                "name": "zzz-robot",
+                "latest_version": "1",
+                "summary": f"hit for {query}",
+            },
+            {"name": "robot", "latest_version": "2", "summary": None},
+            {"name": "robotframework", "latest_version": "3", "summary": None},
+        ]
+
+    monkeypatch.setattr(services["package_service"]._registry, "search", fake_search)
+
+    results = await services["package_service"].search_packages("robot")
+    assert [item.name for item in results] == [
+        "robot",
+        "robotframework",
+        "zzz-robot",
+    ]

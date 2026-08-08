@@ -66,7 +66,10 @@ void main() {
       ),
     );
 
-    expect(find.text('Robot Studio'), findsOneWidget);
+    expect(
+      find.image(const AssetImage('assets/branding/logo-wordmark.png')),
+      findsOneWidget,
+    );
     expect(find.text('Recent Workspaces'), findsOneWidget);
     expect(find.text('Recent Projects'), findsOneWidget);
     expect(find.text('Demo Workspace'), findsOneWidget);
@@ -140,7 +143,10 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Robot Studio'), findsOneWidget);
+    expect(
+      find.image(const AssetImage('assets/branding/logo-wordmark.png')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -482,8 +488,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Toolbar no longer repeats the product name; only the welcome hero does.
-    expect(find.text('Robot Studio'), findsOneWidget);
+    // Toolbar no longer repeats the product name; welcome shows the wordmark.
+    expect(
+      find.image(const AssetImage('assets/branding/logo-wordmark.png')),
+      findsOneWidget,
+    );
     expect(find.text('Recent Workspaces'), findsOneWidget);
     expect(find.text('Recent Projects'), findsOneWidget);
     expect(find.text('Alpha'), findsOneWidget);

@@ -82,8 +82,17 @@ class WelcomeScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Robot Studio', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Image.asset(
+                'assets/branding/logo-wordmark.png',
+                height: 56,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.medium,
+                semanticLabel: 'Robot Studio',
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
               'Robot Framework development, project first.',
               style: TextStyle(

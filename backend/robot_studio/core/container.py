@@ -146,7 +146,7 @@ class Container:
         self.settings_service.load()
 
         installer = PipInstaller()
-        registry = PyPIProvider()
+        registry = PyPIProvider(cache_dir=settings.data_dir / "cache")
         self.plugin_host.register(
             Capability.INSTALLER,
             "pip-installer",

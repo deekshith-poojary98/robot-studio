@@ -29,27 +29,18 @@ class AppSidebar extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 10),
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: context.palette.accentSoft,
+          Tooltip(
+            message: 'Robot Studio',
+            child: ClipRRect(
               borderRadius: BorderRadius.circular(9),
-              border: Border.all(
-                color: context.palette.accent.withValues(alpha: 0.35),
+              child: Image.asset(
+                'assets/branding/logo-mark.png',
+                width: 30,
+                height: 30,
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.medium,
+                semanticLabel: 'Robot Studio',
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: context.palette.accent.withValues(alpha: 0.12),
-                  blurRadius: 10,
-                  spreadRadius: 0,
-                ),
-              ],
-            ),
-            child: Icon(
-              Icons.precision_manufacturing_outlined,
-              size: 17,
-              color: context.palette.accent.withValues(alpha: 0.9),
             ),
           ),
           const SizedBox(height: 14),

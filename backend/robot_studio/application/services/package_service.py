@@ -15,6 +15,7 @@ from robot_studio.core.events import (
 )
 from robot_studio.domain.interfaces.installer import Installer, PackageRegistry
 from robot_studio.domain.models import Environment, InstalledPackage, PackageSearchResult
+from robot_studio.infrastructure.packages.package_match import rank_packages
 from robot_studio.infrastructure.packages.pip_installer import PackageInstallError
 
 PROTECTED_PACKAGES = frozenset({"pip", "setuptools", "wheel"})
@@ -80,16 +81,12 @@ class PackageService:
         environment = self._require_environment()
         packages = await self._installer.list_installed(environment.path)
 
-        if query:
-            needle = query.strip().lower()
-            packages = [
-                item
-                for item in packages
-                if needle in item.name.lower()
-                or (item.summary and needle in item.summary.lower())
-            ]
-
-        packages = self._sort(packages, sort)
+        if query and query.strip():
+            # Relevance first (exact > prefix > substring > fuzzy). The sort
+            # dropdown only applies when there is no active query.
+            packages = rank_packages(packages, query)
+        else:
+            packages = self._sort(packages, sort)
         robot = self._find_robot(packages)
         return PackageListResult(
             packages=packages,
@@ -105,7 +102,7 @@ class PackageService:
         # Ensure an active environment exists so installs are meaningful.
         self._require_environment()
         results = await self._registry.search(cleaned)
-        return [
+        mapped = [
             PackageSearchResult(
                 name=str(item.get("name", "")),
                 latest_version=str(item.get("latest_version") or ""),
@@ -114,6 +111,10 @@ class PackageService:
             for item in results
             if item.get("name")
         ]
+        # Re-rank remote hits with the same deterministic contract so an exact
+        # / prefix hit is never buried under a weaker match, and keep the
+        # dialog list to a readable top 20.
+        return rank_packages(mapped, cleaned)[:20]
 
     async def list_package_versions(self, name: str) -> list[str]:
         cleaned = name.strip()
@@ -398,3 +399,4 @@ class PackageService:
                 key=lambda item: (0 if item.update_available else 1, item.name.lower()),
             )
         return sorted(packages, key=lambda item: item.name.lower())
+

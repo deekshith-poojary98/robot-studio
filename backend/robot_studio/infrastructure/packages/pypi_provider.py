@@ -2,29 +2,26 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+import logging
 import re
+import time
+from pathlib import Path
 from urllib.parse import quote
 
 import httpx
 
 from robot_studio.domain.interfaces.installer import PackageRegistry
+from robot_studio.infrastructure.packages.package_match import rank_packages
 
-_NAME_RE = re.compile(
-    r'class="package-snippet__name"[^>]*>\s*([^<]+)\s*<',
-    re.IGNORECASE,
-)
-_VERSION_RE = re.compile(
-    r'class="package-snippet__version"[^>]*>\s*([^<]+)\s*<',
-    re.IGNORECASE,
-)
-_DESC_RE = re.compile(
-    r'class="package-snippet__description"[^>]*>\s*([^<]*)\s*<',
-    re.IGNORECASE,
-)
-_SNIPPET_RE = re.compile(
-    r'class="package-snippet"[^>]*>(.*?)</a>',
-    re.IGNORECASE | re.DOTALL,
-)
+logger = logging.getLogger(__name__)
+
+# Search UI shows a compact list; hydrate at most this many after ranking.
+_MAX_SEARCH_RESULTS = 20
+# Refresh the local name index at most once per day.
+_NAME_INDEX_TTL_SECONDS = 24 * 60 * 60
+_NAME_INDEX_FILENAME = "pypi-package-names.json"
 
 
 def _version_sort_key(version: str) -> tuple:
@@ -39,7 +36,13 @@ def _version_sort_key(version: str) -> tuple:
 
 
 class PyPIProvider(PackageRegistry):
-    """Fetches package metadata and search results from pypi.org."""
+    """Fetches package metadata and search results from pypi.org.
+
+    Warehouse's HTML ``/search`` is behind a bot challenge, so discovery uses
+    the public Simple API name index (cached under ``cache_dir``) plus the
+    JSON project API for versions/summaries. Results are ranked
+    exact → prefix → substring → fuzzy and capped at 20.
+    """
 
     def __init__(
         self,
@@ -47,11 +50,24 @@ class PyPIProvider(PackageRegistry):
         base_url: str = "https://pypi.org",
         client: httpx.AsyncClient | None = None,
         timeout: float = 20.0,
+        cache_dir: Path | None = None,
+        name_index_ttl_seconds: int = _NAME_INDEX_TTL_SECONDS,
+        max_search_results: int = _MAX_SEARCH_RESULTS,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._client = client
         self._timeout = timeout
         self._owns_client = client is None
+        self._cache_dir = (
+            Path(cache_dir).expanduser()
+            if cache_dir is not None
+            else Path.home() / ".robot-studio" / "cache"
+        )
+        self._name_index_ttl_seconds = max(60, int(name_index_ttl_seconds))
+        self._max_search_results = max(1, int(max_search_results))
+        self._names_memory: list[str] | None = None
+        self._names_fetched_at: float | None = None
+        self._names_lock = asyncio.Lock()
 
     async def aclose(self) -> None:
         if self._owns_client and self._client is not None:
@@ -63,47 +79,49 @@ class PyPIProvider(PackageRegistry):
         if not cleaned:
             return []
 
-        results: list[dict] = []
-        exact = await self.get_metadata(cleaned)
-        if exact is not None:
-            results.append(exact)
-
-        html = await self._get_text(f"/search/?q={quote(cleaned)}&o=")
-        for snippet in _SNIPPET_RE.findall(html or ""):
-            name_match = _NAME_RE.search(snippet)
-            if not name_match:
-                continue
-            name = name_match.group(1).strip()
-            if any(item["name"].lower() == name.lower() for item in results):
-                continue
-            version_match = _VERSION_RE.search(snippet)
-            desc_match = _DESC_RE.search(snippet)
-            results.append(
-                {
-                    "name": name,
-                    "latest_version": (
-                        version_match.group(1).strip() if version_match else ""
-                    ),
-                    "summary": (
-                        desc_match.group(1).strip() if desc_match else None
-                    ),
-                },
+        names = await self._package_names()
+        ranked_names = [
+            item["name"]
+            for item in rank_packages(
+                [{"name": name, "summary": None} for name in names],
+                cleaned,
             )
-            if len(results) >= 25:
+        ][: self._max_search_results]
+
+        # Exact JSON lookup always wins a slot even if the index is stale.
+        exact = await self.get_metadata(cleaned)
+        ordered: list[str] = []
+        if exact is not None:
+            ordered.append(str(exact["name"]))
+        for name in ranked_names:
+            if all(name.lower() != existing.lower() for existing in ordered):
+                ordered.append(name)
+            if len(ordered) >= self._max_search_results:
                 break
 
-        # Fill missing versions via JSON API for precision when HTML omitted them.
-        filled: list[dict] = []
-        for item in results:
-            if item.get("latest_version"):
-                filled.append(item)
-                continue
-            meta = await self.get_metadata(item["name"])
-            if meta is not None:
-                filled.append(meta)
+        if not ordered and exact is None:
+            # Brand-new index miss — still try the typed name.
+            return []
+
+        hydrated = await self._hydrate_many(ordered)
+        # Preserve rank order; drop empties.
+        by_lower = {str(item["name"]).lower(): item for item in hydrated}
+        results: list[dict] = []
+        for name in ordered:
+            item = by_lower.get(name.lower())
+            if item is not None:
+                results.append(item)
+            elif exact is not None and name.lower() == str(exact["name"]).lower():
+                results.append(exact)
             else:
-                filled.append(item)
-        return filled
+                results.append(
+                    {
+                        "name": name,
+                        "latest_version": "",
+                        "summary": None,
+                    },
+                )
+        return results[: self._max_search_results]
 
     async def get_latest_version(self, name: str) -> str | None:
         meta = await self.get_metadata(name)
@@ -159,6 +177,120 @@ class PyPIProvider(PackageRegistry):
             versions.insert(0, latest)
         return versions
 
+    async def _hydrate_many(self, names: list[str]) -> list[dict]:
+        if not names:
+            return []
+        semaphore = asyncio.Semaphore(8)
+
+        async def one(name: str) -> dict | None:
+            async with semaphore:
+                return await self.get_metadata(name)
+
+        return [item for item in await asyncio.gather(*(one(n) for n in names)) if item]
+
+    async def _package_names(self) -> list[str]:
+        async with self._names_lock:
+            now = time.time()
+            if (
+                self._names_memory is not None
+                and self._names_fetched_at is not None
+                and now - self._names_fetched_at < self._name_index_ttl_seconds
+            ):
+                return self._names_memory
+
+            cached = self._read_name_cache(now)
+            if cached is not None:
+                self._names_memory = cached
+                self._names_fetched_at = now
+                return cached
+
+            fetched = await self._fetch_simple_names()
+            if fetched:
+                self._write_name_cache(fetched, now)
+                self._names_memory = fetched
+                self._names_fetched_at = now
+                return fetched
+
+            # Network failed — fall back to a stale cache if we have one.
+            stale = self._read_name_cache(now, ignore_ttl=True)
+            if stale is not None:
+                logger.warning("Using stale PyPI name index; live refresh failed")
+                self._names_memory = stale
+                self._names_fetched_at = now
+                return stale
+            return self._names_memory or []
+
+    def _cache_path(self) -> Path:
+        return self._cache_dir / _NAME_INDEX_FILENAME
+
+    def _read_name_cache(
+        self,
+        now: float,
+        *,
+        ignore_ttl: bool = False,
+    ) -> list[str] | None:
+        path = self._cache_path()
+        if not path.is_file():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        fetched_at = float(payload.get("fetched_at") or 0)
+        names = payload.get("names")
+        if not isinstance(names, list) or not names:
+            return None
+        if not ignore_ttl and now - fetched_at > self._name_index_ttl_seconds:
+            return None
+        cleaned = [str(name) for name in names if str(name).strip()]
+        return cleaned or None
+
+    def _write_name_cache(self, names: list[str], fetched_at: float) -> None:
+        path = self._cache_path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps({"fetched_at": fetched_at, "names": names}),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            logger.debug("Could not write PyPI name cache: %s", exc)
+
+    async def _fetch_simple_names(self) -> list[str]:
+        client = await self._client_or_create()
+        try:
+            response = await client.get(
+                "/simple/",
+                headers={"Accept": "application/vnd.pypi.simple.v1+json"},
+            )
+        except httpx.HTTPError as exc:
+            logger.warning("PyPI simple index fetch failed: %s", exc)
+            return []
+        if response.status_code >= 400:
+            logger.warning(
+                "PyPI simple index HTTP %s",
+                response.status_code,
+            )
+            return []
+        try:
+            payload = response.json()
+        except ValueError:
+            return []
+        projects = payload.get("projects") if isinstance(payload, dict) else None
+        if not isinstance(projects, list):
+            return []
+        names: list[str] = []
+        for item in projects:
+            if isinstance(item, dict):
+                name = str(item.get("name") or "").strip()
+            else:
+                name = str(item).strip()
+            if name:
+                names.append(name)
+        return names
+
     async def _client_or_create(self) -> httpx.AsyncClient:
         if self._client is None:
             self._client = httpx.AsyncClient(
@@ -184,13 +316,3 @@ class PyPIProvider(PackageRegistry):
         except ValueError:
             return None
         return data if isinstance(data, dict) else None
-
-    async def _get_text(self, path: str) -> str | None:
-        client = await self._client_or_create()
-        try:
-            response = await client.get(path)
-        except httpx.HTTPError:
-            return None
-        if response.status_code >= 400:
-            return None
-        return response.text
