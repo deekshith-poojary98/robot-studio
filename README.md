@@ -1,9 +1,10 @@
-<p align="center">
-  <img src="docs/branding/logo-wordmark-readme.png" alt="Robot Studio" width="320" />
-</p>
+<div align="center">
 
+![Robot Studio Logo](https://raw.githubusercontent.com/deekshith-poojary98/robot-studio/main/docs/branding/logo-wordmark-readme.png)
 
 # Robot Studio
+
+</div>
 
 A cross-platform desktop IDE for [Robot Framework](https://robotframework.org/) development.
 
