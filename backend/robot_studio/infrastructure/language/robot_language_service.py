@@ -820,10 +820,22 @@ class RobotLanguageService(LanguageService):
         resolved_libraries: set[str] = set()
 
         for library_name in imported_libraries:
-            resolved = await self.library_catalog().get_library(library_name)
+            target = self._library_resolve_target(library_name, file_path)
+            resolved = await self.library_catalog().get_library(target)
+            if resolved is None and target != library_name:
+                resolved = await self.library_catalog().get_library(library_name)
             if resolved is None:
+                # Path-like imports are relative to the suite file (Robot's rule).
+                # Treat an on-disk target as present even when libdoc fails.
+                if self._looks_like_library_path(library_name) and self._import_path_exists(
+                    file_path,
+                    library_name,
+                ):
+                    resolved_libraries.add(library_name.casefold())
+                    resolved_libraries.add(target.casefold())
                 continue
             resolved_libraries.add(library_name.casefold())
+            resolved_libraries.add(target.casefold())
             resolved_libraries.add(resolved.name.casefold())
             for keyword in resolved.keywords:
                 known_keywords.add(keyword.name.casefold())
@@ -915,6 +927,32 @@ class RobotLanguageService(LanguageService):
     def _path_beside_file(file_path: str, relative: str) -> Path:
         base = Path(file_path).expanduser().resolve().parent
         return (base / relative).resolve()
+
+    @staticmethod
+    def _looks_like_library_path(token: str) -> bool:
+        """True for path-style Library imports (``.py`` / relative / absolute)."""
+        cleaned = token.strip().strip("'\"")
+        if not cleaned:
+            return False
+        lower = cleaned.lower().replace("\\", "/")
+        if lower.endswith((".py", ".robot", ".resource")):
+            return True
+        return "/" in lower or cleaned.startswith(".")
+
+    @classmethod
+    def _library_resolve_target(cls, name: str, file_path: str) -> str:
+        """Map a Library import to an absolute path when it is path-like."""
+        cleaned = name.strip().strip("'\"")
+        if not cls._looks_like_library_path(cleaned):
+            return cleaned
+        candidate = Path(cleaned).expanduser()
+        if candidate.is_file():
+            return str(candidate.resolve())
+        if file_path:
+            beside = cls._path_beside_file(file_path, cleaned)
+            if beside.is_file():
+                return str(beside)
+        return cleaned
 
     @classmethod
     def _import_path_exists(cls, file_path: str, token: str) -> bool:

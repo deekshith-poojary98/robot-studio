@@ -327,6 +327,81 @@ Demo
 
 
 @pytest.mark.asyncio
+async def test_relative_python_library_path_is_not_missing(tmp_path: Path) -> None:
+    """``Library ../helpers/CustomLib.py`` is relative to the suite file."""
+    helpers = tmp_path / "helpers"
+    tests = tmp_path / "tests"
+    helpers.mkdir()
+    tests.mkdir()
+    custom = helpers / "CustomLib.py"
+    custom.write_text(
+        "class CustomLib:\n"
+        "    ROBOT_LIBRARY_SCOPE = 'GLOBAL'\n"
+        "    def custom_keyword(self):\n"
+        "        pass\n",
+        encoding="utf-8",
+    )
+    suite = tests / "login.robot"
+
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").UTC,
+        ),
+    )
+    await context.open(workspace)
+    env_path = tmp_path / "new-env"
+    (env_path / "bin").mkdir(parents=True)
+    (env_path / "bin" / "python").write_text("", encoding="utf-8")
+    await context.set_active_environment(
+        Environment(
+            id=uuid4(),
+            workspace_id=workspace.id,
+            name="new-env",
+            path=env_path,
+            python_version="3.13",
+            python_executable=env_path / "bin" / "python",
+            pip_executable=env_path / "bin" / "pip",
+            created_at=workspace.created_at,
+            is_active=True,
+        ),
+    )
+
+    abs_lib = str(custom.resolve())
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge(  # type: ignore[arg-type]
+            {
+                abs_lib: {
+                    "available": True,
+                    "name": "CustomLib",
+                    "keywords": ["Custom Keyword"],
+                },
+            },
+        ),
+    )
+    content = """*** Settings ***
+Library    ../helpers/CustomLib.py
+
+*** Test Cases ***
+Demo
+    Custom Keyword
+"""
+    diagnostics: list[dict] = []
+    await service._append_semantic_diagnostics(content, str(suite), diagnostics)
+    messages = [item["message"] for item in diagnostics]
+    assert not any("Missing library" in msg for msg in messages)
+    assert not any("Unknown keyword" in msg for msg in messages)
+
+
+@pytest.mark.asyncio
 async def test_missing_library_survives_indexed_import_symbol(tmp_path: Path) -> None:
     """Indexed Library import names must not silence Missing library after save."""
     from robot_studio.domain.interfaces.indexing import SymbolKind

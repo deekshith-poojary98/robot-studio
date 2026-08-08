@@ -1035,11 +1035,25 @@ def _libdoc_to_resolve_payload(
     }
 
 
-def resolve_library(name: str) -> dict:
+def resolve_library(name: str, file_path: str = "") -> dict:
     """Resolve a Library import against this environment via Robot libdoc."""
     cleaned = (name or "").strip()
     if not cleaned:
         return {"available": False, "name": "", "keywords": [], "keyword_info": {}}
+    # Path-style imports are relative to the importing suite (Robot's rule).
+    if file_path and (
+        cleaned.endswith((".py", ".robot", ".resource"))
+        or "/" in cleaned
+        or "\\" in cleaned
+        or cleaned.startswith(".")
+    ):
+        candidate = Path(cleaned).expanduser()
+        if not candidate.is_file():
+            beside = (Path(file_path).expanduser().resolve().parent / cleaned).resolve()
+            if beside.is_file():
+                cleaned = str(beside)
+        else:
+            cleaned = str(candidate.resolve())
     try:
         from robot.libdoc import LibraryDocumentation
 
@@ -1156,7 +1170,7 @@ def main() -> None:
         elif op == "signature_help":
             result = signature_help(content, file_path, line, column)
         elif op == "resolve_library":
-            result = resolve_library(library)
+            result = resolve_library(library, file_path)
         else:
             raise ValueError(f"Unknown op: {op}")
         json.dump({"ok": True, "result": result}, sys.stdout)
