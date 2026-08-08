@@ -489,6 +489,66 @@ void main() {
     expect(find.text('Alpha'), findsOneWidget);
   });
 
+  testWidgets('startup restores the last recent project', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final gateway = _FakeTransportGateway(
+      settings: const AppSettings(
+        appearance: AppearanceSettings(restoreLastProject: true),
+      ),
+    );
+    await tester.pumpWidget(RobotStudioApp(home: AppShell(gateway: gateway)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+
+    expect(gateway.openProjectByPathCalls, 1);
+    expect(gateway.lastOpenedProjectPath, '/tmp/Beta');
+    expect(find.text('Recent Workspaces'), findsNothing);
+    expect(find.text('Opened'), findsWidgets);
+  });
+
+  testWidgets('startup stays on welcome when restore is disabled', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final gateway = _FakeTransportGateway();
+    await tester.pumpWidget(RobotStudioApp(home: AppShell(gateway: gateway)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+
+    expect(gateway.openProjectByPathCalls, 0);
+    expect(find.text('Recent Projects'), findsOneWidget);
+  });
+
+  testWidgets('startup restore failure stays on welcome without a dialog', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final gateway = _FakeTransportGateway(
+      settings: const AppSettings(
+        appearance: AppearanceSettings(restoreLastProject: true),
+      ),
+      openProjectByPathError: Exception('path gone'),
+    );
+    await tester.pumpWidget(RobotStudioApp(home: AppShell(gateway: gateway)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+
+    expect(gateway.openProjectByPathCalls, 1);
+    expect(find.text('Recent Projects'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
   testWidgets('Appearance preference themes the whole app', (
     WidgetTester tester,
   ) async {
@@ -506,7 +566,10 @@ void main() {
         RobotStudioApp(
           gateway: _FakeTransportGateway(
             settings: AppSettings(
-              appearance: AppearanceSettings(theme: preference),
+              appearance: AppearanceSettings(
+                theme: preference,
+                restoreLastProject: false,
+              ),
             ),
           ),
         ),
@@ -1592,12 +1655,19 @@ void main() {
 class _FakeTransportGateway implements TransportGateway {
   _FakeTransportGateway({
     this.withWorkspace = false,
-    this.settings = const AppSettings(),
+    // Shell unit tests expect the welcome screen; production default is on.
+    this.settings = const AppSettings(
+      appearance: AppearanceSettings(restoreLastProject: false),
+    ),
+    this.openProjectByPathError,
   });
 
   final bool withWorkspace;
   final AppSettings settings;
+  final Object? openProjectByPathError;
   String? activatedId;
+  String? lastOpenedProjectPath;
+  int openProjectByPathCalls = 0;
 
   List<EnvironmentInfo> _environments = [
     EnvironmentInfo(
@@ -1712,6 +1782,12 @@ class _FakeTransportGateway implements TransportGateway {
     String path, {
     bool force = false,
   }) async {
+    openProjectByPathCalls++;
+    lastOpenedProjectPath = path;
+    final error = openProjectByPathError;
+    if (error != null) {
+      throw error;
+    }
     return OpenProjectByPathResult(
       workspace: WorkspaceInfo(
         id: '1',

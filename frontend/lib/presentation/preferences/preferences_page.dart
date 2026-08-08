@@ -603,6 +603,21 @@ class _PreferencesPageState extends State<PreferencesPage> {
             });
           },
         ),
+        _SwitchRow(
+          label: 'Restore Last Project',
+          hint: 'Reopen the last project or workspace when Robot Studio starts',
+          value: _draft.appearance.restoreLastProject,
+          onChanged: (value) {
+            _markChanged();
+            setState(() {
+              _draft = _draft.copyWith(
+                appearance: _draft.appearance.copyWith(
+                  restoreLastProject: value,
+                ),
+              );
+            });
+          },
+        ),
       ],
     );
   }

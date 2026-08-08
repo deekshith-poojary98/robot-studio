@@ -35,14 +35,14 @@ class EditorSettings {
   final String fontFamily;
 
   Map<String, dynamic> toJson() => {
-        'auto_save': autoSave,
-        'save_before_run': saveBeforeRun,
-        'tab_width': tabWidth,
-        'insert_spaces': insertSpaces,
-        'word_wrap': wordWrap,
-        'font_size': fontSize,
-        'font_family': fontFamily,
-      };
+    'auto_save': autoSave,
+    'save_before_run': saveBeforeRun,
+    'tab_width': tabWidth,
+    'insert_spaces': insertSpaces,
+    'word_wrap': wordWrap,
+    'font_size': fontSize,
+    'font_family': fontFamily,
+  };
 
   EditorSettings copyWith({
     bool? autoSave,
@@ -89,11 +89,11 @@ class ExecutionSettings {
   final bool stopConfirmation;
 
   Map<String, dynamic> toJson() => {
-        'large_run_threshold': largeRunThreshold,
-        'reveal_execution_on_run': revealExecutionOnRun,
-        'auto_open_report_on_failure': autoOpenReportOnFailure,
-        'stop_confirmation': stopConfirmation,
-      };
+    'large_run_threshold': largeRunThreshold,
+    'reveal_execution_on_run': revealExecutionOnRun,
+    'auto_open_report_on_failure': autoOpenReportOnFailure,
+    'stop_confirmation': stopConfirmation,
+  };
 
   ExecutionSettings copyWith({
     int? largeRunThreshold,
@@ -147,9 +147,9 @@ class SearchSettings {
   final List<String> ignorePatterns;
 
   Map<String, dynamic> toJson() => {
-        'content_search_extensions': contentSearchExtensions,
-        'ignore_patterns': ignorePatterns,
-      };
+    'content_search_extensions': contentSearchExtensions,
+    'ignore_patterns': ignorePatterns,
+  };
 
   SearchSettings copyWith({
     List<String>? contentSearchExtensions,
@@ -164,20 +164,34 @@ class SearchSettings {
 }
 
 class AppearanceSettings {
-  const AppearanceSettings({this.theme = AppThemePreference.dark});
+  const AppearanceSettings({
+    this.theme = AppThemePreference.dark,
+    this.restoreLastProject = true,
+  });
 
   factory AppearanceSettings.fromJson(Map<String, dynamic> json) {
     return AppearanceSettings(
       theme: AppThemePreference.fromApi(json['theme'] as String? ?? 'dark'),
+      restoreLastProject: json['restore_last_project'] as bool? ?? true,
     );
   }
 
   final AppThemePreference theme;
+  final bool restoreLastProject;
 
-  Map<String, dynamic> toJson() => {'theme': theme.apiValue};
+  Map<String, dynamic> toJson() => {
+    'theme': theme.apiValue,
+    'restore_last_project': restoreLastProject,
+  };
 
-  AppearanceSettings copyWith({AppThemePreference? theme}) {
-    return AppearanceSettings(theme: theme ?? this.theme);
+  AppearanceSettings copyWith({
+    AppThemePreference? theme,
+    bool? restoreLastProject,
+  }) {
+    return AppearanceSettings(
+      theme: theme ?? this.theme,
+      restoreLastProject: restoreLastProject ?? this.restoreLastProject,
+    );
   }
 }
 
@@ -195,16 +209,16 @@ enum AppThemePreference {
   }
 
   String get apiValue => switch (this) {
-        AppThemePreference.dark => 'dark',
-        AppThemePreference.light => 'light',
-        AppThemePreference.system => 'system',
-      };
+    AppThemePreference.dark => 'dark',
+    AppThemePreference.light => 'light',
+    AppThemePreference.system => 'system',
+  };
 
   String get label => switch (this) {
-        AppThemePreference.dark => 'Dark',
-        AppThemePreference.light => 'Light',
-        AppThemePreference.system => 'System',
-      };
+    AppThemePreference.dark => 'Dark',
+    AppThemePreference.light => 'Light',
+    AppThemePreference.system => 'System',
+  };
 }
 
 class AppSettings {
@@ -241,12 +255,12 @@ class AppSettings {
   final AppearanceSettings appearance;
 
   Map<String, dynamic> toJson() => {
-        'version': version,
-        'editor': editor.toJson(),
-        'execution': execution.toJson(),
-        'search': search.toJson(),
-        'appearance': appearance.toJson(),
-      };
+    'version': version,
+    'editor': editor.toJson(),
+    'execution': execution.toJson(),
+    'search': search.toJson(),
+    'appearance': appearance.toJson(),
+  };
 
   AppSettings copyWith({
     EditorSettings? editor,

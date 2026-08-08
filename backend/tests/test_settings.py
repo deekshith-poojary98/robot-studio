@@ -40,6 +40,7 @@ def test_defaults_and_persist(tmp_path: Path) -> None:
     snap = service.load()
     assert snap.editor.font_size == 13
     assert snap.execution.large_run_threshold == 100
+    assert snap.appearance.restore_last_project is True
     assert Path(tmp_path / "settings.json").is_file()
 
 
@@ -51,7 +52,7 @@ async def test_update_merges_and_survives_reload(tmp_path: Path) -> None:
         {
             "editor": {"word_wrap": False, "font_size": 16},
             "execution": {"large_run_threshold": 5},
-            "appearance": {"theme": "system"},
+            "appearance": {"theme": "system", "restore_last_project": False},
         },
     )
     assert updated.editor.word_wrap is False
@@ -59,10 +60,12 @@ async def test_update_merges_and_survives_reload(tmp_path: Path) -> None:
     assert updated.editor.font_family == "Menlo"
     assert updated.execution.large_run_threshold == 5
     assert updated.appearance.theme == "system"
+    assert updated.appearance.restore_last_project is False
 
     reloaded = SettingsService(data_dir=tmp_path).load()
     assert reloaded.editor.font_size == 16
     assert reloaded.execution.large_run_threshold == 5
+    assert reloaded.appearance.restore_last_project is False
 
 
 def test_migrate_legacy_flat_keys() -> None:

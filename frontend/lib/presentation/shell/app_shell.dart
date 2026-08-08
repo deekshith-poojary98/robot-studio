@@ -156,6 +156,7 @@ class _AppShellState extends State<AppShell> {
   String? _robotFrameworkVersion;
   bool _loadingPackages = false;
   bool _busy = false;
+  bool _startupRestoreAttempted = false;
   String? _envPromptTitle;
   String? _envPromptMessage;
   List<EnvironmentPromptAction>? _envPromptActions;
@@ -321,7 +322,6 @@ class _AppShellState extends State<AppShell> {
       },
     );
     AppLogger.info('AppShell init', tag: 'Shell');
-    unawaited(_settings.load());
     _bootstrap();
   }
 
@@ -358,11 +358,14 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _bootstrap() async {
     AppLogger.debug('Bootstrap start', tag: 'Shell');
+    await _settings.load();
+    if (!mounted) return;
     await _workspace.startBackendMonitoring(
       onConnected: () async {
         _connectExecutionStream();
         unawaited(_live.connect());
         await _loadRecent();
+        await _maybeRestoreLastSession();
       },
       onDisconnected: () async {
         await _execution.disconnectStream();
@@ -377,6 +380,69 @@ class _AppShellState extends State<AppShell> {
       tag: 'Shell',
       data: 'backend=$_backendStatus',
     );
+  }
+
+  /// Reopen the most recent project (or workspace) once after cold start.
+  ///
+  /// Soft-fails to the welcome screen when the path is gone or open fails —
+  /// no modal, just a log line. Editor tabs are intentionally not restored.
+  Future<void> _maybeRestoreLastSession() async {
+    if (_startupRestoreAttempted) return;
+    _startupRestoreAttempted = true;
+    if (!mounted || _workspace.activeWorkspace != null) return;
+    if (!_settings.appearance.restoreLastProject) return;
+
+    final project = _recentProjects.isNotEmpty ? _recentProjects.first : null;
+    final workspace = _recentWorkspaces.isNotEmpty
+        ? _recentWorkspaces.first
+        : null;
+    if (project == null && workspace == null) return;
+
+    if (_busy) return;
+    setState(() => _busy = true);
+
+    try {
+      if (project != null) {
+        AppLogger.info(
+          'Restoring last project',
+          tag: 'Shell',
+          data: project.path,
+        );
+        final result = await _gateway.openProjectByPath(project.path);
+        if (!mounted) return;
+        await _applyOpenedWorkspace(
+          result.workspace,
+          successMessage: 'Restored project "${project.name}"',
+          selectedProject: result.project,
+          detectedEnvironments: result.detectedEnvironments,
+        );
+        return;
+      }
+
+      AppLogger.info(
+        'Restoring last workspace',
+        tag: 'Shell',
+        data: workspace!.path,
+      );
+      final opened = await _gateway.openWorkspace(workspace.path);
+      if (!mounted) return;
+      await _applyOpenedWorkspace(
+        opened,
+        successMessage: 'Restored workspace "${workspace.name}"',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      final label = project != null
+          ? 'project "${project.name}"'
+          : 'workspace "${workspace!.name}"';
+      _appendLog('[warn] Could not restore last $label: $error');
+      AppLogger.info(
+        'Startup restore failed — staying on welcome',
+        tag: 'Shell',
+        data: '$error',
+      );
+    }
   }
 
   Future<void> _loadRecent() async {

@@ -121,6 +121,7 @@ class AppearanceSettings:
     """Theme: dark | light | system."""
 
     theme: str = "dark"
+    restore_last_project: bool = True
 
     def to_api(self) -> dict[str, Any]:
         return asdict(self)
@@ -131,7 +132,10 @@ class AppearanceSettings:
         theme = str(raw.get("theme") or "dark").strip().lower()
         if theme not in {"dark", "light", "system"}:
             theme = "dark"
-        return AppearanceSettings(theme=theme)
+        return AppearanceSettings(
+            theme=theme,
+            restore_last_project=bool(raw.get("restore_last_project", True)),
+        )
 
 
 @dataclass(frozen=True)

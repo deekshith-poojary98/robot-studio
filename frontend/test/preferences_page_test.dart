@@ -100,6 +100,26 @@ void main() {
     expect(find.text('Auto Save'), findsNothing);
   });
 
+  testWidgets('Appearance exposes Restore Last Project on by default', (
+    tester,
+  ) async {
+    final gateway = _SettingsGateway();
+    final controller = AppSettingsController(gateway: gateway);
+    await controller.load();
+    await _pump(tester, controller);
+
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
+
+    expect(_switchValue(tester, 'Restore Last Project'), isTrue);
+
+    await _tapSwitch(tester, 'Restore Last Project');
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.stored.appearance.restoreLastProject, isFalse);
+  });
+
   testWidgets('Save stays disabled until something changes', (tester) async {
     final gateway = _SettingsGateway();
     final controller = AppSettingsController(gateway: gateway);
