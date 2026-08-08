@@ -130,6 +130,23 @@ async def test_package_api_flow(api_client) -> None:
     assert missing_requirements.status_code == 400
     assert "not found" in missing_requirements.json()["detail"].lower()
 
+    export_bad = await client.post(
+        "/api/v1/packages/export-requirements",
+        json={"path": str(tmp_path / "requirements.json")},
+    )
+    assert export_bad.status_code == 400
+    assert "txt" in export_bad.json()["detail"].lower()
+
+    export_path = tmp_path / "exported-requirements.txt"
+    exported = await client.post(
+        "/api/v1/packages/export-requirements",
+        json={"path": str(export_path)},
+    )
+    assert exported.status_code == 200, exported.text
+    assert export_path.is_file()
+    assert export_path.stat().st_size > 0
+    assert any("Wrote" in line for line in exported.json()["logs"])
+
     listed = await client.get("/api/v1/packages")
     assert listed.status_code == 200
     names = {item["name"].lower() for item in listed.json()["packages"]}

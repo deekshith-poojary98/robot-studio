@@ -21,6 +21,7 @@ class PackageManagerPage extends StatelessWidget {
     required this.onRefresh,
     required this.onSearchPyPI,
     required this.onImportRequirements,
+    required this.onExportRequirements,
     required this.onSelect,
     required this.onUpdate,
     required this.onUninstall,
@@ -40,6 +41,7 @@ class PackageManagerPage extends StatelessWidget {
   final VoidCallback onRefresh;
   final VoidCallback onSearchPyPI;
   final VoidCallback onImportRequirements;
+  final VoidCallback onExportRequirements;
   final ValueChanged<PackageInfo> onSelect;
   final ValueChanged<PackageInfo> onUpdate;
   final ValueChanged<PackageInfo> onUninstall;
@@ -84,8 +86,14 @@ class PackageManagerPage extends StatelessWidget {
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
                   onPressed: hasActiveEnvironment ? onImportRequirements : null,
-                  icon: const Icon(Icons.file_upload_outlined, size: 16),
+                  icon: const Icon(Icons.file_download_outlined, size: 16),
                   label: const Text('Import requirements'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: hasActiveEnvironment ? onExportRequirements : null,
+                  icon: const Icon(Icons.file_upload_outlined, size: 16),
+                  label: const Text('Export requirements'),
                 ),
                 const SizedBox(width: 8),
                 FilledButton.icon(

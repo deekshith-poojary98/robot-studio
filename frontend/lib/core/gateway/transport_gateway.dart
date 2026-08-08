@@ -115,6 +115,8 @@ abstract class TransportGateway {
 
   Future<PackageOperationResult> installRequirements(String filePath);
 
+  Future<PackageOperationResult> exportRequirements(String filePath);
+
   Future<PackageOperationResult> updatePackage(String name);
 
   Future<PackageOperationResult> uninstallPackage(String name);

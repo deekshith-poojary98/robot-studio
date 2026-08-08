@@ -46,6 +46,13 @@ class Installer(ABC):
     ) -> list[str]: ...
 
     @abstractmethod
+    async def freeze_requirements(
+        self,
+        environment_path: Path,
+        target_file: Path,
+    ) -> list[str]: ...
+
+    @abstractmethod
     async def uninstall(self, environment_path: Path, package: str) -> list[str]: ...
 
     @abstractmethod

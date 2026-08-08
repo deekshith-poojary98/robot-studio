@@ -203,6 +203,47 @@ async def test_install_requirements_uses_active_environment(
 
 
 @pytest.mark.asyncio
+async def test_export_requirements_freezes_active_environment(
+    services,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "requirements.txt"
+    installer = services["package_service"]._installer
+    packages = [
+        InstalledPackage(name="pip", version="25.0"),
+        InstalledPackage(name="robotframework", version="7.0"),
+    ]
+    list_installed = AsyncMock(return_value=packages)
+    freeze_requirements = AsyncMock(
+        return_value=[f"Wrote 2 package(s) to '{target}'"],
+    )
+    monkeypatch.setattr(installer, "list_installed", list_installed)
+    monkeypatch.setattr(installer, "freeze_requirements", freeze_requirements)
+
+    result = await services["package_service"].export_requirements(str(target))
+
+    freeze_requirements.assert_awaited_once_with(
+        services["environment"].path,
+        target.resolve(),
+    )
+    assert result.package is None
+    assert result.logs[0].startswith("Wrote 2 package(s)")
+    assert result.robot_framework_installed is True
+    assert result.robot_framework_version == "7.0"
+
+
+@pytest.mark.asyncio
+async def test_export_requirements_rejects_wrong_file_type(
+    services,
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "requirements.json"
+    with pytest.raises(PackageValidationError, match=r"\.txt or \.in"):
+        await services["package_service"].export_requirements(str(target))
+
+
+@pytest.mark.asyncio
 async def test_install_requirements_rejects_wrong_file_type(
     services,
     tmp_path: Path,

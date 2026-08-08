@@ -280,6 +280,49 @@ class PackageService:
             robot_framework_version=robot.version if robot else None,
         )
 
+    async def export_requirements(self, file_path: str) -> PackageOperationResult:
+        environment = self._require_environment()
+        raw = file_path.strip()
+        if not raw:
+            raise PackageValidationError("Export path is required")
+        if "\x00" in raw or "\n" in raw or "\r" in raw:
+            raise PackageValidationError("Invalid export path")
+
+        target = Path(raw).expanduser()
+        try:
+            # Resolve parent only — the file itself may not exist yet.
+            parent = target.parent.expanduser().resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise PackageValidationError(
+                f"Export folder was not found: '{target.parent}'",
+            ) from exc
+        target = parent / target.name
+        if target.suffix.lower() not in {".txt", ".in"}:
+            raise PackageValidationError(
+                "Export path must be a .txt or .in file",
+            )
+        if target.exists() and not target.is_file():
+            raise PackageValidationError(
+                f"Export path is not a file: '{target}'",
+            )
+
+        packages = await self._installer.list_installed(environment.path)
+        robot = self._find_robot(packages)
+        try:
+            logs = await self._installer.freeze_requirements(
+                environment.path,
+                target,
+            )
+        except PackageInstallError as exc:
+            raise PackageValidationError(str(exc)) from exc
+
+        return PackageOperationResult(
+            package=None,
+            logs=logs,
+            robot_framework_installed=robot is not None,
+            robot_framework_version=robot.version if robot else None,
+        )
+
     async def update_package(self, name: str) -> PackageOperationResult:
         environment = self._require_environment()
         cleaned = name.strip()

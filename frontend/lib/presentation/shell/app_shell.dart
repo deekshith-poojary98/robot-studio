@@ -2302,6 +2302,37 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _handleExportRequirements() async {
+    final projectPath = _selectedProject?.path ?? _activeWorkspace?.path;
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'Export requirements',
+      fileName: 'requirements.txt',
+      type: FileType.custom,
+      allowedExtensions: const ['txt', 'in'],
+      initialDirectory: projectPath,
+    );
+    if (!mounted || path == null || path.trim().isEmpty) return;
+
+    var exportPath = path.trim();
+    final lower = exportPath.toLowerCase();
+    if (!lower.endsWith('.txt') && !lower.endsWith('.in')) {
+      exportPath = '$exportPath.txt';
+    }
+
+    final fileName = File(exportPath).uri.pathSegments.last;
+    AppLogger.info(
+      'Export requirements selected',
+      tag: 'Shell',
+      data: exportPath,
+    );
+    await _runPackageOperation(
+      title: 'Exporting Requirements',
+      packageName: fileName,
+      operation: () => _gateway.exportRequirements(exportPath),
+      successMessage: 'Exported requirements to',
+    );
+  }
+
   Future<void> _handleInstallRobot() async {
     await _runPackageOperation(
       title: 'Installing Robot Framework',
@@ -5642,6 +5673,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onRefresh: _loadPackages,
         onSearchPyPI: _handleSearchPyPI,
         onImportRequirements: _handleImportRequirements,
+        onExportRequirements: _handleExportRequirements,
         onSelect: _handleSelectPackage,
         onUpdate: _handleUpdatePackage,
         onUninstall: _handleUninstallPackage,

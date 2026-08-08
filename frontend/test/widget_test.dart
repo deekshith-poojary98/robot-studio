@@ -748,6 +748,7 @@ void main() {
             onRefresh: () {},
             onSearchPyPI: () {},
             onImportRequirements: () => importRequirementsTapped = true,
+            onExportRequirements: () {},
             onSelect: (_) {},
             onUpdate: (_) {},
             onUninstall: (_) {},
@@ -762,6 +763,7 @@ void main() {
     expect(find.textContaining('Robot Framework 7.0'), findsOneWidget);
     expect(find.text('Update'), findsWidgets);
     expect(find.text('Import requirements'), findsOneWidget);
+    expect(find.text('Export requirements'), findsOneWidget);
     await tester.tap(find.text('Import requirements'));
     await tester.pump();
     expect(importRequirementsTapped, isTrue);
@@ -2154,6 +2156,16 @@ class _FakeTransportGateway implements TransportGateway {
       package: null,
       logs: ['Successfully installed requirements'],
       robotFrameworkInstalled: false,
+    );
+  }
+
+  @override
+  Future<PackageOperationResult> exportRequirements(String filePath) async {
+    return PackageOperationResult(
+      package: null,
+      logs: ['Wrote packages to $filePath'],
+      robotFrameworkInstalled: true,
+      robotFrameworkVersion: '7.0',
     );
   }
 

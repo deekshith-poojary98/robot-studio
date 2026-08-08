@@ -145,6 +145,10 @@ class ApiClient implements TransportGateway {
       _gateway.installRequirements(filePath);
 
   @override
+  Future<PackageOperationResult> exportRequirements(String filePath) =>
+      _gateway.exportRequirements(filePath);
+
+  @override
   Future<PackageOperationResult> updatePackage(String name) =>
       _gateway.updatePackage(name);
 

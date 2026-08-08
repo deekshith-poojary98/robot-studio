@@ -286,6 +286,16 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<PackageOperationResult> exportRequirements(String filePath) async {
+    final response = await _post(
+      '/packages/export-requirements',
+      body: {'path': filePath},
+      timeout: const Duration(minutes: 5),
+    );
+    return PackageOperationResult.fromJson(response);
+  }
+
+  @override
   Future<PackageOperationResult> updatePackage(String name) async {
     final response = await _post(
       '/packages/update',

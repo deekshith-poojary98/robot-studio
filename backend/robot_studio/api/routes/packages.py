@@ -103,6 +103,23 @@ async def install_requirements(
     )
 
 
+@router.post("/export-requirements", response_model=PackageOperationResponse)
+async def export_requirements(
+    request: RequirementsFileRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> PackageOperationResponse:
+    try:
+        result = await gateway.export_requirements(file_path=request.path)
+    except PackageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return PackageOperationResponse(
+        package=None,
+        logs=result.logs,
+        robot_framework_installed=result.robot_framework_installed,
+        robot_framework_version=result.robot_framework_version,
+    )
+
+
 @router.post("/update", response_model=PackageOperationResponse)
 async def update_package(
     request: PackageNameRequest,

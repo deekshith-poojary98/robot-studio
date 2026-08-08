@@ -150,6 +150,18 @@ class PipInstaller(Installer):
             error_prefix=f"Failed to install requirements from '{requirements_file.name}'",
         )
 
+    async def freeze_requirements(
+        self,
+        environment_path: Path,
+        target_file: Path,
+    ) -> list[str]:
+        python = self._python_for(environment_path)
+        return await asyncio.to_thread(
+            self._freeze_to_file,
+            python,
+            target_file,
+        )
+
     async def uninstall(self, environment_path: Path, package: str) -> list[str]:
         python = self._python_for(environment_path)
         return await asyncio.to_thread(
@@ -217,6 +229,29 @@ class PipInstaller(Installer):
             detail = "\n".join(logs[-20:]) if logs else "pip command failed"
             raise PackageInstallError(f"{error_prefix}: {detail}", logs=logs)
         return logs
+
+    def _freeze_to_file(self, python: Path, target_file: Path) -> list[str]:
+        result = subprocess.run(
+            [str(python), "-m", "pip", "freeze"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=stable_subprocess_cwd(python.resolve().parent.parent),
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "pip freeze failed").strip()
+            raise PackageInstallError(f"Failed to freeze packages: {detail}")
+        body = result.stdout or ""
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        target_file.write_text(body, encoding="utf-8")
+        package_lines = [
+            line
+            for line in body.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        return [
+            f"Wrote {len(package_lines)} package(s) to '{target_file}'",
+        ]
 
     def _run_capture(self, python: Path, args: list[str]) -> str:
         result = subprocess.run(
