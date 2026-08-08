@@ -275,8 +275,11 @@ CONTROL_STRUCTURES: list[dict[str, str]] = [
     },
     {
         "label": "AS",
-        "detail": "RF DSL · EXCEPT / alias",
-        "documentation": "EXCEPT    error    AS    ${msg}",
+        "detail": "RF DSL · EXCEPT / Library alias",
+        "documentation": (
+            "EXCEPT    error    AS    ${msg}\n"
+            "Library    Remote    http://127.0.0.1:8270    AS    Example"
+        ),
         "insert_text": "AS",
     },
     {

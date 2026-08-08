@@ -962,6 +962,79 @@ def signature_help(
     }
 
 
+def _is_remote_library_name(name: str) -> bool:
+    """True for RF's standard Remote library (short or fully-qualified)."""
+    folded = name.strip().casefold()
+    return folded in {"remote", "robot.libraries.remote"}
+
+
+def _remote_library_stub(error: str | None = None) -> dict:
+    """Remote keywords come from a live XML-RPC server — never treat as missing."""
+    payload: dict = {
+        "available": True,
+        "name": "Remote",
+        "doc_format": "ROBOT",
+        "keywords": [],
+        "keyword_info": {},
+        "source_type": "remote",
+    }
+    if error:
+        payload["error"] = error
+    return payload
+
+
+def _libdoc_to_resolve_payload(
+    doc: object,
+    *,
+    default_name: str,
+    source_type: str,
+) -> dict:
+    """Map a Robot ``LibraryDocumentation`` instance to the resolve transport dict."""
+    library_name = str(getattr(doc, "name", None) or default_name)
+    # ROBOT_LIBRARY_DOC_FORMAT: ROBOT (libdoc's default), MARKDOWN, HTML,
+    # TEXT or REST. The renderer needs it to pick the right markup dialect.
+    doc_format = str(getattr(doc, "doc_format", "") or "").upper()
+    keywords: list[str] = []
+    keyword_info: dict[str, dict] = {}
+    for kw in getattr(doc, "keywords", []) or []:
+        kw_name = str(kw.name)
+        keywords.append(kw_name)
+        parameters: list[dict] = []
+        for arg in getattr(kw, "args", []) or []:
+            parameters.append(_arginfo_to_transport(arg))
+        tags = tuple(str(t) for t in (getattr(kw, "tags", None) or []))
+        deprecated = bool(getattr(kw, "deprecated", False))
+        keyword_info[kw_name.casefold()] = {
+            "name": kw_name,
+            "qualified_name": f"{library_name}.{kw_name}",
+            "source_type": source_type,
+            "library_name": library_name,
+            "documentation": str(
+                getattr(kw, "doc", None)
+                or getattr(kw, "short_doc", None)
+                or "",
+            ),
+            "doc_format": doc_format,
+            "parameters": parameters,
+            "source_path": str(getattr(doc, "source", None) or ""),
+            "source_line": getattr(kw, "lineno", None),
+            "deprecated": deprecated,
+            "tags": list(tags),
+            "examples": [],
+            "detail": ", ".join(
+                str(p.get("label") or p.get("name") or "") for p in parameters
+            ),
+        }
+    return {
+        "available": True,
+        "name": library_name,
+        "doc_format": doc_format,
+        "keywords": keywords,
+        "keyword_info": keyword_info,
+        "source_type": source_type,
+    }
+
+
 def resolve_library(name: str) -> dict:
     """Resolve a Library import against this environment via Robot libdoc."""
     cleaned = (name or "").strip()
@@ -970,50 +1043,42 @@ def resolve_library(name: str) -> dict:
     try:
         from robot.libdoc import LibraryDocumentation
 
+        # Remote is a standard RF library, but libdoc calls get_keyword_names()
+        # which connects to the remote server. Use a short timeout, and if the
+        # server is down still report the library as available (not missing).
+        if _is_remote_library_name(cleaned):
+            try:
+                doc = LibraryDocumentation(
+                    cleaned,
+                    "http://127.0.0.1:8270",
+                    "1 second",
+                )
+            except Exception as exc:  # noqa: BLE001 — connection / import failures
+                try:
+                    __import__("robot.libraries.Remote")
+                except ImportError:
+                    return {
+                        "available": False,
+                        "name": cleaned,
+                        "keywords": [],
+                        "keyword_info": {},
+                        "error": str(exc),
+                    }
+                return _remote_library_stub(str(exc))
+            return _libdoc_to_resolve_payload(
+                doc,
+                default_name="Remote",
+                source_type="remote",
+            )
+
         doc = LibraryDocumentation(cleaned)
         library_name = str(doc.name or cleaned)
         source_type = "builtin" if library_name.casefold() == "builtin" else "library"
-        # ROBOT_LIBRARY_DOC_FORMAT: ROBOT (libdoc's default), MARKDOWN, HTML,
-        # TEXT or REST. The renderer needs it to pick the right markup dialect.
-        doc_format = str(getattr(doc, "doc_format", "") or "").upper()
-        keywords: list[str] = []
-        keyword_info: dict[str, dict] = {}
-        for kw in doc.keywords:
-            kw_name = str(kw.name)
-            keywords.append(kw_name)
-            parameters: list[dict] = []
-            for arg in getattr(kw, "args", []) or []:
-                parameters.append(_arginfo_to_transport(arg))
-            tags = tuple(str(t) for t in (getattr(kw, "tags", None) or []))
-            deprecated = bool(getattr(kw, "deprecated", False))
-            keyword_info[kw_name.casefold()] = {
-                "name": kw_name,
-                "qualified_name": f"{library_name}.{kw_name}",
-                "source_type": source_type,
-                "library_name": library_name,
-                "documentation": str(
-                    getattr(kw, "doc", None)
-                    or getattr(kw, "short_doc", None)
-                    or "",
-                ),
-                "doc_format": doc_format,
-                "parameters": parameters,
-                "source_path": str(getattr(doc, "source", None) or ""),
-                "source_line": getattr(kw, "lineno", None),
-                "deprecated": deprecated,
-                "tags": list(tags),
-                "examples": [],
-                "detail": ", ".join(
-                    str(p.get("label") or p.get("name") or "") for p in parameters
-                ),
-            }
-        return {
-            "available": True,
-            "name": library_name,
-            "doc_format": doc_format,
-            "keywords": keywords,
-            "keyword_info": keyword_info,
-        }
+        return _libdoc_to_resolve_payload(
+            doc,
+            default_name=cleaned,
+            source_type=source_type,
+        )
     except Exception as exc:  # noqa: BLE001 — import / libdoc failures
         return {
             "available": False,

@@ -500,3 +500,153 @@ Demo
     assert "TRY" not in labels
     assert "FINALLY" not in labels
     assert "BREAK" not in labels
+
+
+@pytest.mark.asyncio
+async def test_resolve_library_remote_available_without_server() -> None:
+    """Remote is a standard RF library; a down XML-RPC server is not 'missing'."""
+    result = resolve_library("Remote")
+    assert result["available"] is True
+    assert result["name"] == "Remote"
+    assert result.get("source_type") == "remote"
+
+
+@pytest.mark.asyncio
+async def test_remote_library_import_with_as_alias_not_missing(
+    tmp_path: Path,
+) -> None:
+    """User-guide style ``Library Remote … AS …`` must not warn Missing library."""
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").UTC,
+        ),
+    )
+    await context.open(workspace)
+    env_path = tmp_path / "env"
+    (env_path / "bin").mkdir(parents=True)
+    (env_path / "bin" / "python").write_text("", encoding="utf-8")
+    await context.set_active_environment(
+        Environment(
+            id=uuid4(),
+            workspace_id=workspace.id,
+            name="env",
+            path=env_path,
+            python_version="3.13",
+            python_executable=env_path / "bin" / "python",
+            pip_executable=env_path / "bin" / "pip",
+            created_at=workspace.created_at,
+            is_active=True,
+        ),
+    )
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge(  # type: ignore[arg-type]
+            {
+                "Remote": {
+                    "available": True,
+                    "name": "Remote",
+                    "keywords": [],
+                    "keyword_info": {},
+                    "source_type": "remote",
+                },
+            },
+        ),
+    )
+    content = """*** Settings ***
+Library    Remote    http://127.0.0.1:8270    AS    Example1
+Library    Remote    http://example.com:8080/    AS    Example2
+Library    Remote    http://10.0.0.2/example    1 minute    AS    Example3
+
+*** Test Cases ***
+Demo
+    Log    hello
+"""
+    diagnostics: list[dict] = []
+    await service._append_semantic_diagnostics(content, "demo.robot", diagnostics)
+    messages = [item["message"] for item in diagnostics]
+    assert not any("Missing library" in msg for msg in messages)
+
+
+def test_imported_library_entries_accepts_as_alias() -> None:
+    content = """*** Settings ***
+Library    Remote    http://127.0.0.1:8270    AS    Example1
+Library    Collections    WITH NAME    Col
+"""
+    entries = RobotLanguageService._imported_library_entries(content)
+    assert ("Remote", "Example1") in entries
+    assert ("Collections", "Col") in entries
+
+
+@pytest.mark.asyncio
+async def test_completion_suggests_as_alias_qualified_keywords(
+    tmp_path: Path,
+) -> None:
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").UTC,
+        ),
+    )
+    await context.open(workspace)
+    env_path = tmp_path / "env"
+    (env_path / "bin").mkdir(parents=True)
+    (env_path / "bin" / "python").write_text("", encoding="utf-8")
+    await context.set_active_environment(
+        Environment(
+            id=uuid4(),
+            workspace_id=workspace.id,
+            name="env",
+            path=env_path,
+            python_version="3.13",
+            python_executable=env_path / "bin" / "python",
+            pip_executable=env_path / "bin" / "pip",
+            created_at=workspace.created_at,
+            is_active=True,
+        ),
+    )
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge(  # type: ignore[arg-type]
+            {
+                "Collections": {
+                    "available": True,
+                    "name": "Collections",
+                    "keywords": ["Append To List", "Get From List"],
+                    "keyword_info": {},
+                },
+            },
+        ),
+    )
+    content = """*** Settings ***
+Library    Collections    AS    Col
+
+*** Test Cases ***
+Demo
+    Col.App
+"""
+    items = await service.completion(
+        {
+            "file_path": "demo.robot",
+            "line": 6,
+            "column": 12,
+            "content": content,
+            "query": "Col.App",
+        },
+    )
+    labels = [item["label"] for item in items]
+    assert "Col.Append To List" in labels

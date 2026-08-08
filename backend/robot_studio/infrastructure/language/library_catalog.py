@@ -56,7 +56,11 @@ class LibraryCatalogService:
             return None
         key = cleaned.casefold()
         existing = self._cache.get(key)
-        if existing is not None and existing.keywords:
+        # ``last_updated`` marks a completed resolve (including empty keyword
+        # sets such as Remote with no live server). Summaries leave it unset.
+        if existing is not None and (
+            existing.keywords or existing.last_updated is not None
+        ):
             return existing
 
         raw = await self._resolve_raw(cleaned)
@@ -175,9 +179,13 @@ class LibraryCatalogService:
     def _from_resolve(raw: dict[str, Any], *, requested_name: str) -> LibraryMetadata:
         library_name = str(raw.get("name") or requested_name)
         builtin = library_name.casefold() == "builtin"
-        source_type = (
-            KeywordSourceType.BUILTIN if builtin else KeywordSourceType.LIBRARY
-        )
+        source_raw = str(raw.get("source_type") or "").casefold()
+        if builtin:
+            source_type = KeywordSourceType.BUILTIN
+        elif source_raw == KeywordSourceType.REMOTE.value:
+            source_type = KeywordSourceType.REMOTE
+        else:
+            source_type = KeywordSourceType.LIBRARY
         doc_format = str(raw.get("doc_format") or "").upper()
         info_map = raw.get("keyword_info") or {}
         keywords: list[KeywordMetadata] = []

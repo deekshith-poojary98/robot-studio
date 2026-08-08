@@ -575,7 +575,7 @@ class RobotLanguageService(LanguageService):
 
     @staticmethod
     def _imported_library_entries(content: str) -> list[tuple[str, str | None]]:
-        """Parse ``Library`` settings → ``(name, WITH NAME alias | None)``."""
+        """Parse ``Library`` settings → ``(name, AS / WITH NAME alias | None)``."""
         entries: list[tuple[str, str | None]] = []
         for raw in content.splitlines():
             line = raw.strip()
@@ -593,7 +593,9 @@ class RobotLanguageService(LanguageService):
             lib_name = cells[0].strip()
             alias: str | None = None
             for index, cell in enumerate(cells):
-                if cell.upper() == "WITH NAME" and index + 1 < len(cells):
+                marker = cell.upper()
+                # RF accepts both modern ``AS`` and legacy ``WITH NAME``.
+                if marker in {"AS", "WITH NAME"} and index + 1 < len(cells):
                     alias = cells[index + 1].strip() or None
                     break
             if lib_name:
