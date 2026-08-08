@@ -70,15 +70,12 @@ Future<void> _tapSwitch(WidgetTester tester, String label) async {
 
 Future<void> _pump(
   WidgetTester tester,
-  AppSettingsController controller, {
-  VoidCallback? onClose,
-}) async {
+  AppSettingsController controller,
+) async {
   await tester.pumpWidget(
     MaterialApp(
       theme: buildAppTheme(),
-      home: Scaffold(
-        body: PreferencesPage(controller: controller, onClose: onClose),
-      ),
+      home: Scaffold(body: PreferencesPage(controller: controller)),
     ),
   );
   await tester.pumpAndSettle();
@@ -136,7 +133,7 @@ void main() {
 
     await tester.tap(find.text('Teal (Default)'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Blue').last);
+    await tester.tap(find.text('Electric Blue').last);
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
@@ -303,16 +300,5 @@ void main() {
     expect(gateway.stored.editor.autoSave, isTrue);
     expect(gateway.stored.editor.wordWrap, isFalse);
     expect(find.text('Settings saved'), findsOneWidget);
-  });
-
-  testWidgets('close button reports back to the shell', (tester) async {
-    var closed = false;
-    final controller = AppSettingsController(gateway: _SettingsGateway());
-    await _pump(tester, controller, onClose: () => closed = true);
-
-    await tester.tap(find.byIcon(Icons.close));
-    await tester.pumpAndSettle();
-
-    expect(closed, isTrue);
   });
 }

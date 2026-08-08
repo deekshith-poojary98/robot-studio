@@ -127,5 +127,8 @@ async def test_settings_api(api_client) -> None:
 def test_invalid_accent_falls_back_to_teal() -> None:
     from robot_studio.domain.models.app_settings import AppearanceSettings
 
-    assert AppearanceSettings.from_api({"accent": "purple"}).accent == "teal"
+    assert AppearanceSettings.from_api({"accent": "neon"}).accent == "teal"
     assert AppearanceSettings.from_api({"accent": "BLUE"}).accent == "blue"
+    assert AppearanceSettings.from_api({"accent": "green"}).accent == "mint"
+    assert AppearanceSettings.from_api({"accent": "rose"}).accent == "coral"
+    assert AppearanceSettings.from_api({"accent": "purple"}).accent == "purple"

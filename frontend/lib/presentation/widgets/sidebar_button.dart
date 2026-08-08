@@ -46,7 +46,9 @@ class _SidebarButtonState extends State<SidebarButton> {
           borderRadius: BorderRadius.zero,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
-            width: 36,
+            // Full rail width so Settings (Column child) matches panel
+            // buttons (ListView children, which already stretch to 52).
+            width: double.infinity,
             height: 36,
             margin: const EdgeInsets.symmetric(vertical: 3),
             decoration: BoxDecoration(
@@ -67,6 +69,7 @@ class _SidebarButtonState extends State<SidebarButton> {
                     )
                   : null,
             ),
+            alignment: Alignment.center,
             child: Icon(widget.icon, size: 18, color: color),
           ),
         ),

@@ -27,19 +27,22 @@ class AppSidebar extends StatelessWidget {
         border: Border(right: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 10),
           Tooltip(
             message: 'Robot Studio',
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(9),
-              child: Image.asset(
-                'assets/branding/logo-mark.png',
-                width: 30,
-                height: 30,
-                fit: BoxFit.cover,
-                filterQuality: FilterQuality.medium,
-                semanticLabel: 'Robot Studio',
+            child: Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(9),
+                child: Image.asset(
+                  'assets/branding/logo-mark.png',
+                  width: 30,
+                  height: 30,
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.medium,
+                  semanticLabel: 'Robot Studio',
+                ),
               ),
             ),
           ),

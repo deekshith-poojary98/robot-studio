@@ -134,7 +134,22 @@ class AppearanceSettings:
         if theme not in {"dark", "light", "system"}:
             theme = "dark"
         accent = str(raw.get("accent") or "teal").strip().lower()
-        if accent not in {"teal", "blue", "green", "amber", "rose", "slate"}:
+        # Legacy six-colour ids → current top-10 set.
+        legacy = {"green": "mint", "rose": "coral", "cyan": "teal"}
+        accent = legacy.get(accent, accent)
+        allowed = {
+            "teal",
+            "blue",
+            "purple",
+            "mint",
+            "orange",
+            "gold",
+            "coral",
+            "crimson",
+            "amber",
+            "slate",
+        }
+        if accent not in allowed:
             accent = "teal"
         return AppearanceSettings(
             theme=theme,

@@ -109,6 +109,19 @@ void main() {
       expect(blue.textPrimary, AppPalette.dark.textPrimary);
       expect(_contrast(blue.onAccent, blue.accent), greaterThanOrEqualTo(3.0));
     });
+
+    test('every curated accent keeps onAccent readable', () {
+      for (final accent in AppAccentPreference.values) {
+        for (final brightness in Brightness.values) {
+          final palette = AppPalette.forAccent(accent, brightness: brightness);
+          expect(
+            _contrast(palette.onAccent, palette.accent),
+            greaterThanOrEqualTo(3.0),
+            reason: '${accent.name} $brightness onAccent on accent',
+          );
+        }
+      }
+    });
   });
 
   group('appThemeModeFor', () {

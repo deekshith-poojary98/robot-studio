@@ -5271,7 +5271,7 @@ class _AppShellState extends State<AppShell> {
                                 }
                               },
                             ),
-                            if (!_sidePanelCollapsed)
+                            if (!_sidePanelCollapsed && !_showSettingsPage)
                               SidePanel(
                                 panel: _activePanel,
                                 width: _sidePanelWidth,
@@ -5365,7 +5365,8 @@ class _AppShellState extends State<AppShell> {
                                 },
                               ),
                             if (SidePanel.hasSideContent(_activePanel) &&
-                                !_sidePanelCollapsed)
+                                !_sidePanelCollapsed &&
+                                !_showSettingsPage)
                               SidePanelResizeHandle(
                                 onDragDelta: (dx) {
                                   setState(() {
@@ -5485,10 +5486,7 @@ class _AppShellState extends State<AppShell> {
 
   Widget _buildCenter() {
     return switch (_centerView) {
-      _CenterView.settings => PreferencesPage(
-        controller: _settings,
-        onClose: _closePreferences,
-      ),
+      _CenterView.settings => PreferencesPage(controller: _settings),
       _CenterView.welcome => WelcomeScreen(
         recentWorkspaces: _recentWorkspaces,
         recentProjects: _recentProjects,

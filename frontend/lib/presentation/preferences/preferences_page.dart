@@ -76,10 +76,9 @@ enum SettingsCategory {
 
 /// Full-page settings — a center view, not a dialog, so categories can grow.
 class PreferencesPage extends StatefulWidget {
-  const PreferencesPage({super.key, required this.controller, this.onClose});
+  const PreferencesPage({super.key, required this.controller});
 
   final AppSettingsController controller;
-  final VoidCallback? onClose;
 
   @override
   State<PreferencesPage> createState() => _PreferencesPageState();
@@ -332,16 +331,6 @@ class _PreferencesPageState extends State<PreferencesPage> {
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
-          if (widget.onClose != null) ...[
-            const SizedBox(width: AppSpacing.sm),
-            IconButton(
-              tooltip: 'Close Settings',
-              iconSize: 18,
-              visualDensity: VisualDensity.compact,
-              onPressed: widget.onClose,
-              icon: Icon(Icons.close, color: context.palette.textSecondary),
-            ),
-          ],
         ],
       ),
     );
@@ -980,9 +969,12 @@ class _DropdownRow<T> extends StatelessWidget {
 
   Widget _itemChild(T item) {
     final leading = leadingFor?.call(item);
-    if (leading == null) return Text(labelFor(item));
+    if (leading == null) {
+      return Text(labelFor(item));
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         leading,
         const SizedBox(width: AppSpacing.sm),
@@ -993,20 +985,36 @@ class _DropdownRow<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textStyle = TextStyle(
+      fontSize: 12.5,
+      height: 1.2,
+      color: context.palette.textPrimary,
+    );
     return _RowShell(
       label: label,
-      trailing: DropdownButton<T>(
-        value: value,
-        underline: const SizedBox.shrink(),
-        style: TextStyle(fontSize: 12.5, color: context.palette.textPrimary),
-        selectedItemBuilder: (context) => [
-          for (final item in items) _itemChild(item),
-        ],
-        items: [
-          for (final item in items)
-            DropdownMenuItem(value: item, child: _itemChild(item)),
-        ],
-        onChanged: onChanged,
+      trailing: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          isDense: true,
+          padding: EdgeInsets.zero,
+          style: textStyle,
+          iconSize: 18,
+          icon: Icon(
+            Icons.expand_more,
+            size: 18,
+            color: context.palette.textMuted,
+          ),
+          // Only needed when the closed state shows a swatch — otherwise
+          // Material's default closed item aligns more cleanly with the caret.
+          selectedItemBuilder: leadingFor == null
+              ? null
+              : (context) => [for (final item in items) _itemChild(item)],
+          items: [
+            for (final item in items)
+              DropdownMenuItem(value: item, child: _itemChild(item)),
+          ],
+          onChanged: onChanged,
+        ),
       ),
     );
   }
