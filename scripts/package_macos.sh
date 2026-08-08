@@ -14,7 +14,10 @@ BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
 DIST="$ROOT/dist/macos"
 VENV_PY="${ROBOT_STUDIO_PYTHON:-$BACKEND/.venv/bin/python}"
-APP_NAME="Robot Studio.app"
+# Flutter build product uses PRODUCT_NAME (no spaces). Dist keeps the
+# user-facing "Robot Studio.app" name.
+BUILD_APP_NAME="RobotStudio.app"
+DIST_APP_NAME="Robot Studio.app"
 
 echo "==> Robot Studio macOS package"
 echo "    root=$ROOT"
@@ -50,9 +53,12 @@ flutter pub get
 flutter build macos --release
 
 # Flutter places the .app under build/macos/Build/Products/Release/
-APP_SRC="$(find "$FRONTEND/build/macos" -name "$APP_NAME" -type d | head -n 1)"
+APP_SRC="$(find "$FRONTEND/build/macos" -name "$BUILD_APP_NAME" -type d | head -n 1)"
 if [[ -z "$APP_SRC" ]]; then
-  # Fallback if PRODUCT_NAME change hasn't taken effect yet
+  # Fallback for older PRODUCT_NAME / unexpected output names
+  APP_SRC="$(find "$FRONTEND/build/macos" -name 'Robot Studio.app' -type d | head -n 1)"
+fi
+if [[ -z "$APP_SRC" ]]; then
   APP_SRC="$(find "$FRONTEND/build/macos" -name '*.app' -type d | head -n 1)"
 fi
 if [[ -z "$APP_SRC" || ! -d "$APP_SRC" ]]; then
@@ -64,9 +70,9 @@ echo "    built: $APP_SRC"
 echo "==> Assemble dist bundle"
 rm -rf "$DIST"
 mkdir -p "$DIST"
-cp -R "$APP_SRC" "$DIST/$APP_NAME"
+cp -R "$APP_SRC" "$DIST/$DIST_APP_NAME"
 
-APP="$DIST/$APP_NAME"
+APP="$DIST/$DIST_APP_NAME"
 BACKEND_DST="$APP/Contents/Resources/backend"
 rm -rf "$BACKEND_DST"
 mkdir -p "$APP/Contents/Resources"

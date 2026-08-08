@@ -165,6 +165,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   String? _robotFrameworkVersion;
   bool _loadingPackages = false;
   bool _busy = false;
+
+  /// Branding PNGs stay hidden until precached so they cannot flash across the
+  /// toolbar during the first busy/restore frames.
+  bool _brandingReady = false;
   bool _startupRestoreAttempted = false;
   String? _envPromptTitle;
   String? _envPromptMessage;
@@ -332,7 +336,38 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       },
     );
     AppLogger.info('AppShell init', tag: 'Shell');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_precacheBranding());
+    });
     _bootstrap();
+  }
+
+  Future<void> _precacheBranding() async {
+    if (!mounted) return;
+    try {
+      await Future.wait([
+        precacheImage(
+          const AssetImage('assets/branding/logo-mark.png'),
+          context,
+        ),
+        precacheImage(
+          const AssetImage('assets/branding/logo-mark-light.png'),
+          context,
+        ),
+        precacheImage(
+          const AssetImage('assets/branding/logo-wordmark.png'),
+          context,
+        ),
+        precacheImage(
+          const AssetImage('assets/branding/logo-wordmark-light.png'),
+          context,
+        ),
+      ]);
+    } catch (_) {
+      // Still reveal the slots; missing assets should not block chrome.
+    }
+    if (!mounted) return;
+    setState(() => _brandingReady = true);
   }
 
   void _onSettingsChanged() {
@@ -5263,132 +5298,137 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 children: [
                   Column(
                     children: [
-                      AppToolbar(
-                        projectLabel: _chromeContextLabel,
-                        environmentLabel:
-                            activeEnvironment?.name ?? 'No environment',
-                        environmentNames: _environments
-                            .map((item) => item.name)
-                            .toList(),
-                        selectedEnvironmentName: activeEnvironment?.name,
-                        environmentBroken:
-                            activeEnvironment?.available == false,
-                        onEnvironmentSelected: _handleActivateByName,
-                        onCreateEnvironment: _handleCreateEnvironment,
-                        onManageEnvironments: _handleManageEnvironments,
-                        backendConnected: connected,
-                        onRun: _handleRunFile,
-                        onRunProject: _handleRunProject,
-                        onStop: _handleStopExecution,
-                        isExecutionRunning: _executionStatus.isActive,
-                        executionStatusLabel: _executionStatus.label,
-                        executionElapsedLabel: _elapsedLabel,
-                        onExecutionStatusTap: _revealTests,
-                        canRun: _canRunFile,
-                        canRunProject: _canRunTests,
-                        robotFrameworkReady: _robotFrameworkReady,
-                        onOpenWorkspace: _handleOpenWorkspace,
-                        onOpenProject: _handleOpenProject,
-                        onNewWorkspace: _handleNewWorkspace,
-                        onOpenSearch: () => unawaited(_openCommandPalette()),
-                        gitBranchLabel: _gitStatus?.repository.branch,
-                        gitBranches: _gitBranchNames,
-                        onGitBranchSelected: _handleGitCheckout,
-                        onGitCreateBranch: _handleGitCreateBranch,
-                        onGitDeleteBranch: _handleGitDeleteBranch,
-                        onGitFetch: () =>
-                            _handleGitRemote('fetch', _gateway.fetchGit),
-                        onGitPull: () =>
-                            _handleGitRemote('pull', _gateway.pullGit),
-                        onGitPush: () =>
-                            _handleGitRemote('push', _gateway.pushGit),
-                        showGitRemoteActions:
-                            _gitStatus?.repository.isRepository == true,
-                      ),
+                      if (_centerView != _CenterView.welcome)
+                        AppToolbar(
+                          projectLabel: _chromeContextLabel,
+                          environmentLabel:
+                              activeEnvironment?.name ?? 'No environment',
+                          environmentNames: _environments
+                              .map((item) => item.name)
+                              .toList(),
+                          selectedEnvironmentName: activeEnvironment?.name,
+                          environmentBroken:
+                              activeEnvironment?.available == false,
+                          onEnvironmentSelected: _handleActivateByName,
+                          onCreateEnvironment: _handleCreateEnvironment,
+                          onManageEnvironments: _handleManageEnvironments,
+                          backendConnected: connected,
+                          onRun: _handleRunFile,
+                          onRunProject: _handleRunProject,
+                          onStop: _handleStopExecution,
+                          isExecutionRunning: _executionStatus.isActive,
+                          executionStatusLabel: _executionStatus.label,
+                          executionElapsedLabel: _elapsedLabel,
+                          onExecutionStatusTap: _revealTests,
+                          canRun: _canRunFile,
+                          canRunProject: _canRunTests,
+                          robotFrameworkReady: _robotFrameworkReady,
+                          onOpenWorkspace: _handleOpenWorkspace,
+                          onOpenProject: _handleOpenProject,
+                          onNewWorkspace: _handleNewWorkspace,
+                          onOpenSearch: () => unawaited(_openCommandPalette()),
+                          gitBranchLabel: _gitStatus?.repository.branch,
+                          gitBranches: _gitBranchNames,
+                          onGitBranchSelected: _handleGitCheckout,
+                          onGitCreateBranch: _handleGitCreateBranch,
+                          onGitDeleteBranch: _handleGitDeleteBranch,
+                          onGitFetch: () =>
+                              _handleGitRemote('fetch', _gateway.fetchGit),
+                          onGitPull: () =>
+                              _handleGitRemote('pull', _gateway.pullGit),
+                          onGitPush: () =>
+                              _handleGitRemote('push', _gateway.pushGit),
+                          showGitRemoteActions:
+                              _gitStatus?.repository.isRepository == true,
+                        ),
                       Expanded(
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            AppSidebar(
-                              activePanel: _activePanel,
-                              settingsActive: _showSettingsPage,
-                              onSettings: _showSettingsPage
-                                  ? _closePreferences
-                                  : _openPreferences,
-                              onPanelSelected: (panel) async {
-                                if (!await _prepareLeaveSettings()) return;
-                                setState(() {
-                                  _activePanel = panel;
-                                  _showSettingsPage = false;
-                                  if (SidePanel.hasSideContent(panel)) {
-                                    _sidePanelCollapsed = false;
-                                  }
-                                  if (panel == SidebarPanel.tests) {
-                                    _showExecutionPage = true;
-                                    _showEditorPage = false;
-                                  } else {
-                                    _showExecutionPage = false;
-                                  }
-                                  if (panel == SidebarPanel.search) {
-                                    _showSymbolsPage = false;
-                                    _showEnvironmentManager = false;
-                                    _showPackageManager = false;
-                                    _showPluginManager = false;
-                                    _showSourceControl = false;
-                                    _showReportsPage = false;
-                                    _showDoctorPage = false;
-                                    _selectedEnvironment = null;
-                                    _selectedPackage = null;
-                                    _execution.selectedReport = null;
-                                    if (_editorTabs.isNotEmpty &&
-                                        _activeEditorPath != null) {
-                                      _showEditorPage = true;
+                            if (_centerView != _CenterView.welcome)
+                              AppSidebar(
+                                activePanel: _activePanel,
+                                settingsActive: _showSettingsPage,
+                                showBranding: true,
+                                onSettings: _showSettingsPage
+                                    ? _closePreferences
+                                    : _openPreferences,
+                                onPanelSelected: (panel) async {
+                                  if (!await _prepareLeaveSettings()) return;
+                                  setState(() {
+                                    _activePanel = panel;
+                                    _showSettingsPage = false;
+                                    if (SidePanel.hasSideContent(panel)) {
+                                      _sidePanelCollapsed = false;
                                     }
-                                  } else if (panel == SidebarPanel.explorer) {
-                                    _showSymbolsPage = false;
-                                    _showEnvironmentManager = false;
-                                    _showPackageManager = false;
-                                    _showPluginManager = false;
-                                    _showSourceControl = false;
-                                    _showReportsPage = false;
-                                    _showDoctorPage = false;
-                                    _selectedPackage = null;
-                                    _execution.selectedReport = null;
-                                    if (_editorTabs.isNotEmpty &&
-                                        _activeEditorPath != null) {
-                                      _showEditorPage = true;
-                                    }
-                                  } else {
-                                    _showSymbolsPage = false;
-                                    if (panel == SidebarPanel.packages ||
-                                        panel == SidebarPanel.plugins ||
-                                        panel == SidebarPanel.reports ||
-                                        panel == SidebarPanel.doctor ||
-                                        panel == SidebarPanel.sourceControl) {
+                                    if (panel == SidebarPanel.tests) {
+                                      _showExecutionPage = true;
                                       _showEditorPage = false;
+                                    } else {
+                                      _showExecutionPage = false;
                                     }
+                                    if (panel == SidebarPanel.search) {
+                                      _showSymbolsPage = false;
+                                      _showEnvironmentManager = false;
+                                      _showPackageManager = false;
+                                      _showPluginManager = false;
+                                      _showSourceControl = false;
+                                      _showReportsPage = false;
+                                      _showDoctorPage = false;
+                                      _selectedEnvironment = null;
+                                      _selectedPackage = null;
+                                      _execution.selectedReport = null;
+                                      if (_editorTabs.isNotEmpty &&
+                                          _activeEditorPath != null) {
+                                        _showEditorPage = true;
+                                      }
+                                    } else if (panel == SidebarPanel.explorer) {
+                                      _showSymbolsPage = false;
+                                      _showEnvironmentManager = false;
+                                      _showPackageManager = false;
+                                      _showPluginManager = false;
+                                      _showSourceControl = false;
+                                      _showReportsPage = false;
+                                      _showDoctorPage = false;
+                                      _selectedPackage = null;
+                                      _execution.selectedReport = null;
+                                      if (_editorTabs.isNotEmpty &&
+                                          _activeEditorPath != null) {
+                                        _showEditorPage = true;
+                                      }
+                                    } else {
+                                      _showSymbolsPage = false;
+                                      if (panel == SidebarPanel.packages ||
+                                          panel == SidebarPanel.plugins ||
+                                          panel == SidebarPanel.reports ||
+                                          panel == SidebarPanel.doctor ||
+                                          panel == SidebarPanel.sourceControl) {
+                                        _showEditorPage = false;
+                                      }
+                                    }
+                                  });
+                                  if (panel == SidebarPanel.packages) {
+                                    _handleOpenPackageManager();
+                                  } else if (panel == SidebarPanel.plugins) {
+                                    _handleOpenPluginManager();
+                                  } else if (panel ==
+                                      SidebarPanel.sourceControl) {
+                                    _handleOpenSourceControl();
+                                  } else if (panel == SidebarPanel.reports) {
+                                    _openReports();
+                                  } else if (panel == SidebarPanel.doctor) {
+                                    _openDoctor();
+                                  } else if (panel == SidebarPanel.tests) {
+                                    _loadExecutionHistory();
+                                    _loadTestSuites();
+                                  } else if (panel == SidebarPanel.libraries) {
+                                    unawaited(_libraryExplorer.loadLibraries());
                                   }
-                                });
-                                if (panel == SidebarPanel.packages) {
-                                  _handleOpenPackageManager();
-                                } else if (panel == SidebarPanel.plugins) {
-                                  _handleOpenPluginManager();
-                                } else if (panel ==
-                                    SidebarPanel.sourceControl) {
-                                  _handleOpenSourceControl();
-                                } else if (panel == SidebarPanel.reports) {
-                                  _openReports();
-                                } else if (panel == SidebarPanel.doctor) {
-                                  _openDoctor();
-                                } else if (panel == SidebarPanel.tests) {
-                                  _loadExecutionHistory();
-                                  _loadTestSuites();
-                                } else if (panel == SidebarPanel.libraries) {
-                                  unawaited(_libraryExplorer.loadLibraries());
-                                }
-                              },
-                            ),
-                            if (!_sidePanelCollapsed && !_showSettingsPage)
+                                },
+                              ),
+                            if (_centerView != _CenterView.welcome &&
+                                !_sidePanelCollapsed &&
+                                !_showSettingsPage)
                               SidePanel(
                                 panel: _activePanel,
                                 width: _sidePanelWidth,
@@ -5482,7 +5522,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                   unawaited(_openFile(path, line: line ?? 1));
                                 },
                               ),
-                            if (SidePanel.hasSideContent(_activePanel) &&
+                            if (_centerView != _CenterView.welcome &&
+                                SidePanel.hasSideContent(_activePanel) &&
                                 !_sidePanelCollapsed &&
                                 !_showSettingsPage)
                               SidePanelResizeHandle(
@@ -5500,48 +5541,50 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                           ],
                         ),
                       ),
-                      BottomPanel(
-                        problems: _workspaceProblems,
-                        isLoadingProblems: false,
-                        problemCount: _workspaceProblems.length,
-                        workingDirectory:
-                            _activeWorkspace?.path ?? _selectedProject?.path,
-                        toggleTerminalToken: _toggleTerminalToken,
-                        revealProblemsToken: _revealProblemsToken,
-                        onProblemSelected: _handleProblemSelected,
-                      ),
-                      StatusBar(
-                        projectName:
-                            _selectedProject?.name ?? _activeWorkspace?.name,
-                        fileName: _centerView == _CenterView.editor
-                            ? _activeEditorTab?.fileName
-                            : null,
-                        cursorLabel: _centerView == _CenterView.editor
-                            ? 'Ln $_cursorLine, Col $_cursorColumn'
-                            : null,
-                        dirty: _centerView == _CenterView.editor
-                            ? (_activeEditorTab?.isDirty ?? false)
-                            : false,
-                        errorCount: _workspaceProblems
-                            .where(
-                              (item) =>
-                                  item.severity == DiagnosticSeverity.error,
-                            )
-                            .length,
-                        warningCount: _workspaceProblems
-                            .where(
-                              (item) =>
-                                  item.severity == DiagnosticSeverity.warning,
-                            )
-                            .length,
-                        onProblemsTap: _workspaceProblems.isEmpty
-                            ? null
-                            : _revealProblemsPanel,
-                        robotVersion: _activeEnvironment?.robotVersion,
-                        pythonVersion: _activeEnvironment?.pythonVersion,
-                        notification: _liveNotification,
-                        backendUnavailable: !connected,
-                      ),
+                      if (_centerView != _CenterView.welcome)
+                        BottomPanel(
+                          problems: _workspaceProblems,
+                          isLoadingProblems: false,
+                          problemCount: _workspaceProblems.length,
+                          workingDirectory:
+                              _activeWorkspace?.path ?? _selectedProject?.path,
+                          toggleTerminalToken: _toggleTerminalToken,
+                          revealProblemsToken: _revealProblemsToken,
+                          onProblemSelected: _handleProblemSelected,
+                        ),
+                      if (_centerView != _CenterView.welcome)
+                        StatusBar(
+                          projectName:
+                              _selectedProject?.name ?? _activeWorkspace?.name,
+                          fileName: _centerView == _CenterView.editor
+                              ? _activeEditorTab?.fileName
+                              : null,
+                          cursorLabel: _centerView == _CenterView.editor
+                              ? 'Ln $_cursorLine, Col $_cursorColumn'
+                              : null,
+                          dirty: _centerView == _CenterView.editor
+                              ? (_activeEditorTab?.isDirty ?? false)
+                              : false,
+                          errorCount: _workspaceProblems
+                              .where(
+                                (item) =>
+                                    item.severity == DiagnosticSeverity.error,
+                              )
+                              .length,
+                          warningCount: _workspaceProblems
+                              .where(
+                                (item) =>
+                                    item.severity == DiagnosticSeverity.warning,
+                              )
+                              .length,
+                          onProblemsTap: _workspaceProblems.isEmpty
+                              ? null
+                              : _revealProblemsPanel,
+                          robotVersion: _activeEnvironment?.robotVersion,
+                          pythonVersion: _activeEnvironment?.pythonVersion,
+                          notification: _liveNotification,
+                          backendUnavailable: !connected,
+                        ),
                     ],
                   ),
                   if (_busy)
@@ -5611,6 +5654,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         recentWorkspaces: _recentWorkspaces,
         recentProjects: _recentProjects,
         isLoadingRecent: _loadingRecent,
+        showBranding: true,
         onNewWorkspace: _handleNewWorkspace,
         onOpenWorkspace: _handleOpenWorkspace,
         onOpenProject: _handleOpenProject,
@@ -5618,10 +5662,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onOpenRecentProject: _handleOpenRecentProject,
         onNewProject: _handleNewStandaloneProject,
         onImportProject: null,
-        onManageEnvironments: _activeWorkspace == null
-            ? null
-            : _handleManageEnvironments,
-        activeEnvironmentLabel: _activeEnvironment?.name,
         backendUnavailable: _workspace.backendStatus != 'connected',
         recentRuns: _executionHistory.take(3).toList(),
         runningStatus: _executionStatus.isActive ? _executionStatus : null,

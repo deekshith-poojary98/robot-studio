@@ -24,6 +24,7 @@ class BottomPanel extends StatefulWidget {
     this.toggleTerminalToken,
     this.revealProblemsToken,
     this.onProblemSelected,
+    this.preferCollapsed = false,
   });
 
   final List<DiagnosticInfo> problems;
@@ -37,6 +38,9 @@ class BottomPanel extends StatefulWidget {
   final int? revealProblemsToken;
   final ValueChanged<DiagnosticInfo>? onProblemSelected;
 
+  /// When this becomes true (e.g. entering the welcome page), collapse the panel.
+  final bool preferCollapsed;
+
   @override
   State<BottomPanel> createState() => _BottomPanelState();
 }
@@ -49,19 +53,16 @@ class _BottomPanelState extends State<BottomPanel> {
   @override
   void initState() {
     super.initState();
-    if (widget.revealTerminalToken != null ||
-        widget.toggleTerminalToken != null) {
-      _activeTab = BottomPanelTab.terminal;
-      _expanded = true;
-    } else if (widget.revealProblemsToken != null) {
-      _activeTab = BottomPanelTab.problems;
-      _expanded = true;
-    }
+    // Start collapsed. Reveal/toggle tokens only expand via [didUpdateWidget]
+    // when they *change* — an initial `0` must not open the panel on launch.
   }
 
   @override
   void didUpdateWidget(covariant BottomPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.preferCollapsed && !oldWidget.preferCollapsed) {
+      _expanded = false;
+    }
     if (widget.revealTerminalToken != null &&
         widget.revealTerminalToken != oldWidget.revealTerminalToken) {
       _activeTab = BottomPanelTab.terminal;

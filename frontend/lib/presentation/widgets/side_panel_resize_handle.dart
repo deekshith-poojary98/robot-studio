@@ -31,15 +31,18 @@ class _SidePanelResizeHandleState extends State<SidePanelResizeHandle> {
         },
         onHorizontalDragEnd: (_) => setState(() => _dragging = false),
         onHorizontalDragCancel: () => setState(() => _dragging = false),
-        child: SizedBox(
-          width: 5,
-          child: Center(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              width: active ? 2 : 1,
-              color: active
-                  ? context.palette.accent
-                  : context.palette.borderSubtle,
+        child: ColoredBox(
+          color: context.palette.surface,
+          child: SizedBox(
+            width: 5,
+            child: Center(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                width: active ? 2 : 1,
+                color: active
+                    ? context.palette.accent
+                    : context.palette.borderSubtle,
+              ),
             ),
           ),
         ),

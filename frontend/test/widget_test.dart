@@ -67,10 +67,7 @@ void main() {
       ),
     );
 
-    expect(
-      find.image(const AssetImage('assets/branding/logo-wordmark.png')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('welcome.wordmark')), findsOneWidget);
     expect(find.text('Recent Workspaces'), findsOneWidget);
     expect(find.text('Recent Projects'), findsOneWidget);
     expect(find.text('Demo Workspace'), findsOneWidget);
@@ -144,10 +141,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(
-      find.image(const AssetImage('assets/branding/logo-wordmark.png')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('welcome.wordmark')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -486,14 +480,10 @@ void main() {
     await tester.pumpWidget(
       RobotStudioApp(home: AppShell(gateway: _FakeTransportGateway())),
     );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
 
     // Toolbar no longer repeats the product name; welcome shows the wordmark.
-    expect(
-      find.image(const AssetImage('assets/branding/logo-wordmark.png')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('welcome.wordmark')), findsOneWidget);
     expect(find.text('Recent Workspaces'), findsOneWidget);
     expect(find.text('Recent Projects'), findsOneWidget);
     expect(find.text('Alpha'), findsOneWidget);

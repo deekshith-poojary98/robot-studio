@@ -11,12 +11,14 @@ class AppSidebar extends StatelessWidget {
     required this.onPanelSelected,
     this.onSettings,
     this.settingsActive = false,
+    this.showBranding = true,
   });
 
   final SidebarPanel activePanel;
   final ValueChanged<SidebarPanel> onPanelSelected;
   final VoidCallback? onSettings;
   final bool settingsActive;
+  final bool showBranding;
 
   @override
   Widget build(BuildContext context) {
@@ -33,16 +35,27 @@ class AppSidebar extends StatelessWidget {
           Tooltip(
             message: 'Robot Studio',
             child: Center(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(9),
-                child: Image.asset(
-                  'assets/branding/logo-mark.png',
-                  width: 30,
-                  height: 30,
-                  fit: BoxFit.cover,
-                  filterQuality: FilterQuality.medium,
-                  semanticLabel: 'Robot Studio',
-                ),
+              child: SizedBox(
+                width: 30,
+                height: 30,
+                child: showBranding
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(9),
+                        child: Image.asset(
+                          Theme.of(context).brightness == Brightness.dark
+                              ? 'assets/branding/logo-mark.png'
+                              : 'assets/branding/logo-mark-light.png',
+                          width: 30,
+                          height: 30,
+                          fit: BoxFit.contain,
+                          cacheWidth: 60,
+                          cacheHeight: 60,
+                          filterQuality: FilterQuality.medium,
+                          gaplessPlayback: true,
+                          semanticLabel: 'Robot Studio',
+                        ),
+                      )
+                    : const SizedBox.expand(),
               ),
             ),
           ),

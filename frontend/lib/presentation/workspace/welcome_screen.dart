@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -24,8 +26,6 @@ class WelcomeScreen extends StatelessWidget {
     required this.onOpenRecentProject,
     this.onNewProject,
     this.onImportProject,
-    this.onManageEnvironments,
-    this.activeEnvironmentLabel,
     this.recentRuns = const [],
     this.runningStatus,
     this.lastRunLabel,
@@ -39,6 +39,7 @@ class WelcomeScreen extends StatelessWidget {
     this.onOpenRecentFile,
     this.onContinueWorking,
     this.backendUnavailable = false,
+    this.showBranding = true,
   });
 
   final List<WorkspaceInfo> recentWorkspaces;
@@ -51,8 +52,6 @@ class WelcomeScreen extends StatelessWidget {
   final ValueChanged<ProjectInfo> onOpenRecentProject;
   final VoidCallback? onNewProject;
   final VoidCallback? onImportProject;
-  final VoidCallback? onManageEnvironments;
-  final String? activeEnvironmentLabel;
   final List<ExecutionInfo> recentRuns;
   final ExecutionStatus? runningStatus;
   final String? lastRunLabel;
@@ -66,6 +65,7 @@ class WelcomeScreen extends StatelessWidget {
   final ValueChanged<String>? onOpenRecentFile;
   final VoidCallback? onContinueWorking;
   final bool backendUnavailable;
+  final bool showBranding;
 
   bool get _showDashboardSection => dashboard != null || workspaceOpen;
   bool get _showEditorSections =>
@@ -75,274 +75,277 @@ class WelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const horizontalPad = AppSpacing.xl;
+    const verticalPad = AppSpacing.xl;
+
     return Container(
       color: context.palette.background,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
-        child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: horizontalPad,
+              vertical: verticalPad,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: math.max(0, constraints.maxHeight - verticalPad * 2),
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (showBranding) ...[
+                        Center(
+                          child: Image.asset(
+                            Theme.of(context).brightness == Brightness.dark
+                                ? 'assets/branding/logo-wordmark.png'
+                                : 'assets/branding/logo-wordmark-light.png',
+                            key: const Key('welcome.wordmark'),
+                            height: 72,
+                            fit: BoxFit.contain,
+                            cacheHeight: 144,
+                            filterQuality: FilterQuality.medium,
+                            gaplessPlayback: true,
+                            semanticLabel: 'Robot Studio',
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                      ],
+                      Text(
+                        'Robot Framework development, project first.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: context.palette.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                      if (backendUnavailable) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        Container(
+                          key: const Key('welcome.backend-unavailable'),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                            vertical: AppSpacing.sm,
+                          ),
+                          decoration: BoxDecoration(
+                            color: context.palette.surface,
+                            border: Border.all(
+                              color: context.palette.borderSubtle,
+                            ),
+                            borderRadius: BorderRadius.circular(AppRadii.sm),
+                          ),
+                          child: Text(
+                            kReleaseMode
+                                ? 'Robot Studio could not start its backend service. '
+                                      'Quit and reopen the app, or reinstall Robot Studio.'
+                                : 'Backend unavailable. Start it with: '
+                                      'make backend   (or: python -m robot_studio.main)',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: context.palette.textSecondary,
+                              fontSize: 12.5,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.xl),
+                      _ActionTileRow(
+                        tiles: [
+                          QuickActionTile(
+                            icon: Icons.note_add_outlined,
+                            label: 'New Project',
+                            subtitle: 'Create a Robot Framework project',
+                            enabled: onNewProject != null,
+                            disabledTooltip: 'New Project is unavailable',
+                            onTap: onNewProject ?? () {},
+                          ),
+                          QuickActionTile(
+                            icon: Icons.folder_special_outlined,
+                            label: 'Open Project',
+                            subtitle: 'Open any Robot Framework project folder',
+                            onTap: onOpenProject,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.xl),
+                      InfoCard(
+                        title: 'Recent Projects',
+                        child: _RecentProjectsBody(
+                          projects: recentProjects,
+                          isLoading: isLoadingRecent,
+                          onOpen: onOpenRecentProject,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xl),
+                      Text(
+                        'Advanced',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Workspaces are optional multi-project containers.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: context.palette.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _ActionTileRow(
+                        tiles: [
+                          QuickActionTile(
+                            icon: Icons.folder_open_outlined,
+                            label: 'Open Workspace',
+                            subtitle:
+                                'Open an existing multi-project workspace',
+                            onTap: onOpenWorkspace,
+                          ),
+                          QuickActionTile(
+                            icon: Icons.add,
+                            label: 'New Workspace',
+                            subtitle: 'Create a multi-project workspace',
+                            onTap: onNewWorkspace,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      InfoCard(
+                        title: 'Recent Workspaces',
+                        child: _RecentWorkspacesBody(
+                          workspaces: recentWorkspaces,
+                          isLoading: isLoadingRecent,
+                          onOpen: onOpenRecentWorkspace,
+                        ),
+                      ),
+                      if (_showEditorSections) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        LayoutBuilder(
+                          builder: (context, sectionConstraints) {
+                            final sideBySide =
+                                sectionConstraints.maxWidth > 560;
+                            final recent = InfoCard(
+                              title: 'Recent Files',
+                              child: _RecentFilesBody(
+                                paths: recentFiles,
+                                onOpen: onOpenRecentFile,
+                              ),
+                            );
+                            final editors = InfoCard(
+                              title: 'Open Editors',
+                              child: _OpenEditorsBody(
+                                paths: openEditors,
+                                onOpen: onOpenRecentFile,
+                              ),
+                            );
+
+                            if (sideBySide) {
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(child: recent),
+                                  const SizedBox(width: AppSpacing.md),
+                                  Expanded(child: editors),
+                                ],
+                              );
+                            }
+
+                            return Column(
+                              children: [
+                                recent,
+                                const SizedBox(height: AppSpacing.md),
+                                editors,
+                              ],
+                            );
+                          },
+                        ),
+                        if (onContinueWorking != null) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          Center(
+                            child: FilledButton.icon(
+                              onPressed: onContinueWorking,
+                              icon: const Icon(Icons.edit_outlined, size: 16),
+                              label: const Text('Continue Working'),
+                            ),
+                          ),
+                        ],
+                      ],
+                      if (_showIndexStatusSection) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        IndexStatusCard(
+                          status: indexStatus,
+                          isLoading: isLoadingIndexStatus,
+                          onRebuild: onRebuildIndex,
+                        ),
+                      ],
+                      if (_showDashboardSection) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        InfoCard(
+                          title: 'Run Dashboard',
+                          child: _DashboardBody(dashboard: dashboard),
+                        ),
+                      ] else if (recentRuns.isNotEmpty ||
+                          runningStatus != null) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        InfoCard(
+                          title: 'Recent Runs',
+                          child: _RecentRunsBody(
+                            runs: recentRuns,
+                            runningStatus: runningStatus,
+                            lastRunLabel: lastRunLabel,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ActionTileRow extends StatelessWidget {
+  const _ActionTileRow({required this.tiles});
+
+  final List<QuickActionTile> tiles;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth > 420;
+        if (wide) {
+          return IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < tiles.length; i++) ...[
+                  if (i > 0) const SizedBox(width: AppSpacing.md),
+                  Expanded(child: tiles[i]),
+                ],
+              ],
+            ),
+          );
+        }
+        return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Image.asset(
-                'assets/branding/logo-wordmark.png',
-                height: 56,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.medium,
-                semanticLabel: 'Robot Studio',
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Robot Framework development, project first.',
-              style: TextStyle(
-                color: context.palette.textSecondary,
-                fontSize: 12.5,
-              ),
-            ),
-            if (backendUnavailable) ...[
-              const SizedBox(height: 16),
-              Container(
-                key: const Key('welcome.backend-unavailable'),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: context.palette.surface,
-                  border: Border.all(color: context.palette.borderSubtle),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  kReleaseMode
-                      ? 'Robot Studio could not start its backend service. '
-                            'Quit and reopen the app, or reinstall Robot Studio.'
-                      : 'Backend unavailable. Start it with: '
-                            'make backend   (or: python -m robot_studio.main)',
-                  style: TextStyle(
-                    color: context.palette.textSecondary,
-                    fontSize: 12.5,
-                    height: 1.35,
-                  ),
-                ),
-              ),
+            for (var i = 0; i < tiles.length; i++) ...[
+              if (i > 0) const SizedBox(height: AppSpacing.sm),
+              tiles[i],
             ],
-            const SizedBox(height: 20),
-            Text('Projects', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 10),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final wide = constraints.maxWidth > 560;
-                final tiles = [
-                  QuickActionTile(
-                    icon: Icons.note_add_outlined,
-                    label: 'New Project',
-                    subtitle: 'Create a Robot Framework project',
-                    enabled: onNewProject != null,
-                    disabledTooltip: 'New Project is unavailable',
-                    onTap: onNewProject ?? () {},
-                  ),
-                  QuickActionTile(
-                    icon: Icons.folder_special_outlined,
-                    label: 'Open Project',
-                    subtitle: 'Open any Robot Framework project folder',
-                    onTap: onOpenProject,
-                  ),
-                ];
-
-                if (wide) {
-                  return IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (var i = 0; i < tiles.length; i++) ...[
-                          if (i > 0) const SizedBox(width: 10),
-                          Expanded(child: tiles[i]),
-                        ],
-                      ],
-                    ),
-                  );
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var i = 0; i < tiles.length; i++) ...[
-                      if (i > 0) const SizedBox(height: 8),
-                      tiles[i],
-                    ],
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-            InfoCard(
-              title: 'Recent Projects',
-              child: _RecentProjectsBody(
-                projects: recentProjects,
-                isLoading: isLoadingRecent,
-                onOpen: onOpenRecentProject,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text('Advanced', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              'Workspaces are optional multi-project containers. Most users can ignore them.',
-              style: TextStyle(
-                color: context.palette.textSecondary,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 10),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final wide = constraints.maxWidth > 560;
-                final tiles = [
-                  QuickActionTile(
-                    icon: Icons.folder_open_outlined,
-                    label: 'Open Workspace',
-                    subtitle: 'Open an existing multi-project workspace',
-                    onTap: onOpenWorkspace,
-                  ),
-                  QuickActionTile(
-                    icon: Icons.add,
-                    label: 'New Workspace',
-                    subtitle: 'Create a multi-project workspace',
-                    onTap: onNewWorkspace,
-                  ),
-                ];
-
-                if (wide) {
-                  return IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (var i = 0; i < tiles.length; i++) ...[
-                          if (i > 0) const SizedBox(width: 10),
-                          Expanded(child: tiles[i]),
-                        ],
-                      ],
-                    ),
-                  );
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var i = 0; i < tiles.length; i++) ...[
-                      if (i > 0) const SizedBox(height: 8),
-                      tiles[i],
-                    ],
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            InfoCard(
-              title: 'Recent Workspaces',
-              child: _RecentWorkspacesBody(
-                workspaces: recentWorkspaces,
-                isLoading: isLoadingRecent,
-                onOpen: onOpenRecentWorkspace,
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (_showEditorSections) ...[
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final sideBySide = constraints.maxWidth > 860;
-                  final recent = InfoCard(
-                    title: 'Recent Files',
-                    child: _RecentFilesBody(
-                      paths: recentFiles,
-                      onOpen: onOpenRecentFile,
-                    ),
-                  );
-                  final editors = InfoCard(
-                    title: 'Open Editors',
-                    child: _OpenEditorsBody(
-                      paths: openEditors,
-                      onOpen: onOpenRecentFile,
-                    ),
-                  );
-
-                  if (sideBySide) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: recent),
-                        const SizedBox(width: 12),
-                        Expanded(child: editors),
-                      ],
-                    );
-                  }
-
-                  return Column(
-                    children: [recent, const SizedBox(height: 12), editors],
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              if (onContinueWorking != null)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton.icon(
-                    onPressed: onContinueWorking,
-                    icon: const Icon(Icons.edit_outlined, size: 16),
-                    label: const Text('Continue Working'),
-                  ),
-                ),
-              if (onContinueWorking != null) const SizedBox(height: 12),
-            ],
-            if (_showIndexStatusSection) ...[
-              IndexStatusCard(
-                status: indexStatus,
-                isLoading: isLoadingIndexStatus,
-                onRebuild: onRebuildIndex,
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (_showDashboardSection) ...[
-              InfoCard(
-                title: 'Run Dashboard',
-                child: _DashboardBody(dashboard: dashboard),
-              ),
-              const SizedBox(height: 12),
-            ] else if (recentRuns.isNotEmpty || runningStatus != null) ...[
-              InfoCard(
-                title: 'Recent Runs',
-                child: _RecentRunsBody(
-                  runs: recentRuns,
-                  runningStatus: runningStatus,
-                  lastRunLabel: lastRunLabel,
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            InfoCard(
-              title: 'Active Environment',
-              child: Row(
-                children: [
-                  EnvironmentBadge(
-                    label: activeEnvironmentLabel ?? 'No environment',
-                    active: activeEnvironmentLabel != null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      activeEnvironmentLabel == null
-                          ? 'Open a project, then create or select a Python environment.'
-                          : 'Used for execution, packages, and language services.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

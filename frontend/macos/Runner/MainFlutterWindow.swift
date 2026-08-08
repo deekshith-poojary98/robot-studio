@@ -19,6 +19,10 @@ class MainFlutterWindow: NSWindow {
 
     // Prefer the human product name over the Dart package id (robot_studio).
     self.title = "Robot Studio"
+    // Document proxy icons can briefly paint the app mark in the title bar
+    // during launch; this is not a document window.
+    self.representedURL = nil
+    self.standardWindowButton(.documentIconButton)?.isHidden = true
 
     super.awakeFromNib()
   }

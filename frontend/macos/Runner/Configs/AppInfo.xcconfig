@@ -4,8 +4,10 @@
 // future. If not, the values below would default to using the project name when this becomes a
 // 'flutter create' template.
 
-// The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = Robot Studio
+// Bundle / executable name — no spaces (Flutter's `open` breaks on spaces,
+// which also prevents the Dock from binding AppIcon during `flutter run`).
+// User-visible title stays "Robot Studio" via CFBundleDisplayName + window title.
+PRODUCT_NAME = RobotStudio
 
 // The application's bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = com.robotstudio.app

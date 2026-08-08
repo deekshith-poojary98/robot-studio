@@ -7,7 +7,7 @@ void main() {
   test('resolveSidecarPath finds MacOS sibling binary', () {
     final dir = Directory.systemTemp.createTempSync('rs-sidecar-');
     addTearDown(() => dir.deleteSync(recursive: true));
-    final fakeApp = File('${dir.path}/Robot Studio');
+    final fakeApp = File('${dir.path}/RobotStudio');
     fakeApp.writeAsStringSync('');
     final sidecar = File('${dir.path}/robot-studio-backend');
     sidecar.writeAsStringSync('');
@@ -27,11 +27,11 @@ void main() {
         ..createSync(recursive: true);
       final backend = Directory('${root.path}/Contents/Resources/backend')
         ..createSync(recursive: true);
-      File('${macos.path}/Robot Studio').writeAsStringSync('');
+      File('${macos.path}/RobotStudio').writeAsStringSync('');
       File('${backend.path}/robot-studio-backend').writeAsStringSync('');
 
       final found = BackendHost.resolveSidecarPath(
-        resolvedExecutable: '${macos.path}/Robot Studio',
+        resolvedExecutable: '${macos.path}/RobotStudio',
       );
       expect(found, isNotNull);
       expect(File(found!).existsSync(), isTrue);
