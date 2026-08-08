@@ -741,7 +741,6 @@ void main() {
             query: '',
             selected: null,
             robotInstalled: true,
-            robotVersion: '7.0',
             hasActiveEnvironment: true,
             onQueryChanged: (_) {},
             onSortChanged: (_) {},
@@ -760,8 +759,13 @@ void main() {
 
     expect(find.text('Package Manager'), findsOneWidget);
     expect(find.text('robotframework'), findsOneWidget);
-    expect(find.textContaining('Robot Framework 7.0'), findsOneWidget);
-    expect(find.text('Update'), findsWidgets);
+    expect(find.text('NAME'), findsOneWidget);
+    expect(find.text('VERSION'), findsOneWidget);
+    expect(find.text('7.0'), findsOneWidget);
+    expect(find.text('7.1'), findsOneWidget);
+    expect(find.textContaining('Robot Framework 7.0'), findsNothing);
+    expect(find.byTooltip('Update to 7.1'), findsOneWidget);
+    expect(find.byTooltip('Uninstall'), findsOneWidget);
     expect(find.text('Import requirements'), findsOneWidget);
     expect(find.text('Export requirements'), findsOneWidget);
     await tester.tap(find.text('Import requirements'));

@@ -9,7 +9,8 @@ Rank tiers (lower is better):
 
 Ties break on match position / span, then the package name. Fuzzy matching is
 intentionally conservative: query must be at least two characters, every
-character must appear in order, and no summary-only fuzzy matching.
+character must appear in order, the match must start at a token boundary
+(name start or after ``-``), and no summary-only fuzzy matching.
 """
 
 from __future__ import annotations
@@ -62,6 +63,8 @@ def package_match_key(
         return (_TIER_SUBSTRING, idx, n)
 
     # Fuzzy: ordered subsequence only — never for single-character queries.
+    # First character must land on a token boundary so letter-soup hits like
+    # "robot" ⊂ "trio-websocket" do not match.
     if len(q) >= 2:
         span = _subsequence_span(q, n)
         if span is not None:
@@ -115,16 +118,24 @@ def _field(item: Any, attr: str) -> Any:
     return getattr(item, attr, None)
 
 
+def _is_token_start(name: str, index: int) -> bool:
+    return index == 0 or name[index - 1] == "-"
+
+
 def _subsequence_span(query: str, name: str) -> int | None:
-    """Smallest window in *name* that covers *query* as an ordered subsequence."""
-    qi = 0
-    start = 0
-    for index, char in enumerate(name):
-        if char != query[qi]:
+    """Smallest token-anchored window covering *query* as an ordered subsequence."""
+    best: int | None = None
+    for start, char in enumerate(name):
+        if char != query[0] or not _is_token_start(name, start):
             continue
-        if qi == 0:
-            start = index
-        qi += 1
-        if qi == len(query):
-            return index - start + 1
-    return None
+        qi = 1
+        for index in range(start + 1, len(name)):
+            if name[index] != query[qi]:
+                continue
+            qi += 1
+            if qi == len(query):
+                span = index - start + 1
+                if best is None or span < best:
+                    best = span
+                break
+    return best

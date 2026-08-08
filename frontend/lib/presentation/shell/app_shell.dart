@@ -5660,7 +5660,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         query: _packageQuery,
         selected: _selectedPackage,
         robotInstalled: _robotFrameworkInstalled,
-        robotVersion: _robotFrameworkVersion,
         hasActiveEnvironment: _activeEnvironment != null,
         onQueryChanged: (value) {
           setState(() => _packageQuery = value);

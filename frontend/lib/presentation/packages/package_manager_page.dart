@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/package_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
-import '../widgets/status_badge.dart';
 
 class PackageManagerPage extends StatelessWidget {
   const PackageManagerPage({
@@ -14,7 +13,6 @@ class PackageManagerPage extends StatelessWidget {
     required this.query,
     required this.selected,
     required this.robotInstalled,
-    required this.robotVersion,
     required this.hasActiveEnvironment,
     required this.onQueryChanged,
     required this.onSortChanged,
@@ -34,7 +32,6 @@ class PackageManagerPage extends StatelessWidget {
   final String query;
   final PackageInfo? selected;
   final bool robotInstalled;
-  final String? robotVersion;
   final bool hasActiveEnvironment;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<PackageSort> onSortChanged;
@@ -83,19 +80,19 @@ class PackageManagerPage extends StatelessWidget {
                   icon: const Icon(Icons.refresh, size: 16),
                   label: const Text('Refresh'),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpacing.sm),
                 OutlinedButton.icon(
                   onPressed: hasActiveEnvironment ? onImportRequirements : null,
                   icon: const Icon(Icons.file_download_outlined, size: 16),
                   label: const Text('Import requirements'),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpacing.sm),
                 OutlinedButton.icon(
                   onPressed: hasActiveEnvironment ? onExportRequirements : null,
                   icon: const Icon(Icons.file_upload_outlined, size: 16),
                   label: const Text('Export requirements'),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpacing.sm),
                 FilledButton.icon(
                   onPressed: hasActiveEnvironment ? onSearchPyPI : null,
                   icon: const Icon(Icons.search, size: 16),
@@ -108,25 +105,11 @@ class PackageManagerPage extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
               children: [
-                if (robotInstalled)
-                  StatusBadge(
-                    label: 'Robot Framework ${robotVersion ?? ''}'.trim(),
-                    filled: true,
-                    dotColor: context.palette.success,
-                  )
-                else
-                  StatusBadge(
-                    label: 'Robot Framework Missing',
-                    filled: false,
-                    dotColor: context.palette.warning,
-                  ),
-                if (!robotInstalled && hasActiveEnvironment) ...[
-                  const SizedBox(width: 10),
+                if (!robotInstalled && hasActiveEnvironment)
                   TextButton(
                     onPressed: onInstallRobot,
                     child: const Text('Install Robot Framework'),
                   ),
-                ],
                 const Spacer(),
                 SizedBox(
                   width: 220,
@@ -138,7 +121,7 @@ class PackageManagerPage extends StatelessWidget {
                     onChanged: onQueryChanged,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpacing.md),
                 DropdownButton<PackageSort>(
                   value: sort,
                   isDense: true,
@@ -162,7 +145,7 @@ class PackageManagerPage extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           const Divider(height: 1),
           Expanded(
             child: !hasActiveEnvironment
@@ -184,23 +167,27 @@ class PackageManagerPage extends StatelessWidget {
                     actionLabel: 'Search PyPI',
                     onAction: onSearchPyPI,
                   )
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    itemCount: packages.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final package = packages[index];
-                      return _PackageRow(
-                        package: package,
-                        selected: selected?.name == package.name,
-                        onTap: () => onSelect(package),
-                        onUpdate: () => onUpdate(package),
-                        onUninstall: () => onUninstall(package),
-                      );
-                    },
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _PackageTableHeader(),
+                      Divider(height: 1, color: context.palette.borderSubtle),
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: packages.length,
+                          itemBuilder: (context, index) {
+                            final package = packages[index];
+                            return _PackageTableRow(
+                              package: package,
+                              selected: selected?.name == package.name,
+                              onTap: () => onSelect(package),
+                              onUpdate: () => onUpdate(package),
+                              onUninstall: () => onUninstall(package),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
           ),
         ],
@@ -209,8 +196,59 @@ class PackageManagerPage extends StatelessWidget {
   }
 }
 
-class _PackageRow extends StatelessWidget {
-  const _PackageRow({
+/// Shared column widths for header + body rows.
+abstract final class _PackageColumns {
+  static const nameFlex = 3;
+  static const versionFlex = 2;
+  static const latestFlex = 2;
+  static const summaryFlex = 4;
+  static const actionsWidth = 80.0;
+  static const rowHeight = 34.0;
+  static const horizontalPadding = EdgeInsets.symmetric(horizontal: 16);
+}
+
+class _PackageTableHeader extends StatelessWidget {
+  const _PackageTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      fontSize: 10.5,
+      letterSpacing: 0.4,
+      fontWeight: FontWeight.w600,
+      color: context.palette.textMuted,
+    );
+    return Container(
+      height: 28,
+      color: context.palette.surface,
+      padding: _PackageColumns.horizontalPadding,
+      child: Row(
+        children: [
+          Expanded(
+            flex: _PackageColumns.nameFlex,
+            child: Text('NAME', style: style),
+          ),
+          Expanded(
+            flex: _PackageColumns.versionFlex,
+            child: Text('VERSION', style: style),
+          ),
+          Expanded(
+            flex: _PackageColumns.latestFlex,
+            child: Text('LATEST', style: style),
+          ),
+          Expanded(
+            flex: _PackageColumns.summaryFlex,
+            child: Text('SUMMARY', style: style),
+          ),
+          const SizedBox(width: _PackageColumns.actionsWidth),
+        ],
+      ),
+    );
+  }
+}
+
+class _PackageTableRow extends StatelessWidget {
+  const _PackageTableRow({
     required this.package,
     required this.selected,
     required this.onTap,
@@ -227,62 +265,132 @@ class _PackageRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pkg = package;
+    final latest = pkg.latestVersion;
+    final showUpdate = pkg.updateAvailable && latest != null;
+
     return Material(
-      color: selected ? context.palette.accentSoft : context.palette.surface,
-      borderRadius: BorderRadius.circular(AppRadii.md),
+      color: selected ? context.palette.accentSoft : Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadii.md),
+        hoverColor: context.palette.surfaceHover,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          height: _PackageColumns.rowHeight,
+          padding: _PackageColumns.horizontalPadding,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            border: Border.all(
-              color: selected ? context.palette.accent : context.palette.border,
+            border: Border(
+              bottom: BorderSide(color: context.palette.borderSubtle),
+              left: BorderSide(
+                color: selected ? context.palette.accent : Colors.transparent,
+                width: 2,
+              ),
             ),
           ),
           child: Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          pkg.name,
-                          style: TextStyle(
-                            color: context.palette.textPrimary,
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (pkg.updateAvailable)
-                          StatusBadge(
-                            label: 'Update',
-                            filled: true,
-                            dotColor: context.palette.warning,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${pkg.version}'
-                      '${pkg.latestVersion != null ? ' → ${pkg.latestVersion}' : ''}'
-                      '${pkg.summary != null ? '  ·  ${pkg.summary}' : ''}',
-                      maxLines: 2,
+                flex: _PackageColumns.nameFlex,
+                child: Text(
+                  pkg.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: context.palette.textPrimary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: _PackageColumns.versionFlex,
+                child: Text(
+                  pkg.version,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Menlo',
+                    fontSize: 11.5,
+                    color: context.palette.textSecondary,
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: _PackageColumns.latestFlex,
+                child: Text(
+                  showUpdate ? latest : (latest ?? '—'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Menlo',
+                    fontSize: 11.5,
+                    fontWeight: showUpdate ? FontWeight.w600 : FontWeight.w400,
+                    color: showUpdate
+                        ? context.palette.warning
+                        : context.palette.textMuted,
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: _PackageColumns.summaryFlex,
+                child: Builder(
+                  builder: (context) {
+                    final summary = pkg.summary?.trim() ?? '';
+                    final label = summary.isNotEmpty ? summary : '—';
+                    final text = Text(
+                      label,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: context.palette.textMuted,
+                      ),
+                    );
+                    if (summary.isEmpty) return text;
+                    return Tooltip(
+                      message: summary,
+                      waitDuration: const Duration(milliseconds: 400),
+                      child: text,
+                    );
+                  },
+                ),
+              ),
+              SizedBox(
+                width: _PackageColumns.actionsWidth,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (showUpdate)
+                      IconButton(
+                        tooltip: 'Update to $latest',
+                        onPressed: onUpdate,
+                        iconSize: 16,
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 28,
+                          height: 28,
+                        ),
+                        icon: Icon(
+                          Icons.upgrade,
+                          color: context.palette.warning,
+                        ),
+                      ),
+                    IconButton(
+                      tooltip: 'Uninstall',
+                      onPressed: onUninstall,
+                      iconSize: 16,
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 28,
+                        height: 28,
+                      ),
+                      icon: Icon(
+                        Icons.delete_outline,
+                        color: context.palette.textSecondary,
+                      ),
                     ),
                   ],
                 ),
-              ),
-              if (pkg.updateAvailable)
-                TextButton(onPressed: onUpdate, child: const Text('Update')),
-              TextButton(
-                onPressed: onUninstall,
-                child: const Text('Uninstall'),
               ),
             ],
           ),

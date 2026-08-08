@@ -42,9 +42,21 @@ def test_single_char_does_not_fuzzy_match_everything() -> None:
     # A character absent from the name does not fuzzy-match via subsequence.
     assert package_match_key("z", "robotframework") is None
     assert package_match_key("a", "xyz") is None
-    # Two+ chars may fuzzy-match as an ordered subsequence.
+    # Two+ chars may fuzzy-match as an ordered subsequence from a token start.
     fuzzy = package_match_key("rf", "robotframework")
     assert fuzzy is not None and fuzzy[0] == 3
+
+
+def test_fuzzy_requires_token_boundary_start() -> None:
+    # "robot" is an ordered subsequence of "trio-websocket" (r…o…b…o…t) but
+    # does not start on a token boundary, so it must not match.
+    assert package_match_key("robot", "trio-websocket") is None
+    assert "trio-websocket" not in [
+        item.name for item in rank_packages([_pkg("trio-websocket")], "robot")
+    ]
+    # Token-initial fuzzy still works (w…s after the hyphen).
+    ws = package_match_key("ws", "trio-websocket")
+    assert ws is not None and ws[0] == 3
 
 
 def test_summary_only_ranks_after_name_matches() -> None:
