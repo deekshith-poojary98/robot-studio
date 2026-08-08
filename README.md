@@ -3,7 +3,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/deekshith-poojary98/robot-studio/main/docs/branding/logo-wordmark-readme.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/deekshith-poojary98/robot-studio/main/docs/branding/logo-wordmark-readme-light.png">
-  <img alt="Robot Studio Logo" src="https://raw.githubusercontent.com/deekshith-poojary98/robot-studio/main/docs/branding/logo-wordmark-readme-light.png">
+  <img alt="Robot Studio Logo" src="https://raw.githubusercontent.com/deekshith-poojary98/robot-studio/main/docs/branding/logo-wordmark-readme-light.png" width="200">
 </picture>
 
 # Robot Studio
