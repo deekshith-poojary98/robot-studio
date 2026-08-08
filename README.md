@@ -6,8 +6,6 @@
   <img alt="Robot Studio Logo" src="https://raw.githubusercontent.com/deekshith-poojary98/robot-studio/main/docs/branding/logo-wordmark-readme-light.png" width="200">
 </picture>
 
-# Robot Studio
-
 </div>
 
 A cross-platform desktop IDE for [Robot Framework](https://robotframework.org/) development.
