@@ -614,9 +614,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
             decoration: BoxDecoration(
               color: item.swatch,
               shape: BoxShape.circle,
-              border: Border.all(
-                color: context.palette.border,
-              ),
+              border: Border.all(color: context.palette.border),
             ),
           ),
           onChanged: (value) {

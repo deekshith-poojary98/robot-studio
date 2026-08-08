@@ -113,16 +113,10 @@ class _RobotStudioAppState extends State<RobotStudioApp>
               title: 'Robot Studio',
               debugShowCheckedModeBanner: false,
               theme: buildAppTheme(
-                AppPalette.forAccent(
-                  accentPref,
-                  brightness: Brightness.light,
-                ),
+                AppPalette.forAccent(accentPref, brightness: Brightness.light),
               ),
               darkTheme: buildAppTheme(
-                AppPalette.forAccent(
-                  accentPref,
-                  brightness: Brightness.dark,
-                ),
+                AppPalette.forAccent(accentPref, brightness: Brightness.dark),
               ),
               themeMode: appThemeModeFor(preference),
               home:

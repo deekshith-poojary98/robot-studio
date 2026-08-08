@@ -177,9 +177,7 @@ class AppearanceSettings {
   factory AppearanceSettings.fromJson(Map<String, dynamic> json) {
     return AppearanceSettings(
       theme: AppThemePreference.fromApi(json['theme'] as String? ?? 'dark'),
-      accent: AppAccentPreference.fromApi(
-        json['accent'] as String? ?? 'teal',
-      ),
+      accent: AppAccentPreference.fromApi(json['accent'] as String? ?? 'teal'),
       restoreLastProject: json['restore_last_project'] as bool? ?? true,
     );
   }
@@ -189,10 +187,10 @@ class AppearanceSettings {
   final bool restoreLastProject;
 
   Map<String, dynamic> toJson() => {
-        'theme': theme.apiValue,
-        'accent': accent.apiValue,
-        'restore_last_project': restoreLastProject,
-      };
+    'theme': theme.apiValue,
+    'accent': accent.apiValue,
+    'restore_last_project': restoreLastProject,
+  };
 
   AppearanceSettings copyWith({
     AppThemePreference? theme,

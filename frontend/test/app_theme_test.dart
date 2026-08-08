@@ -107,10 +107,7 @@ void main() {
       expect(blue.accent, isNot(AppPalette.dark.accent));
       expect(blue.background, AppPalette.dark.background);
       expect(blue.textPrimary, AppPalette.dark.textPrimary);
-      expect(
-        _contrast(blue.onAccent, blue.accent),
-        greaterThanOrEqualTo(3.0),
-      );
+      expect(_contrast(blue.onAccent, blue.accent), greaterThanOrEqualTo(3.0));
     });
   });
 
