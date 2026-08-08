@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../editor/editor_syntax.dart';
 
 /// Documentation dialects a library docstring can be written in.
 ///
@@ -217,6 +218,7 @@ class _DocBlock {
     this.level = 1,
     this.prefix = '',
     this.markdown = false,
+    this.robotSyntax = false,
     this.rows = const [],
     this.hasHeaderRow = false,
   });
@@ -228,6 +230,9 @@ class _DocBlock {
 
   /// Which inline dialect applies to [text].
   final bool markdown;
+
+  /// When [kind] is code, paint with the editor's Robot grammar.
+  final bool robotSyntax;
 
   /// Cells for [_BlockKind.table].
   final List<List<String>> rows;
@@ -244,6 +249,38 @@ final _robotTableRow = RegExp(r'^\| (.* |)\|$');
 
 bool _isRobotPreformatted(String line) =>
     line.startsWith('| ') || line.trimRight() == '|';
+
+/// RF section headers accept 3+ asterisks; library docs often pad them
+/// (``***** Settings *****``) so they are not eaten by bold ``*text*`` markup.
+/// Examples should show the canonical ``*** Settings ***`` form.
+final _robotSectionHeader = RegExp(
+  r'^(\s*)\*{3,}\s+(\S(?:.*\S)?)\s+\*{3,}\s*$',
+);
+
+String _normalizeRobotExampleLine(String line) {
+  final match = _robotSectionHeader.firstMatch(line);
+  if (match == null) return line;
+  return '${match.group(1)}*** ${match.group(2)} ***';
+}
+
+/// Canonicalises padded RF section headers in example blocks.
+@visibleForTesting
+String normalizeRobotExampleLine(String line) =>
+    _normalizeRobotExampleLine(line);
+
+/// True when a Markdown fence/indent looks like Robot Framework source.
+bool _looksLikeRobotExample(String code) {
+  return RegExp(
+        r'^\*{3}\s*(Settings?|Variables?|Test Cases?|Tasks?|Keywords?)',
+        multiLine: true,
+        caseSensitive: false,
+      ).hasMatch(code) ||
+      RegExp(
+        r'^(Library|Resource|Variables)\b',
+        multiLine: true,
+        caseSensitive: false,
+      ).hasMatch(code);
+}
 
 /// Parses Robot Framework markup, following libdoc's own formatter precedence:
 /// table, preformatted, list, heading, ruler, then paragraph.
@@ -292,13 +329,16 @@ List<_DocBlock> _parseRobotBlocks(String documentation) {
       while (index < lines.length && _isRobotPreformatted(lines[index])) {
         // libdoc drops the leading '| ' marker from preformatted lines.
         final raw = lines[index];
-        code.add(raw.startsWith('| ') ? raw.substring(2) : '');
+        final body = raw.startsWith('| ') ? raw.substring(2) : '';
+        code.add(_normalizeRobotExampleLine(body));
         index++;
       }
       while (code.isNotEmpty && code.last.trim().isEmpty) {
         code.removeLast();
       }
-      blocks.add(_DocBlock(_BlockKind.code, code.join('\n')));
+      blocks.add(
+        _DocBlock(_BlockKind.code, code.join('\n'), robotSyntax: true),
+      );
       continue;
     }
 
@@ -412,7 +452,15 @@ List<_DocBlock> _parseMarkdownBlocks(String documentation) {
       }
       // Skip the closing fence when present; an unclosed fence just ends.
       if (index < lines.length) index++;
-      blocks.add(_DocBlock(_BlockKind.code, code.join('\n')));
+      final body = code.join('\n');
+      blocks.add(
+        _DocBlock(
+          _BlockKind.code,
+          body,
+          markdown: true,
+          robotSyntax: _looksLikeRobotExample(body),
+        ),
+      );
       continue;
     }
 
@@ -509,7 +557,15 @@ List<_DocBlock> _parseMarkdownBlocks(String documentation) {
       while (code.isNotEmpty && code.last.trim().isEmpty) {
         code.removeLast();
       }
-      blocks.add(_DocBlock(_BlockKind.code, code.join('\n')));
+      final body = code.join('\n');
+      blocks.add(
+        _DocBlock(
+          _BlockKind.code,
+          body,
+          markdown: true,
+          robotSyntax: _looksLikeRobotExample(body),
+        ),
+      );
       continue;
     }
 
@@ -686,15 +742,28 @@ class _DocumentationBlock extends StatelessWidget {
         ),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          child: SelectableText(
-            block.text,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 11,
-              height: 1.45,
-              color: context.palette.textPrimary,
-            ),
-          ),
+          child: block.robotSyntax
+              ? SelectableText.rich(
+                  highlightRobotSource(
+                    block.text,
+                    context.palette,
+                    base: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      height: 1.45,
+                      color: context.palette.textPrimary,
+                    ),
+                  ),
+                )
+              : SelectableText(
+                  block.text,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    height: 1.45,
+                    color: context.palette.textPrimary,
+                  ),
+                ),
         ),
       ),
       _BlockKind.paragraph => SelectableText.rich(

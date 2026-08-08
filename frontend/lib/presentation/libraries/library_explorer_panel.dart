@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/library_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../editor/editor_syntax.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/robot_documentation.dart';
 import '../widgets/skeleton_list.dart';
@@ -358,14 +359,18 @@ class _KeywordDetail extends StatelessWidget {
           for (final param in keyword.parameters)
             Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: Text(
-                param.displayLabel,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: param.required
-                      ? FontWeight.w600
-                      : FontWeight.w400,
-                  color: context.palette.textPrimary,
+              child: SelectableText.rich(
+                highlightKeywordArgument(
+                  param.displayLabel,
+                  context.palette,
+                  base: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    fontWeight: param.required
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                    color: context.palette.textPrimary,
+                  ),
                 ),
               ),
             ),

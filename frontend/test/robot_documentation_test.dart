@@ -69,14 +69,15 @@ List<String> _codeRuns(WidgetTester tester, Finder finder) =>
     _styledRuns(tester, finder, (style) => style.fontFamily == 'monospace');
 
 /// The text of a code block, whose key sits on the wrapping container.
-String _codeBlock(WidgetTester tester) => tester
-    .widget<SelectableText>(
-      find.descendant(
-        of: find.byKey(const Key('robot-doc-code')),
-        matching: find.byType(SelectableText),
-      ),
-    )
-    .data!;
+String _codeBlock(WidgetTester tester) {
+  final text = tester.widget<SelectableText>(
+    find.descendant(
+      of: find.byKey(const Key('robot-doc-code')),
+      matching: find.byType(SelectableText),
+    ),
+  );
+  return text.data ?? text.textSpan?.toPlainText() ?? '';
+}
 
 void main() {
   group('Robot Framework markup', () {
@@ -147,11 +148,15 @@ continues on another line.
       tester,
     ) async {
       // A '| ' prefix marks preformatted text; libdoc strips it. Without a
-      // closing pipe these lines are NOT a table.
+      // closing pipe these lines are NOT a table. Authors often pad section
+      // headers (***** … *****) to escape bold markup — we show *** … ***.
       const documentation = '''
 *Examples*
 | ***** Settings *****
 | Library    ExcelSage
+|
+| ***** Variables ******
+| @{data}    a    b
 |
 | ***** Test Cases *****
 | Example
@@ -162,11 +167,71 @@ continues on another line.
 
       expect(find.byKey(const Key('robot-doc-table')), findsNothing);
       final code = _codeBlock(tester);
-      expect(code, contains('***** Settings *****'));
+      expect(code, contains('*** Settings ***'));
+      expect(code, isNot(contains('***** Settings')));
+      expect(code, contains('*** Variables ***'));
+      expect(code, isNot(contains('******')));
       expect(code, contains('Library    ExcelSage'));
       expect(code, isNot(contains('|')));
       // The blank '|' line survives as a blank line inside the block.
-      expect(code, contains('\n\n***** Test Cases *****'));
+      expect(code, contains('\n\n*** Test Cases ***'));
+    });
+
+    testWidgets('example code blocks use editor Robot syntax colors', (
+      tester,
+    ) async {
+      const documentation = '''
+*Examples*
+| *** Settings ***
+| Library    ExcelSage
+| *** Test Cases ***
+| Example
+|    Open Workbook    \${path}
+''';
+      await _pump(tester, documentation);
+
+      final codeFinder = find.descendant(
+        of: find.byKey(const Key('robot-doc-code')),
+        matching: find.byType(SelectableText),
+      );
+      final text = tester.widget<SelectableText>(codeFinder);
+      expect(text.textSpan, isNotNull);
+      final plain = text.textSpan!.toPlainText();
+      expect(plain, contains('*** Settings ***'));
+      expect(plain, contains('Library'));
+      // Section / keyword tokens should not all share one flat color.
+      final colors = <Color>{};
+      void collect(InlineSpan span) {
+        if (span is TextSpan) {
+          final color = span.style?.color;
+          if (color != null) colors.add(color);
+          for (final child in span.children ?? const <InlineSpan>[]) {
+            collect(child);
+          }
+        }
+      }
+
+      collect(text.textSpan!);
+      expect(colors.length, greaterThan(1));
+    });
+
+    test('padded section headers normalize to three asterisks', () {
+      expect(
+        normalizeRobotExampleLine('***** Settings *****'),
+        '*** Settings ***',
+      );
+      expect(
+        normalizeRobotExampleLine('***** Variables ******'),
+        '*** Variables ***',
+      );
+      expect(
+        normalizeRobotExampleLine('  *** Keywords ***'),
+        '  *** Keywords ***',
+      );
+      expect(
+        normalizeRobotExampleLine('Library    ExcelSage'),
+        'Library    ExcelSage',
+      );
     });
 
     testWidgets('a single backtick is a keyword link, not code', (

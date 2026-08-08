@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/painting.dart';
 import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/all.dart';
@@ -262,3 +263,263 @@ Map<String, TextStyle> editorHighlightTheme(AppPalette palette) => {
   // Robot-specific aliases from langRobot (section/keyword/variable/string…)
   ...robotHighlightTheme(palette.brightness),
 };
+
+Highlight? _sharedHighlightEngine;
+
+Highlight _sharedHighlight() {
+  final existing = _sharedHighlightEngine;
+  if (existing != null) return existing;
+  final highlight = Highlight()..registerLanguage('robot', langRobot);
+  final python = builtinAllLanguages['python'];
+  if (python != null) {
+    highlight.registerLanguage('python', python);
+  }
+  _sharedHighlightEngine = highlight;
+  return highlight;
+}
+
+/// Highlight source with a registered language and the editor token theme.
+TextSpan highlightSource(
+  String code,
+  AppPalette palette, {
+  required String language,
+  TextStyle? base,
+}) {
+  final baseStyle =
+      base ??
+      TextStyle(
+        fontFamily: 'monospace',
+        fontSize: 11,
+        height: 1.45,
+        color: palette.textPrimary,
+      );
+  if (code.isEmpty) {
+    return TextSpan(text: '', style: baseStyle);
+  }
+  try {
+    final result = _sharedHighlight().highlight(code: code, language: language);
+    final renderer = TextSpanRenderer(baseStyle, editorHighlightTheme(palette));
+    result.render(renderer);
+    return renderer.span ?? TextSpan(text: code, style: baseStyle);
+  } catch (_) {
+    return TextSpan(text: code, style: baseStyle);
+  }
+}
+
+/// Highlight Robot Framework source with the same theme as the editor.
+///
+/// Used by Library docs example blocks so they match open `.robot` tabs.
+TextSpan highlightRobotSource(
+  String code,
+  AppPalette palette, {
+  TextStyle? base,
+}) => highlightSource(code, palette, language: 'robot', base: base);
+
+/// Highlight a keyword argument label from libdoc / ArgInfo.
+///
+/// Libdoc emits Python-style typed signatures (`name: str | None = None`) for
+/// library keywords — those get a dedicated signature highlighter so custom
+/// types (`WebElement`), unions, and unquoted defaults are colored. Robot
+/// variable forms (`${path}`, `@{args}`) keep the Robot grammar.
+TextSpan highlightKeywordArgument(
+  String label,
+  AppPalette palette, {
+  TextStyle? base,
+}) {
+  final baseStyle =
+      base ??
+      TextStyle(
+        fontFamily: 'monospace',
+        fontSize: 12,
+        color: palette.textPrimary,
+      );
+  if (label.isEmpty) {
+    return TextSpan(text: '', style: baseStyle);
+  }
+  if (_argumentHighlightLanguage(label) == 'robot') {
+    return highlightRobotSource(label, palette, base: baseStyle);
+  }
+  return _highlightTypedArgument(label, palette, baseStyle);
+}
+
+@visibleForTesting
+String argumentHighlightLanguage(String label) =>
+    _argumentHighlightLanguage(label);
+
+String _argumentHighlightLanguage(String label) {
+  if (RegExp(r'[\$@&%]\{').hasMatch(label)) return 'robot';
+  return 'typed';
+}
+
+/// VS Code-like colors for `name: Type | Other = default` libdoc labels.
+TextSpan _highlightTypedArgument(
+  String label,
+  AppPalette palette,
+  TextStyle base,
+) {
+  final theme = robotHighlightTheme(palette.brightness);
+  TextStyle token(String role, [TextStyle? extra]) {
+    final roleStyle = theme[role];
+    return base.merge(roleStyle).merge(extra);
+  }
+
+  final nameStyle = token(
+    'variable',
+    const TextStyle(fontWeight: FontWeight.w600),
+  );
+  final typeStyle = token('built_in');
+  final literalStyle = token('keyword');
+  final stringStyle = token('string');
+  final numberStyle = token('number');
+  final punctStyle = base.merge(TextStyle(color: palette.textSecondary));
+
+  final children = <InlineSpan>[];
+  var i = 0;
+
+  void emit(String text, TextStyle style) {
+    if (text.isEmpty) return;
+    children.add(TextSpan(text: text, style: style));
+  }
+
+  // Leading * / ** (varargs / kwargs).
+  if (label.startsWith('**')) {
+    emit('**', punctStyle);
+    i = 2;
+  } else if (label.startsWith('*')) {
+    emit('*', punctStyle);
+    i = 1;
+  }
+
+  // Parameter name.
+  final nameMatch = RegExp(r'[A-Za-z_][\w]*').matchAsPrefix(label, i);
+  if (nameMatch == null) {
+    emit(label.substring(i), base);
+    return TextSpan(style: base, children: children);
+  }
+  emit(nameMatch.group(0)!, nameStyle);
+  i = nameMatch.end;
+
+  // Optional `: type`
+  if (i < label.length && label[i] == ':') {
+    emit(':', punctStyle);
+    i++;
+    while (i < label.length && label[i] == ' ') {
+      emit(' ', base);
+      i++;
+    }
+    // Type runs until top-level ` = ` (spaces around =).
+    final typeEnd = _topLevelDefaultEquals(label, i);
+    _emitTypeExpression(
+      label.substring(i, typeEnd),
+      emit: emit,
+      typeStyle: typeStyle,
+      literalStyle: literalStyle,
+      punctStyle: punctStyle,
+      base: base,
+    );
+    i = typeEnd;
+  }
+
+  // Optional ` = default`
+  final eq = RegExp(r'\s*=\s*').matchAsPrefix(label, i);
+  if (eq != null) {
+    emit(eq.group(0)!, punctStyle);
+    i = eq.end;
+    final defaultText = label.substring(i);
+    emit(
+      defaultText,
+      _defaultStyle(defaultText, literalStyle, stringStyle, numberStyle, base),
+    );
+  } else if (i < label.length) {
+    emit(label.substring(i), base);
+  }
+
+  return TextSpan(style: base, children: children);
+}
+
+/// Index of the `=` that starts a default value, or [length] if none.
+///
+/// Ignores `=` inside `[…]` generics (unusual) and requires the `=` to be a
+/// default separator — libdoc uses `name: T = value`.
+int _topLevelDefaultEquals(String label, int start) {
+  var depth = 0;
+  for (var i = start; i < label.length; i++) {
+    final ch = label[i];
+    if (ch == '[') {
+      depth++;
+    } else if (ch == ']') {
+      if (depth > 0) depth--;
+    } else if (ch == '=' && depth == 0) {
+      // Prefer ` = ` form; also accept bare `=` after the type.
+      return i;
+    }
+  }
+  return label.length;
+}
+
+void _emitTypeExpression(
+  String typeExpr, {
+  required void Function(String text, TextStyle style) emit,
+  required TextStyle typeStyle,
+  required TextStyle literalStyle,
+  required TextStyle punctStyle,
+  required TextStyle base,
+}) {
+  final ident = RegExp(r'[A-Za-z_][\w]*');
+  var i = 0;
+  while (i < typeExpr.length) {
+    final ch = typeExpr[i];
+    if (ch == ' ' ||
+        ch == '|' ||
+        ch == '[' ||
+        ch == ']' ||
+        ch == ',' ||
+        ch == '.' ||
+        ch == ':') {
+      emit(ch, punctStyle);
+      i++;
+      continue;
+    }
+    final m = ident.matchAsPrefix(typeExpr, i);
+    if (m != null) {
+      final word = m.group(0)!;
+      emit(word, _isLiteralName(word) ? literalStyle : typeStyle);
+      i = m.end;
+      continue;
+    }
+    emit(ch, base);
+    i++;
+  }
+}
+
+bool _isLiteralName(String word) {
+  switch (word) {
+    case 'None':
+    case 'True':
+    case 'False':
+    case 'Ellipsis':
+    case '...':
+      return true;
+    default:
+      return false;
+  }
+}
+
+TextStyle _defaultStyle(
+  String value,
+  TextStyle literalStyle,
+  TextStyle stringStyle,
+  TextStyle numberStyle,
+  TextStyle base,
+) {
+  final trimmed = value.trim();
+  if (_isLiteralName(trimmed)) return literalStyle;
+  if (RegExp(r'^-?\d+(\.\d+)?$').hasMatch(trimmed)) return numberStyle;
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return stringStyle;
+  }
+  // Libdoc often omits quotes on string defaults (file names, CSS, etc.).
+  if (trimmed.isNotEmpty) return stringStyle;
+  return base;
+}

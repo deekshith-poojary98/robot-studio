@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/index_info.dart';
@@ -129,11 +131,60 @@ class SignatureHelpOverlay extends StatelessWidget {
   }
 }
 
+/// Result of [computeHoverTooltipPlacement].
+class HoverTooltipPlacement {
+  const HoverTooltipPlacement({required this.left, required this.top});
+
+  final double left;
+  final double top;
+}
+
+/// Prefer below the anchor; flip above / shift left when the card would
+/// overflow the editor viewport (VS Code-style).
+HoverTooltipPlacement computeHoverTooltipPlacement({
+  required Offset anchor,
+  required Size viewport,
+  required Size tooltipSize,
+  double lineHeight = 20,
+  double gap = 4,
+  double margin = 8,
+  double offsetX = 12,
+}) {
+  final width = tooltipSize.width
+      .clamp(EditorHoverTooltip.minWidth, EditorHoverTooltip.maxWidth)
+      .toDouble();
+  final height = tooltipSize.height
+      .clamp(48.0, EditorHoverTooltip.maxHeight)
+      .toDouble();
+
+  final belowTop = anchor.dy + lineHeight + gap;
+  final spaceBelow = viewport.height - belowTop - margin;
+  final spaceAbove = anchor.dy - gap - margin;
+  final preferAbove = spaceBelow < height && spaceAbove > spaceBelow;
+
+  var top = preferAbove ? anchor.dy - gap - height : belowTop;
+  final maxTop = math.max(margin, viewport.height - height - margin);
+  top = top.clamp(margin, maxTop).toDouble();
+
+  var left = anchor.dx + offsetX;
+  final maxLeft = math.max(margin, viewport.width - width - margin);
+  if (left + width > viewport.width - margin) {
+    left = viewport.width - width - margin;
+  }
+  left = left.clamp(margin, maxLeft).toDouble();
+
+  return HoverTooltipPlacement(left: left, top: top);
+}
+
 /// VS Code-style hover / signature card shown near the pointer.
 class EditorHoverTooltip extends StatelessWidget {
   const EditorHoverTooltip({super.key, required this.signature});
 
   final SignatureHelpInfo signature;
+
+  static const double maxWidth = 440;
+  static const double minWidth = 180;
+  static const double maxHeight = 280;
 
   @override
   Widget build(BuildContext context) {
@@ -142,13 +193,17 @@ class EditorHoverTooltip extends StatelessWidget {
       color: context.palette.surface,
       borderRadius: BorderRadius.circular(6),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440, minWidth: 180),
+        constraints: const BoxConstraints(
+          maxWidth: maxWidth,
+          minWidth: minWidth,
+          maxHeight: maxHeight,
+        ),
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(6),
             border: Border.all(color: context.palette.borderSubtle),
           ),
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,8 +254,6 @@ class EditorHoverTooltip extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     signature.documentation,
-                    maxLines: 8,
-                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
                       height: 1.35,
