@@ -13,7 +13,11 @@ The UI cannot reach the local API.
 
 Health is rechecked automatically; once the backend is back, the shell recovers without restarting the UI.
 
-## Create Project / Manage Environments is disabled
+## Cannot open a project on Desktop / Documents (macOS)
+
+If open fails with **Permission denied** (or a bare Internal Server Error), the backend process likely lacks macOS folder access. Start it from **Terminal** with `make backend` — not from a restricted/agent shell — then reopen the project in the app.
+
+## Create Project / Manage Environments… is disabled
 
 Open or create a **project** first. Those actions stay gated on the welcome screen until a project is active.
 
@@ -33,7 +37,7 @@ For projects with thousands of files:
 - Leave the rebuild running — do not treat a long wait as a failure
 - Indexing parses files with multiple workers (capped) while writing the symbol store on one path
 - Prefer editing after the status bar shows the index is synchronized
-- Insights / Search / Go to Symbol stay incomplete until indexing finishes
+- Insights / Search / **Go → Find Symbol in Project…** stay incomplete until indexing finishes
 
 Large rebuilds can feel slower after the first few thousand files if the database is growing —
 Robot Studio keeps symbol writes in one transaction per file and indexes reference lookups so
@@ -57,7 +61,7 @@ Long project runs (thousands of tests) rewrite `output.xml` continuously and str
 - Batches / caps the execution console
 - Keeps Save from waiting on Git refresh
 
-If the UI still feels sticky, hide the Execution panel while the run finishes, or stop the run before heavy editing. Reports still appear when the run completes.
+If the UI still feels sticky, leave the **Tests** / Execution view while the run finishes, or stop the run before heavy editing. Reports still appear when the run completes.
 
 ## Git shows the wrong repository
 
@@ -65,7 +69,7 @@ Git is scoped to the active project folder. Open the project that actually conta
 
 ## Find in Files misses a file type
 
-Add the extension to `ROBOT_STUDIO_CONTENT_SEARCH_EXTENSIONS` — see [Settings reference](/reference/settings/).
+Add the suffix under **Settings → Search → Content Search Extensions** — see [Settings](/reference/settings/).
 
 ## Still stuck?
 

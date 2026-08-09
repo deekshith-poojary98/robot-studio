@@ -7,7 +7,7 @@ Robot Framework needs a Python environment with `robotframework` and your librar
 
 ## Environments
 
-From **Manage Environments** you can:
+From **Manage Environments…** you can:
 
 | Action | Use when |
 |--------|----------|
@@ -24,7 +24,7 @@ The status bar shows **ROBOT** and **PYTHON** versions from the active environme
 
 With an environment active:
 
-1. Open the packages UI.
+1. Open the **Packages** activity-bar rail.
 2. Browse installed packages or search PyPI.
 3. Install, update, or uninstall as needed.
 

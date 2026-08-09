@@ -20,7 +20,7 @@ It is not a generic code editor with a Robot plugin bolted on. The product is bu
 | **Projects** | Open any Robot folder, or create a new project with `tests/`, `resources/`, and `variables/` |
 | **Environments** | Create, import, or activate a venv; install packages from PyPI |
 | **Editor** | Multi-tab Robot editing with completions, diagnostics, go to definition, and outline |
-| **Execution** | Run a file, suite, selection, or whole project with live logs |
+| **Execution** | Run the current `.robot` file, a Tests-tree node, or the whole project with live logs |
 | **Reports** | Browse run history and open `report.html` / `log.html` |
 | **Git** | Status, stage, commit, branches, and diff scoped to the active project |
 

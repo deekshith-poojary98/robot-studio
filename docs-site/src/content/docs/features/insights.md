@@ -47,8 +47,8 @@ Once you have executed suites, Run health shows:
 | Pass / Fail | Outcome totals for the project |
 | Pass/Fail streak | Consecutive matching outcomes from the latest run backward |
 | Duration trend | Recent runs as duration bars (color = outcome), oldest → newest |
-| Last run | Outcome, suite, duration, test counts, and relative time |
-| Top failures | Files with the most failed runs (click to open) |
+| Last run | Outcome, suite, duration, and passed/failed/skipped counts in plain language |
+| Top failures | Suite files with the most failed runs (path variants are merged; click to open) |
 
 **View in Reports** jumps to the report browser for artifacts from those runs.
 

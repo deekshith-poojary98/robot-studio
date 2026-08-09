@@ -1,24 +1,26 @@
 ---
 title: Find code & symbols
-description: Use Find in Files and Symbols search to navigate keywords, variables, and text.
+description: Use Find in Files and Find Symbol in Project to navigate text and indexed names.
 ---
 
 Robot Studio separates **text search** from **indexed symbol search** so each stays fast and predictable.
 
 ## Find in Files
 
-Open the left **Search** rail (`⌘⇧F` / `Ctrl+Shift+F`).
+Open the **Search** activity-bar icon (side panel title: **Find in Files**), or use **Edit → Find in Project…** (`⌘⇧F` / `Ctrl+Shift+F`).
 
 - Searches project text while the editor stays mounted
 - Matches can show the enclosing test, keyword, or variable when the index knows it
-- File types scanned are configurable via `ROBOT_STUDIO_CONTENT_SEARCH_EXTENSIONS`
+- File types and ignore rules are configured in **Settings → Search** (**Content Search Extensions**, **Ignore Patterns**)
 
-## Symbols
+## Find Symbol in Project
 
-Open **View → Symbols** or use the command palette.
+Open **Go → Find Symbol in Project…** (`⌘T` / `Ctrl+T`), or run **Find Symbol in Project** from the command palette.
 
-- Searches indexed keywords, variables, and files
+- Searches indexed keywords, variables, and files **in the open project only**
 - Best when you know the name of a keyword or variable and want to jump to its definition
+
+There is **no Symbols activity-bar rail**. Symbol search is the Go-menu / palette flow above.
 
 ## Indexing
 

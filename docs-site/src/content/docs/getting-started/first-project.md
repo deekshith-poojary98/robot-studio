@@ -17,8 +17,10 @@ You do not pick a “template type” — every new project is a plain Robot Fra
 ## Open an existing project
 
 1. Choose **Open Project**.
-2. Select any folder that already contains Robot Framework files.
+2. Select a folder that looks like a Robot project — for example it contains `.robot` / `.resource` files, or markers such as `requirements.txt`, `pyproject.toml`, `robot.yaml`, or an existing Studio manifest.
 3. Robot Studio will use that folder in place and create `.robotstudio/` as needed.
+
+Empty folders and unrelated trees are rejected. Use **New Project** when you need a seeded layout.
 
 **Recent Projects** on the welcome screen is the fastest way back to work you already opened.
 
@@ -30,7 +32,7 @@ Workspaces are an advanced multi-project container (Open / New / Recent). Most p
 
 Tests run inside a Python environment that has Robot Framework (and your libraries) installed.
 
-1. Open **Manage Environments** from the toolbar or project flow.
+1. Open **Manage Environments…** from the toolbar or project flow.
 2. **Create**, **import**, or **clone** an environment, then **activate** it.
 3. Studio-managed venvs live under `.robotstudio/environments/`. Existing `.venv` / `venv` / `env` folders are also discovered.
 
@@ -38,7 +40,7 @@ If you open a project without an active environment, Robot Studio prompts you �
 
 ## Install packages (optional)
 
-From the packages UI you can:
+From the **Packages** activity-bar rail you can:
 
 - See what is already installed
 - Search PyPI

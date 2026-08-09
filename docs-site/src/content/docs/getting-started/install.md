@@ -1,22 +1,33 @@
 ---
 title: Install
-description: Install the packaged Robot Studio app or run from source for development.
+description: Launch a private beta build, or run from source for development.
 ---
 
-You can use Robot Studio as a **packaged desktop app** (recommended for day-to-day use) or run it from source while contributing.
+:::caution[Private beta]
+Robot Studio beta is **not** distributed via a public download page.
 
-## Packaged app (recommended)
+You need a **beta build provided by the Robot Studio team** (for example a shared `Robot Studio.app` or `RobotStudio.exe`). This guide does not invent a download URL.
 
-Beta builds ship as a normal desktop app. **Double-click to launch** — do not start a Python process by hand.
+**Linux:** there is **no packaged Linux build**. Do not treat Linux as a packaged beta target — use [run from source](#run-from-source-developers) only if you are developing against the repo.
+:::
 
-| Platform | What you get | How to open |
-|----------|--------------|-------------|
+## Packaged beta (recommended for testers)
+
+Once you have the artifact from the team:
+
+1. Place it somewhere convenient (Applications, Desktop, or a shared beta folder).
+2. **Double-click to launch** — do not start a Python process by hand.
+3. Quitting the app stops the embedded backend sidecar.
+
+| Platform | Artifact | How to open |
+|----------|----------|-------------|
 | **macOS** | `Robot Studio.app` | Double-click the app |
 | **Windows** | `RobotStudio.exe` | Double-click the executable |
+| **Linux** | *No packaged beta* | Not a packaged target — see source below |
 
-The package embeds a frozen backend sidecar and starts it on launch. Quitting the app stops the sidecar. App data lives under `~/.robot-studio`.
+App data lives under `~/.robot-studio`.
 
-If you are building packages from this repository:
+If the team builds packages from this repository (maintainers):
 
 ```bash
 make package-macos      # → dist/macos/Robot Studio.app
@@ -25,6 +36,8 @@ make package           # package for the OS you are on
 ```
 
 ## Run from source (developers)
+
+Supported desktop targets when developing from the repository: **macOS**, **Windows**, and **Linux** (Flutter desktop). This path is for contributors — not the private beta hand-off.
 
 ### Prerequisites
 

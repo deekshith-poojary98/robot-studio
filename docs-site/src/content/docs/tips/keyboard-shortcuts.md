@@ -1,28 +1,37 @@
 ---
 title: Keyboard shortcuts
-description: Common Robot Studio shortcuts for editing, navigation, and running tests.
+description: Verified Robot Studio shortcuts for editing, navigation, and running tests.
 ---
 
-Robot Studio uses familiar, VS Code–style chords for chrome and editing. Exact bindings can vary slightly by platform; use ⌘ on macOS and Ctrl on Windows/Linux unless noted.
+Use ⌘ on macOS and Ctrl on Windows/Linux unless noted. When in doubt, the command palette lists chrome commands with their bound keys.
 
 ## Essentials
 
 | Action | Shortcut |
 |--------|----------|
-| Command palette | `⌘⇧P` / `Ctrl+Shift+P` |
-| Find in Files | `⌘⇧F` / `Ctrl+Shift+F` |
+| Command Palette | `⌘⇧P` / `Ctrl+Shift+P` (also `⌘K` / `Ctrl+K`) |
+| Go to File… | `⌘P` / `Ctrl+P` |
+| Find in Project (Find in Files) | `⌘⇧F` / `Ctrl+Shift+F` |
+| Find Symbol in Project… | `⌘T` / `Ctrl+T` |
+| Settings… | `⌘,` / `Ctrl+,` |
 | Save | `⌘S` / `Ctrl+S` |
+| Save All | `⌘⇧S` / `Ctrl+Shift+S` |
 | Find in file | `⌘F` / `Ctrl+F` |
+| Replace | `⌘H` / `Ctrl+H` |
 | Go to Definition | `F12` or Ctrl/Cmd+Click |
-
-## Editing
-
-Expect the usual line and comment chords: toggle comment, move/copy/delete line, format, and tab management. The native **Edit** and **View** menus list what is available on your build.
+| Run File | `F5` |
+| Stop | `Shift+F5` |
+| Robot Doctor | `⌘⇧D` / `Ctrl+Shift+D` |
+| Problems | `⌘⇧M` / `Ctrl+Shift+M` |
+| Format Document | `⇧⌥F` / `Shift+Alt+F` |
 
 ## Navigation chrome
 
-Sidebar, terminal, and Problems panel toggles follow the same “IDE chrome” pattern — check **View** in the menu bar if you forget a binding.
+| Action | Shortcut / control |
+|--------|--------------------|
+| Toggle Side Bar | `⌘B` / `Ctrl+B`, **View → Toggle Side Bar**, or click the logo mark at the top of the activity bar |
+| Toggle Terminal | `⌘\`` / `Ctrl+\`` (**Terminal → Toggle Terminal**) |
+| Close Editor | `⌘W` / `Ctrl+W` |
+| Reopen Closed Editor | `⌘⇧T` / `Ctrl+Shift+T` |
 
-:::note
-A printable cheat sheet can be expanded here as shortcuts stabilize across platforms. When in doubt, the command palette shows the bound key beside each command.
-:::
+Open this user guide with the **Help** (?) icon above **Settings** in the activity bar.

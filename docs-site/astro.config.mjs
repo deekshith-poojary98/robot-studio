@@ -97,7 +97,8 @@ export default defineConfig({
 					label: 'Features',
 					items: [
 						{ label: 'Editor & language intelligence', slug: 'features/editor' },
-						{ label: 'Test Explorer', slug: 'features/test-explorer' },
+						{ label: 'Tests', slug: 'features/test-explorer' },
+						{ label: 'Libraries', slug: 'features/libraries' },
 						{ label: 'Insights', slug: 'features/insights' },
 						{ label: 'Robot Doctor', slug: 'features/robot-doctor' },
 						{ label: 'Terminal', slug: 'features/terminal' },

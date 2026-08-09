@@ -1,16 +1,16 @@
 ---
 title: Run, stop & re-run
-description: How test execution works — toolbar runs, Test Explorer, confirmation thresholds, and stop.
+description: How test execution works — toolbar runs, Tests tree, confirmation thresholds, and stop.
 ---
 
 ## Ways to run
 
 | Action | Typical use |
 |--------|-------------|
-| **Run** (toolbar) | Current file / focused scope |
-| **Run Project** | Entire project |
-| **Test Explorer** | One test, one suite, all, or failed |
-| **Re-run Test** | A single failure from the last run |
+| **Run** (toolbar) / **Run → Run File** (`F5`) | Current open `.robot` suite in the editor — not a text selection |
+| **Project** (toolbar) / **Run → Run Project** | Entire project |
+| **Tests** (activity bar) | One test, one suite, all, current file, or failed |
+| **Re-run Test** | A single failure from the last run (**Failed Tests**) |
 
 Logs stream into **Live Output** while a run is in progress (Robot is started with unbuffered stdout so lines are not held until the process exits). The **Now Running** panel on the right shows the current suite, test, and keyword (same idea as RIDE’s execution tree).
 
@@ -18,9 +18,7 @@ Logs stream into **Live Output** while a run is in progress (Robot is started wi
 
 ## Large runs
 
-If a project or tag run would execute more than the configured threshold (default **100** tests), Robot Studio asks for confirmation. That keeps accidental full-suite runs from eating your afternoon.
-
-Developers can change the threshold with `ROBOT_STUDIO_LARGE_RUN_THRESHOLD` — see [Settings reference](/reference/settings/).
+If a project-wide run would execute more than the configured threshold (default **100** tests), Robot Studio asks for confirmation. Change the threshold in **Settings → Execution → Large Run Threshold**.
 
 ## After you stop or finish
 

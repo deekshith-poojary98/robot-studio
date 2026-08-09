@@ -5,30 +5,34 @@ description: Run a Robot file or project and open the report when you are done.
 
 With a project open and an environment active, you are ready to execute.
 
+## Save before you run
+
+By default, **Save Before Run** is on (**Settings → Editor**), so pending edits are written when a run starts. You can also save manually with `⌘S` / `Ctrl+S` (**File → Save**) or **Save All**.
+
 ## Quick run from the toolbar
 
 The quiet toolbar keeps the essentials visible:
 
-- **Run** — run the current editor file (or focused selection when applicable)
-- **Run Project** — run the whole project
-- **Stop** — cancel an in-progress run
+- **Run** — run the **current open `.robot` suite** in the editor (`F5`, or **Run → Run File**). It does **not** run a text selection or an Explorer file selection.
+- **Project** — run the whole project (menu: **Run → Run Project**)
+- **Stop** — cancel an in-progress run (`Shift+F5`)
 
 Live logs stream while tests execute. When a run finishes, Robot Studio stays on your current view and offers a **View Report** toast so you can open results when you are ready.
 
-## Use Test Explorer
+## Use Tests
 
-1. Open the **Test Explorer** view.
+1. Open the **Tests** activity-bar view (**View → Tests**).
 2. Expand a suite to load its children (the tree loads lazily for large projects).
-3. Run a single test, a suite, all tests, or **failed** tests from a previous run.
+3. Run a single test, a suite, all tests, the current file, or **failed** tests from a previous run from the tree/toolbar actions.
 4. Filter by name or status while the tree is open.
 
-Large project or tag runs ask for confirmation when the estimated count is high (default threshold: 100 tests). That protects you from accidentally kicking off a huge suite.
+Large project runs ask for confirmation when the estimated count is high (default threshold: **100** tests — change it in **Settings → Execution → Large Run Threshold**).
 
 ## After the run
 
 - Open HTML **report** / **log** from the run details or toast.
-- Use **Failed Tests** to jump to source or **Re-run Test** for a single failure.
-- Clickable run status in the chrome jumps back to Tests when you want the explorer again.
+- Use **Failed Tests** to **Jump to Source** or **Re-run Test** for a single failure.
+- Clickable run status in the chrome jumps back to **Tests** when you want the tree again.
 
 ## Next step
 

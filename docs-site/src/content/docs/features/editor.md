@@ -1,6 +1,6 @@
 ---
 title: Editor & language intelligence
-description: Completions, hover, go to definition, diagnostics, and outline for Robot files.
+description: Completions, hover, signature help, go to definition, diagnostics, and outline for Robot files.
 ---
 
 The editor is tuned for Robot Framework files rather than generic plain text.
@@ -11,11 +11,13 @@ The editor is tuned for Robot Framework files rather than generic plain text.
 |---------|--------|
 | Completions | Split between Robot DSL and BuiltIn keywords |
 | Hover | Keyword / symbol information as you pause |
+| Signature help | Argument hints while editing a keyword call |
+| Breadcrumbs | Path / structure trail above the editor |
 | Go to Definition | F12 or Ctrl/Cmd+Click; multi-match picker when needed |
-| References | Find usages across the project |
-| Document symbols | Navigate within the current file |
+| References | Find usages across the project (**Go → Find References**) |
+| Document symbols | Navigate within the current file (**Go → Go to Symbol in File…**) |
 | Diagnostics | Live while editing; library imports resolve via the active environment |
-| Outline | Document outline under Explorer |
+| Outline | **Outline** pane under Explorer |
 
 ## Problems panel
 

@@ -1,9 +1,9 @@
 ---
-title: Test Explorer
+title: Tests
 description: Browse suites lazily, filter by status, and run tests from the tree.
 ---
 
-Test Explorer is the structural view of what you can run.
+**Tests** (activity bar / **View → Tests**) is the structural view of what you can run. The panel title in the UI is **Tests**.
 
 ## How the tree works
 
@@ -13,11 +13,14 @@ Test Explorer is the structural view of what you can run.
 
 ## Run from the tree
 
-From a node you can run:
+From the Tests panel you can run:
 
 - A single test
 - A suite
 - All tests
+- The current file
 - Failed tests from the last relevant run
 
-For very large estimated runs, Robot Studio asks for confirmation before starting.
+Toolbar **Run** still targets only the open `.robot` editor suite — not a text selection. Use the Tests tree when you need a specific test or suite node.
+
+For very large estimated runs, Robot Studio asks for confirmation before starting (**Settings → Execution → Large Run Threshold**).
