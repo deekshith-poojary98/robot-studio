@@ -162,13 +162,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   PackageSort _packageSort = PackageSort.name;
   String _packageQuery = '';
   bool _robotFrameworkInstalled = false;
-  String? _robotFrameworkVersion;
   bool _loadingPackages = false;
   bool _busy = false;
 
-  /// Branding PNGs stay hidden until precached so they cannot flash across the
-  /// toolbar during the first busy/restore frames.
-  bool _brandingReady = false;
   bool _startupRestoreAttempted = false;
   String? _envPromptTitle;
   String? _envPromptMessage;
@@ -202,7 +198,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   IndexStatusInfo? _indexStatus;
   bool _loadingIndexStatus = false;
   bool _showSymbolsPage = false;
-  String? _selectedSuitePath;
   bool _showEditorPage = false;
   HoverInfo? _editorHover;
   List<SymbolReferenceInfo> _editorReferences = [];
@@ -231,7 +226,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   List<ExecutionInfo> get _executionHistory => _execution.executionHistory;
   ExecutionStatus get _executionStatus => _execution.executionStatus;
   ExecutionInfo? get _currentExecution => _execution.currentExecution;
-  bool get _loadingHistory => _execution.loadingHistory;
   List<RunTestFailureInfo> get _failedTests => _execution.failedTests;
   bool get _loadingFailures => _execution.loadingFailures;
   List<ExecutionInfo> get _reportRuns => _execution.reportRuns;
@@ -367,7 +361,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       // Still reveal the slots; missing assets should not block chrome.
     }
     if (!mounted) return;
-    setState(() => _brandingReady = true);
   }
 
   void _onSettingsChanged() {
@@ -600,7 +593,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _packages = [];
         _loadingPackages = false;
         _robotFrameworkInstalled = false;
-        _robotFrameworkVersion = null;
         _selectedPackage = null;
       });
       return;
@@ -616,7 +608,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       setState(() {
         _packages = result.packages;
         _robotFrameworkInstalled = result.robotFrameworkInstalled;
-        _robotFrameworkVersion = result.robotFrameworkVersion;
         _loadingPackages = false;
         if (_selectedPackage != null) {
           final match = result.packages
@@ -1210,7 +1201,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (!mounted) return;
 
     setState(() {
-      _selectedSuitePath = suite;
       _revealExecutionCenter();
     });
     await _connectExecutionStream();
@@ -1451,9 +1441,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final envOk = env == null || env.available;
     return _selectedProject != null && envOk && _robotFrameworkReady;
   }
-
-  /// Suites Robot Framework can execute (`.resource` is not a run target).
-  static bool _isRunnableSuitePath(String? path) => isRunnableSuitePath(path);
 
   /// Prefer the active editor when it is a `.robot` suite.
   String? get _runTargetPath =>
@@ -2414,7 +2401,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _appendLog('[info] $successMessage "$packageName"');
         setState(() {
           _robotFrameworkInstalled = result.robotFrameworkInstalled;
-          _robotFrameworkVersion = result.robotFrameworkVersion;
           if (clearSelection) {
             _selectedPackage = null;
           } else if (result.package != null) {
@@ -2856,7 +2842,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return;
     }
     setState(() {
-      _selectedSuitePath = path;
       _revealExecutionCenter();
     });
     await _connectExecutionStream();
@@ -2941,7 +2926,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (node.path == null) return;
     setState(() {
       _activePanel = SidebarPanel.explorer;
-      _selectedSuitePath = node.path;
     });
     unawaited(_openFile(node.path!, line: node.line));
   }
@@ -2970,9 +2954,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _showSettingsPage = false;
         _showSymbolsPage = false;
         _showExecutionPage = false;
-        if (_isRunnableSuitePath(path)) {
-          _selectedSuitePath = path;
-        }
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
@@ -3009,9 +2990,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _showSettingsPage = false;
         _showSymbolsPage = false;
         _showExecutionPage = false;
-        if (_isRunnableSuitePath(file.path)) {
-          _selectedSuitePath = file.path;
-        }
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
@@ -3559,7 +3537,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _indexStatus = null;
       _searchResults = [];
       _liveNotification = null;
-      _selectedSuitePath = null;
     });
     await _loadRecent();
   }

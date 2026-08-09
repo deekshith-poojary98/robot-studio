@@ -107,7 +107,7 @@ void main() {
             child: LibraryExplorerPanel(
               hasProject: true,
               controller: controller,
-              onJumpToSource: (_, __) {},
+              onJumpToSource: (path, line) {},
             ),
           ),
         ),
