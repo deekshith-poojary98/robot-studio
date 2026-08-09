@@ -85,6 +85,80 @@ def _node_name(item: Any) -> str:
     return ""
 
 
+_VAR_TOKEN_RE = re.compile(r"^([\$@&%]\{[^}]+\})")
+
+
+def _normalize_var_name(raw: Any) -> str:
+    """Strip trailing ``=`` / defaults so ``${x}=`` and ``${p}=secret`` → ``${x}`` / ``${p}``."""
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    match = _VAR_TOKEN_RE.match(text)
+    return match.group(1) if match else text
+
+
+def _variable_symbol(name: str, *, line: int, detail: str) -> dict[str, Any] | None:
+    cleaned = _normalize_var_name(name)
+    if not cleaned.startswith(("${", "@{", "&{", "%{")):
+        return None
+    return {
+        "name": cleaned,
+        "kind": "variable",
+        "line": line,
+        "detail": detail,
+    }
+
+
+def _collect_body_variables(entries: Any) -> list[dict[str, Any]]:
+    """User-declared variables outside ``*** Variables ***`` (VAR, assign, args, FOR)."""
+    symbols: list[dict[str, Any]] = []
+    for entry in entries or ():
+        item_type = type(entry).__name__
+        line = _line_number(entry)
+        if item_type == "Arguments":
+            for cell in getattr(entry, "values", ()) or ():
+                symbol = _variable_symbol(cell, line=line, detail="Argument")
+                if symbol is not None:
+                    symbols.append(symbol)
+        elif item_type == "Var":
+            symbol = _variable_symbol(
+                _node_name(entry) or getattr(entry, "name", ""),
+                line=line,
+                detail="VAR",
+            )
+            if symbol is not None:
+                symbols.append(symbol)
+        elif item_type == "KeywordCall":
+            for cell in getattr(entry, "assign", ()) or ():
+                symbol = _variable_symbol(cell, line=line, detail="Assignment")
+                if symbol is not None:
+                    symbols.append(symbol)
+        elif item_type == "For":
+            assigns = getattr(entry, "assign", None)
+            if assigns is None:
+                assigns = getattr(entry, "variables", ()) or ()
+            for cell in assigns:
+                symbol = _variable_symbol(cell, line=line, detail="FOR")
+                if symbol is not None:
+                    symbols.append(symbol)
+            symbols.extend(_collect_body_variables(getattr(entry, "body", None)))
+        elif item_type in {"While", "Group", "Else", "Except", "Finally"}:
+            symbols.extend(_collect_body_variables(getattr(entry, "body", None)))
+        elif item_type in {"If", "ElseIf"}:
+            symbols.extend(_collect_body_variables(getattr(entry, "body", None)))
+            if item_type == "If":
+                for branch in getattr(entry, "orelse", None) or ():
+                    symbols.extend(_collect_body_variables([branch]))
+        elif item_type == "Try":
+            symbols.extend(_collect_body_variables(getattr(entry, "body", None)))
+            for branch in getattr(entry, "except_branches", None) or ():
+                symbols.extend(_collect_body_variables([branch]))
+            symbols.extend(
+                _collect_body_variables(getattr(entry, "finally_body", None)),
+            )
+    return symbols
+
+
 def parse_diagnostics(content: str, file_path: str) -> list[dict[str, Any]]:
     _ = file_path
     model = _get_model(content)
@@ -625,7 +699,7 @@ def document_symbols(content: str, file_path: str) -> list[dict[str, Any]]:
                         "name": _node_name(item),
                         "kind": "variable",
                         "line": line,
-                        "detail": "",
+                        "detail": "Variables",
                     },
                 )
             elif item_type == "Keyword":
@@ -637,6 +711,9 @@ def document_symbols(content: str, file_path: str) -> list[dict[str, Any]]:
                         "detail": _arguments_detail(item),
                         "documentation": _collect_documentation(item),
                     },
+                )
+                symbols.extend(
+                    _collect_body_variables(getattr(item, "body", None)),
                 )
             elif item_type == "TestCase":
                 kind = "test_case" if header in {"test cases", "tasks"} else "keyword"
@@ -668,6 +745,9 @@ def document_symbols(content: str, file_path: str) -> list[dict[str, Any]]:
                         "detail": detail,
                         "documentation": _collect_documentation(item),
                     },
+                )
+                symbols.extend(
+                    _collect_body_variables(getattr(item, "body", None)),
                 )
                 for tag in case_tags:
                     symbols.append(

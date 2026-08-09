@@ -9,6 +9,25 @@ Insights is a center view for how the project is shaped and how recent runs are 
 
 After the index is ready, Composition shows counts for keywords, test cases, suites, resources, libraries, variables, and files. Use **Rebuild Index** if counts look stale.
 
+**Variables** counts user-declared names from:
+
+- `*** Variables ***`
+- `[Arguments]`
+- `VAR`
+- `${x}= …` assignments
+- `FOR` loop variables
+- YAML variable files (when indexed)
+
+It does **not** count BuiltIn automatic variables (`${TEST_NAME}`, …) or environment `%{ENV}` references.
+
+**Keywords** counts user keyword definitions under `*** Keywords ***`, plus public methods from indexed project `.py` libraries — not BuiltIn keywords and not call sites.
+
+Below the bars, **Focus** adds:
+
+- Density chips — keywords per test, symbols per file, resource and library counts
+- Index state
+- **Densest files** — files with the most indexed symbols (click to open)
+
 ## Run health
 
 Once you have executed suites, Run health shows:

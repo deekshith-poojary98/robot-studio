@@ -90,6 +90,8 @@ class InsightsPage extends StatelessWidget {
                               child: _CompositionPanel(
                                 data: data,
                                 onRebuildIndex: onRebuildIndex,
+                                onOpenFile: onOpenFile,
+                                expandBody: true,
                               ),
                             ),
                             const SizedBox(width: AppSpacing.md),
@@ -109,6 +111,7 @@ class InsightsPage extends StatelessWidget {
                           _CompositionPanel(
                             data: data,
                             onRebuildIndex: onRebuildIndex,
+                            onOpenFile: onOpenFile,
                           ),
                           const SizedBox(height: AppSpacing.md),
                           _RunHealthPanel(
@@ -284,14 +287,23 @@ class _HeadlineCell extends StatelessWidget {
 }
 
 class _Panel extends StatelessWidget {
-  const _Panel({required this.title, required this.child, this.trailing});
+  const _Panel({
+    required this.title,
+    required this.child,
+    this.trailing,
+    this.fillBody = false,
+  });
 
   final String title;
   final Widget child;
   final Widget? trailing;
 
+  /// When true, body expands to fill stretched panel height (wide layout).
+  final bool fillBody;
+
   @override
   Widget build(BuildContext context) {
+    final body = Padding(padding: const EdgeInsets.all(12), child: child);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: context.palette.surface,
@@ -316,7 +328,7 @@ class _Panel extends StatelessWidget {
             ),
           ),
           Divider(height: 1, color: context.palette.borderSubtle),
-          Padding(padding: const EdgeInsets.all(12), child: child),
+          if (fillBody) Expanded(child: body) else body,
         ],
       ),
     );
@@ -324,10 +336,19 @@ class _Panel extends StatelessWidget {
 }
 
 class _CompositionPanel extends StatelessWidget {
-  const _CompositionPanel({required this.data, this.onRebuildIndex});
+  const _CompositionPanel({
+    required this.data,
+    this.onRebuildIndex,
+    this.onOpenFile,
+    this.expandBody = false,
+  });
 
   final InsightsInfo data;
   final VoidCallback? onRebuildIndex;
+  final ValueChanged<String>? onOpenFile;
+
+  /// Stretch Focus card to the bottom when paired beside Run health.
+  final bool expandBody;
 
   static const _kinds = <(String, String)>[
     ('keyword', 'Keywords'),
@@ -376,7 +397,9 @@ class _CompositionPanel extends StatelessWidget {
         '$total symbols',
         style: TextStyle(fontSize: 11, color: context.palette.textMuted),
       ),
+      fillBody: expandBody,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (final entry in entries)
             Padding(
@@ -388,10 +411,252 @@ class _CompositionPanel extends StatelessWidget {
                 color: _kindColor(context, entry.$1),
               ),
             ),
+          if (expandBody)
+            const Spacer()
+          else
+            const SizedBox(height: AppSpacing.lg),
+          _CompositionFocusCard(data: data, onOpenFile: onOpenFile),
         ],
       ),
     );
   }
+}
+
+/// Densest files + quick density ratios — fills leftover Composition height.
+class _CompositionFocusCard extends StatelessWidget {
+  const _CompositionFocusCard({required this.data, this.onOpenFile});
+
+  final InsightsInfo data;
+  final ValueChanged<String>? onOpenFile;
+
+  @override
+  Widget build(BuildContext context) {
+    final densest = _densestFiles(data.compositionFiles, limit: 4);
+    final keywords = data.countFor('keyword');
+    final tests = data.countFor('test_case');
+    final files = data.countFor('file');
+    final resources = data.countFor('resource');
+    final libraries = data.countFor('library');
+    final symbolTotal = data.composition.values.fold<int>(0, (s, n) => s + n);
+    // Exclude the aggregate "file" kind from per-file density when possible.
+    final symbolForDensity = symbolTotal - (files > 0 ? files : 0);
+    final perFile = files > 0 ? (symbolForDensity / files) : 0.0;
+    final kwPerTest = tests > 0 ? keywords / tests : null;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: context.palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadii.xs),
+        border: Border.all(color: context.palette.borderSubtle),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'FOCUS',
+                    style: TextStyle(
+                      fontSize: 10,
+                      letterSpacing: 0.4,
+                      fontWeight: FontWeight.w600,
+                      color: context.palette.textMuted,
+                    ),
+                  ),
+                ),
+                Text(
+                  _indexStateLabel(data.indexState),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: context.palette.textMuted,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              children: [
+                _FocusChip(
+                  label: kwPerTest == null
+                      ? 'KW / test —'
+                      : 'KW / test ${kwPerTest.toStringAsFixed(1)}',
+                ),
+                _FocusChip(
+                  label: perFile <= 0
+                      ? 'Symbols / file —'
+                      : 'Symbols / file ${perFile.toStringAsFixed(1)}',
+                ),
+                _FocusChip(label: 'Resources $resources'),
+                _FocusChip(label: 'Libraries $libraries'),
+              ],
+            ),
+            if (densest.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'DENSEST FILES',
+                style: TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 0.4,
+                  fontWeight: FontWeight.w600,
+                  color: context.palette.textMuted,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              for (final item in densest)
+                _DenseFileRow(
+                  filePath: item.$1,
+                  total: item.$2,
+                  max: densest.first.$2,
+                  onOpen: onOpenFile == null
+                      ? null
+                      : () => onOpenFile!(item.$1),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _indexStateLabel(String state) {
+    final s = state.trim().toLowerCase();
+    if (s.isEmpty || s == 'idle') return 'Index idle';
+    if (s == 'ready') return 'Index ready';
+    if (s == 'indexing' || s == 'busy') return 'Indexing…';
+    return 'Index $state';
+  }
+}
+
+class _FocusChip extends StatelessWidget {
+  const _FocusChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        borderRadius: BorderRadius.circular(AppRadii.xs),
+        border: Border.all(color: context.palette.borderSubtle),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, color: context.palette.textSecondary),
+      ),
+    );
+  }
+}
+
+class _DenseFileRow extends StatefulWidget {
+  const _DenseFileRow({
+    required this.filePath,
+    required this.total,
+    required this.max,
+    this.onOpen,
+  });
+
+  final String filePath;
+  final int total;
+  final int max;
+  final VoidCallback? onOpen;
+
+  @override
+  State<_DenseFileRow> createState() => _DenseFileRowState();
+}
+
+class _DenseFileRowState extends State<_DenseFileRow> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = widget.filePath.replaceAll('\\', '/').split('/').last;
+    final fraction = widget.max <= 0 ? 0.0 : widget.total / widget.max;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Material(
+        color: _hover ? context.palette.surfaceHover : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadii.xs),
+        child: InkWell(
+          onTap: widget.onOpen,
+          borderRadius: BorderRadius.circular(AppRadii.xs),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 96,
+                  child: Text(
+                    name,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.palette.textPrimary,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadii.xs),
+                    child: SizedBox(
+                      height: 6,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ColoredBox(color: context.palette.surface),
+                          FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: fraction.clamp(0.04, 1.0),
+                            child: ColoredBox(color: context.palette.accent),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  '${widget.total}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    color: context.palette.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+List<(String, int)> _densestFiles(
+  List<InsightsFileComposition> files, {
+  int limit = 4,
+}) {
+  final scored = <(String, int)>[];
+  for (final file in files) {
+    if (!_looksLikeSourceFile(file.filePath)) continue;
+    final total = file.counts.values.fold<int>(0, (s, n) => s + n);
+    if (total <= 0) continue;
+    scored.add((file.filePath, total));
+  }
+  scored.sort((a, b) {
+    final byCount = b.$2.compareTo(a.$2);
+    if (byCount != 0) return byCount;
+    return a.$1.compareTo(b.$1);
+  });
+  return scored.take(limit).toList();
 }
 
 class _BarRow extends StatelessWidget {
@@ -617,8 +882,8 @@ class _HealthMetricGrid extends StatelessWidget {
     final passColor = (runs.passRate ?? 0) >= 80
         ? context.palette.success
         : (runs.passRate ?? 0) >= 50
-            ? context.palette.warning
-            : context.palette.error;
+        ? context.palette.warning
+        : context.palette.error;
 
     return Column(
       children: [
@@ -670,8 +935,8 @@ class _HealthMetricGrid extends StatelessWidget {
                 valueColor: streak.count == 0
                     ? null
                     : streak.isPass
-                        ? context.palette.success
-                        : context.palette.error,
+                    ? context.palette.success
+                    : context.palette.error,
               ),
             ),
           ],
@@ -895,8 +1160,9 @@ class _FailingFileRowState extends State<_FailingFileRow> {
   @override
   Widget build(BuildContext context) {
     final name = widget.file.filePath.replaceAll('\\', '/').split('/').last;
-    final rate =
-        widget.file.runs <= 0 ? 0.0 : widget.file.failed / widget.file.runs;
+    final rate = widget.file.runs <= 0
+        ? 0.0
+        : widget.file.failed / widget.file.runs;
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -1318,7 +1584,10 @@ class _DurationTrendPainter extends CustomPainter {
         style: TextStyle(fontSize: 9, color: label),
       );
       tp.layout(maxWidth: leftGutter - 4);
-      tp.paint(canvas, Offset(0, (y - tp.height / 2).clamp(0.0, chartH - tp.height)));
+      tp.paint(
+        canvas,
+        Offset(0, (y - tp.height / 2).clamp(0.0, chartH - tp.height)),
+      );
     }
 
     if (hasDuration) {

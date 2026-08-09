@@ -9,7 +9,7 @@ description: Short definitions for Robot Studio and Robot Framework terms used i
 | **Workspace** | Optional multi-project container; advanced |
 | **Environment** | A Python virtualenv used for analysis, packages, and runs |
 | **Active environment** | The environment currently selected for the project |
-| **Index** | Background database of keywords, variables, and files for search and navigation |
+| **Index** | Background database of keywords, variables (Variables section, `VAR`, arguments, assignments, FOR), and files for search and navigation |
 | **Test Explorer** | Tree of suites and tests you can run |
 | **Robot Doctor** | Project health findings UI |
 | **Sidecar** | Embedded backend process started by the packaged app |
