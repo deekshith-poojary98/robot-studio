@@ -26,6 +26,9 @@ class SqliteAnalysisStore(AnalysisStore):
 
     async def initialize(self) -> None:
         async with aiosqlite.connect(self._database_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
+            await db.execute("PRAGMA synchronous=NORMAL")
+            await db.execute("PRAGMA busy_timeout=5000")
             await db.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS analysis_entities (
@@ -254,9 +257,81 @@ class SqliteAnalysisStore(AnalysisStore):
         *,
         epoch: int,
     ) -> None:
-        await self.clear_file(file_path)
-        await self.upsert_entities(entities, epoch=epoch)
-        await self.upsert_edges(edges, epoch=epoch)
+        path = str(file_path.resolve())
+        entity_rows = [
+            (
+                entity.id,
+                entity.kind.value,
+                entity.name,
+                entity.name_normalized,
+                str(entity.file_path.resolve()),
+                entity.line,
+                entity.column,
+                entity.documentation,
+                entity.detail,
+                str(entity.project_id) if entity.project_id else None,
+                str(entity.workspace_id) if entity.workspace_id else None,
+                entity.qualified_name,
+                epoch,
+            )
+            for entity in entities
+        ]
+        edge_rows = [
+            (
+                edge.edge_kind.value,
+                edge.source_id,
+                edge.target_id,
+                str(edge.source_file.resolve()),
+                edge.source_line,
+                edge.source_column,
+                edge.target_name,
+                edge.target_name_normalized,
+                edge.confidence.value,
+                str(edge.project_id) if edge.project_id else None,
+                edge.context,
+                epoch,
+            )
+            for edge in edges
+        ]
+        async with aiosqlite.connect(self._database_path) as db:
+            await db.execute("PRAGMA busy_timeout=5000")
+            await db.execute("DELETE FROM analysis_entities WHERE file_path = ?", (path,))
+            await db.execute("DELETE FROM analysis_edges WHERE source_file = ?", (path,))
+            if entity_rows:
+                await db.executemany(
+                    """
+                    INSERT INTO analysis_entities (
+                        id, kind, name, name_normalized, file_path, line, column_no,
+                        documentation, detail, project_id, workspace_id, qualified_name, epoch
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        kind=excluded.kind,
+                        name=excluded.name,
+                        name_normalized=excluded.name_normalized,
+                        file_path=excluded.file_path,
+                        line=excluded.line,
+                        column_no=excluded.column_no,
+                        documentation=excluded.documentation,
+                        detail=excluded.detail,
+                        project_id=excluded.project_id,
+                        workspace_id=excluded.workspace_id,
+                        qualified_name=excluded.qualified_name,
+                        epoch=excluded.epoch
+                    """,
+                    entity_rows,
+                )
+            if edge_rows:
+                await db.executemany(
+                    """
+                    INSERT INTO analysis_edges (
+                        edge_kind, source_id, target_id, source_file, source_line,
+                        source_column, target_name, target_name_normalized, confidence,
+                        project_id, context, epoch
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    edge_rows,
+                )
+            await db.commit()
 
     def _row_entity(self, row: aiosqlite.Row) -> SemanticEntity:
         return SemanticEntity(

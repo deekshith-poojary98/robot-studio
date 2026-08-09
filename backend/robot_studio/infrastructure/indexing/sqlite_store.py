@@ -22,8 +22,16 @@ class SqliteIndexStore(IndexStore):
     def __init__(self, database_path: Path) -> None:
         self._database_path = database_path
 
+    async def _connect(self) -> aiosqlite.Connection:
+        db = await aiosqlite.connect(self._database_path)
+        await db.execute("PRAGMA busy_timeout=5000")
+        return db
+
     async def initialize(self) -> None:
-        async with aiosqlite.connect(self._database_path) as db:
+        db = await self._connect()
+        try:
+            await db.execute("PRAGMA journal_mode=WAL")
+            await db.execute("PRAGMA synchronous=NORMAL")
             await db.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS index_symbols (
@@ -80,9 +88,14 @@ class SqliteIndexStore(IndexStore):
                     ON index_references (symbol_id);
                 CREATE INDEX IF NOT EXISTS idx_refs_name
                     ON index_references (name_lower);
+                -- Critical for bulk rebuild: per-file DELETE must not table-scan.
+                CREATE INDEX IF NOT EXISTS idx_refs_file
+                    ON index_references (file_path);
                 """
             )
             await db.commit()
+        finally:
+            await db.close()
 
     async def invalidate(self, scope: IndexScope, scope_id: str | None = None) -> None:
         async with aiosqlite.connect(self._database_path) as db:
@@ -137,17 +150,176 @@ class SqliteIndexStore(IndexStore):
         if not symbols:
             return
         now = datetime.now(UTC).isoformat()
-        async with aiosqlite.connect(self._database_path) as db:
-            files: dict[str, tuple[float | None, str | None, str | None]] = {}
-            for item in symbols:
-                symbol = item if isinstance(item, IndexedSymbol) else IndexedSymbol.model_validate(item)
-                symbol_id = symbol.id or _symbol_id(
-                    symbol.kind,
-                    symbol.file_path,
+        rows: list[tuple] = []
+        files: dict[str, tuple[float | None, str | None, str | None]] = {}
+        for item in symbols:
+            symbol = item if isinstance(item, IndexedSymbol) else IndexedSymbol.model_validate(item)
+            symbol_id = symbol.id or _symbol_id(
+                symbol.kind,
+                symbol.file_path,
+                symbol.name,
+                symbol.line,
+            )
+            rows.append(
+                (
+                    symbol_id,
                     symbol.name,
+                    symbol.name.lower(),
+                    symbol.kind,
+                    str(symbol.file_path),
                     symbol.line,
-                )
+                    str(symbol.project_id) if symbol.project_id else None,
+                    str(symbol.workspace_id) if symbol.workspace_id else None,
+                    symbol.documentation,
+                    symbol.detail,
+                    symbol.last_modified,
+                    now,
+                ),
+            )
+            files[str(symbol.file_path)] = (
+                symbol.last_modified,
+                str(symbol.workspace_id) if symbol.workspace_id else None,
+                str(symbol.project_id) if symbol.project_id else None,
+            )
+        file_rows = [
+            (file_path, mtime or 0.0, workspace_id, project_id, now)
+            for file_path, (mtime, workspace_id, project_id) in files.items()
+        ]
+        async with aiosqlite.connect(self._database_path) as db:
+            await db.executemany(
+                """
+                INSERT INTO index_symbols (
+                    id, name, name_lower, kind, file_path, line, project_id,
+                    workspace_id, documentation, detail, last_modified, indexed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    name_lower = excluded.name_lower,
+                    kind = excluded.kind,
+                    file_path = excluded.file_path,
+                    line = excluded.line,
+                    project_id = excluded.project_id,
+                    workspace_id = excluded.workspace_id,
+                    documentation = excluded.documentation,
+                    detail = excluded.detail,
+                    last_modified = excluded.last_modified,
+                    indexed_at = excluded.indexed_at
+                """,
+                rows,
+            )
+            await db.executemany(
+                """
+                INSERT INTO index_files (file_path, mtime, workspace_id, project_id, indexed_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(file_path) DO UPDATE SET
+                    mtime = excluded.mtime,
+                    workspace_id = excluded.workspace_id,
+                    project_id = excluded.project_id,
+                    indexed_at = excluded.indexed_at
+                """,
+                file_rows,
+            )
+            await db.execute(
+                """
+                INSERT INTO index_meta (key, value) VALUES ('last_indexed_at', ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (now,),
+            )
+            await db.commit()
+
+    async def upsert_references(self, references: list[dict]) -> None:
+        if not references:
+            return
+        rows = [
+            (
+                ref.get("symbol_id") or "",
+                ref["name"],
+                ref["name"].lower(),
+                str(ref["file_path"]),
+                int(ref.get("line") or 1),
+                str(ref["project_id"]) if ref.get("project_id") else None,
+                ref.get("context") or "",
+            )
+            for ref in references
+        ]
+        async with aiosqlite.connect(self._database_path) as db:
+            await db.executemany(
+                """
+                INSERT INTO index_references (
+                    symbol_id, name, name_lower, file_path, line, project_id, context
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+            await db.commit()
+
+    async def replace_file_index(
+        self,
+        file_path: Path,
+        symbols: list,
+        references: list[dict],
+        *,
+        clear_existing: bool = True,
+    ) -> None:
+        """Replace one file's symbols/refs in a single SQLite transaction."""
+        path = str(file_path)
+        now = datetime.now(UTC).isoformat()
+        symbol_rows: list[tuple] = []
+        file_meta: tuple[float | None, str | None, str | None] | None = None
+        for item in symbols:
+            symbol = item if isinstance(item, IndexedSymbol) else IndexedSymbol.model_validate(item)
+            symbol_id = symbol.id or _symbol_id(
+                symbol.kind,
+                symbol.file_path,
+                symbol.name,
+                symbol.line,
+            )
+            symbol_rows.append(
+                (
+                    symbol_id,
+                    symbol.name,
+                    symbol.name.lower(),
+                    symbol.kind,
+                    str(symbol.file_path),
+                    symbol.line,
+                    str(symbol.project_id) if symbol.project_id else None,
+                    str(symbol.workspace_id) if symbol.workspace_id else None,
+                    symbol.documentation,
+                    symbol.detail,
+                    symbol.last_modified,
+                    now,
+                ),
+            )
+            file_meta = (
+                symbol.last_modified,
+                str(symbol.workspace_id) if symbol.workspace_id else None,
+                str(symbol.project_id) if symbol.project_id else None,
+            )
+        ref_rows = [
+            (
+                ref.get("symbol_id") or "",
+                ref["name"],
+                ref["name"].lower(),
+                str(ref["file_path"]),
+                int(ref.get("line") or 1),
+                str(ref["project_id"]) if ref.get("project_id") else None,
+                ref.get("context") or "",
+            )
+            for ref in references
+        ]
+
+        async with aiosqlite.connect(self._database_path) as db:
+            await db.execute("PRAGMA busy_timeout=5000")
+            if clear_existing:
+                await db.execute("DELETE FROM index_symbols WHERE file_path = ?", (path,))
+                await db.execute("DELETE FROM index_files WHERE file_path = ?", (path,))
                 await db.execute(
+                    "DELETE FROM index_references WHERE file_path = ?",
+                    (path,),
+                )
+            if symbol_rows:
+                await db.executemany(
                     """
                     INSERT INTO index_symbols (
                         id, name, name_lower, kind, file_path, line, project_id,
@@ -166,27 +338,10 @@ class SqliteIndexStore(IndexStore):
                         last_modified = excluded.last_modified,
                         indexed_at = excluded.indexed_at
                     """,
-                    (
-                        symbol_id,
-                        symbol.name,
-                        symbol.name.lower(),
-                        symbol.kind,
-                        str(symbol.file_path),
-                        symbol.line,
-                        str(symbol.project_id) if symbol.project_id else None,
-                        str(symbol.workspace_id) if symbol.workspace_id else None,
-                        symbol.documentation,
-                        symbol.detail,
-                        symbol.last_modified,
-                        now,
-                    ),
+                    symbol_rows,
                 )
-                files[str(symbol.file_path)] = (
-                    symbol.last_modified,
-                    str(symbol.workspace_id) if symbol.workspace_id else None,
-                    str(symbol.project_id) if symbol.project_id else None,
-                )
-            for file_path, (mtime, workspace_id, project_id) in files.items():
+            if file_meta is not None:
+                mtime, workspace_id, project_id = file_meta
                 await db.execute(
                     """
                     INSERT INTO index_files (file_path, mtime, workspace_id, project_id, indexed_at)
@@ -197,37 +352,24 @@ class SqliteIndexStore(IndexStore):
                         project_id = excluded.project_id,
                         indexed_at = excluded.indexed_at
                     """,
-                    (file_path, mtime or 0.0, workspace_id, project_id, now),
+                    (path, mtime or 0.0, workspace_id, project_id, now),
                 )
-            await db.execute(
-                """
-                INSERT INTO index_meta (key, value) VALUES ('last_indexed_at', ?)
-                ON CONFLICT(key) DO UPDATE SET value = excluded.value
-                """,
-                (now,),
-            )
-            await db.commit()
-
-    async def upsert_references(self, references: list[dict]) -> None:
-        if not references:
-            return
-        async with aiosqlite.connect(self._database_path) as db:
-            for ref in references:
+            if symbol_rows or file_meta is not None:
                 await db.execute(
+                    """
+                    INSERT INTO index_meta (key, value) VALUES ('last_indexed_at', ?)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                    """,
+                    (now,),
+                )
+            if ref_rows:
+                await db.executemany(
                     """
                     INSERT INTO index_references (
                         symbol_id, name, name_lower, file_path, line, project_id, context
                     ) VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (
-                        ref.get("symbol_id") or "",
-                        ref["name"],
-                        ref["name"].lower(),
-                        str(ref["file_path"]),
-                        int(ref.get("line") or 1),
-                        str(ref["project_id"]) if ref.get("project_id") else None,
-                        ref.get("context") or "",
-                    ),
+                    ref_rows,
                 )
             await db.commit()
 

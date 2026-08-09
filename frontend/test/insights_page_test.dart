@@ -96,4 +96,34 @@ void main() {
     expect(find.text('FOCUS'), findsOneWidget);
     expect(find.text('DENSEST FILES'), findsOneWidget);
   });
+
+  testWidgets('Composition large counts stay single-line', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 420,
+            child: InsightsPage(
+              insights: const InsightsInfo(
+                composition: {
+                  'keyword': 2,
+                  'test_case': 1000000,
+                  'test_suite': 10000,
+                  'file': 10001,
+                },
+              ),
+              isLoading: false,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('1,000,000'), findsOneWidget);
+    expect(find.text('10,000'), findsOneWidget);
+    expect(find.textContaining('1,000,003 indexed'), findsOneWidget);
+    // Must not appear as a wrapped raw digit break (e.g. 1000\n000).
+    expect(find.text('1000000'), findsNothing);
+  });
 }

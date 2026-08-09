@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from robot_studio.domain.models import IndexedSymbol
 from robot_studio.infrastructure.indexing.python_indexer import PythonLibraryIndexer
 from robot_studio.infrastructure.indexing.robot_indexer import RobotIndexer
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
@@ -38,6 +39,77 @@ _SKIP_DIR_NAMES = {
     "site-packages",
     "dist-packages",
 }
+
+
+@dataclass(frozen=True)
+class ParsedIndexPayload:
+    """Picklable parse result for bulk parallel indexing."""
+
+    path: str
+    mtime: float
+    symbols: list[dict[str, Any]]
+    references: list[dict[str, Any]]
+    error: str | None = None
+
+
+def parse_indexable_file(
+    path_str: str,
+    workspace_id: str | None,
+    project_id: str | None,
+) -> ParsedIndexPayload:
+    """Parse one indexable file in a worker process (no SQLite / analysis).
+
+    Top-level and picklable for ``ProcessPoolExecutor``.
+    """
+    path = Path(path_str)
+    try:
+        if not path.is_file():
+            return ParsedIndexPayload(
+                path=path_str,
+                mtime=0.0,
+                symbols=[],
+                references=[],
+                error="not a file",
+            )
+        ws = UUID(workspace_id) if workspace_id else None
+        pid = UUID(project_id) if project_id else None
+        suffix = path.suffix.lower()
+        symbols: list[IndexedSymbol] = []
+        references: list[dict] = []
+        if suffix in RobotIndexer.INDEXABLE_SUFFIXES:
+            symbols, references = RobotIndexer().index_file(
+                path,
+                workspace_id=ws,
+                project_id=pid,
+            )
+        elif suffix in PythonLibraryIndexer.INDEXABLE_SUFFIXES:
+            symbols = PythonLibraryIndexer().index_file(
+                path,
+                workspace_id=ws,
+                project_id=pid,
+            )
+        elif suffix in YamlVariableIndexer.INDEXABLE_SUFFIXES:
+            symbols, references = YamlVariableIndexer().index_file(
+                path,
+                workspace_id=ws,
+                project_id=pid,
+            )
+        mtime = path.stat().st_mtime
+        return ParsedIndexPayload(
+            path=path_str,
+            mtime=mtime,
+            symbols=[s.model_dump(mode="json") for s in symbols],
+            references=list(references),
+            error=None,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return ParsedIndexPayload(
+            path=path_str,
+            mtime=0.0,
+            symbols=[],
+            references=[],
+            error=str(exc),
+        )
 
 
 @dataclass
@@ -91,42 +163,51 @@ class FilesystemIndexer:
         if not force and previous is not None and abs(previous - mtime) < 1e-6:
             return 0, False
 
-        await self.store.remove_file(path)
-        await self.store.clear_file_references(path)
+        payload = await asyncio.to_thread(
+            parse_indexable_file,
+            str(path),
+            str(workspace_id),
+            str(project_id) if project_id else None,
+        )
+        if payload.error:
+            raise RuntimeError(payload.error)
+        return await self.commit_parsed_file(
+            payload,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            analysis_rebind=analysis_rebind,
+        )
 
-        symbols = []
-        references: list[dict] = []
+    async def commit_parsed_file(
+        self,
+        payload: ParsedIndexPayload,
+        *,
+        workspace_id: UUID,
+        project_id: UUID | None,
+        analysis_rebind: bool = True,
+        clear_existing: bool = True,
+    ) -> tuple[int, bool]:
+        """Write a parsed payload to SQLite and optionally ingest analysis."""
+        path = Path(payload.path)
+        if payload.error == "not a file" or not path.is_file():
+            removed = await self.store.remove_file(path)
+            if self.analysis_engine is not None:
+                await self.analysis_engine.remove_file(path, project_id=project_id)
+            return removed, False
+        if payload.error:
+            raise RuntimeError(payload.error)
+
+        symbols = [IndexedSymbol.model_validate(item) for item in payload.symbols]
+        references = list(payload.references)
+
+        await self.store.replace_file_index(
+            path,
+            symbols,
+            references,
+            clear_existing=clear_existing,
+        )
+
         suffix = path.suffix.lower()
-        if suffix in RobotIndexer.INDEXABLE_SUFFIXES:
-            symbols, references = await asyncio.to_thread(
-                lambda: self.robot.index_file(
-                    path,
-                    workspace_id=workspace_id,
-                    project_id=project_id,
-                ),
-            )
-        elif suffix in PythonLibraryIndexer.INDEXABLE_SUFFIXES:
-            symbols = await asyncio.to_thread(
-                lambda: self.python.index_file(
-                    path,
-                    workspace_id=workspace_id,
-                    project_id=project_id,
-                ),
-            )
-        elif suffix in YamlVariableIndexer.INDEXABLE_SUFFIXES:
-            symbols, references = await asyncio.to_thread(
-                lambda: self.yaml_vars.index_file(
-                    path,
-                    workspace_id=workspace_id,
-                    project_id=project_id,
-                ),
-            )
-
-        await self.store.upsert_symbols(symbols)
-        if references:
-            # Attach symbol_ids when definitions exist later via name match.
-            await self.store.upsert_references(references)
-
         if self.analysis_engine is not None and suffix in {".robot", ".resource"}:
             await self.analysis_engine.ingest_file(
                 path,

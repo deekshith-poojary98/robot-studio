@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+from concurrent.futures import ProcessPoolExecutor
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -24,12 +26,22 @@ from robot_studio.core.events import (
 )
 from robot_studio.domain.interfaces.indexing import FileWatcher, IndexScope, SymbolKind
 from robot_studio.domain.models import IndexStatus, Project
-from robot_studio.infrastructure.indexing.filesystem_indexer import FilesystemIndexer
+from robot_studio.infrastructure.indexing.filesystem_indexer import (
+    FilesystemIndexer,
+    parse_indexable_file,
+)
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
 from robot_studio.infrastructure.language.builtin_keywords import BUILTIN_KEYWORDS
 from robot_studio.infrastructure.repositories.project_repository import (
     SqliteProjectRepository,
 )
+
+# Cap process workers so large trees do not thrash disk / RAM.
+_MAX_INDEX_WORKERS = 8
+
+
+def _index_worker_count() -> int:
+    return min(_MAX_INDEX_WORKERS, max(2, os.cpu_count() or 4))
 
 
 class IndexValidationError(Exception):
@@ -340,21 +352,29 @@ class IndexService:
         total = len(paths)
         scope = IndexScope.PROJECT.value if project_id else IndexScope.WORKSPACE.value
         scope_id = str(project_id) if project_id else str(workspace_id)
-        for index, path in enumerate(paths):
-            try:
-                await self.indexer.index_file(
-                    path,
-                    workspace_id=workspace_id,
-                    project_id=project_id,
-                    force=force,
-                    analysis_rebind=analysis_rebind,
-                )
-                indexed_paths.add(str(path))
-                # Intentionally no per-file FileIndexed during bulk rebuild.
-            except Exception as exc:  # noqa: BLE001
-                self._errors.append(f"{path}: {exc}")
-            current = index + 1
-            if index == 0 or current == total or index % 10 == 0:
+        if total == 0:
+            return indexed_paths
+
+        ws_id = str(workspace_id)
+        proj_id = str(project_id) if project_id else None
+
+        # Cheap mtime skip before scheduling workers (incremental open).
+        to_parse: list[Path] = []
+        for path in paths:
+            if not force:
+                try:
+                    mtime = path.stat().st_mtime
+                except OSError:
+                    to_parse.append(path)
+                    continue
+                previous = await self.store.get_file_mtime(path)
+                if previous is not None and abs(previous - mtime) < 1e-6:
+                    indexed_paths.add(str(path))
+                    continue
+            to_parse.append(path)
+
+        async def _emit_progress(current: int, path: Path) -> None:
+            if current == 1 or current == total or current % 10 == 0:
                 self._message = f"Indexing… {current}/{total}"
                 await self.event_bus.publish(
                     IndexProgress(
@@ -367,6 +387,95 @@ class IndexService:
                     ),
                 )
                 await asyncio.sleep(0)
+
+        skipped = total - len(to_parse)
+        if skipped:
+            await _emit_progress(skipped, paths[0])
+
+        if not to_parse:
+            if total:
+                await _emit_progress(total, paths[-1])
+            return indexed_paths
+
+        workers = _index_worker_count()
+        # Small trees: avoid process-pool startup cost.
+        use_pool = len(to_parse) >= workers
+
+        loop = asyncio.get_running_loop()
+        pool: ProcessPoolExecutor | None = None
+        pending: dict[asyncio.Task, Path] = {}
+        try:
+            if use_pool:
+                pool = ProcessPoolExecutor(max_workers=workers)
+
+            async def _parse(path: Path):
+                if pool is None:
+                    return await asyncio.to_thread(
+                        parse_indexable_file,
+                        str(path),
+                        ws_id,
+                        proj_id,
+                    )
+                return await loop.run_in_executor(
+                    pool,
+                    parse_indexable_file,
+                    str(path),
+                    ws_id,
+                    proj_id,
+                )
+
+            # Bound in-flight parses so we do not queue 10k futures at once.
+            in_flight = max(workers * 2, workers)
+            parse_iter = iter(to_parse)
+            done_count = skipped
+
+            def _schedule_one() -> bool:
+                try:
+                    path = next(parse_iter)
+                except StopIteration:
+                    return False
+                task = asyncio.create_task(
+                    _parse(path),
+                    name=f"index-parse-{path.name}",
+                )
+                pending[task] = path
+                return True
+
+            while len(pending) < in_flight and _schedule_one():
+                pass
+
+            while pending:
+                done, _still = await asyncio.wait(
+                    pending.keys(),
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in done:
+                    path = pending.pop(task)
+                    done_count += 1
+                    try:
+                        payload = task.result()
+                        await self.indexer.commit_parsed_file(
+                            payload,
+                            workspace_id=workspace_id,
+                            project_id=project_id,
+                            analysis_rebind=analysis_rebind,
+                            # Full rebuild already invalidated — skip per-file DELETEs.
+                            clear_existing=not force,
+                        )
+                        indexed_paths.add(str(path))
+                    except Exception as exc:  # noqa: BLE001
+                        self._errors.append(f"{path}: {exc}")
+                    await _emit_progress(done_count, path)
+                while len(pending) < in_flight and _schedule_one():
+                    pass
+        except asyncio.CancelledError:
+            for task in list(pending):
+                task.cancel()
+            raise
+        finally:
+            if pool is not None:
+                pool.shutdown(wait=False, cancel_futures=True)
+
         return indexed_paths
 
     async def get_status(self) -> IndexStatus:

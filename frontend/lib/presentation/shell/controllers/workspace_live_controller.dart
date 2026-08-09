@@ -158,16 +158,18 @@ class WorkspaceLiveController {
 
   String _formatProgress(String verb, WorkspaceStreamEvent event) {
     final custom = event.message?.trim();
+    final current = event.current;
+    final total = event.total;
     if (custom != null && custom.isNotEmpty) {
-      final current = event.current;
-      final total = event.total;
-      if (current != null && total != null && total > 0) {
+      // Backend often embeds "N/M" already — don't append it again.
+      if (current != null &&
+          total != null &&
+          total > 0 &&
+          !RegExp(r'\d+\s*/\s*\d+').hasMatch(custom)) {
         return '$custom ($current/$total)';
       }
       return custom;
     }
-    final current = event.current;
-    final total = event.total;
     if (current != null && total != null && total > 0) {
       return '$verb… $current/$total';
     }

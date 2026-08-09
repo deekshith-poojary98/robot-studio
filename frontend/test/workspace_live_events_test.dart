@@ -115,6 +115,16 @@ void main() {
     expect(busyFlags, [true]);
 
     controller.handleEvent(
+      WorkspaceStreamEvent.fromJson({
+        'type': 'INDEX_PROGRESS',
+        'message': 'Indexing… 4/10',
+        'current': 4,
+        'total': 10,
+      }),
+    );
+    expect(messages.last, 'Indexing… 4/10');
+
+    controller.handleEvent(
       const WorkspaceStreamEvent(type: 'INDEX_UPDATED', scope: 'workspace'),
     );
     expect(messages.last, 'Workspace synchronized');

@@ -376,3 +376,70 @@ async def test_watcher_detects_new_file(index_stack, tmp_path: Path) -> None:
     await asyncio.sleep(0.6)
     assert await store.get_file_mtime(new_file) is not None
     await service.watcher.stop()
+
+
+def test_parse_indexable_file_is_picklable(tmp_path: Path) -> None:
+    from robot_studio.infrastructure.indexing.filesystem_indexer import parse_indexable_file
+
+    path = tmp_path / "demo.robot"
+    path.write_text(SAMPLE_ROBOT, encoding="utf-8")
+    ws = str(uuid4())
+    proj = str(uuid4())
+    payload = parse_indexable_file(str(path), ws, proj)
+    assert payload.error is None
+    assert any(s["name"] == "Login User" for s in payload.symbols)
+    names = {s["name"] for s in payload.symbols}
+    assert "Verify Login" in names
+
+
+@pytest.mark.asyncio
+async def test_parallel_rebuild_indexes_many_files(index_stack, monkeypatch) -> None:
+    """Process-pool path must produce the same searchable index as serial."""
+    monkeypatch.setattr(
+        "robot_studio.application.services.index_service._index_worker_count",
+        lambda: 2,
+    )
+    service, _store, _facade, suite, _lib, _bus, _workspace, _project = index_stack
+    tests_dir = suite.parent
+    for i in range(6):
+        (tests_dir / f"bulk_{i}.robot").write_text(
+            f"*** Test Cases ***\nCase {i}\n    Log    {i}\n\n"
+            f"*** Keywords ***\nBulk Keyword {i}\n    Log    kw{i}\n",
+            encoding="utf-8",
+        )
+
+    status = await service.rebuild()
+    assert status.state == "ready"
+    assert status.files_indexed >= 7  # demo + CustomLib + 6 bulk
+
+    hits = await service.search("Bulk Keyword 3", kind=SymbolKind.KEYWORD)
+    assert any(item["name"] == "Bulk Keyword 3" for item in hits)
+    cases = await service.search("Case 5", kind=SymbolKind.TEST_CASE)
+    assert any(item["name"] == "Case 5" for item in cases)
+
+
+@pytest.mark.asyncio
+async def test_parallel_rebuild_cancel_is_safe(index_stack, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "robot_studio.application.services.index_service._index_worker_count",
+        lambda: 2,
+    )
+    service, _store, _facade, suite, _lib, _bus, _workspace, _project = index_stack
+    tests_dir = suite.parent
+    for i in range(12):
+        (tests_dir / f"cancel_{i}.robot").write_text(
+            f"*** Test Cases ***\nCancel {i}\n    Log    {i}\n",
+            encoding="utf-8",
+        )
+
+    await service.schedule_rebuild(full=True)
+    task = service._rebuild_task
+    assert task is not None
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    # A fresh rebuild after cancel must still complete.
+    status = await service.rebuild()
+    assert status.state == "ready"

@@ -1,3 +1,5 @@
+import 'dart:ui' show FontFeature;
+
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/insights_info.dart';
@@ -203,9 +205,9 @@ class _HeadlineStrip extends StatelessWidget {
       ('Runs', data.hasRuns ? '${runs.total}' : '0', null),
       ('Failed', data.hasRuns ? '${runs.failed}' : '0', context.palette.error),
       ('Avg duration', data.hasRuns ? runs.averageDurationLabel : '—', null),
-      ('Keywords', '${data.countFor('keyword')}', null),
-      ('Test cases', '${data.countFor('test_case')}', null),
-      ('Variables', '${data.countFor('variable')}', null),
+      ('Keywords', _formatCount(data.countFor('keyword')), null),
+      ('Test cases', _formatCount(data.countFor('test_case')), null),
+      ('Variables', _formatCount(data.countFor('variable')), null),
     ];
 
     return DecoratedBox(
@@ -271,13 +273,20 @@ class _HeadlineCell extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              height: 1.1,
-              color: valueColor ?? context.palette.textPrimary,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              softWrap: false,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                height: 1.1,
+                fontFeatures: const [FontFeature.tabularFigures()],
+                color: valueColor ?? context.palette.textPrimary,
+              ),
             ),
           ),
         ],
@@ -323,7 +332,15 @@ class _Panel extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
-                ?trailing,
+                if (trailing != null)
+                  Flexible(
+                    child: DefaultTextStyle.merge(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      child: trailing!,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -398,8 +415,8 @@ class _CompositionPanel extends StatelessWidget {
       title: 'Composition',
       trailing: Text(
         contentTotal > 0
-            ? '$contentTotal indexed · ${data.countFor('file')} files'
-            : '${data.countFor('file')} files',
+            ? '${_formatCount(contentTotal)} indexed · ${_formatCount(data.countFor('file'))} files'
+            : '${_formatCount(data.countFor('file'))} files',
         style: TextStyle(fontSize: 11, color: context.palette.textMuted),
       ),
       fillBody: expandBody,
@@ -628,13 +645,23 @@ class _DenseFileRowState extends State<_DenseFileRow> {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                Text(
-                  '${widget.total}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                    color: context.palette.textSecondary,
+                SizedBox(
+                  width: 48,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      _formatCount(widget.total),
+                      maxLines: 1,
+                      softWrap: false,
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        color: context.palette.textSecondary,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -717,15 +744,25 @@ class _BarRow extends StatelessWidget {
         ),
         const SizedBox(width: AppSpacing.sm),
         SizedBox(
-          width: 36,
-          child: Text(
-            '$value',
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              fontFeatures: const [FontFeature.tabularFigures()],
-              color: context.palette.textPrimary,
+          width: 76,
+          child: Tooltip(
+            message: '$value',
+            waitDuration: const Duration(milliseconds: 400),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                _formatCount(value),
+                maxLines: 1,
+                softWrap: false,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: context.palette.textPrimary,
+                ),
+              ),
             ),
           ),
         ),
@@ -1846,6 +1883,20 @@ bool _looksLikeSourceFile(String path) {
       lower.endsWith('.py') ||
       lower.endsWith('.yaml') ||
       lower.endsWith('.yml');
+}
+
+/// Group thousands for dense IDE counts (keeps full precision, avoids wrap).
+String _formatCount(int value) {
+  final digits = value.abs().toString();
+  final buffer = StringBuffer();
+  if (value < 0) buffer.write('-');
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) {
+      buffer.write(',');
+    }
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
 }
 
 String? _matchRunToFile(String suite, Iterable<String> files) {

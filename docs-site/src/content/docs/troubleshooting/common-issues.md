@@ -24,6 +24,27 @@ Open or create a **project** first. Those actions stay gated on the welcome scre
 3. Check Problems / Robot Doctor for missing imports that would fail collection.
 4. For huge suites, look for a confirmation dialog you may have dismissed.
 
+## Index rebuild on a huge project
+
+**Rebuild Index** starts in the background and returns immediately. Watch the footer status bar for `Indexing… N/M`.
+
+For projects with thousands of files:
+
+- Leave the rebuild running — do not treat a long wait as a failure
+- Indexing parses files with multiple workers (capped) while writing the symbol store on one path
+- Prefer editing after the status bar shows the index is synchronized
+- Insights / Search / Go to Symbol stay incomplete until indexing finishes
+
+Large rebuilds can feel slower after the first few thousand files if the database is growing —
+Robot Studio keeps symbol writes in one transaction per file and indexes reference lookups so
+per-file cleanup stays fast as the store fills.
+
+## Completions or go-to-definition feel wrong
+
+- Wait for indexing to finish after opening a large project.
+- Confirm the active environment matches the libraries your suite imports.
+- Trigger a full index rebuild if results look stale.
+
 ## UI freezes while a huge run is in progress
 
 Long project runs (thousands of tests) rewrite `output.xml` continuously and stream a lot of console output. Robot Studio now:
@@ -33,10 +54,6 @@ Long project runs (thousands of tests) rewrite `output.xml` continuously and str
 - Keeps Save from waiting on Git refresh
 
 If the UI still feels sticky, hide the Execution panel while the run finishes, or stop the run before heavy editing. Reports still appear when the run completes.
-
-- Wait for indexing to finish after opening a large project.
-- Confirm the active environment matches the libraries your suite imports.
-- Trigger a full index rebuild if results look stale.
 
 ## Git shows the wrong repository
 
