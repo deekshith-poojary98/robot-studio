@@ -52,9 +52,11 @@ from robot_studio.infrastructure.language.completion import (
 )
 from robot_studio.infrastructure.language.keyword_helpers import (
     active_parameter_index,
+    parameters_from_detail_string,
 )
 from robot_studio.infrastructure.language.document_analysis import DocumentAnalysisService
 from robot_studio.infrastructure.language.library_catalog import LibraryCatalogService
+from robot_studio.domain.models.keyword_metadata import KeywordMetadata
 from robot_studio.domain.models.library_metadata import LibraryMetadata
 from robot_studio.infrastructure.language.signature import (
     IndexSignatureHelpProvider,
@@ -383,21 +385,34 @@ class RobotLanguageService(LanguageService):
 
     async def hover(self, request: dict) -> dict | None:
         symbol = await self._resolve(request)
+        content = str(request.get("content") or "")
+        file_path = str(request.get("file_path") or "")
         if symbol is not None:
+            detail = str(symbol.get("detail") or "")
+            documentation = str(symbol.get("documentation") or "")
+            # Open-buffer keywords may be newer than the last index pass —
+            # prefer live [Arguments] / [Documentation] when available.
+            if content and str(symbol.get("kind") or "") == SymbolKind.KEYWORD.value:
+                live = await self._live_keyword_fields(
+                    content,
+                    file_path,
+                    str(symbol.get("name") or ""),
+                )
+                if live is not None:
+                    detail = str(live.get("detail") or detail)
+                    documentation = str(live.get("documentation") or documentation)
             return {
                 "name": symbol["name"],
                 "kind": symbol["kind"],
                 "file_path": symbol["file_path"],
                 "line": symbol["line"],
-                "documentation": symbol.get("documentation") or "",
-                "detail": symbol.get("detail") or "",
+                "documentation": documentation,
+                "detail": detail,
                 "id": symbol["id"],
             }
 
         # Env / library keywords are not in the workspace index.
         name = str(request.get("name") or request.get("symbol") or "").strip()
-        content = str(request.get("content") or "")
-        file_path = str(request.get("file_path") or "")
         line = int(request.get("line") or 1)
         if not name and content:
             try:
@@ -596,6 +611,34 @@ class RobotLanguageService(LanguageService):
         meta = await self._ensure_signature_pipeline().resolve(ctx)
         if meta is None:
             return None
+        # Prefer live [Arguments]/[Documentation] from the open buffer when the
+        # index still has an empty detail (common for custom keywords).
+        if content and (not meta.parameters or not meta.documentation):
+            live = await self._live_keyword_fields(content, file_path, meta.name)
+            if live is not None:
+                live_detail = str(live.get("detail") or "")
+                live_docs = str(live.get("documentation") or "")
+                live_params = (
+                    parameters_from_detail_string(live_detail)
+                    if live_detail
+                    else meta.parameters
+                )
+                if live_params or live_docs:
+                    meta = KeywordMetadata(
+                        name=meta.name,
+                        qualified_name=meta.qualified_name,
+                        source_type=meta.source_type,
+                        library_name=meta.library_name,
+                        documentation=live_docs or meta.documentation,
+                        doc_format=meta.doc_format,
+                        parameters=live_params or meta.parameters,
+                        source_path=meta.source_path,
+                        source_line=meta.source_line,
+                        deprecated=meta.deprecated,
+                        tags=meta.tags,
+                        examples=meta.examples,
+                        detail=live_detail or meta.detail,
+                    )
         if not meta.parameters and not meta.documentation:
             return None
 
@@ -711,6 +754,39 @@ class RobotLanguageService(LanguageService):
         # Analysis Engine fallback — semantic graph keyword entities.
         analysis_hits = await self._definitions_from_analysis(str(name))
         return analysis_hits
+
+    async def _live_keyword_fields(
+        self,
+        content: str,
+        file_path: str,
+        name: str,
+    ) -> dict | None:
+        """Parse open-buffer keywords for up-to-date args / docs."""
+        cleaned = (name or "").strip()
+        if not cleaned or not content.strip():
+            return None
+        try:
+            symbols = await self.parsing.run(
+                self._python_executable(),
+                op="document_symbols",
+                content=content,
+                file_path=file_path or "buffer.robot",
+            )
+        except RobotParsingError:
+            return None
+        needle = cleaned.casefold()
+        for item in symbols if isinstance(symbols, list) else []:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("kind") or "") != SymbolKind.KEYWORD.value:
+                continue
+            if str(item.get("name") or "").casefold() != needle:
+                continue
+            return {
+                "detail": str(item.get("detail") or ""),
+                "documentation": str(item.get("documentation") or ""),
+            }
+        return None
 
     @staticmethod
     def _robot_cell_at(content: str, line: int, column: int) -> str | None:

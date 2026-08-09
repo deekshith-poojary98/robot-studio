@@ -39,6 +39,7 @@ ${USER}    alice
 *** Keywords ***
 Login User
     [Documentation]    Logs the user in
+    [Arguments]    ${username}    ${password}=secret
     [Tags]    auth
     Log    ${USER}
 
@@ -129,6 +130,10 @@ def test_robot_indexer_extracts_symbols(tmp_path: Path) -> None:
     assert SymbolKind.LIBRARY.value in kinds
     assert "Login User" in names
     assert "${USER}" in names
+    login = next(s for s in symbols if s.name == "Login User")
+    assert "${username}" in login.detail
+    assert "${password}=secret" in login.detail
+    assert "Logs the user in" in login.documentation
     assert any(ref["name"] == "Login User" for ref in refs)
 
 

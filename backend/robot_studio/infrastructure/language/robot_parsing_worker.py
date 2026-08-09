@@ -169,6 +169,22 @@ def _collect_documentation(item: Any) -> str:
     return "\n".join(docs).strip()
 
 
+def _collect_arguments(item: Any) -> list[str]:
+    """Return ``[Arguments]`` cells for a Keyword / user-keyword node."""
+    body = getattr(item, "body", None) or []
+    for entry in body:
+        if type(entry).__name__ != "Arguments":
+            continue
+        values = getattr(entry, "values", None) or ()
+        return [str(value).strip() for value in values if str(value).strip()]
+    return []
+
+
+def _arguments_detail(item: Any) -> str:
+    """Comma-separated argument labels for index / hover / signature help."""
+    return ", ".join(_collect_arguments(item))
+
+
 def _end_line(node: Any) -> int:
     end = getattr(node, "end_lineno", None)
     if end is not None:
@@ -476,6 +492,7 @@ def document_symbol_tree(content: str, file_path: str) -> dict[str, Any]:
                         line=line,
                         end_line=end,
                         column=col,
+                        detail=_arguments_detail(item),
                         documentation=_collect_documentation(item),
                         children=_walk_body(getattr(item, "body", None)),
                     ),
@@ -617,7 +634,7 @@ def document_symbols(content: str, file_path: str) -> list[dict[str, Any]]:
                         "name": _node_name(item),
                         "kind": "keyword",
                         "line": line,
-                        "detail": "",
+                        "detail": _arguments_detail(item),
                         "documentation": _collect_documentation(item),
                     },
                 )
@@ -637,9 +654,12 @@ def document_symbols(content: str, file_path: str) -> list[dict[str, Any]]:
                         case_setup = _node_name(entry) or "Setup"
                     elif entry_type == "Teardown":
                         case_teardown = _node_name(entry) or "Teardown"
-                detail = header
+                detail = {
+                    "test cases": "test case",
+                    "tasks": "task",
+                }.get(header, header)
                 if case_tags:
-                    detail = f"{header}|tags:{','.join(case_tags)}"
+                    detail = f"{detail}|tags:{','.join(case_tags)}"
                 symbols.append(
                     {
                         "name": case_name,

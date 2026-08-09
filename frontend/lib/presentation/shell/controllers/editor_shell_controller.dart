@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../../../core/gateway/transport_gateway.dart';
 import '../../../core/logging/app_logger.dart';
 import 'shell_controller.dart';
@@ -161,10 +163,7 @@ class EditorShellController {
           content: tab.content,
           query: token,
         ),
-        gateway.languageDiagnostics(
-          filePath: tab.path,
-          content: tab.content,
-        ),
+        gateway.languageDiagnostics(filePath: tab.path, content: tab.content),
         gateway.languageSignatureHelp(
           filePath: tab.path,
           line: cursorLine,
@@ -275,12 +274,24 @@ class EditorShellController {
         notify();
         return;
       }
-      hoverTooltip = SignatureHelpInfo(
-        keyword: hover.name,
-        documentation: hover.documentation,
-        detail: hover.detail.isNotEmpty ? hover.detail : hover.kind.label,
-        parameters: parametersFromDetail(hover.detail),
-      );
+      final argChips = _argumentChipsFromHoverDetail(hover.detail);
+      if (argChips.isNotEmpty) {
+        hoverTooltip = SignatureHelpInfo(
+          keyword: hover.name,
+          documentation: hover.documentation,
+          detail: hover.detail,
+          libraryName: hover.kind.label,
+          parameters: argChips,
+        );
+      } else {
+        // Symbol hover (test case, keyword definition, …): singular kind badge.
+        hoverTooltip = SignatureHelpInfo(
+          keyword: hover.name,
+          documentation: hover.documentation,
+          detail: hover.kind.label,
+          parameters: [SignatureParameterInfo(label: hover.kind.label)],
+        );
+      }
       notify();
     } catch (error) {
       if (!isMounted() || requestId != _hoverRequestId) return;
@@ -440,7 +451,8 @@ class EditorShellController {
   }) async {
     final ws = workspace();
     if (ws == null) return;
-    final isRoot = directoryPath == null ||
+    final isRoot =
+        directoryPath == null ||
         directoryPath.isEmpty ||
         directoryPath.replaceAll('\\', '/') == workspaceRoot;
 
@@ -456,7 +468,8 @@ class EditorShellController {
 
       final parent = directoryPath.replaceAll('\\', '/');
       // Only hit the API when the parent is visible (expanded or cached).
-      if (!expandedDirs.contains(parent) && !childrenByPath.containsKey(parent)) {
+      if (!expandedDirs.contains(parent) &&
+          !childrenByPath.containsKey(parent)) {
         // Parent collapsed — mark hasChildren on ancestor if present in root.
         notify();
         return;
@@ -491,12 +504,10 @@ class EditorShellController {
   }
 
   List<FileTreeNode> _filterNodes(List<FileTreeNode> nodes, String removed) {
-    return nodes
-        .where((node) {
-          final p = node.path.replaceAll('\\', '/');
-          return p != removed && !p.startsWith('$removed/');
-        })
-        .toList();
+    return nodes.where((node) {
+      final p = node.path.replaceAll('\\', '/');
+      return p != removed && !p.startsWith('$removed/');
+    }).toList();
   }
 
   void _pruneMissingTreeState(List<FileTreeNode> roots) {
@@ -661,5 +672,41 @@ class EditorShellController {
           );
         })
         .toList();
+  }
+
+  /// True when [detail] looks like keyword args (`a, b=1`), not a section label.
+  @visibleForTesting
+  static List<SignatureParameterInfo> argumentChipsFromHoverDetail(
+    String detail,
+  ) => _argumentChipsFromHoverDetail(detail);
+
+  static List<SignatureParameterInfo> _argumentChipsFromHoverDetail(
+    String detail,
+  ) {
+    final trimmed = detail.trim();
+    if (trimmed.isEmpty) return const [];
+    // Section / kind labels from the parser (and tag annotations).
+    final lower = trimmed.toLowerCase();
+    if (lower == 'test case' ||
+        lower == 'test cases' ||
+        lower == 'task' ||
+        lower == 'tasks' ||
+        lower == 'keyword' ||
+        lower == 'keywords' ||
+        lower.startsWith('test case|') ||
+        lower.startsWith('test cases|') ||
+        lower.startsWith('task|') ||
+        lower.startsWith('tasks|')) {
+      return const [];
+    }
+    // Custom keyword [Arguments] often look like `${a}, ${b}=2` (or a single
+    // `${name}` with no comma) — treat RF variables as signature detail.
+    final looksLikeArgs =
+        trimmed.contains(',') ||
+        trimmed.contains('=') ||
+        trimmed.contains(':') ||
+        RegExp(r'[\$@&%]\{').hasMatch(trimmed);
+    if (!looksLikeArgs) return const [];
+    return parametersFromDetail(trimmed);
   }
 }

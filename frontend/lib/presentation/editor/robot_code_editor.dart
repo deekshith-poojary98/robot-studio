@@ -324,6 +324,31 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     return sel.endIndex + 1;
   }
 
+  void _onEscape() {
+    // Find panel owns Escape while open.
+    if (_findController.value != null) {
+      _findController.close();
+      return;
+    }
+    _dismissAutocompleteOverlay();
+    _dismissHover(immediate: true);
+  }
+
+  /// re_editor only enables Esc when find is open or the selection is expanded,
+  /// so a normal collapsed-caret suggestion popup never receives Escape.
+  /// Flipping caret affinity notifies without moving the caret and hits the
+  /// unchanged-codeLines dismiss path in re_editor.
+  void _dismissAutocompleteOverlay() {
+    final sel = _controller.selection;
+    final flipped = sel.baseAffinity == TextAffinity.downstream
+        ? TextAffinity.upstream
+        : TextAffinity.downstream;
+    _controller.selection = sel.copyWith(
+      baseAffinity: flipped,
+      extentAffinity: flipped,
+    );
+  }
+
   void _dismissHover({bool immediate = false}) {
     if (!immediate && _pointerOverTooltip) return;
     _hoverTimer?.cancel();
@@ -579,7 +604,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
           ),
           _DismissSignatureIntent: CallbackAction<_DismissSignatureIntent>(
             onInvoke: (_) {
-              _dismissHover(immediate: true);
+              _onEscape();
               return null;
             },
           ),

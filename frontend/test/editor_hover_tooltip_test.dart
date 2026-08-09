@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:robot_studio/core/gateway/models/index_info.dart';
 import 'package:robot_studio/core/gateway/models/language_info.dart';
 import 'package:robot_studio/presentation/editor/editor_navigation_widgets.dart';
 import 'package:robot_studio/presentation/shell/controllers/editor_shell_controller.dart';
@@ -122,6 +123,37 @@ void main() {
       defaultValue: 'chrome',
     );
     expect(param.displayLabel, 'browser=chrome');
+  });
+
+  test('hover section details are not parsed as argument chips', () {
+    expect(
+      EditorShellController.argumentChipsFromHoverDetail('test cases'),
+      isEmpty,
+    );
+    expect(
+      EditorShellController.argumentChipsFromHoverDetail('test case'),
+      isEmpty,
+    );
+    expect(
+      EditorShellController.argumentChipsFromHoverDetail(r'${path}'),
+      isNotEmpty,
+    );
+    expect(
+      EditorShellController.argumentChipsFromHoverDetail(
+        r'${username}, ${password}=secret',
+      ),
+      hasLength(2),
+    );
+    expect(
+      EditorShellController.argumentChipsFromHoverDetail(
+        'path: str = None, alias=None',
+      ),
+      isNotEmpty,
+    );
+  });
+
+  test('SymbolKind test case label is singular', () {
+    expect(SymbolKind.testCase.label, 'Test Case');
   });
 
   test('extractRobotTokenAt keeps multi-word keyword cells', () {
