@@ -12,7 +12,7 @@ description: How test execution works — toolbar runs, Test Explorer, confirmat
 | **Test Explorer** | One test, one suite, all, or failed |
 | **Re-run Test** | A single failure from the last run |
 
-Logs stream live over the workspace connection while a run is in progress. Use **Stop** to cancel.
+Logs stream into **Live Output** while a run is in progress (Robot is started with unbuffered stdout so lines are not held until the process exits). Use **Stop** to cancel.
 
 ## Large runs
 

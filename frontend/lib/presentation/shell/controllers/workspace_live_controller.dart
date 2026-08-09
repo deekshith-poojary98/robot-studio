@@ -141,10 +141,10 @@ class WorkspaceLiveController {
         if (event.reason == 'missing') {
           onStatusMessage('Workspace removed');
           unawaited(onWorkspaceMissing(event));
-        } else if (event.reason == 'opened') {
-          onStatusMessage('Indexing workspace...');
-          _setBusy(true);
         }
+        // Do not set "Indexing…" on opened — INDEX_PROGRESS / INDEX_UPDATED
+        // own that. A late WORKSPACE_CHANGED after INDEX_UPDATED left the
+        // status bar stuck on "Indexing workspace..." for minutes.
         return;
       default:
         return;

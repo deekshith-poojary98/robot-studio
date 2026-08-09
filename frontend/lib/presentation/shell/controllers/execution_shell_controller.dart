@@ -45,9 +45,17 @@ class ExecutionShellController {
   /// Cap console memory; 10k-test runs can emit huge stdout.
   static const int maxExecutionLines = 4000;
 
+  /// Marker from studio_progress_listener.py (stripped from console).
+  static final RegExp _progressMarker = RegExp(r'^###RS###\|now\|(.*)$');
+
   Timer? _outputFlushTimer;
   final List<String> _pendingOutput = [];
   bool _outputDropped = false;
+
+  /// RIDE-style "now running" (suite / test / keyword).
+  String liveSuite = '';
+  String liveTest = '';
+  String liveKeyword = '';
 
   String get elapsedLabel {
     final seconds = elapsed.inMilliseconds / 1000;
@@ -101,15 +109,17 @@ class ExecutionShellController {
 
     switch (event.type) {
       case 'output':
-        // Ignore replay/noise until this session has started a run.
-        if (!_isEventForCurrentRun(event)) return;
         final line = event.line;
         if (line == null) return;
+        // Allow lines before HTTP assigns currentExecution (run already started).
+        if (currentExecution != null && !_isEventForCurrentRun(event)) return;
+        if (_applyProgressMarker(line)) return;
         _pendingOutput.add(line);
         _scheduleOutputFlush();
         return;
       case 'status':
         // Do not adopt historical run status on stream connect (cold start).
+        if (currentExecution == null) return;
         if (!_isEventForCurrentRun(event)) return;
         final status = event.status;
         if (status == null) return;
@@ -139,6 +149,7 @@ class ExecutionShellController {
       case 'cancelled':
         if (!_isEventForCurrentRun(event)) return;
         _flushOutputNow();
+        _clearLiveProgress();
         executionStatus = ExecutionStatus.fromApi(event.type);
         currentExecution = ExecutionInfo(
           id: currentExecution!.id,
@@ -163,6 +174,30 @@ class ExecutionShellController {
         unawaited(onRunFinished());
         return;
     }
+  }
+
+  bool _applyProgressMarker(String line) {
+    final match = _progressMarker.firstMatch(line.trim());
+    if (match == null) return false;
+    final parts = match.group(1)!.split('|');
+    // suite|test|keyword — names may be empty.
+    final suite = parts.isNotEmpty ? parts[0] : '';
+    final test = parts.length > 1 ? parts[1] : '';
+    final keyword = parts.length > 2 ? parts.sublist(2).join('|') : '';
+    if (suite == liveSuite && test == liveTest && keyword == liveKeyword) {
+      return true;
+    }
+    liveSuite = suite;
+    liveTest = test;
+    liveKeyword = keyword;
+    notify();
+    return true;
+  }
+
+  void _clearLiveProgress() {
+    liveSuite = '';
+    liveTest = '';
+    liveKeyword = '';
   }
 
   void _scheduleOutputFlush() {
@@ -292,6 +327,7 @@ class ExecutionShellController {
     _outputDropped = false;
     _outputFlushTimer?.cancel();
     _outputFlushTimer = null;
+    _clearLiveProgress();
     executionHistory = [];
     executionStatus = ExecutionStatus.idle;
     currentExecution = null;
@@ -320,6 +356,11 @@ class ExecutionShellController {
     failedTests = [];
     loadingFailures = false;
     failedTestsRunId = null;
+    _clearLiveProgress();
+    // Clear so early stream lines for the new run are not filtered by the
+    // previous run id while the start HTTP call is still in flight.
+    currentExecution = null;
+    executionStatus = ExecutionStatus.running;
   }
 
   Future<void> loadFailedTests(String runId) async {

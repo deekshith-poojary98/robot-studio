@@ -61,8 +61,14 @@ class SubprocessRunner(Runner):
             if str(arg).strip()
         ]
 
+        listener = Path(__file__).with_name("studio_progress_listener.py")
+        # Prepend so project --listener args still run; ours stays first for UI.
+        if listener.is_file():
+            extra_args = ["--listener", str(listener.resolve()), *extra_args]
+
         command = [
             str(python),
+            "-u",  # unbuffered stdout so Live Output streams during the run
             "-m",
             "robot",
             "--outputdir",
@@ -77,6 +83,9 @@ class SubprocessRunner(Runner):
             suite,
         ]
 
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
+
         try:
             process = await asyncio.create_subprocess_exec(
                 *command,
@@ -84,6 +93,7 @@ class SubprocessRunner(Runner):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 start_new_session=sys.platform != "win32",
+                env=env,
             )
         except OSError as exc:
             raise RunnerError(f"Failed to start robot: {exc}") from exc

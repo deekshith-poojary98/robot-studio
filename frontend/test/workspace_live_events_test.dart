@@ -129,5 +129,12 @@ void main() {
     );
     expect(messages.last, 'Workspace synchronized');
     expect(busyFlags.last, isFalse);
+
+    // Late open event must not re-arm a stuck "Indexing workspace..." label.
+    controller.handleEvent(
+      const WorkspaceStreamEvent(type: 'WORKSPACE_CHANGED', reason: 'opened'),
+    );
+    expect(messages.last, 'Workspace synchronized');
+    expect(busyFlags.last, isFalse);
   });
 }

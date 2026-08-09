@@ -45,9 +45,11 @@ per-file cleanup stays fast as the store fills.
 - Confirm the active environment matches the libraries your suite imports.
 - Trigger a full index rebuild if results look stale.
 
-Relaunch only runs an **incremental** pass (mtime skip). If every open feels like a full rebuild, use **Rebuild Index** once, then relaunch again — later opens should settle quickly when files are unchanged.
+Relaunch only runs an **incremental** pass (mtime skip). If the footer shows **Indexing workspace…** for a long time with no `N/M` progress after a recent open, hot-restart once — a late open event used to leave that label stuck after indexing had already finished.
 
-## UI freezes while a huge run is in progress
+## Live Output only appears when the run finishes
+
+Robot Framework was previously started with buffered stdout when piped, so console lines flushed at process exit. Robot Studio now starts Robot with unbuffered Python (`-u` / `PYTHONUNBUFFERED`). Hot-restart the app and run again — lines should appear during the run in **Live Output**.
 
 Long project runs (thousands of tests) rewrite `output.xml` continuously and stream a lot of console output. Robot Studio now:
 

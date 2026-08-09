@@ -83,26 +83,29 @@ class InsightsPage extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
               sliver: SliverToBoxAdapter(
                 child: wide
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: _CompositionPanel(
-                              data: data,
-                              onRebuildIndex: onRebuildIndex,
-                              onOpenFile: onOpenFile,
+                    ? IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: _CompositionPanel(
+                                data: data,
+                                onRebuildIndex: onRebuildIndex,
+                                onOpenFile: onOpenFile,
+                                expandBody: true,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: _RunHealthPanel(
-                              data: data,
-                              failing: failing,
-                              onOpenReports: onOpenReports,
-                              onOpenFile: onOpenFile,
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: _RunHealthPanel(
+                                data: data,
+                                failing: failing,
+                                onOpenReports: onOpenReports,
+                                onOpenFile: onOpenFile,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       )
                     : Column(
                         children: [
@@ -367,14 +370,23 @@ class _HeadlineCell extends StatelessWidget {
 }
 
 class _Panel extends StatelessWidget {
-  const _Panel({required this.title, required this.child, this.trailing});
+  const _Panel({
+    required this.title,
+    required this.child,
+    this.trailing,
+    this.fillBody = false,
+  });
 
   final String title;
   final Widget child;
   final Widget? trailing;
 
+  /// Stretch body when the panel is in a tall IntrinsicHeight row.
+  final bool fillBody;
+
   @override
   Widget build(BuildContext context) {
+    final body = Padding(padding: const EdgeInsets.all(12), child: child);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: context.palette.surface,
@@ -407,7 +419,7 @@ class _Panel extends StatelessWidget {
             ),
           ),
           Divider(height: 1, color: context.palette.borderSubtle),
-          Padding(padding: const EdgeInsets.all(12), child: child),
+          if (fillBody) Expanded(child: body) else body,
         ],
       ),
     );
@@ -419,11 +431,15 @@ class _CompositionPanel extends StatelessWidget {
     required this.data,
     this.onRebuildIndex,
     this.onOpenFile,
+    this.expandBody = false,
   });
 
   final InsightsInfo data;
   final VoidCallback? onRebuildIndex;
   final ValueChanged<String>? onOpenFile;
+
+  /// Stretch Focus card to match Run health height in wide layout.
+  final bool expandBody;
 
   static const _kinds = <(String, String)>[
     ('keyword', 'Keywords'),
@@ -440,6 +456,7 @@ class _CompositionPanel extends StatelessWidget {
     if (!data.hasComposition) {
       return _Panel(
         title: 'Composition',
+        fillBody: expandBody,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -454,6 +471,7 @@ class _CompositionPanel extends StatelessWidget {
                 child: const Text('Rebuild Index'),
               ),
             ],
+            if (expandBody) const Spacer(),
           ],
         ),
       );
@@ -471,6 +489,7 @@ class _CompositionPanel extends StatelessWidget {
 
     return _Panel(
       title: 'Composition',
+      fillBody: expandBody,
       trailing: Text(
         contentTotal > 0
             ? '${_formatCount(contentTotal)} indexed · ${_formatCount(data.countFor('file'))} files'
@@ -490,7 +509,10 @@ class _CompositionPanel extends StatelessWidget {
                 color: _kindColor(context, entry.$1),
               ),
             ),
-          const SizedBox(height: AppSpacing.lg),
+          if (expandBody)
+            const Spacer()
+          else
+            const SizedBox(height: AppSpacing.lg),
           _CompositionFocusCard(data: data, onOpenFile: onOpenFile),
         ],
       ),
