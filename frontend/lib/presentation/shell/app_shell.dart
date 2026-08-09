@@ -222,6 +222,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   ExecutionInfo? get _currentExecution => _execution.currentExecution;
   List<RunTestFailureInfo> get _failedTests => _execution.failedTests;
   bool get _loadingFailures => _execution.loadingFailures;
+  List<RunTestFailureInfo> get _reportFailedTests =>
+      _execution.reportFailedTests;
+  bool get _loadingReportFailures => _execution.loadingReportFailures;
+  bool get _reportFailuresReady => _execution.reportFailuresReady;
   List<ExecutionInfo> get _reportRuns => _execution.reportRuns;
   ExecutionInfo? get _selectedReport => _execution.selectedReport;
   DashboardSummary? get _reportsDashboard => _execution.reportsDashboard;
@@ -1067,9 +1071,24 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       final fresh = await _gateway.getReport(run.id);
       if (!mounted) return;
       setState(() => _execution.selectedReport = fresh);
+      await _loadReportFailedTests(fresh);
     } catch (error) {
       _appendLog('[warn] Could not refresh report details: $error');
+      if (!mounted) return;
+      await _loadReportFailedTests(run);
     }
+  }
+
+  Future<void> _loadReportFailedTests(ExecutionInfo run) async {
+    final looksFailed =
+        (run.failed ?? 0) > 0 ||
+        run.resultBadge == 'FAIL' ||
+        run.status == ExecutionStatus.failed;
+    if (!looksFailed) {
+      _execution.clearReportFailedTests();
+      return;
+    }
+    await _execution.loadReportFailedTests(run.id);
   }
 
   Future<void> _openReportLog() async {
@@ -1145,7 +1164,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     try {
       await _gateway.deleteReport(run.id);
       if (!mounted) return;
-      setState(() => _execution.selectedReport = null);
+      setState(() {
+        _execution.selectedReport = null;
+        _execution.reportFailedTests = [];
+        _execution.loadingReportFailures = false;
+        _execution.reportFailedTestsRunId = null;
+        _execution.reportFailuresReady = false;
+      });
       _appendLog('[info] Deleted report "${run.projectName}"');
       await _loadReports();
     } catch (error) {
@@ -2032,6 +2057,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _toggleSidebar() {
     setState(() => _sidePanelCollapsed = !_sidePanelCollapsed);
+  }
+
+  Future<void> _openUserGuide() async {
+    const url = 'https://deekshith-poojary98.github.io/robot-studio/';
+    if (Platform.isMacOS) {
+      await Process.run('open', [url]);
+    } else if (Platform.isWindows) {
+      await Process.run('cmd', ['/c', 'start', '', url]);
+    } else {
+      await Process.run('xdg-open', [url]);
+    }
   }
 
   void _cycleEditorTab({required bool forward}) {
@@ -5238,6 +5274,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                 activePanel: _activePanel,
                                 settingsActive: _showSettingsPage,
                                 showBranding: true,
+                                onToggleSidebar: _toggleSidebar,
+                                onOpenHelp: () => unawaited(_openUserGuide()),
                                 onSettings: _showSettingsPage
                                     ? _closePreferences
                                     : _openPreferences,
@@ -5330,6 +5368,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                 onNewProject: _handleNewStandaloneProject,
                                 onImportProject: _handleImportProject,
                                 recentRuns: _reportRuns.take(8).toList(),
+                                selectedReport: _selectedReport,
                                 onSelectReport: _selectReport,
                                 testSuites: _testSuites,
                                 onSelectTestSuite: (suite) {
@@ -5712,6 +5751,21 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         dashboard: _reportsDashboard,
         isLoadingDashboard: _loadingDashboard,
         selected: _selectedReport,
+        failedTests: _reportFailedTests,
+        isLoadingFailures: _loadingReportFailures,
+        failuresReady: _reportFailuresReady,
+        onJumpToFailedTest: (failure) {
+          unawaited(
+            _openFile(
+              failure.source,
+              line: failure.line,
+              column: failure.column,
+            ),
+          );
+        },
+        onRerunFailedTest: (failure) {
+          unawaited(_handleRerunFailedTest(failure));
+        },
         onRefresh: _loadReports,
         onOpenXml: _openReportXml,
         onOpenLog: _openReportLog,

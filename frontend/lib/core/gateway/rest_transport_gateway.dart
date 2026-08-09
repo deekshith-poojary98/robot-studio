@@ -1298,9 +1298,28 @@ class RestTransportGateway implements TransportGateway {
     http.Response response, {
     bool allowEmpty = false,
   }) {
-    final decoded = response.body.isEmpty
-        ? <String, dynamic>{}
-        : jsonDecode(response.body) as Object?;
+    Object? decoded;
+    if (response.body.isEmpty) {
+      decoded = <String, dynamic>{};
+    } else {
+      try {
+        decoded = jsonDecode(response.body) as Object?;
+      } on FormatException {
+        // Starlette/uvicorn may return plain-text 500 bodies.
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          final trimmed = response.body.trim();
+          final message = trimmed.isEmpty
+              ? 'Request failed (${response.statusCode})'
+              : trimmed;
+          AppLogger.warn(
+            'HTTP ${response.statusCode}: $message',
+            tag: 'Gateway',
+          );
+          throw GatewayException(message);
+        }
+        throw GatewayException('Unexpected response from backend');
+      }
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final detail = decoded is Map<String, dynamic> ? decoded['detail'] : null;

@@ -63,7 +63,99 @@ def _file_suite_key(suite: str) -> str | None:
     path = Path(text)
     if path.suffix.lower() not in _FILE_SUFFIXES:
         return None
-    return str(path)
+    return _normalize_path(str(path))
+
+
+def _normalize_path(path: str) -> str:
+    return path.replace("\\", "/").strip()
+
+
+def _canonicalize_run_file(
+    path: str,
+    composition_paths: list[str],
+) -> str:
+    """Collapse absolute / relative / basename variants of the same suite file."""
+    key = _normalize_path(path)
+    if not key:
+        return key
+
+    normalized = [_normalize_path(p) for p in composition_paths]
+    for candidate in normalized:
+        if candidate == key:
+            return candidate
+
+    suffix_hits = [
+        candidate
+        for candidate in normalized
+        if candidate.endswith("/" + key)
+    ]
+    if len(suffix_hits) == 1:
+        return suffix_hits[0]
+
+    name = Path(key).name
+    if key == name:
+        name_hits = [
+            candidate for candidate in normalized if Path(candidate).name == name
+        ]
+        if len(name_hits) == 1:
+            return name_hits[0]
+
+    return key
+
+
+def _merge_duplicate_file_buckets(
+    by_file: dict[str, dict],
+) -> dict[str, dict]:
+    """Merge remaining path variants (basename vs longer path) after aggregation."""
+    if len(by_file) < 2:
+        return by_file
+
+    keys = sorted(by_file.keys(), key=len, reverse=True)
+    merged: dict[str, dict] = {}
+    absorbed: set[str] = set()
+
+    for key in keys:
+        if key in absorbed:
+            continue
+        bucket = dict(by_file[key])
+        for other in keys:
+            if other == key or other in absorbed:
+                continue
+            # Absorb shorter keys that are a suffix / basename of this key.
+            if key.endswith("/" + other) or (
+                "/" not in other and Path(key).name == other
+            ):
+                _absorb_file_bucket(bucket, by_file[other])
+                absorbed.add(other)
+        merged[key] = bucket
+        absorbed.add(key)
+
+    return merged
+
+
+def _absorb_file_bucket(target: dict, source: dict) -> None:
+    target["runs"] += int(source["runs"])
+    target["passed"] += int(source["passed"])
+    target["failed"] += int(source["failed"])
+    target["cancelled"] += int(source["cancelled"])
+    target["aborted"] += int(source["aborted"])
+    source_at: datetime | None = source["last_started_at"]
+    target_at: datetime | None = target["last_started_at"]
+    if source_at is not None and (target_at is None or source_at > target_at):
+        target["last_started_at"] = source_at
+        target["last_outcome"] = source["last_outcome"]
+
+
+def _empty_file_bucket() -> dict:
+    return {
+        "runs": 0,
+        "passed": 0,
+        "failed": 0,
+        "cancelled": 0,
+        "aborted": 0,
+        "last_outcome": None,
+        "last_started_at": None,
+    }
 
 
 @dataclass
@@ -117,18 +209,9 @@ def _aggregate_runs(
     skipped_tests = 0
     durations: list[int] = []
     recent: list[InsightsRecentRun] = []
-    by_file: dict[str, dict] = defaultdict(
-        lambda: {
-            "runs": 0,
-            "passed": 0,
-            "failed": 0,
-            "cancelled": 0,
-            "aborted": 0,
-            "last_outcome": None,
-            "last_started_at": None,
-        }
-    )
+    by_file: dict[str, dict] = defaultdict(_empty_file_bucket)
 
+    composition_paths = [item.file_path for item in (composition_files or [])]
     robot_files = [
         item.file_path
         for item in (composition_files or [])
@@ -177,6 +260,7 @@ def _aggregate_runs(
                 path = sole_robot
         if not path:
             continue
+        path = _canonicalize_run_file(path, composition_paths)
         bucket = by_file[path]
         bucket["runs"] += 1
         if outcome == "PASS":
@@ -191,6 +275,37 @@ def _aggregate_runs(
         if last_at is None or run.started_at > last_at:
             bucket["last_started_at"] = run.started_at
             bucket["last_outcome"] = outcome
+
+    by_file = _merge_duplicate_file_buckets(dict(by_file))
+
+    # If composition was empty but every file-scoped run points at one suite,
+    # fold Project:/Tag:/Selected runs into that sole file.
+    if len(by_file) == 1 and sole_robot is None:
+        only_path = next(iter(by_file))
+        only_bucket = by_file[only_path]
+        for run in runs:
+            if _file_suite_key(run.suite) is not None:
+                continue
+            label = (run.suite or "").strip().lower()
+            if not (
+                label.startswith(("project: ", "tag: "))
+                or label.startswith("selected (")
+            ):
+                continue
+            outcome = _run_outcome(run)
+            only_bucket["runs"] += 1
+            if outcome == "PASS":
+                only_bucket["passed"] += 1
+            elif outcome == "FAIL":
+                only_bucket["failed"] += 1
+            elif outcome == "CANCELLED":
+                only_bucket["cancelled"] += 1
+            elif outcome == "ABORTED":
+                only_bucket["aborted"] += 1
+            last_at = only_bucket["last_started_at"]
+            if last_at is None or run.started_at > last_at:
+                only_bucket["last_started_at"] = run.started_at
+                only_bucket["last_outcome"] = outcome
 
     counted = passed + failed + cancelled + aborted
     pass_rate = (passed / counted * 100.0) if counted else None

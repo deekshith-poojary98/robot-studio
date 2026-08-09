@@ -396,6 +396,44 @@ async def test_search_symbols_can_scope_libraries_to_workspace(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
+async def test_index_service_search_stays_in_active_workspace(index_stack) -> None:
+    """Completions / Go to Symbol must not pull keywords from other workspaces."""
+    service, store, _facade, _suite, _lib, _bus, workspace, project = index_stack
+    from robot_studio.domain.models import IndexedSymbol
+
+    other_ws = uuid4()
+    await store.upsert_symbols(
+        [
+            IndexedSymbol(
+                id="foreign-kw",
+                name="create robot file",
+                kind=SymbolKind.KEYWORD.value,
+                file_path=Path("/tmp/other/generate_robot_tests.py"),
+                line=20,
+                workspace_id=other_ws,
+                project_id=uuid4(),
+            ),
+            IndexedSymbol(
+                id="local-kw",
+                name="Login User",
+                kind=SymbolKind.KEYWORD.value,
+                file_path=workspace.path / "Projects" / "Demo" / "tests" / "demo.robot",
+                line=10,
+                workspace_id=workspace.id,
+                project_id=project.id,
+            ),
+        ]
+    )
+
+    hits = await service.search("create", kind=SymbolKind.KEYWORD)
+    names = {item["name"] for item in hits}
+    assert "create robot file" not in names
+
+    local = await service.search("Login", kind=SymbolKind.KEYWORD)
+    assert any(item["name"] == "Login User" for item in local)
+
+
+@pytest.mark.asyncio
 async def test_watcher_detects_new_file(index_stack, tmp_path: Path) -> None:
     service, store, _facade, suite, _lib, _bus, workspace, project = index_stack
     root = suite.parent

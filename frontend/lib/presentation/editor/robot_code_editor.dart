@@ -39,6 +39,7 @@ class RobotCodeEditor extends StatefulWidget {
     this.fontSize = 13,
     this.fontFamily = 'Menlo',
     this.tabWidth = 4,
+    this.onBindState,
   });
 
   final String path;
@@ -68,6 +69,9 @@ class RobotCodeEditor extends StatefulWidget {
   final double fontSize;
   final String fontFamily;
   final int tabWidth;
+
+  /// Lets [EditorPage] call find/format without a [GlobalKey] (avoids duplicate-key crashes).
+  final ValueChanged<RobotCodeEditorState?>? onBindState;
 
   @override
   State<RobotCodeEditor> createState() => RobotCodeEditorState();
@@ -150,6 +154,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _controller.addListener(_onChanged);
     _listening = true;
     _measureCharWidth();
+    widget.onBindState?.call(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _jumpIfNeeded(widget.jumpToLine, widget.jumpToColumn);
     });
@@ -169,6 +174,10 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   @override
   void didUpdateWidget(covariant RobotCodeEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.onBindState != widget.onBindState) {
+      oldWidget.onBindState?.call(null);
+      widget.onBindState?.call(this);
+    }
     if (oldWidget.path != widget.path) {
       _controller.removeListener(_onChanged);
       _controller.text = widget.initialContent;
@@ -220,6 +229,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
   @override
   void dispose() {
+    widget.onBindState?.call(null);
     _hoverTimer?.cancel();
     _hoverDismissTimer?.cancel();
     if (_listening) {

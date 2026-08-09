@@ -63,19 +63,26 @@ class WorkspaceService:
         return workspace
 
     async def open_workspace(self, path: str | Path) -> Workspace:
-        workspace_root = Path(path).expanduser().resolve()
+        try:
+            workspace_root = Path(path).expanduser().resolve()
 
-        if not workspace_root.is_dir():
-            raise WorkspaceValidationError(
-                f"Directory does not exist: '{workspace_root}'",
-            )
-        if not is_workspace(workspace_root):
-            raise WorkspaceValidationError(
-                f"'{workspace_root}' is not a Robot Studio workspace "
-                "(missing .robotstudio/workspace.json)",
-            )
+            if not workspace_root.is_dir():
+                raise WorkspaceValidationError(
+                    f"Directory does not exist: '{workspace_root}'",
+                )
+            if not is_workspace(workspace_root):
+                raise WorkspaceValidationError(
+                    f"'{workspace_root}' is not a Robot Studio workspace "
+                    "(missing .robotstudio/workspace.json)",
+                )
 
-        manifest = load_manifest(workspace_root)
+            manifest = load_manifest(workspace_root)
+        except PermissionError as exc:
+            raise WorkspaceValidationError(
+                f"Permission denied opening '{path}'. "
+                "On macOS, start the backend from Terminal (make backend) so it can "
+                "access folders like Desktop and Documents.",
+            ) from exc
         workspace_id, manifest = self._ensure_durable_id(workspace_root, manifest)
         created_at = (
             manifest.created_at

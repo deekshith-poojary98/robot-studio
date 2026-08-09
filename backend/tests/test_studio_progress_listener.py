@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import io
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr
 
 from robot_studio.infrastructure.execution import studio_progress_listener as listener
 
 
 def test_progress_markers_track_innermost_keyword() -> None:
     buf = io.StringIO()
-    with redirect_stdout(buf):
+    with redirect_stderr(buf):
         listener.start_suite("Demo", {})
         listener.start_test("Hello", {})
         listener.start_keyword(
@@ -43,7 +43,7 @@ def test_progress_markers_track_innermost_keyword() -> None:
 
 def test_control_structures_do_not_replace_keyword() -> None:
     buf = io.StringIO()
-    with redirect_stdout(buf):
+    with redirect_stderr(buf):
         listener.start_suite("S", {})
         listener.start_test("T", {})
         listener.start_keyword("Log", {"kwname": "Log", "libname": "BuiltIn"})
@@ -54,3 +54,16 @@ def test_control_structures_do_not_replace_keyword() -> None:
     lines = [line for line in buf.getvalue().splitlines() if line.startswith("###RS###|now|")]
     assert "###RS###|now|S|T|BuiltIn.Log" in lines
     assert not any("|FOR" in line for line in lines)
+
+
+def test_markers_do_not_go_to_stdout() -> None:
+    out = io.StringIO()
+    err = io.StringIO()
+    from contextlib import redirect_stdout
+
+    with redirect_stdout(out), redirect_stderr(err):
+        listener.start_suite("S", {})
+        listener.start_test("T", {})
+
+    assert "###RS###" not in out.getvalue()
+    assert "###RS###|now|S|T|" in err.getvalue()

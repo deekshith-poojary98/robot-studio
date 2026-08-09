@@ -137,6 +137,16 @@ def load_manifest(workspace_root: Path) -> WorkspaceManifest:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         return WorkspaceManifest.from_dict(raw)
+    except PermissionError as exc:
+        raise WorkspaceValidationError(
+            f"Permission denied reading workspace at '{workspace_root}'. "
+            "On macOS, start the backend from Terminal (make backend) so it can "
+            "access folders like Desktop and Documents.",
+        ) from exc
+    except OSError as exc:
+        raise WorkspaceValidationError(
+            f"Cannot read workspace manifest at '{path}': {exc}",
+        ) from exc
     except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         raise WorkspaceValidationError(
             f"Invalid workspace manifest at '{path}': {exc}",

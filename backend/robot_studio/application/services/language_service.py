@@ -204,11 +204,15 @@ class LanguageFacade:
         return await analyze(file_path, content)
 
     async def workspace_symbols(self, query: str = "", *, limit: int = 200) -> list[dict]:
-        self._require_workspace()
+        workspace = self._require_workspace()
         store = getattr(self.language, "store", None)
         if store is None:
             raise LanguageValidationError("Language service does not expose IndexStore")
-        return await store.search_symbols(query, limit=limit)
+        return await store.search_symbols(
+            query,
+            limit=limit,
+            workspace_id=workspace.id,
+        )
 
     async def list_libraries(self) -> list[dict]:
         self._require_workspace()

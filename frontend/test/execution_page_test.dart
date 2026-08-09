@@ -48,7 +48,7 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('toolbar or Test Explorer'), findsOneWidget);
+    expect(find.textContaining('toolbar or Tests'), findsOneWidget);
     expect(find.text('IDLE'), findsNothing);
     expect(find.textContaining('appear here while a run'), findsOneWidget);
   });

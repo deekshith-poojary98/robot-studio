@@ -1,13 +1,16 @@
 """Robot Framework listener — emit current suite/test/keyword for Live Execution.
 
 Loaded by absolute path via ``--listener`` so it works in the project's venv
-without installing Robot Studio there. Writes one marker line per change:
+without installing Robot Studio there. Writes one marker line per change on
+**stderr** (not stdout):
 
     ###RS###|now|<suite>|<test>|<keyword>
 
-Robot often leaves the console cursor mid-line (padded suite/test names), so we
-always start the marker on a fresh line. The Studio UI strips markers from Live
-Output and shows them in the "Now running" panel.
+Markers must not go to stdout: Robot pads suite/test names and later writes
+``| PASS |`` on the same line. Printing on stdout breaks that layout (orphan
+PASS lines, shuffled order vs a real terminal). Studio reads stderr separately,
+strips markers for the Now Running panel, and leaves Live Output matching the
+console.
 """
 
 from __future__ import annotations
@@ -28,12 +31,12 @@ def _safe(value: object) -> str:
 
 def _emit() -> None:
     keyword = _keyword_stack[-1] if _keyword_stack else ""
-    # Leading newline: Robot console frequently prints suite/test names without
-    # finishing the line; a bare print() would glue the marker onto that row.
-    sys.stdout.write(
-        f"\n{_PREFIX}{_safe(_suite)}|{_safe(_test)}|{_safe(keyword)}\n"
+    # stderr keeps Robot's stdout console layout intact.
+    print(
+        f"{_PREFIX}{_safe(_suite)}|{_safe(_test)}|{_safe(keyword)}",
+        file=sys.stderr,
+        flush=True,
     )
-    sys.stdout.flush()
 
 
 def start_suite(name, attrs):  # noqa: ANN001, ARG001

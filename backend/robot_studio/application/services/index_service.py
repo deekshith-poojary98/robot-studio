@@ -520,8 +520,13 @@ class IndexService:
         kind: SymbolKind | None = None,
         limit: int = 100,
     ) -> list[dict]:
-        self._require_workspace()
-        results = await self.store.search_symbols(query, kind=kind, limit=limit)
+        workspace = self._require_workspace()
+        results = await self.store.search_symbols(
+            query,
+            kind=kind,
+            limit=limit,
+            workspace_id=workspace.id,
+        )
         if kind in {None, SymbolKind.KEYWORD}:
             results = self._merge_builtin_keywords(results, query=query, limit=limit)
         return results

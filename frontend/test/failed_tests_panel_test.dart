@@ -4,6 +4,7 @@ import 'package:robot_studio/core/gateway/models/execution_info.dart';
 import 'package:robot_studio/core/gateway/models/run_failure_info.dart';
 import 'package:robot_studio/presentation/execution/execution_page.dart';
 import 'package:robot_studio/presentation/execution/failed_tests_panel.dart';
+import 'package:robot_studio/presentation/reports/run_details_panel.dart';
 
 void main() {
   const failure = RunTestFailureInfo(
@@ -90,5 +91,53 @@ void main() {
     );
 
     expect(find.text('Failed Tests'), findsNothing);
+  });
+
+  testWidgets('loading state uses skeleton instead of progress bar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: FailedTestsPanel(failures: [], isLoading: true, embedded: true),
+        ),
+      ),
+    );
+
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.byKey(const ValueKey('failed-tests-skeleton')), findsOneWidget);
+  });
+
+  testWidgets('quiet load hides Failed Tests until ready', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(900, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RunDetailsPanel(
+            run: ExecutionInfo(
+              id: 'run-1',
+              workspaceId: 'ws',
+              projectId: 'p1',
+              environmentId: 'e1',
+              projectName: 'Checkout',
+              suite: 'tests/checkout.robot',
+              status: ExecutionStatus.failed,
+              startedAt: DateTime.utc(2026, 7, 19, 11, 0, 0),
+              failed: 1,
+              passed: 0,
+              totalTests: 1,
+            ),
+            failuresReady: false,
+            isLoadingFailures: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Failed Tests'), findsNothing);
+    expect(find.byKey(const ValueKey('failed-tests-skeleton')), findsNothing);
   });
 }

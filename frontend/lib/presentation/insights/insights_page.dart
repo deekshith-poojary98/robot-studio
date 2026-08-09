@@ -869,10 +869,6 @@ class _RunHealthPanel extends StatelessWidget {
     final maxDuration = chronological
         .map((r) => r.durationMs ?? 0)
         .fold<int>(0, (m, v) => v > m ? v : m);
-    // Last run only — summing test counts across runs double-counts suites.
-    final last = recent.isEmpty ? null : recent.first;
-    final testsPassed = last?.passed ?? 0;
-    final testsFailed = last?.failed ?? 0;
 
     return _Panel(
       title: 'Run health',
@@ -894,12 +890,7 @@ class _RunHealthPanel extends StatelessWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _HealthMetricGrid(
-                  runs: runs,
-                  testsPassed: testsPassed,
-                  testsFailed: testsFailed,
-                  streak: streak,
-                ),
+                _HealthMetricGrid(runs: runs, streak: streak),
                 const SizedBox(height: AppSpacing.md),
                 _OutcomeShareBar(runs: runs),
                 if (chronological.isNotEmpty) ...[
@@ -989,16 +980,9 @@ class _SectionLabel extends StatelessWidget {
 }
 
 class _HealthMetricGrid extends StatelessWidget {
-  const _HealthMetricGrid({
-    required this.runs,
-    required this.testsPassed,
-    required this.testsFailed,
-    required this.streak,
-  });
+  const _HealthMetricGrid({required this.runs, required this.streak});
 
   final InsightsRunTotals runs;
-  final int testsPassed;
-  final int testsFailed;
   final _RunStreak streak;
 
   @override
@@ -1065,38 +1049,8 @@ class _HealthMetricGrid extends StatelessWidget {
             ),
           ],
         ),
-        if (testsPassed + testsFailed + runs.skippedTests > 0) ...[
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            _testsSummary(
-              testsPassed: testsPassed,
-              testsFailed: testsFailed,
-              skipped: runs.skippedTests,
-              cancelled: runs.cancelled,
-              aborted: runs.aborted,
-            ),
-            style: TextStyle(fontSize: 11, color: context.palette.textMuted),
-          ),
-        ],
       ],
     );
-  }
-
-  static String _testsSummary({
-    required int testsPassed,
-    required int testsFailed,
-    required int skipped,
-    required int cancelled,
-    required int aborted,
-  }) {
-    final parts = <String>[];
-    if (testsPassed + testsFailed > 0) {
-      parts.add('$testsPassed pass / $testsFailed fail tests (last run)');
-    }
-    if (skipped > 0) parts.add('$skipped skipped');
-    if (cancelled > 0) parts.add('$cancelled cancelled');
-    if (aborted > 0) parts.add('$aborted aborted');
-    return parts.join(' · ');
   }
 }
 
@@ -1194,10 +1148,20 @@ class _LastRunCard extends StatelessWidget {
     final name = run.suite.replaceAll('\\', '/').split('/').last;
     final outcome = run.outcome.isEmpty ? run.status.label : run.outcome;
     final color = _outcomeColor(context, outcome);
-    final tests = <String>[];
-    if (run.passed != null) tests.add('${run.passed}p');
-    if (run.failed != null) tests.add('${run.failed}f');
-    if ((run.skipped ?? 0) > 0) tests.add('${run.skipped}s');
+    final summaryParts = <String>[];
+    if (run.durationMs != null) {
+      summaryParts.add(_formatDurationMs(run.durationMs!));
+    }
+    if (run.passed != null) {
+      summaryParts.add(_countLabel(run.passed!, 'passed'));
+    }
+    if (run.failed != null) {
+      summaryParts.add(_countLabel(run.failed!, 'failed'));
+    }
+    if ((run.skipped ?? 0) > 0) {
+      summaryParts.add(_countLabel(run.skipped!, 'skipped'));
+    }
+    final summary = summaryParts.join(' · ');
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -1234,25 +1198,18 @@ class _LastRunCard extends StatelessWidget {
                 ),
               ),
             ),
-            if (run.durationMs != null) ...[
+            if (summary.isNotEmpty) ...[
               const SizedBox(width: AppSpacing.sm),
-              Text(
-                _formatDurationMs(run.durationMs!),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                  color: context.palette.textSecondary,
-                ),
-              ),
-            ],
-            if (tests.isNotEmpty) ...[
-              const SizedBox(width: AppSpacing.sm),
-              Text(
-                tests.join(' '),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                  color: context.palette.textMuted,
+              Flexible(
+                child: Text(
+                  summary,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    color: context.palette.textMuted,
+                  ),
                 ),
               ),
             ],
@@ -1267,6 +1224,8 @@ class _LastRunCard extends StatelessWidget {
     );
   }
 }
+
+String _countLabel(int count, String noun) => '$count $noun';
 
 class _FailingFileRow extends StatefulWidget {
   const _FailingFileRow({required this.file, this.onOpen});
@@ -1283,7 +1242,6 @@ class _FailingFileRowState extends State<_FailingFileRow> {
 
   @override
   Widget build(BuildContext context) {
-    final name = widget.file.filePath.replaceAll('\\', '/').split('/').last;
     final rate = widget.file.runs <= 0
         ? 0.0
         : widget.file.failed / widget.file.runs;
@@ -1305,7 +1263,7 @@ class _FailingFileRowState extends State<_FailingFileRow> {
               children: [
                 Expanded(
                   child: Text(
-                    name,
+                    _shortFileLabel(widget.file.filePath),
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
@@ -1775,6 +1733,18 @@ String _relativeTime(DateTime at) {
   if (delta.inHours < 24) return '${delta.inHours}h ago';
   if (delta.inDays < 7) return '${delta.inDays}d ago';
   return '${local.month}/${local.day}';
+}
+
+/// Prefer ``tests/login.robot`` over a bare basename when path depth allows.
+String _shortFileLabel(String path) {
+  final parts = path
+      .replaceAll('\\', '/')
+      .split('/')
+      .where((p) => p.isNotEmpty);
+  final list = parts.toList();
+  if (list.isEmpty) return path;
+  if (list.length == 1) return list.first;
+  return '${list[list.length - 2]}/${list.last}';
 }
 
 class _MergedFileRow {

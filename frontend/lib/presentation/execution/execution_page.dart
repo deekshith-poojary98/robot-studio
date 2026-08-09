@@ -8,8 +8,8 @@ import 'failed_tests_panel.dart';
 
 /// Tests center view: monitor live output for the current run.
 ///
-/// Global launch controls live on the top toolbar (Run / Run Project / Stop),
-/// menus, shortcuts, and the Test Explorer tree — not here.
+/// Global launch controls live on the top toolbar (Run / Project / Stop),
+/// menus, shortcuts, and the Tests tree — not here.
 /// Run history lives on Reports (and the welcome screen).
 class ExecutionPage extends StatelessWidget {
   const ExecutionPage({
@@ -47,7 +47,7 @@ class ExecutionPage extends StatelessWidget {
     if (currentRun != null && currentRun!.suite.isNotEmpty) {
       return 'Last suite: ${currentRun!.suite}';
     }
-    return 'Watch live output. Start from the toolbar or Test Explorer.';
+    return 'Watch live output. Start from the toolbar or Tests.';
   }
 
   @override

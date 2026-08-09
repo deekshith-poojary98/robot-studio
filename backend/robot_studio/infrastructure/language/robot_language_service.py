@@ -291,7 +291,13 @@ class RobotLanguageService(LanguageService):
             kind: SymbolKind | None = None,
             limit: int = 80,
         ) -> list[dict]:
-            return await self.store.search_symbols(prefix, kind=kind, limit=limit)
+            workspace = self.context.workspace
+            return await self.store.search_symbols(
+                prefix,
+                kind=kind,
+                limit=limit,
+                workspace_id=workspace.id if workspace is not None else None,
+            )
 
         signature_pipeline = self._ensure_signature_pipeline()
         catalog = self.library_catalog()
@@ -930,9 +936,15 @@ class RobotLanguageService(LanguageService):
         diagnostics: list[dict],
     ) -> None:
         lines = content.splitlines()
+        workspace = self.context.workspace
         known_keywords = {
             item["name"].casefold()
-            for item in await self.store.search_symbols("", kind=SymbolKind.KEYWORD, limit=500)
+            for item in await self.store.search_symbols(
+                "",
+                kind=SymbolKind.KEYWORD,
+                limit=500,
+                workspace_id=workspace.id if workspace is not None else None,
+            )
         }
         known_keywords.update(name.casefold() for name in _BUILTIN_KEYWORDS)
         known_keywords.update(name.casefold() for name in _CONTROL_MARKERS)

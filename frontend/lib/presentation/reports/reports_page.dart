@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/report_info.dart';
+import '../../core/gateway/models/run_failure_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
 import 'run_details_panel.dart';
@@ -12,6 +13,11 @@ class ReportsPage extends StatelessWidget {
     required this.dashboard,
     required this.isLoadingDashboard,
     this.selected,
+    this.failedTests = const [],
+    this.isLoadingFailures = false,
+    this.failuresReady = true,
+    this.onJumpToFailedTest,
+    this.onRerunFailedTest,
     this.onRefresh,
     this.onOpenXml,
     this.onOpenLog,
@@ -24,6 +30,11 @@ class ReportsPage extends StatelessWidget {
   final DashboardSummary? dashboard;
   final bool isLoadingDashboard;
   final ExecutionInfo? selected;
+  final List<RunTestFailureInfo> failedTests;
+  final bool isLoadingFailures;
+  final bool failuresReady;
+  final void Function(RunTestFailureInfo failure)? onJumpToFailedTest;
+  final void Function(RunTestFailureInfo failure)? onRerunFailedTest;
   final VoidCallback? onRefresh;
   final VoidCallback? onOpenXml;
   final VoidCallback? onOpenLog;
@@ -96,6 +107,11 @@ class ReportsPage extends StatelessWidget {
                   )
                 : RunDetailsPanel(
                     run: selected!,
+                    failedTests: failedTests,
+                    isLoadingFailures: isLoadingFailures,
+                    failuresReady: failuresReady,
+                    onJumpToFailedTest: onJumpToFailedTest,
+                    onRerunFailedTest: onRerunFailedTest,
                     onOpenXml: onOpenXml,
                     onOpenLog: onOpenLog,
                     onOpenReport: onOpenReport,
@@ -135,21 +151,38 @@ class _DashboardStrip extends StatelessWidget {
         _MetricChip(label: 'Total Runs', value: '${data.totalRuns}'),
         _MetricChip(label: 'Pass Rate', value: data.passRateLabel),
         _MetricChip(label: 'Avg Duration', value: data.averageDurationLabel),
-        _MetricChip(label: 'Last Run', value: data.lastRun?.resultBadge ?? '—'),
+        _MetricChip(
+          label: 'Last Run',
+          value: _lastRunLabel(data.lastRun),
+          emphasize: data.lastRun?.resultBadge == 'FAIL',
+        ),
         _MetricChip(
           label: 'Recent Failures',
           value: '${data.recentFailures.length}',
+          emphasize: data.recentFailures.isNotEmpty,
         ),
       ],
     );
   }
 }
 
+String _lastRunLabel(ExecutionInfo? run) {
+  if (run == null) return '—';
+  final badge = run.resultBadge;
+  if (badge == 'PASS') return 'Finished';
+  return badge;
+}
+
 class _MetricChip extends StatelessWidget {
-  const _MetricChip({required this.label, required this.value});
+  const _MetricChip({
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+  });
 
   final String label;
   final String value;
+  final bool emphasize;
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +192,11 @@ class _MetricChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.palette.surface,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: context.palette.border),
+        border: Border.all(
+          color: emphasize
+              ? context.palette.error.withValues(alpha: 0.45)
+              : context.palette.border,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,7 +206,9 @@ class _MetricChip extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              color: context.palette.textPrimary,
+              color: emphasize
+                  ? context.palette.error
+                  : context.palette.textPrimary,
               fontWeight: FontWeight.w700,
               fontSize: 15,
             ),

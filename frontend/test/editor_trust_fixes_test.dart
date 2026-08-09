@@ -1,5 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/re_highlight.dart';
+import 'package:robot_studio/core/gateway/models/language_info.dart';
 import 'package:robot_studio/presentation/editor/editor_language_widgets.dart';
 import 'package:robot_studio/presentation/editor/robot_language.dart';
 
@@ -40,6 +43,62 @@ void main() {
     });
   });
 
+  testWidgets('autocomplete popup shows label, inserts multi-line snippet', (
+    tester,
+  ) async {
+    final builder = RobotAutocompletePromptsBuilder([
+      const CompletionItemInfo(
+        label: 'FOR … IN RANGE',
+        kind: 'dsl',
+        detail: 'RF DSL',
+        documentation: '',
+        insertText: 'FOR    \${i}    IN RANGE    10\n    Log    \${i}\nEND',
+      ),
+    ]);
+
+    late CodeAutocompleteEditingValue? value;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            value = builder.build(
+              context,
+              const CodeLine('    F'),
+              const CodeLineSelection.collapsed(index: 0, offset: 5),
+            );
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(value, isNotNull);
+    expect(value!.prompts, hasLength(1));
+    expect(value!.prompts.first.word, 'FOR … IN RANGE');
+    expect(value!.prompts.first.word.contains('\n'), isFalse);
+    expect(
+      value!.prompts.first.autocomplete.word,
+      'FOR    \${i}    IN RANGE    10\n'
+      '        Log    \${i}\n'
+      '    END',
+    );
+  });
+
+  test('indentMultilineInsert nests body under current line indent', () {
+    expect(
+      RobotAutocompletePromptsBuilder.indentMultilineInsert(
+        'FOR    \${i}    IN RANGE    10\n    Log    \${i}\nEND',
+        '    ',
+      ),
+      'FOR    \${i}    IN RANGE    10\n        Log    \${i}\n    END',
+    );
+    expect(
+      RobotAutocompletePromptsBuilder.indentMultilineInsert('Log', '    '),
+      'Log',
+    );
+    expect(RobotAutocompletePromptsBuilder.leadingIndentOf('    F'), '    ');
+  });
+
   group('Documentation highlighting', () {
     late Highlight highlight;
 
@@ -64,10 +123,7 @@ void main() {
 
     test('still highlights IF in executable lines', () {
       final html = highlight
-          .highlight(
-            code: '    IF    \${ok}\n',
-            language: 'robot',
-          )
+          .highlight(code: '    IF    \${ok}\n', language: 'robot')
           .toHtml();
       expect(html.toLowerCase(), contains('hljs-keyword'));
       expect(html.toLowerCase(), contains('>if<'));
@@ -85,7 +141,8 @@ void main() {
     String render(String code) =>
         highlight.highlight(code: code, language: 'robot').toHtml();
 
-    const suite = '*** Keywords ***\n'
+    const suite =
+        '*** Keywords ***\n'
         'Click\n'
         '    Click Element    locator=x\n'
         '%SEPARATOR%\n'

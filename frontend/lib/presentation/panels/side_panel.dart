@@ -34,6 +34,7 @@ class SidePanel extends StatelessWidget {
     this.onNewProject,
     this.onImportProject,
     this.recentRuns = const [],
+    this.selectedReport,
     this.onSelectReport,
     this.testSuites = const [],
     this.onSelectTestSuite,
@@ -89,6 +90,7 @@ class SidePanel extends StatelessWidget {
   final VoidCallback? onNewProject;
   final VoidCallback? onImportProject;
   final List<ExecutionInfo> recentRuns;
+  final ExecutionInfo? selectedReport;
   final ValueChanged<ExecutionInfo>? onSelectReport;
   final List<IndexedSymbolInfo> testSuites;
   final ValueChanged<IndexedSymbolInfo>? onSelectTestSuite;
@@ -265,6 +267,7 @@ class SidePanel extends StatelessWidget {
                   semanticLabel:
                       '${run.runNumberLabel}, ${run.resultBadge}, ${run.suite.isEmpty ? run.projectName : run.suite}',
                   indent: 1,
+                  selected: selectedReport?.id == run.id,
                   onTap: onSelectReport == null
                       ? null
                       : () => onSelectReport!(run),
@@ -341,7 +344,8 @@ class SidePanel extends StatelessWidget {
 
 Color _runResultIconColor(AppPalette palette, ExecutionInfo run) {
   return switch (run.resultBadge) {
-    'PASS' => palette.success,
+    // Success stays quiet; failures / in-flight get the visual weight.
+    'PASS' => palette.textMuted,
     'FAIL' => palette.error,
     'CANCELLED' || 'ABORTED' => palette.warning,
     'RUNNING' || 'STARTING' || 'STOPPING' => palette.info,

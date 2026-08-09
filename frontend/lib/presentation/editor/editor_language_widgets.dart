@@ -29,12 +29,23 @@ class RobotAutocompletePromptsBuilder
     final prompts = items
         .where((item) => prefix.isEmpty || _labelMatches(item, prefix))
         .map((item) {
-          final insert = item.insertText;
+          final rawInsert = item.insertText;
+          // Continuation lines of snippets are relative to column 0; prepend the
+          // current line indent so FOR/IF bodies nest under the suite indent.
+          final insert = indentMultilineInsert(
+            rawInsert,
+            leadingIndentOf(lineText),
+          );
           final caret = item.kind == 'parameter' && insert.endsWith('=')
               ? insert.length
               : insert.length;
+          // Popup rows are fixed-height single-line; never put multi-line
+          // insert_text in [word] or snippets overlap (FOR … Log … END).
+          final display = item.label.trim().isNotEmpty
+              ? item.label
+              : rawInsert.split('\n').first;
           return CodeFieldPrompt(
-            word: insert,
+            word: display,
             type: item.kind,
             customAutocomplete: CodeAutocompleteResult(
               input: prefix,
@@ -82,6 +93,28 @@ class RobotAutocompletePromptsBuilder
     }
     final match = RegExp(r'[\w${}@&][\w\s${}@&.-]*$').firstMatch(before);
     return match?.group(0)?.trim() ?? '';
+  }
+
+  /// Leading spaces/tabs of [line] (suite/test body indent).
+  @visibleForTesting
+  static String leadingIndentOf(String line) {
+    final match = RegExp(r'^[ \t]*').firstMatch(line);
+    return match?.group(0) ?? '';
+  }
+
+  /// Apply [baseIndent] to every line after the first in a multi-line snippet.
+  @visibleForTesting
+  static String indentMultilineInsert(String insert, String baseIndent) {
+    if (baseIndent.isEmpty || !insert.contains('\n')) return insert;
+    final lines = insert.split('\n');
+    final buffer = StringBuffer(lines.first);
+    for (var i = 1; i < lines.length; i++) {
+      buffer
+        ..write('\n')
+        ..write(baseIndent)
+        ..write(lines[i]);
+    }
+    return buffer.toString();
   }
 
   String _prefixAt(String line, int offset) => prefixAt(line, offset);
@@ -148,9 +181,11 @@ class _RobotAutocompleteListViewState extends State<RobotAutocompleteListView> {
                 color: selected ? context.palette.accentSoft : null,
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  prompt.word,
+                  prompt.word.replaceAll('\n', ' '),
+                  maxLines: 1,
                   style: TextStyle(
                     fontSize: 12,
+                    height: 1.2,
                     color: selected
                         ? context.palette.textPrimary
                         : context.palette.textSecondary,

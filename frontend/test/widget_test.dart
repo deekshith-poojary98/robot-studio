@@ -1165,7 +1165,8 @@ void main() {
 
     expect(find.text('Reports'), findsOneWidget);
     expect(find.text('Demo'), findsOneWidget);
-    expect(find.text('PASS'), findsWidgets);
+    expect(find.text('PASS'), findsNothing);
+    expect(find.text('Finished'), findsWidgets);
     expect(find.text('Select a run from the Reports panel.'), findsNothing);
     expect(find.text('Total Runs'), findsOneWidget);
     expect(find.text('Pass Rate'), findsOneWidget);
@@ -1224,7 +1225,56 @@ void main() {
     expect(find.text('Open Log'), findsNothing);
     expect(find.text('Open Report'), findsNothing);
     expect(find.text('Reveal Folder'), findsOneWidget);
-    expect(find.text('FAIL'), findsOneWidget);
+    expect(find.text('FAIL'), findsNothing);
+  });
+
+  testWidgets('Run details panel shows failed test message', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RunDetailsPanel(
+            run: ExecutionInfo(
+              id: 'run-1',
+              workspaceId: 'ws',
+              projectId: 'p1',
+              environmentId: 'e1',
+              projectName: 'Checkout',
+              suite: 'tests/checkout.robot',
+              status: ExecutionStatus.failed,
+              startedAt: DateTime.utc(2026, 7, 19, 11, 0, 0),
+              finishedAt: DateTime.utc(2026, 7, 19, 11, 0, 3),
+              durationMs: 3000,
+              exitCode: 1,
+              totalTests: 3,
+              passed: 2,
+              failed: 1,
+              skipped: 0,
+            ),
+            failedTests: const [
+              RunTestFailureInfo(
+                runId: 'run-1',
+                name: 'Verify Checkout',
+                message: 'Element not found: #pay',
+                source: 'tests/checkout.robot',
+                line: 42,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Failed Tests'), findsOneWidget);
+    expect(find.text('Verify Checkout'), findsOneWidget);
+    expect(find.text('Element not found: #pay'), findsOneWidget);
+    expect(find.text('Jump to Source'), findsOneWidget);
+    expect(find.text('Re-run Test'), findsOneWidget);
   });
 
   testWidgets('Delete run dialog confirms', (WidgetTester tester) async {

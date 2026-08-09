@@ -83,7 +83,7 @@ class EditorPage extends StatefulWidget {
 }
 
 class EditorPageState extends State<EditorPage> {
-  final _editorKey = GlobalKey<RobotCodeEditorState>();
+  RobotCodeEditorState? _editor;
 
   EditorTabInfo? get _active {
     final path = widget.activePath;
@@ -96,7 +96,7 @@ class EditorPageState extends State<EditorPage> {
 
   /// Open find / replace — used by the window menu bar and command palette.
   void showFind({bool replace = false}) {
-    _editorKey.currentState?.showFind(replace: replace);
+    _editor?.showFind(replace: replace);
   }
 
   @override
@@ -165,7 +165,6 @@ class EditorPageState extends State<EditorPage> {
                     children: [
                       Expanded(
                         child: RobotCodeEditor(
-                          key: _editorKey,
                           path: active.path,
                           initialContent: active.content,
                           wordWrap: widget.wordWrap,
@@ -188,6 +187,7 @@ class EditorPageState extends State<EditorPage> {
                           fontSize: widget.fontSize,
                           fontFamily: widget.fontFamily,
                           tabWidth: widget.tabWidth,
+                          onBindState: (state) => _editor = state,
                         ),
                       ),
                       if (widget.hover != null || widget.references.isNotEmpty)

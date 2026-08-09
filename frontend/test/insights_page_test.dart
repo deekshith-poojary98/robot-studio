@@ -93,6 +93,8 @@ void main() {
     expect(find.text('Pass rate'), findsOneWidget);
     expect(find.text('DURATION TREND'), findsOneWidget);
     expect(find.text('LAST RUN'), findsOneWidget);
+    expect(find.textContaining('4 passed'), findsOneWidget);
+    expect(find.textContaining('0 failed'), findsOneWidget);
     expect(find.text('FOCUS'), findsOneWidget);
     expect(find.text('DENSEST FILES'), findsOneWidget);
   });

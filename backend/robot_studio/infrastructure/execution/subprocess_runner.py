@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import shutil
 import signal
@@ -62,6 +63,7 @@ class _RunProcess:
     command: list[str]
     queue: asyncio.Queue[str | None] = field(default_factory=asyncio.Queue)
     reader_task: asyncio.Task | None = None
+    stderr_reader_task: asyncio.Task | None = None
     wait_task: asyncio.Task | None = None
     exit_code: int | None = None
     finished: asyncio.Event = field(default_factory=asyncio.Event)
@@ -122,7 +124,9 @@ class SubprocessRunner(Runner):
                 *command,
                 cwd=str(cwd),
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
+                # Keep stderr separate so the progress listener can emit markers
+                # without breaking Robot's padded stdout suite/test/PASS layout.
+                stderr=asyncio.subprocess.PIPE,
                 start_new_session=sys.platform != "win32",
                 env=env,
             )
@@ -137,7 +141,12 @@ class SubprocessRunner(Runner):
             output_dir=output_dir,
             command=command,
         )
-        run.reader_task = asyncio.create_task(self._read_output(run))
+        run.reader_task = asyncio.create_task(
+            self._read_stream(run, process.stdout),
+        )
+        run.stderr_reader_task = asyncio.create_task(
+            self._read_stream(run, process.stderr),
+        )
         run.wait_task = asyncio.create_task(self._wait_for_exit(run, timeout))
         async with self._lock:
             self._runs[run_id] = run
@@ -207,19 +216,19 @@ class SubprocessRunner(Runner):
         """Drop finished run state after the monitor has read the final status."""
         self._runs.pop(run_id, None)
 
-    async def _read_output(self, run: _RunProcess) -> None:
-        assert run.process.stdout is not None
-        try:
-            while True:
-                line = await run.process.stdout.readline()
-                if not line:
-                    break
-                text = line.decode("utf-8", errors="replace").rstrip("\n")
-                await run.queue.put(text)
-        finally:
-            # Signal end-of-stream once process has exited (wait task may still finish).
-            if run.finished.is_set():
-                await run.queue.put(None)
+    async def _read_stream(
+        self,
+        run: _RunProcess,
+        stream: asyncio.StreamReader | None,
+    ) -> None:
+        if stream is None:
+            return
+        while True:
+            line = await stream.readline()
+            if not line:
+                break
+            text = line.decode("utf-8", errors="replace").rstrip("\n")
+            await run.queue.put(text)
 
     async def _wait_for_exit(
         self,
@@ -251,6 +260,11 @@ class SubprocessRunner(Runner):
                 )
         finally:
             run.finished.set()
+            # Drain readers so the last stdout/stderr lines are queued first.
+            for task in (run.reader_task, run.stderr_reader_task):
+                if task is not None:
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await task
             await run.queue.put(None)
 
     async def _terminate_tree(self, process: asyncio.subprocess.Process) -> None:

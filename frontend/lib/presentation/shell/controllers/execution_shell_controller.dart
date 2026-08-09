@@ -38,6 +38,20 @@ class ExecutionShellController {
   bool loadingFailures = false;
   String? failedTestsRunId;
 
+  /// Failures for the Reports selection (kept separate from live Execution).
+  List<RunTestFailureInfo> reportFailedTests = [];
+  bool loadingReportFailures = false;
+  String? reportFailedTestsRunId;
+
+  /// True after a report failures fetch finished for [reportFailedTestsRunId].
+  /// While false, Reports hides the Failed Tests block (no empty/skeleton flash).
+  bool reportFailuresReady = false;
+
+  final Map<String, List<RunTestFailureInfo>> _reportFailuresCache = {};
+  Timer? _reportFailuresSkeletonTimer;
+
+  static const _reportSkeletonDelay = Duration(milliseconds: 350);
+
   Timer? elapsedTimer;
   Duration elapsed = Duration.zero;
   ExecutionStreamClient? streamClient;
@@ -64,6 +78,7 @@ class ExecutionShellController {
     streamSub?.cancel();
     elapsedTimer?.cancel();
     _outputFlushTimer?.cancel();
+    _reportFailuresSkeletonTimer?.cancel();
     streamClient?.disconnect();
   }
 
@@ -113,6 +128,8 @@ class ExecutionShellController {
         if (currentExecution != null && !_isEventForCurrentRun(event)) return;
         final kept = _consumeProgressMarker(line);
         if (kept == null) return;
+        // Skip blank leftovers from stripped progress markers.
+        if (kept.trim().isEmpty) return;
         _pendingOutput.add(kept);
         _scheduleOutputFlush();
         return;
@@ -286,6 +303,13 @@ class ExecutionShellController {
       loadingReports = false;
       loadingDashboard = false;
       selectedReport = null;
+      reportFailedTests = [];
+      loadingReportFailures = false;
+      reportFailedTestsRunId = null;
+      reportFailuresReady = false;
+      _reportFailuresCache.clear();
+      _reportFailuresSkeletonTimer?.cancel();
+      _reportFailuresSkeletonTimer = null;
       notify();
       return;
     }
@@ -337,6 +361,13 @@ class ExecutionShellController {
     failedTests = [];
     loadingFailures = false;
     failedTestsRunId = null;
+    reportFailedTests = [];
+    loadingReportFailures = false;
+    reportFailedTestsRunId = null;
+    reportFailuresReady = false;
+    _reportFailuresCache.clear();
+    _reportFailuresSkeletonTimer?.cancel();
+    _reportFailuresSkeletonTimer = null;
     stopElapsedTimer();
   }
 
@@ -344,6 +375,16 @@ class ExecutionShellController {
     failedTests = [];
     loadingFailures = false;
     failedTestsRunId = null;
+    notify();
+  }
+
+  void clearReportFailedTests() {
+    _reportFailuresSkeletonTimer?.cancel();
+    _reportFailuresSkeletonTimer = null;
+    reportFailedTests = [];
+    loadingReportFailures = false;
+    reportFailedTestsRunId = null;
+    reportFailuresReady = false;
     notify();
   }
 
@@ -364,8 +405,76 @@ class ExecutionShellController {
   }
 
   Future<void> loadFailedTests(String runId) async {
-    loadingFailures = true;
-    failedTestsRunId = runId;
+    await _loadFailedTestsFor(
+      runId,
+      setLoading: (value) => loadingFailures = value,
+      setRunId: (value) => failedTestsRunId = value,
+      currentRunId: () => failedTestsRunId,
+      setItems: (items) => failedTests = items,
+    );
+  }
+
+  Future<void> loadReportFailedTests(String runId) async {
+    _reportFailuresSkeletonTimer?.cancel();
+    _reportFailuresSkeletonTimer = null;
+
+    final cached = _reportFailuresCache[runId];
+    if (cached != null) {
+      reportFailedTests = cached;
+      reportFailedTestsRunId = runId;
+      loadingReportFailures = false;
+      reportFailuresReady = true;
+      notify();
+      return;
+    }
+
+    // Quiet load: hide the section until data arrives (or skeleton delay).
+    reportFailedTests = [];
+    reportFailedTestsRunId = runId;
+    loadingReportFailures = false;
+    reportFailuresReady = false;
+    notify();
+
+    _reportFailuresSkeletonTimer = Timer(_reportSkeletonDelay, () {
+      if (!isMounted() || reportFailedTestsRunId != runId) return;
+      if (reportFailuresReady || reportFailedTests.isNotEmpty) return;
+      loadingReportFailures = true;
+      notify();
+    });
+
+    try {
+      // Historical reports already have output.xml — no retry backoff.
+      final result = await gateway.getRunFailures(runId);
+      if (!isMounted() || reportFailedTestsRunId != runId) return;
+      _reportFailuresSkeletonTimer?.cancel();
+      _reportFailuresSkeletonTimer = null;
+      final items = result.items;
+      reportFailedTests = items;
+      _reportFailuresCache[runId] = items;
+      loadingReportFailures = false;
+      reportFailuresReady = true;
+      notify();
+    } catch (error) {
+      if (!isMounted() || reportFailedTestsRunId != runId) return;
+      _reportFailuresSkeletonTimer?.cancel();
+      _reportFailuresSkeletonTimer = null;
+      reportFailedTests = [];
+      loadingReportFailures = false;
+      reportFailuresReady = true;
+      notify();
+      appendLog('[warn] Could not load failed tests: $error');
+    }
+  }
+
+  Future<void> _loadFailedTestsFor(
+    String runId, {
+    required void Function(bool value) setLoading,
+    required void Function(String? value) setRunId,
+    required String? Function() currentRunId,
+    required void Function(List<RunTestFailureInfo> items) setItems,
+  }) async {
+    setLoading(true);
+    setRunId(runId);
     notify();
     try {
       // Linking runs async after index — brief retry if xml just landed.
@@ -374,16 +483,16 @@ class ExecutionShellController {
         result = await gateway.getRunFailures(runId);
         if (result.items.isNotEmpty || attempt == 3) break;
         await Future<void>.delayed(Duration(milliseconds: 200 * (attempt + 1)));
-        if (!isMounted() || failedTestsRunId != runId) return;
+        if (!isMounted() || currentRunId() != runId) return;
       }
-      if (!isMounted() || failedTestsRunId != runId) return;
-      failedTests = result?.items ?? const [];
-      loadingFailures = false;
+      if (!isMounted() || currentRunId() != runId) return;
+      setItems(result?.items ?? const []);
+      setLoading(false);
       notify();
     } catch (error) {
-      if (!isMounted() || failedTestsRunId != runId) return;
-      failedTests = [];
-      loadingFailures = false;
+      if (!isMounted() || currentRunId() != runId) return;
+      setItems(const []);
+      setLoading(false);
       notify();
       appendLog('[warn] Could not load failed tests: $error');
     }

@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/execution_info.dart';
+import '../../core/gateway/models/run_failure_info.dart';
 import '../../core/theme/app_theme.dart';
-import '../widgets/status_badge.dart';
+import '../execution/failed_tests_panel.dart';
 
 class RunDetailsPanel extends StatelessWidget {
   const RunDetailsPanel({
     super.key,
     required this.run,
+    this.failedTests = const [],
+    this.isLoadingFailures = false,
+    this.failuresReady = true,
+    this.onJumpToFailedTest,
+    this.onRerunFailedTest,
     this.onOpenXml,
     this.onOpenLog,
     this.onOpenReport,
@@ -16,11 +22,24 @@ class RunDetailsPanel extends StatelessWidget {
   });
 
   final ExecutionInfo run;
+  final List<RunTestFailureInfo> failedTests;
+  final bool isLoadingFailures;
+
+  /// When false, the Failed Tests block stays hidden during a quiet load.
+  final bool failuresReady;
+  final void Function(RunTestFailureInfo failure)? onJumpToFailedTest;
+  final void Function(RunTestFailureInfo failure)? onRerunFailedTest;
   final VoidCallback? onOpenXml;
   final VoidCallback? onOpenLog;
   final VoidCallback? onOpenReport;
   final VoidCallback? onReveal;
   final VoidCallback? onDelete;
+
+  bool get _showFailedTests {
+    if (failedTests.isNotEmpty || isLoadingFailures) return true;
+    if (!failuresReady) return false;
+    return (run.failed ?? 0) > 0 || run.resultBadge == 'FAIL';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,26 +48,11 @@ class RunDetailsPanel extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  run.projectName.isEmpty ? 'Run Details' : run.projectName,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleMedium?.copyWith(fontSize: 18),
-                ),
-              ),
-              StatusBadge(
-                label: run.resultBadge,
-                filled: run.resultBadge == 'PASS',
-                dotColor: run.resultBadge == 'PASS'
-                    ? context.palette.success
-                    : run.resultBadge == 'FAIL'
-                    ? context.palette.error
-                    : context.palette.warning,
-              ),
-            ],
+          Text(
+            run.projectName.isEmpty ? 'Run Details' : run.projectName,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontSize: 18),
           ),
           const SizedBox(height: 4),
           Text(run.suite, style: Theme.of(context).textTheme.bodySmall),
@@ -97,18 +101,14 @@ class RunDetailsPanel extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
-                  child: _StatCard(
-                    label: 'Passed',
-                    value: _n(run.passed),
-                    color: context.palette.success,
-                  ),
+                  child: _StatCard(label: 'Passed', value: _n(run.passed)),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: _StatCard(
                     label: 'Failed',
                     value: _n(run.failed),
-                    color: context.palette.error,
+                    color: (run.failed ?? 0) > 0 ? context.palette.error : null,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
@@ -116,12 +116,27 @@ class RunDetailsPanel extends StatelessWidget {
                   child: _StatCard(
                     label: 'Skipped',
                     value: _n(run.skipped),
-                    color: context.palette.warning,
+                    color: (run.skipped ?? 0) > 0
+                        ? context.palette.warning
+                        : null,
                   ),
                 ),
               ],
             ),
           ),
+          if (_showFailedTests) ...[
+            const SizedBox(height: 14),
+            _Section(
+              title: 'Failed Tests',
+              child: FailedTestsPanel(
+                failures: failedTests,
+                isLoading: isLoadingFailures,
+                embedded: true,
+                onJumpToSource: onJumpToFailedTest,
+                onRerunTest: onRerunFailedTest,
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           _Section(
             title: 'Artifacts',
