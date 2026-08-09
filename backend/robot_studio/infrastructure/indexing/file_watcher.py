@@ -17,20 +17,28 @@ _SKIP_PARTS = {"__pycache__", ".venv", "venv", "node_modules", ".git"}
 
 _STUDIO_META_DIR = ".robotstudio"
 _STUDIO_ENVIRONMENTS = "environments"
+_STUDIO_REPORTS = "reports"
+
+# Robot rewrites these constantly during a run — watching them freezes the UI.
+_RUN_ARTIFACT_NAMES = {"output.xml", "log.html", "report.html", "xunit.xml"}
 
 
 def _is_skipped(path: Path) -> bool:
     parts = path.parts
     if {part.lower() for part in parts} & _SKIP_PARTS:
         return True
-    # Studio venvs churn heavily during pip installs; ``.robotstudio/reports``
-    # stays watched so finished runs show up in the explorer without a refresh.
     if _STUDIO_META_DIR in parts:
         index = parts.index(_STUDIO_META_DIR)
-        if len(parts) > index + 1 and parts[index + 1] == _STUDIO_ENVIRONMENTS:
+        if len(parts) > index + 1 and parts[index + 1] in {
+            _STUDIO_ENVIRONMENTS,
+            _STUDIO_REPORTS,
+        }:
             return True
     # Legacy Studio env root (pre-.robotstudio/environments).
     if "Environments" in parts:
+        return True
+    # Artifact names outside studio meta (rare custom --outputdir).
+    if path.name.lower() in _RUN_ARTIFACT_NAMES:
         return True
     return False
 

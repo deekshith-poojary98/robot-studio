@@ -2561,6 +2561,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final latest = _executionHistory.isNotEmpty
         ? _executionHistory.first
         : _currentExecution;
+    final outputDir = latest?.outputDir;
+    if (outputDir != null && outputDir.isNotEmpty) {
+      unawaited(_editor.refreshParentOf(outputDir));
+    }
     if (latest != null) {
       final failed =
           latest.status == ExecutionStatus.failed ||
@@ -2577,6 +2581,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       unawaited(_execution.loadFailedTests(latest.id));
     }
     await _suggestMissingLibraryInstall();
+  }
+
+  static bool _isRunArtifactPath(String path) {
+    final normalized = path.replaceAll('\\', '/').toLowerCase();
+    if (normalized.contains('/.robotstudio/reports/')) return true;
+    final name = normalized.split('/').last;
+    return name == 'output.xml' ||
+        name == 'log.html' ||
+        name == 'report.html' ||
+        name == 'xunit.xml';
   }
 
   void _offerViewReportToast(ExecutionInfo run) {
@@ -3274,6 +3288,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Future<void> _handleLiveFilesystemEvent(WorkspaceStreamEvent event) async {
     final absolute = event.absolutePath ?? event.path;
     if (absolute == null || absolute.isEmpty) return;
+    // Report artifacts churn continuously during long runs; ignore so Save
+    // and editor stay responsive. Reports refresh when the run finishes.
+    if (_isRunArtifactPath(absolute) ||
+        (event.oldAbsolutePath != null &&
+            _isRunArtifactPath(event.oldAbsolutePath!))) {
+      return;
+    }
 
     switch (event.type) {
       case 'FILE_DELETED':
@@ -3878,7 +3899,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         tab.mtime = result.mtime;
       });
       _appendLog('[info] Saved "$path"');
-      await _loadGitStatus();
+      // Don't block Save on git / language refresh — especially mid-run.
+      unawaited(_loadGitStatus());
       unawaited(_refreshLanguageFeatures());
     } catch (error) {
       _appendLog('[error] Save failed: $error');

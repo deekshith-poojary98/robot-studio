@@ -42,6 +42,13 @@ class ExecutionShellController {
   ExecutionStreamClient? streamClient;
   StreamSubscription<ExecutionStreamEvent>? streamSub;
 
+  /// Cap console memory; 10k-test runs can emit huge stdout.
+  static const int maxExecutionLines = 4000;
+
+  Timer? _outputFlushTimer;
+  final List<String> _pendingOutput = [];
+  bool _outputDropped = false;
+
   String get elapsedLabel {
     final seconds = elapsed.inMilliseconds / 1000;
     return '${seconds.toStringAsFixed(1)}s';
@@ -50,6 +57,7 @@ class ExecutionShellController {
   void dispose() {
     streamSub?.cancel();
     elapsedTimer?.cancel();
+    _outputFlushTimer?.cancel();
     streamClient?.disconnect();
   }
 
@@ -97,8 +105,8 @@ class ExecutionShellController {
         if (!_isEventForCurrentRun(event)) return;
         final line = event.line;
         if (line == null) return;
-        executionLines = [...executionLines, line];
-        notify();
+        _pendingOutput.add(line);
+        _scheduleOutputFlush();
         return;
       case 'status':
         // Do not adopt historical run status on stream connect (cold start).
@@ -130,6 +138,7 @@ class ExecutionShellController {
       case 'failed':
       case 'cancelled':
         if (!_isEventForCurrentRun(event)) return;
+        _flushOutputNow();
         executionStatus = ExecutionStatus.fromApi(event.type);
         currentExecution = ExecutionInfo(
           id: currentExecution!.id,
@@ -156,12 +165,52 @@ class ExecutionShellController {
     }
   }
 
+  void _scheduleOutputFlush() {
+    if (_outputFlushTimer?.isActive ?? false) return;
+    _outputFlushTimer = Timer(
+      const Duration(milliseconds: 100),
+      _flushOutputNow,
+    );
+  }
+
+  void _flushOutputNow() {
+    _outputFlushTimer?.cancel();
+    _outputFlushTimer = null;
+    if (_pendingOutput.isEmpty) return;
+    final batch = List<String>.from(_pendingOutput);
+    _pendingOutput.clear();
+
+    final next = List<String>.from(executionLines)..addAll(batch);
+    if (next.length > maxExecutionLines) {
+      final overflow = next.length - maxExecutionLines;
+      executionLines = next.sublist(overflow);
+      if (!_outputDropped) {
+        _outputDropped = true;
+        executionLines = [
+          '[info] Console trimmed — keeping last $maxExecutionLines lines',
+          ...executionLines,
+        ];
+      }
+    } else {
+      executionLines = next;
+    }
+    notify();
+  }
+
+  void clearExecutionLines() {
+    executionLines = [];
+    _pendingOutput.clear();
+    _outputDropped = false;
+    notify();
+  }
+
   void startElapsedTimer() {
     elapsedTimer?.cancel();
     elapsed = Duration.zero;
-    elapsedTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+    // 100ms rebuilds of the whole shell starve input during huge runs.
+    elapsedTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
       if (!isMounted()) return;
-      elapsed += const Duration(milliseconds: 100);
+      elapsed += const Duration(milliseconds: 250);
       notify();
     });
   }
@@ -222,8 +271,9 @@ class ExecutionShellController {
       loadingReports = false;
       loadingDashboard = false;
       if (selectedReport != null) {
-        final match =
-            runs.where((item) => item.id == selectedReport!.id).toList();
+        final match = runs
+            .where((item) => item.id == selectedReport!.id)
+            .toList();
         selectedReport = match.isEmpty ? null : match.first;
       }
       notify();
@@ -238,6 +288,10 @@ class ExecutionShellController {
 
   void resetForWorkspaceChange() {
     executionLines = [];
+    _pendingOutput.clear();
+    _outputDropped = false;
+    _outputFlushTimer?.cancel();
+    _outputFlushTimer = null;
     executionHistory = [];
     executionStatus = ExecutionStatus.idle;
     currentExecution = null;
@@ -259,6 +313,10 @@ class ExecutionShellController {
 
   void prepareNewRun() {
     executionLines = [];
+    _pendingOutput.clear();
+    _outputDropped = false;
+    _outputFlushTimer?.cancel();
+    _outputFlushTimer = null;
     failedTests = [];
     loadingFailures = false;
     failedTestsRunId = null;

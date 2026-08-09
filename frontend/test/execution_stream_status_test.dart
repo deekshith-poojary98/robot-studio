@@ -106,4 +106,38 @@ void main() {
     expect(controller.executionStatus, ExecutionStatus.running);
     expect(notified, 0);
   });
+
+  test('batches output lines instead of notifying per line', () async {
+    controller.currentExecution = ExecutionInfo(
+      id: 'run-1',
+      workspaceId: 'ws',
+      projectId: 'proj',
+      environmentId: 'env',
+      projectName: 'Amazon',
+      suite: 'suite.robot',
+      status: ExecutionStatus.running,
+      startedAt: DateTime.utc(2026, 1, 1),
+      finishedAt: null,
+      durationMs: null,
+      exitCode: null,
+      command: 'robot',
+      outputDir: null,
+      outputXml: null,
+      logHtml: null,
+      reportHtml: null,
+    );
+    controller.executionStatus = ExecutionStatus.running;
+
+    for (var i = 0; i < 20; i++) {
+      controller.handleStreamEvent(
+        ExecutionStreamEvent(type: 'output', runId: 'run-1', line: 'line-$i'),
+      );
+    }
+    expect(notified, 0);
+    expect(controller.executionLines, isEmpty);
+
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(notified, 1);
+    expect(controller.executionLines.length, 20);
+  });
 }

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -29,6 +31,11 @@ from robot_studio.infrastructure.analysis.normalize import (
 from robot_studio.infrastructure.analysis.semantic_extractor import extract_file_semantics
 from robot_studio.infrastructure.analysis.sqlite_analysis_store import SqliteAnalysisStore
 
+logger = logging.getLogger(__name__)
+
+# Coalesce rapid single-file saves so a 10k-suite rebind does not run per keystroke.
+_REBIND_DEBOUNCE_SECONDS = 0.75
+
 
 def _entity_ref(entity: SemanticEntity) -> EntityRef:
     return EntityRef(
@@ -48,6 +55,7 @@ class RobotAnalysisEngine(AnalysisEngine):
     store: AnalysisStore
     event_bus: EventBus | None = None
     binder: SemanticBinder = field(init=False)
+    _rebind_tasks: dict[UUID, asyncio.Task] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         self.binder = SemanticBinder(self.store)
@@ -67,7 +75,9 @@ class RobotAnalysisEngine(AnalysisEngine):
             return
         version = await self.store.get_graph_version(project_id)
         epoch = version.incremental_revision
-        facts = extract_file_semantics(
+        # robot.api parsing is sync/CPU — keep the API event loop free for Save.
+        facts = await asyncio.to_thread(
+            extract_file_semantics,
             path,
             workspace_id=workspace_id,
             project_id=project_id,
@@ -80,10 +90,11 @@ class RobotAnalysisEngine(AnalysisEngine):
         )
         if rebind:
             await self.store.bump_revision(project_id, new_graph_version=False)
-            await self.binder.rebind_project(project_id)
+            self._schedule_rebind(project_id)
 
     async def finalize_project(self, project_id: UUID) -> AnalysisSnapshot:
         """Bump revision, rebind all edges, invalidate caches — call after bulk ingest."""
+        await self._cancel_scheduled_rebind(project_id)
         await self.store.bump_revision(project_id, new_graph_version=False)
         await self.binder.rebind_project(project_id)
         return await self.snapshot(project_id)
@@ -92,7 +103,40 @@ class RobotAnalysisEngine(AnalysisEngine):
         await self.store.clear_file(path)
         if project_id:
             await self.store.bump_revision(project_id, new_graph_version=False)
-            await self.binder.rebind_project(project_id)
+            self._schedule_rebind(project_id)
+
+    def _schedule_rebind(self, project_id: UUID) -> None:
+        existing = self._rebind_tasks.get(project_id)
+        if existing is not None and not existing.done():
+            existing.cancel()
+
+        async def _run() -> None:
+            try:
+                await asyncio.sleep(_REBIND_DEBOUNCE_SECONDS)
+                await self.binder.rebind_project(project_id)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Debounced analysis rebind failed for %s", project_id)
+            finally:
+                current = self._rebind_tasks.get(project_id)
+                if current is not None and current.done():
+                    self._rebind_tasks.pop(project_id, None)
+
+        self._rebind_tasks[project_id] = asyncio.create_task(
+            _run(),
+            name=f"analysis-rebind-{project_id}",
+        )
+
+    async def _cancel_scheduled_rebind(self, project_id: UUID) -> None:
+        task = self._rebind_tasks.pop(project_id, None)
+        if task is None:
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
     async def rebuild_project(
         self,
@@ -102,6 +146,7 @@ class RobotAnalysisEngine(AnalysisEngine):
         roots: list[Path],
     ) -> AnalysisSnapshot:
         """Full project semantic rebuild (explicit only)."""
+        await self._cancel_scheduled_rebind(project_id)
         await self.store.clear_project(project_id)
         version = await self.store.bump_revision(project_id, new_graph_version=True)
         epoch = version.incremental_revision
@@ -130,7 +175,8 @@ class RobotAnalysisEngine(AnalysisEngine):
                 ),
             )
         for index, path in enumerate(robot_files):
-            facts = extract_file_semantics(
+            facts = await asyncio.to_thread(
+                extract_file_semantics,
                 path,
                 workspace_id=workspace_id,
                 project_id=project_id,

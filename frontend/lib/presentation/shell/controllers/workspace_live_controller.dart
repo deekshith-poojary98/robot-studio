@@ -35,6 +35,7 @@ class WorkspaceLiveController {
   final Future<void> Function(WorkspaceStreamEvent event) onProjectMissing;
   final Future<void> Function(WorkspaceStreamEvent event) onWorkspaceMissing;
   final void Function(String message) onStatusMessage;
+
   /// When true, shell may show a non-blocking progress overlay.
   final void Function(bool busy)? onProgressBusy;
 
@@ -95,9 +96,15 @@ class WorkspaceLiveController {
       case 'DIRECTORY_CREATED':
       case 'DIRECTORY_DELETED':
       case 'DIRECTORY_RENAMED':
+        if (_isRunArtifactNoise(event)) return;
         _pendingFs.add(event);
         _externalChangeCount += 1;
         _scheduleExplorerFlush();
+        // Skip git refresh storms from non-source churn; Save/write still
+        // triggers RepositoryUpdated when needed.
+        if (!_isLikelySourcePath(event)) {
+          return;
+        }
         _scheduleGitFlush();
         if (event.isRobotSource) {
           _scheduleTestsFlush();
@@ -233,5 +240,42 @@ class WorkspaceLiveController {
     } catch (_) {
       return false;
     }
+  }
+
+  static bool _isRunArtifactNoise(WorkspaceStreamEvent event) {
+    final paths = <String?>[
+      event.absolutePath,
+      event.path,
+      event.oldAbsolutePath,
+      event.oldPath,
+    ];
+    for (final path in paths) {
+      if (path == null || path.isEmpty) continue;
+      final normalized = path.replaceAll('\\', '/').toLowerCase();
+      if (normalized.contains('/.robotstudio/reports/')) return true;
+      final name = normalized.split('/').last;
+      if (name == 'output.xml' ||
+          name == 'log.html' ||
+          name == 'report.html' ||
+          name == 'xunit.xml') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _isLikelySourcePath(WorkspaceStreamEvent event) {
+    if (event.isRobotSource) return true;
+    final path = (event.absolutePath ?? event.path ?? '')
+        .replaceAll('\\', '/')
+        .toLowerCase();
+    if (path.isEmpty) return false;
+    return path.endsWith('.robot') ||
+        path.endsWith('.resource') ||
+        path.endsWith('.py') ||
+        path.endsWith('.yaml') ||
+        path.endsWith('.yml') ||
+        path.endsWith('.txt') ||
+        path.endsWith('.md');
   }
 }

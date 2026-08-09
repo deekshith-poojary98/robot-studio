@@ -31,6 +31,16 @@ from robot_studio.core.events import (
 
 logger = logging.getLogger(__name__)
 
+_RUN_ARTIFACT_NAMES = {"output.xml", "log.html", "report.html", "xunit.xml"}
+
+
+def _is_run_artifact_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").lower()
+    if "/.robotstudio/reports/" in normalized:
+        return True
+    name = normalized.rsplit("/", 1)[-1]
+    return name in _RUN_ARTIFACT_NAMES
+
 
 @dataclass
 class _Subscriber:
@@ -190,7 +200,9 @@ class WorkspaceEventService:
         if event.is_directory:
             payload["is_directory"] = True
         await self._broadcast(payload)
-        if event.kind.startswith(("FILE_", "DIRECTORY_")):
+        if event.kind.startswith(("FILE_", "DIRECTORY_")) and not _is_run_artifact_path(
+            event.path,
+        ):
             await self._broadcast({"type": "GIT_CHANGED", "path": payload["path"]})
 
     async def _on_index_updated(self, event: IndexUpdated) -> None:

@@ -24,7 +24,15 @@ Open or create a **project** first. Those actions stay gated on the welcome scre
 3. Check Problems / Robot Doctor for missing imports that would fail collection.
 4. For huge suites, look for a confirmation dialog you may have dismissed.
 
-## Completions or go-to-definition feel wrong
+## UI freezes while a huge run is in progress
+
+Long project runs (thousands of tests) rewrite `output.xml` continuously and stream a lot of console output. Robot Studio now:
+
+- Ignores `.robotstudio/reports` watcher noise during the run
+- Batches / caps the execution console
+- Keeps Save from waiting on Git refresh
+
+If the UI still feels sticky, hide the Execution panel while the run finishes, or stop the run before heavy editing. Reports still appear when the run completes.
 
 - Wait for indexing to finish after opening a large project.
 - Confirm the active environment matches the libraries your suite imports.

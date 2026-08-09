@@ -79,6 +79,11 @@ class GitService:
 
     async def _on_file_written(self, event: FileWritten) -> None:
         _ = event
+        # Never block writers (editor Save) on git status — large repos / dirty
+        # trees during long runs made Save appear to hang the whole UI.
+        self._spawn(self._refresh_and_publish(), name="git-refresh-on-write")
+
+    async def _refresh_and_publish(self) -> None:
         repository = await self.refresh()
         if repository is not None and repository.root is not None:
             await self.event_bus.publish(RepositoryUpdated(root=str(repository.root)))
