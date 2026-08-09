@@ -2794,6 +2794,15 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<List<GitRemoteInfo>> listGitRemotes() async => const [];
+
+  @override
+  Future<List<GitRemoteInfo>> addGitRemote({
+    String name = 'origin',
+    required String url,
+  }) async => [GitRemoteInfo(name: name, url: url)];
+
+  @override
   Future<GitDiffInfo> getGitDiff({String? filePath, String? commit}) async {
     return GitDiffInfo(
       filePath: filePath,

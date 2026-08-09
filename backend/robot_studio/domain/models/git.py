@@ -24,6 +24,11 @@ class GitFileChange(BaseModel):
     old_path: str | None = None
 
 
+class GitRemote(BaseModel):
+    name: str
+    url: str
+
+
 class GitRepositoryInfo(BaseModel):
     is_repository: bool = True
     root: Path | None = None
@@ -31,6 +36,7 @@ class GitRepositoryInfo(BaseModel):
     head: str | None = None
     detached: bool = False
     clean: bool = True
+    remotes: list[GitRemote] = Field(default_factory=list)
 
 
 class GitStatus(BaseModel):

@@ -1088,6 +1088,45 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<List<GitRemoteInfo>> listGitRemotes() async {
+    final items = await _getArray('/git/remotes');
+    return items
+        .map((item) => GitRemoteInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<List<GitRemoteInfo>> addGitRemote({
+    String name = 'origin',
+    required String url,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse('$baseUrl/git/remotes'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'name': name, 'url': url}),
+        )
+        .timeout(const Duration(seconds: 30));
+    final decoded = response.body.isEmpty
+        ? <dynamic>[]
+        : jsonDecode(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final detail = decoded is Map<String, dynamic>
+          ? decoded['detail']?.toString()
+          : null;
+      throw GatewayException(
+        detail ?? 'Request failed (${response.statusCode})',
+      );
+    }
+    if (decoded is! List<dynamic>) {
+      throw GatewayException('Expected JSON array from /git/remotes');
+    }
+    return decoded
+        .map((item) => GitRemoteInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
   Future<GitDiffInfo> getGitDiff({String? filePath, String? commit}) async {
     final buffer = StringBuffer('/git/diff?');
     if (filePath != null) {

@@ -24,76 +24,133 @@ class CommitPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
+    final palette = context.palette;
+    return DecoratedBox(
       decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: context.palette.borderSubtle)),
+        color: palette.surfaceElevated,
+        border: Border(top: BorderSide(color: palette.borderSubtle)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Commit Message', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          TextField(
-            controller: controller,
-            enabled: enabled && !isBusy,
-            maxLines: 4,
-            minLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Describe your changes…',
-              border: OutlineInputBorder(),
-              isDense: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.sm,
+          AppSpacing.md,
+          AppSpacing.md,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'COMMIT',
+              style: TextStyle(
+                fontSize: 10,
+                letterSpacing: 0.4,
+                fontWeight: FontWeight.w600,
+                color: palette.textMuted,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: controller,
-            builder: (context, value, _) {
-              final hasMessage = value.text.trim().isNotEmpty;
-              return Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  FilledButton.icon(
-                    onPressed: enabled && !isBusy && hasMessage
-                        ? onCommit
-                        : null,
-                    icon: isBusy
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.check, size: 16),
-                    label: const Text('Commit All'),
-                  ),
-                  OutlinedButton(
-                    onPressed:
-                        enabled && !isBusy && hasMessage && selectedCount > 0
-                        ? onCommitSelected
-                        : null,
-                    child: Text(
-                      selectedCount > 0
-                          ? 'Commit Selected ($selectedCount)'
-                          : 'Commit Selected',
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: controller,
+              enabled: enabled && !isBusy,
+              maxLines: 3,
+              minLines: 2,
+              style: const TextStyle(fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Message…',
+                isDense: true,
+                filled: true,
+                fillColor: palette.surface,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.xs),
+                  borderSide: BorderSide(color: palette.borderSubtle),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.xs),
+                  borderSide: BorderSide(color: palette.borderSubtle),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (context, value, _) {
+                final hasMessage = value.text.trim().isNotEmpty;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: enabled && !isBusy && hasMessage
+                                ? onCommit
+                                : null,
+                            style: FilledButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              textStyle: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            child: isBusy
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Commit All'),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed:
+                                enabled &&
+                                    !isBusy &&
+                                    hasMessage &&
+                                    selectedCount > 0
+                                ? onCommitSelected
+                                : null,
+                            style: OutlinedButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              textStyle: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            child: Text(
+                              selectedCount > 0
+                                  ? 'Selected ($selectedCount)'
+                                  : 'Selected',
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Text(
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
                       totalCount == 0
-                          ? 'No changes'
-                          : '$totalCount changed file'
-                                '${totalCount == 1 ? '' : 's'}',
-                      style: Theme.of(context).textTheme.bodySmall,
+                          ? 'No changes to commit'
+                          : '$totalCount file${totalCount == 1 ? '' : 's'} changed',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: palette.textMuted,
+                      ),
                     ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

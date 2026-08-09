@@ -27,17 +27,22 @@ class HistoryPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: [
-              Text('History', style: Theme.of(context).textTheme.titleSmall),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Refresh history',
-                onPressed: onRefresh,
-                icon: const Icon(Icons.refresh, size: 18),
-              ),
-            ],
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            4,
+            AppSpacing.sm,
+            4,
+          ),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: IconButton(
+              tooltip: 'Refresh history',
+              onPressed: onRefresh,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.refresh, size: 16),
+            ),
           ),
         ),
         const Divider(height: 1),

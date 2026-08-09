@@ -11,10 +11,21 @@ from robot_studio.domain.models.git import (
     GitDiff,
     GitDiffLine,
     GitFileChange,
+    GitRemote,
     GitRemoteResult,
     GitRepositoryInfo,
     GitStatus,
 )
+
+
+class GitRemoteResponse(BaseModel):
+    name: str
+    url: str
+
+
+class GitAddRemoteRequest(BaseModel):
+    name: str = "origin"
+    url: str
 
 
 class GitRepositoryResponse(BaseModel):
@@ -24,6 +35,7 @@ class GitRepositoryResponse(BaseModel):
     head: str | None = None
     detached: bool = False
     clean: bool = True
+    remotes: list[GitRemoteResponse] = Field(default_factory=list)
 
 
 class GitFileChangeResponse(BaseModel):
@@ -102,7 +114,12 @@ def to_repository_response(item: GitRepositoryInfo) -> GitRepositoryResponse:
         head=item.head,
         detached=item.detached,
         clean=item.clean,
+        remotes=[to_remote_info_response(remote) for remote in item.remotes],
     )
+
+
+def to_remote_info_response(item: GitRemote) -> GitRemoteResponse:
+    return GitRemoteResponse(name=item.name, url=item.url)
 
 
 def to_change_response(item: GitFileChange) -> GitFileChangeResponse:

@@ -222,16 +222,86 @@ void main() {
               onFetch: () {},
               onPull: () {},
               onPush: () {},
+              onAddRemote: () {},
             ),
           ),
         ),
       ),
     );
 
-    expect(find.text('Changes'), findsOneWidget);
-    expect(find.text('Modified'), findsOneWidget);
-    expect(find.text('Untracked'), findsOneWidget);
+    expect(find.text('CHANGES'), findsOneWidget);
+    expect(find.textContaining('Modified'), findsOneWidget);
+    expect(find.textContaining('Untracked'), findsOneWidget);
     expect(find.text('tests.robot'), findsOneWidget);
+    expect(find.text('Diff'), findsOneWidget);
+    expect(find.text('History'), findsOneWidget);
+    expect(find.text('Add remote'), findsOneWidget);
+    expect(find.textContaining('No remote yet'), findsOneWidget);
+    expect(find.text('Pending changes'), findsOneWidget);
+  });
+
+  testWidgets('SourceControlPage shows configured remote', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 1400,
+            height: 900,
+            child: SourceControlPage(
+              status: const GitStatusInfo(
+                repository: GitRepositoryInfo(
+                  isRepository: true,
+                  branch: 'main',
+                  head: 'abc1234567890',
+                  clean: true,
+                  remotes: [
+                    GitRemoteInfo(
+                      name: 'origin',
+                      url: 'https://github.com/acme/demo.git',
+                    ),
+                  ],
+                ),
+              ),
+              branches: const [GitBranchInfo(name: 'main', current: true)],
+              history: const [],
+              selectedCommit: null,
+              commitDetail: null,
+              diff: null,
+              selectedFiles: const {},
+              selectedDiffFile: null,
+              commitController: TextEditingController(),
+              isLoading: false,
+              isBusy: false,
+              isLoadingHistory: false,
+              isLoadingDiff: false,
+              onRefresh: () {},
+              onInit: () {},
+              onToggleFile: (_) {},
+              onSelectDiffFile: (_) {},
+              onCommitAll: () {},
+              onCommitSelected: () {},
+              onSelectCommit: (_) {},
+              onRefreshHistory: () {},
+              onFetch: () {},
+              onPull: () {},
+              onPush: () {},
+              onAddRemote: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Up to date'), findsOneWidget);
+    expect(find.text('Edit remote'), findsOneWidget);
+    expect(
+      find.textContaining('https://github.com/acme/demo.git'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('CommitPanel requires message for commit actions', (
@@ -259,7 +329,7 @@ void main() {
     expect(find.text('Commit All'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'Fix login test');
     await tester.pump();
-    expect(find.text('Commit Selected (1)'), findsOneWidget);
+    expect(find.text('Selected (1)'), findsOneWidget);
   });
 
   testWidgets('BranchSelector lists branches', (WidgetTester tester) async {
@@ -327,7 +397,6 @@ void main() {
       ),
     );
 
-    expect(find.text('History'), findsOneWidget);
     expect(find.text('Initial commit'), findsWidgets);
     expect(find.text('Changed files'), findsOneWidget);
   });

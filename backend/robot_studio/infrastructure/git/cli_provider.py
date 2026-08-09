@@ -16,6 +16,7 @@ from robot_studio.domain.models.git import (
     GitDiffLine,
     GitFileChange,
     GitFileStatus,
+    GitRemote,
     GitRemoteResult,
     GitRepositoryInfo,
     GitStatus,
@@ -258,11 +259,62 @@ class CliGitProvider(GitProvider):
             return GitRemoteResult(success=False, message=str(exc), output=str(exc))
 
     async def push(self, repo_root: Path) -> GitRemoteResult:
+        remotes = await self.list_remotes(repo_root)
+        if not remotes:
+            return GitRemoteResult(
+                success=False,
+                message="No remote configured. Add a remote URL before pushing.",
+            )
         try:
             output = await self._run_text(["push"], cwd=repo_root)
             return GitRemoteResult(success=True, message="Push completed", output=output)
-        except GitCommandError as exc:
-            return GitRemoteResult(success=False, message=str(exc), output=str(exc))
+        except GitCommandError as first_error:
+            # First push often needs an upstream. Prefer origin when present.
+            remote_name = next(
+                (item.name for item in remotes if item.name == "origin"),
+                remotes[0].name,
+            )
+            try:
+                output = await self._run_text(
+                    ["push", "-u", remote_name, "HEAD"],
+                    cwd=repo_root,
+                )
+                return GitRemoteResult(
+                    success=True,
+                    message=f"Push completed (set upstream to {remote_name})",
+                    output=output,
+                )
+            except GitCommandError:
+                return GitRemoteResult(
+                    success=False,
+                    message=str(first_error),
+                    output=str(first_error),
+                )
+
+    async def list_remotes(self, repo_root: Path) -> list[GitRemote]:
+        try:
+            raw = await self._run_text(["remote", "-v"], cwd=repo_root)
+        except GitCommandError:
+            return []
+        return _parse_remotes(raw)
+
+    async def add_remote(
+        self,
+        repo_root: Path,
+        *,
+        name: str,
+        url: str,
+    ) -> list[GitRemote]:
+        remote_name = name.strip() or "origin"
+        remote_url = url.strip()
+        if not remote_url:
+            raise GitCommandError("Remote URL is required")
+        existing = {item.name for item in await self.list_remotes(repo_root)}
+        if remote_name in existing:
+            await self._run(["remote", "set-url", remote_name, remote_url], cwd=repo_root)
+        else:
+            await self._run(["remote", "add", remote_name, remote_url], cwd=repo_root)
+        return await self.list_remotes(repo_root)
 
     async def seed_local_remote(
         self,
@@ -361,6 +413,7 @@ class CliGitProvider(GitProvider):
             )
             changes = _parse_porcelain(status_raw)
             clean = len(changes) == 0
+        remotes = await self.list_remotes(repo_root)
         return GitRepositoryInfo(
             is_repository=True,
             root=repo_root,
@@ -368,6 +421,7 @@ class CliGitProvider(GitProvider):
             head=head if head else None,
             detached=detached,
             clean=clean,
+            remotes=remotes,
         )
 
     async def _run(self, args: list[str], *, cwd: Path) -> None:
@@ -421,6 +475,21 @@ def _parse_porcelain(raw: str) -> list[GitFileChange]:
             continue
         changes.append(_name_status_to_change(code.strip(), path_part))
     return changes
+
+
+def _parse_remotes(raw: str) -> list[GitRemote]:
+    """Parse `git remote -v` into unique name/url pairs (prefer fetch URL)."""
+    by_name: dict[str, GitRemote] = {}
+    for line in raw.splitlines():
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        name, url = parts[0], parts[1]
+        kind = parts[2].strip("()") if len(parts) >= 3 else "fetch"
+        if name in by_name and kind != "fetch":
+            continue
+        by_name[name] = GitRemote(name=name, url=url)
+    return list(by_name.values())
 
 
 def _name_status_to_change(code: str, path: str) -> GitFileChange:

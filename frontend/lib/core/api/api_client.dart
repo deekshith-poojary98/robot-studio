@@ -461,6 +461,15 @@ class ApiClient implements TransportGateway {
   Future<GitRemoteResultInfo> pushGit() => _gateway.pushGit();
 
   @override
+  Future<List<GitRemoteInfo>> listGitRemotes() => _gateway.listGitRemotes();
+
+  @override
+  Future<List<GitRemoteInfo>> addGitRemote({
+    String name = 'origin',
+    required String url,
+  }) => _gateway.addGitRemote(name: name, url: url);
+
+  @override
   Future<GitDiffInfo> getGitDiff({String? filePath, String? commit}) =>
       _gateway.getGitDiff(filePath: filePath, commit: commit);
 

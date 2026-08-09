@@ -336,6 +336,13 @@ abstract class TransportGateway {
 
   Future<GitRemoteResultInfo> pushGit();
 
+  Future<List<GitRemoteInfo>> listGitRemotes();
+
+  Future<List<GitRemoteInfo>> addGitRemote({
+    String name = 'origin',
+    required String url,
+  });
+
   Future<GitDiffInfo> getGitDiff({String? filePath, String? commit});
 
   Future<DoctorProfilesBundle> getDoctorProfiles();

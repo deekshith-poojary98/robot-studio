@@ -848,6 +848,12 @@ class RestGateway:
     async def git_push(self):
         return await self._git_service.push()
 
+    async def git_list_remotes(self):
+        return await self._git_service.list_remotes()
+
+    async def git_add_remote(self, *, name: str, url: str):
+        return await self._git_service.add_remote(name=name, url=url)
+
     async def git_seed_local_remote(
         self,
         *,

@@ -23,7 +23,7 @@ class DiffViewer extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Text(
-            fileLabel ?? diff?.filePath ?? 'Diff',
+            fileLabel ?? diff?.filePath ?? 'Select a changed file',
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ),

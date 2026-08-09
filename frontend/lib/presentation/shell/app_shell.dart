@@ -27,6 +27,7 @@ import '../editor/editor_tabs_bar.dart';
 import '../execution/execution_page.dart';
 import '../execution/run_target.dart';
 import '../execution/stop_execution_dialog.dart';
+import '../git/add_remote_dialog.dart';
 import '../git/source_control_page.dart';
 import '../packages/package_details_panel.dart';
 import '../packages/package_manager_page.dart';
@@ -898,6 +899,39 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       }
     } catch (error) {
       await _showError('Git $action', error);
+    } finally {
+      if (mounted) setState(() => _gitBusy = false);
+    }
+  }
+
+  Future<void> _handleAddGitRemote() async {
+    if (!mounted) return;
+    final existing = _gitStatus?.repository.remotes ?? const [];
+    final current = existing.isEmpty
+        ? null
+        : existing.firstWhere(
+            (remote) => remote.name == 'origin',
+            orElse: () => existing.first,
+          );
+    final result = await showAddGitRemoteDialog(
+      context,
+      initialName: current?.name ?? 'origin',
+      initialUrl: current?.url ?? '',
+    );
+    if (result == null || !mounted) return;
+    setState(() => _gitBusy = true);
+    try {
+      await _gateway.addGitRemote(name: result.name, url: result.url);
+      await _refreshGit();
+      if (!mounted) return;
+      _appendLog('[info] Git remote ${result.name} configured');
+      showAppToast(
+        context,
+        message: 'Remote ${result.name} ready — you can Push',
+        icon: Icons.cloud_done_outlined,
+      );
+    } catch (error) {
+      await _showError('Add remote', error);
     } finally {
       if (mounted) setState(() => _gitBusy = false);
     }
@@ -5741,6 +5775,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onFetch: () => _handleGitRemote('fetch', _gateway.fetchGit),
         onPull: () => _handleGitRemote('pull', _gateway.pullGit),
         onPush: () => _handleGitRemote('push', _gateway.pushGit),
+        onCheckoutBranch: _handleGitCheckout,
+        onCreateBranch: _handleGitCreateBranch,
+        onDeleteBranch: _handleGitDeleteBranch,
+        onAddRemote: () => unawaited(_handleAddGitRemote()),
       ),
       _CenterView.packageDetail => PackageDetailsPanel(
         package: _selectedPackage!,

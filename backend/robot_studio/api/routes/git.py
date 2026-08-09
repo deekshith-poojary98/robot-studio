@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.git import (
+    GitAddRemoteRequest,
     GitBranchResponse,
     GitCheckoutRequest,
     GitCommitDetailResponse,
@@ -11,6 +12,7 @@ from robot_studio.api.schemas.git import (
     GitCreateBranchRequest,
     GitDeleteBranchRequest,
     GitDiffResponse,
+    GitRemoteResponse,
     GitRemoteResultResponse,
     GitRepositoryResponse,
     GitStatusResponse,
@@ -18,6 +20,7 @@ from robot_studio.api.schemas.git import (
     to_commit_detail_response,
     to_commit_response,
     to_diff_response,
+    to_remote_info_response,
     to_remote_response,
     to_repository_response,
     to_status_response,
@@ -170,6 +173,29 @@ async def git_push(
     except GitValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return to_remote_response(result)
+
+
+@router.get("/remotes", response_model=list[GitRemoteResponse])
+async def git_list_remotes(
+    gateway: RestGateway = Depends(get_gateway),
+) -> list[GitRemoteResponse]:
+    try:
+        remotes = await gateway.git_list_remotes()
+    except GitValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return [to_remote_info_response(item) for item in remotes]
+
+
+@router.post("/remotes", response_model=list[GitRemoteResponse])
+async def git_add_remote(
+    request: GitAddRemoteRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> list[GitRemoteResponse]:
+    try:
+        remotes = await gateway.git_add_remote(name=request.name, url=request.url)
+    except GitValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return [to_remote_info_response(item) for item in remotes]
 
 
 @router.post("/seed-local-remote")

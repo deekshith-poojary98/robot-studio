@@ -25,6 +25,7 @@ from robot_studio.domain.models.git import (
     GitCommit,
     GitCommitDetail,
     GitDiff,
+    GitRemote,
     GitRemoteResult,
     GitRepositoryInfo,
     GitStatus,
@@ -209,6 +210,30 @@ class GitService:
         repo = await self._require_repository()
         result = await self.provider.push(Path(repo.root))
         return result
+
+    async def list_remotes(self) -> list[GitRemote]:
+        repo = await self._require_repository()
+        return await self.provider.list_remotes(Path(repo.root))
+
+    async def add_remote(self, *, name: str, url: str) -> list[GitRemote]:
+        repo = await self._require_repository()
+        try:
+            remotes = await self.provider.add_remote(
+                Path(repo.root),
+                name=name,
+                url=url,
+            )
+        except Exception as exc:
+            from robot_studio.infrastructure.git.cli_provider import GitCommandError
+
+            if isinstance(exc, GitCommandError):
+                raise GitValidationError(str(exc)) from exc
+            raise
+        refreshed = await self.provider.detect(Path(repo.root))
+        if refreshed is not None:
+            self._repository = refreshed
+        await self.event_bus.publish(RepositoryUpdated(root=str(repo.root)))
+        return remotes
 
     async def seed_local_remote(
         self,

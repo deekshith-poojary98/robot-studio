@@ -47,6 +47,20 @@ enum GitFileStatus {
   };
 }
 
+class GitRemoteInfo {
+  const GitRemoteInfo({required this.name, required this.url});
+
+  factory GitRemoteInfo.fromJson(Map<String, dynamic> json) {
+    return GitRemoteInfo(
+      name: json['name'] as String? ?? '',
+      url: json['url'] as String? ?? '',
+    );
+  }
+
+  final String name;
+  final String url;
+}
+
 class GitRepositoryInfo {
   const GitRepositoryInfo({
     required this.isRepository,
@@ -55,9 +69,13 @@ class GitRepositoryInfo {
     this.head,
     this.detached = false,
     this.clean = true,
+    this.remotes = const [],
   });
 
   factory GitRepositoryInfo.fromJson(Map<String, dynamic> json) {
+    final remotes = (json['remotes'] as List<dynamic>? ?? const [])
+        .map((item) => GitRemoteInfo.fromJson(item as Map<String, dynamic>))
+        .toList();
     return GitRepositoryInfo(
       isRepository: json['is_repository'] as bool? ?? false,
       root: json['root'] as String?,
@@ -65,6 +83,7 @@ class GitRepositoryInfo {
       head: json['head'] as String?,
       detached: json['detached'] as bool? ?? false,
       clean: json['clean'] as bool? ?? true,
+      remotes: remotes,
     );
   }
 
@@ -74,6 +93,9 @@ class GitRepositoryInfo {
   final String? head;
   final bool detached;
   final bool clean;
+  final List<GitRemoteInfo> remotes;
+
+  bool get hasRemote => remotes.isNotEmpty;
 }
 
 class GitFileChangeInfo {
