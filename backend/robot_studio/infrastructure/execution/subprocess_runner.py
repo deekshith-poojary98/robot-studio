@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 import signal
 import sys
 from dataclasses import dataclass, field
@@ -17,6 +18,38 @@ from robot_studio.domain.models import ExecutionStatus
 
 class RunnerError(Exception):
     """Raised when the runner cannot start or manage a process."""
+
+
+def _studio_progress_listener_source() -> Path | None:
+    """Locate studio_progress_listener.py (dev tree or PyInstaller datas)."""
+    here = Path(__file__).resolve().with_name("studio_progress_listener.py")
+    if here.is_file():
+        return here
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        bundled = (
+            Path(meipass)
+            / "robot_studio"
+            / "infrastructure"
+            / "execution"
+            / "studio_progress_listener.py"
+        )
+        if bundled.is_file():
+            return bundled
+    return None
+
+
+def _listener_robot_args(output_dir: Path) -> list[str]:
+    """Copy listener into the run dir so the project venv can load it by path."""
+    src = _studio_progress_listener_source()
+    if src is None:
+        return []
+    dest = output_dir / "studio_progress_listener.py"
+    try:
+        shutil.copy2(src, dest)
+    except OSError:
+        return []
+    return ["--listener", str(dest.resolve())]
 
 
 @dataclass
@@ -61,10 +94,8 @@ class SubprocessRunner(Runner):
             if str(arg).strip()
         ]
 
-        listener = Path(__file__).with_name("studio_progress_listener.py")
         # Prepend so project --listener args still run; ours stays first for UI.
-        if listener.is_file():
-            extra_args = ["--listener", str(listener.resolve()), *extra_args]
+        extra_args = [*_listener_robot_args(output_dir), *extra_args]
 
         command = [
             str(python),

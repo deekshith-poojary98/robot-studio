@@ -156,6 +156,12 @@ async def test_runner_lifecycle(services) -> None:
     assert any(isinstance(e, ExecutionStarted) for e in events)
     assert any(isinstance(e, ExecutionOutput) for e in events)
     assert any(isinstance(e, ExecutionFinished) for e in events)
+    progress = [
+        e.line
+        for e in events
+        if isinstance(e, ExecutionOutput) and e.line and e.line.startswith("###RS###|now|")
+    ]
+    assert any("|Hello|" in line or line.endswith("|Hello|BuiltIn.Log") for line in progress)
 
 
 @pytest.mark.asyncio

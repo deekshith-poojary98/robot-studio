@@ -26,6 +26,7 @@ import '../editor/editor_page.dart';
 import '../editor/editor_tabs_bar.dart';
 import '../execution/execution_page.dart';
 import '../execution/run_target.dart';
+import '../execution/stop_execution_dialog.dart';
 import '../git/source_control_page.dart';
 import '../packages/package_details_panel.dart';
 import '../packages/package_manager_page.dart';
@@ -1270,24 +1271,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (_settings.execution.stopConfirmation) {
       final running = _execution.executionStatus.isActive;
       if (running) {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('Stop execution?'),
-            content: const Text('Stop the current Robot Framework run?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: const Text('Stop'),
-              ),
-            ],
-          ),
+        final confirmed = await showStopExecutionDialog(
+          context,
+          suite: _currentExecution?.suite,
+          elapsedLabel: _elapsedLabel,
+          liveSuite: _execution.liveSuite,
+          liveTest: _execution.liveTest,
+          liveKeyword: _execution.liveKeyword,
         );
-        if (confirmed != true) return;
+        if (!confirmed) return;
       }
     }
     try {
@@ -1691,9 +1683,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _showReportsPage = false;
       _showDoctorPage = false;
       _showSettingsPage = false;
-      _execution.selectedReport = null;
-      _execution.reportRuns = [];
-      _execution.reportsDashboard = null;
+      // Drop previous project's console / failed-tests / run chrome immediately,
+      // including when the Tests tab stays open across the switch.
+      _execution.resetForWorkspaceChange();
       _insights = null;
       _activePanel = SidebarPanel.explorer;
       _editor.tabs = [];
@@ -2108,12 +2100,20 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _showEnvironmentManager = false;
         _showPackageManager = false;
         _showEditorPage = false;
+        // Same project-scoped reset as open/create — Tests tab must not keep
+        // the previous project's console or failed-tests list.
+        _execution.resetForWorkspaceChange();
         _clearExecutionPageUnlessTests();
         _busy = false;
       });
       _appendLog('[info] $successMessage "${project.name}"');
       await _loadProjects();
       await _loadRecent();
+      unawaited(_loadExecutionHistory());
+      unawaited(_loadEnvironments());
+      unawaited(_loadIndexStatus());
+      unawaited(_editor.loadFileTree());
+      unawaited(_loadGitStatus());
     } catch (error) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -5689,6 +5689,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         consoleLines: _executionLines,
         status: _executionStatus,
         currentRun: _currentExecution,
+        liveSuite: _execution.liveSuite,
+        liveTest: _execution.liveTest,
+        liveKeyword: _execution.liveKeyword,
         failedTests: _failedTests,
         isLoadingFailures: _loadingFailures,
         onJumpToFailedTest: (failure) {

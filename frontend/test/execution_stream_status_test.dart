@@ -140,4 +140,51 @@ void main() {
     expect(notified, 1);
     expect(controller.executionLines.length, 20);
   });
+
+  test('resetForWorkspaceChange clears console and run chrome', () {
+    controller.executionLines = ['old-line'];
+    controller.executionHistory = [
+      ExecutionInfo(
+        id: 'run-1',
+        workspaceId: 'ws',
+        projectId: 'proj',
+        environmentId: 'env',
+        projectName: 'Old',
+        suite: 'suite.robot',
+        status: ExecutionStatus.finished,
+        startedAt: DateTime.utc(2026, 1, 1),
+        finishedAt: DateTime.utc(2026, 1, 1, 0, 0, 1),
+        durationMs: 1000,
+        exitCode: 0,
+        command: 'robot',
+        outputDir: null,
+        outputXml: null,
+        logHtml: null,
+        reportHtml: null,
+      ),
+    ];
+    controller.currentExecution = controller.executionHistory.first;
+    controller.executionStatus = ExecutionStatus.finished;
+    controller.failedTests = [
+      const RunTestFailureInfo(
+        runId: 'run-1',
+        name: 'Failing test',
+        message: 'boom',
+        source: '/tmp/suite.robot',
+        line: 10,
+      ),
+    ];
+    controller.liveSuite = 'suite.robot';
+    controller.liveTest = 'Failing test';
+
+    controller.resetForWorkspaceChange();
+
+    expect(controller.executionLines, isEmpty);
+    expect(controller.executionHistory, isEmpty);
+    expect(controller.currentExecution, isNull);
+    expect(controller.executionStatus, ExecutionStatus.idle);
+    expect(controller.failedTests, isEmpty);
+    expect(controller.liveSuite, isEmpty);
+    expect(controller.liveTest, isEmpty);
+  });
 }

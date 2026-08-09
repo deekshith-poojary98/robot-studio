@@ -22,6 +22,7 @@ void main() {
 
     expect(find.text('Execution'), findsOneWidget);
     expect(find.text('Live Output'), findsOneWidget);
+    expect(find.text('Now Running'), findsOneWidget);
     expect(find.text('Recent Runs'), findsNothing);
     expect(find.textContaining('RUNNING'), findsNothing);
     expect(find.text('FINISHED'), findsNothing);
@@ -49,5 +50,31 @@ void main() {
 
     expect(find.textContaining('toolbar or Test Explorer'), findsOneWidget);
     expect(find.text('IDLE'), findsNothing);
+    expect(find.textContaining('appear here while a run'), findsOneWidget);
+  });
+
+  testWidgets('Now Running shows live suite test and keyword', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: ExecutionPage(
+            consoleLines: [],
+            status: ExecutionStatus.running,
+            currentRun: null,
+            liveSuite: 'Demo',
+            liveTest: 'Hello',
+            liveKeyword: 'BuiltIn.Log',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Now Running'), findsOneWidget);
+    expect(find.text('Demo'), findsOneWidget);
+    expect(find.text('Hello'), findsOneWidget);
+    expect(find.text('BuiltIn.Log'), findsOneWidget);
   });
 }

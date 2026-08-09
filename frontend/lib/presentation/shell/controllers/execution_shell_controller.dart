@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../../core/gateway/execution_stream_client.dart';
 import '../../../core/gateway/transport_gateway.dart';
+import '../../execution/live_progress_markers.dart';
 import 'shell_controller.dart';
 
 class ExecutionShellController {
@@ -44,9 +45,6 @@ class ExecutionShellController {
 
   /// Cap console memory; 10k-test runs can emit huge stdout.
   static const int maxExecutionLines = 4000;
-
-  /// Marker from studio_progress_listener.py (stripped from console).
-  static final RegExp _progressMarker = RegExp(r'^###RS###\|now\|(.*)$');
 
   Timer? _outputFlushTimer;
   final List<String> _pendingOutput = [];
@@ -113,8 +111,9 @@ class ExecutionShellController {
         if (line == null) return;
         // Allow lines before HTTP assigns currentExecution (run already started).
         if (currentExecution != null && !_isEventForCurrentRun(event)) return;
-        if (_applyProgressMarker(line)) return;
-        _pendingOutput.add(line);
+        final kept = _consumeProgressMarker(line);
+        if (kept == null) return;
+        _pendingOutput.add(kept);
         _scheduleOutputFlush();
         return;
       case 'status':
@@ -176,22 +175,23 @@ class ExecutionShellController {
     }
   }
 
-  bool _applyProgressMarker(String line) {
-    final match = _progressMarker.firstMatch(line.trim());
-    if (match == null) return false;
-    final parts = match.group(1)!.split('|');
-    // suite|test|keyword — names may be empty.
-    final suite = parts.isNotEmpty ? parts[0] : '';
-    final test = parts.length > 1 ? parts[1] : '';
-    final keyword = parts.length > 2 ? parts.sublist(2).join('|') : '';
+  /// Apply any progress marker and return console text to keep.
+  /// Returns null when the line was marker-only (drop from Live Output).
+  String? _consumeProgressMarker(String line) {
+    final parsed = parseProgressMarker(line);
+    if (parsed == null) return line;
+    _updateLiveProgress(parsed.suite, parsed.test, parsed.keyword);
+    return parsed.consoleLine;
+  }
+
+  void _updateLiveProgress(String suite, String test, String keyword) {
     if (suite == liveSuite && test == liveTest && keyword == liveKeyword) {
-      return true;
+      return;
     }
     liveSuite = suite;
     liveTest = test;
     liveKeyword = keyword;
     notify();
-    return true;
   }
 
   void _clearLiveProgress() {

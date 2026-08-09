@@ -5,11 +5,14 @@ without installing Robot Studio there. Writes one marker line per change:
 
     ###RS###|now|<suite>|<test>|<keyword>
 
-The Studio UI strips these lines from Live Output and shows them in the
-"Now running" panel (RIDE-style progress).
+Robot often leaves the console cursor mid-line (padded suite/test names), so we
+always start the marker on a fresh line. The Studio UI strips markers from Live
+Output and shows them in the "Now running" panel.
 """
 
 from __future__ import annotations
+
+import sys
 
 ROBOT_LISTENER_API_VERSION = 2
 
@@ -25,7 +28,12 @@ def _safe(value: object) -> str:
 
 def _emit() -> None:
     keyword = _keyword_stack[-1] if _keyword_stack else ""
-    print(f"{_PREFIX}{_safe(_suite)}|{_safe(_test)}|{_safe(keyword)}", flush=True)
+    # Leading newline: Robot console frequently prints suite/test names without
+    # finishing the line; a bare print() would glue the marker onto that row.
+    sys.stdout.write(
+        f"\n{_PREFIX}{_safe(_suite)}|{_safe(_test)}|{_safe(keyword)}\n"
+    )
+    sys.stdout.flush()
 
 
 def start_suite(name, attrs):  # noqa: ANN001, ARG001

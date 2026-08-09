@@ -182,8 +182,8 @@ class EditorHoverTooltip extends StatelessWidget {
 
   final SignatureHelpInfo signature;
 
-  static const double maxWidth = 440;
-  static const double minWidth = 180;
+  static const double maxWidth = 620;
+  static const double minWidth = 200;
   static const double maxHeight = 280;
 
   @override
