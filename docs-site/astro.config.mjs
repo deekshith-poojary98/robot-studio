@@ -27,6 +27,15 @@ export default defineConfig({
 					tag: 'link',
 					attrs: {
 						rel: 'icon',
+						href: '/robot-studio/favicon-48.png',
+						type: 'image/png',
+						sizes: '48x48',
+					},
+				},
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'icon',
 						href: '/robot-studio/favicon-192.png',
 						type: 'image/png',
 						sizes: '192x192',
