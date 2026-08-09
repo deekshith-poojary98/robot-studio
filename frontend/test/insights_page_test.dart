@@ -35,7 +35,11 @@ void main() {
               compositionFiles: const [
                 InsightsFileComposition(
                   filePath: '/proj/tests/demo.robot',
-                  counts: {'keyword': 2, 'test_case': 1},
+                  counts: {'keyword': 2, 'test_case': 3},
+                ),
+                InsightsFileComposition(
+                  filePath: '/proj/resources/common.resource',
+                  counts: {'keyword': 5, 'test_case': 0},
                 ),
               ],
               runs: const InsightsRunTotals(
@@ -55,6 +59,15 @@ void main() {
                   passed: 4,
                   failed: 0,
                   outcome: 'PASS',
+                ),
+                InsightsRecentRun(
+                  id: '3',
+                  suite: '/proj/tests/demo.robot',
+                  startedAt: DateTime.utc(2026, 8, 9, 11, 30),
+                  durationMs: 1800,
+                  passed: 2,
+                  failed: 1,
+                  outcome: 'FAIL',
                 ),
                 InsightsRecentRun(
                   id: '2',
@@ -95,12 +108,24 @@ void main() {
     expect(find.textContaining('streak'), findsWidgets);
     expect(find.text('Flaky files'), findsOneWidget);
     expect(find.text('Interrupted'), findsOneWidget);
+    expect(find.text('PASS RATE TREND'), findsOneWidget);
     expect(find.text('DURATION TREND'), findsOneWidget);
+    expect(find.text('FAILURE MIX BY SUITE'), findsOneWidget);
     expect(find.text('LAST RUN'), findsOneWidget);
     expect(find.textContaining('4 passed'), findsOneWidget);
     expect(find.textContaining('0 failed'), findsOneWidget);
+    expect(find.textContaining('2 failed · 5 runs'), findsOneWidget);
     expect(find.text('FOCUS'), findsOneWidget);
     expect(find.text('DENSEST FILES'), findsOneWidget);
+    expect(find.text('COMPOSITION MIX'), findsOneWidget);
+    expect(find.text('FILE TYPES'), findsOneWidget);
+    expect(find.text('TEST-HEAVY FILES'), findsOneWidget);
+    expect(find.textContaining('3 tests'), findsOneWidget);
+    expect(find.text('.robot'), findsOneWidget);
+    expect(find.text('.resource'), findsOneWidget);
+    // Zero kinds stay visible (muted), not hidden.
+    expect(find.text('Libraries'), findsOneWidget);
+    expect(find.text('Resources'), findsWidgets);
   });
 
   testWidgets('Composition large counts stay single-line', (tester) async {

@@ -20,6 +20,7 @@ class ExecutionPage extends StatelessWidget {
     this.liveSuite = '',
     this.liveTest = '',
     this.liveKeyword = '',
+    this.elapsedLabel = '',
     this.failedTests = const [],
     this.isLoadingFailures = false,
     this.onJumpToFailedTest,
@@ -34,6 +35,7 @@ class ExecutionPage extends StatelessWidget {
   final String liveSuite;
   final String liveTest;
   final String liveKeyword;
+  final String elapsedLabel;
 
   final List<RunTestFailureInfo> failedTests;
   final bool isLoadingFailures;
@@ -144,6 +146,7 @@ class ExecutionPage extends StatelessWidget {
                     suite: liveSuite,
                     test: liveTest,
                     keyword: liveKeyword,
+                    elapsedLabel: elapsedLabel,
                   ),
                 ),
               ],
@@ -161,12 +164,14 @@ class _NowRunningPanel extends StatelessWidget {
     required this.suite,
     required this.test,
     required this.keyword,
+    this.elapsedLabel = '',
   });
 
   final bool running;
   final String suite;
   final String test;
   final String keyword;
+  final String elapsedLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -181,19 +186,33 @@ class _NowRunningPanel extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
               AppSpacing.md,
-              AppSpacing.lg,
+              AppSpacing.md,
+              AppSpacing.md,
               AppSpacing.sm,
             ),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
-                    'Now Running',
+                    running
+                        ? 'Now Running'
+                        : hasAny
+                        ? 'Last location'
+                        : 'Now Running',
                     style: theme.textTheme.titleMedium,
                   ),
                 ),
+                if (running && elapsedLabel.isNotEmpty) ...[
+                  Text(
+                    elapsedLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: palette.textSecondary,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
                 if (running)
                   SizedBox(
                     width: 12,
@@ -209,10 +228,15 @@ class _NowRunningPanel extends StatelessWidget {
           const Divider(height: 1),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.lg,
+              ),
               child: !running && !hasAny
                   ? Text(
-                      'Suite, test, and keyword appear here while a run is in progress.',
+                      'Suite → test → keyword while a run is in progress.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: palette.textMuted,
                       ),
@@ -220,23 +244,33 @@ class _NowRunningPanel extends StatelessWidget {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _ProgressField(
+                        _StackRow(
+                          icon: Icons.folder_open_outlined,
                           label: 'Suite',
                           value: suite,
                           emptyHint: running ? 'Starting…' : '—',
                         ),
-                        const SizedBox(height: AppSpacing.lg),
-                        _ProgressField(
+                        const SizedBox(height: AppSpacing.sm),
+                        _StackRow(
+                          icon: Icons.science_outlined,
                           label: 'Test',
                           value: test,
                           emptyHint: running ? 'Waiting…' : '—',
                         ),
-                        const SizedBox(height: AppSpacing.lg),
-                        _ProgressField(
-                          label: 'Keyword',
+                        const SizedBox(height: AppSpacing.md),
+                        _KeywordFocus(
                           value: keyword,
-                          emptyHint: running ? 'Waiting…' : '—',
-                          emphasize: true,
+                          emptyHint: running ? 'Waiting for keyword…' : '—',
+                          active: running,
+                        ),
+                        const Spacer(),
+                        Text(
+                          running
+                              ? 'Tip of the call stack updates live.'
+                              : 'From the most recent run.',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: palette.textMuted,
+                          ),
                         ),
                       ],
                     ),
@@ -248,51 +282,133 @@ class _NowRunningPanel extends StatelessWidget {
   }
 }
 
-class _ProgressField extends StatelessWidget {
-  const _ProgressField({
+class _StackRow extends StatelessWidget {
+  const _StackRow({
+    required this.icon,
     required this.label,
     required this.value,
     required this.emptyHint,
-    this.emphasize = false,
   });
 
+  final IconData icon;
   final String label;
   final String value;
   final String emptyHint;
-  final bool emphasize;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = context.palette;
-    final display = value.isEmpty ? emptyHint : value;
     final muted = value.isEmpty;
+    final display = muted ? emptyHint : value;
 
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label.toUpperCase(),
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: palette.textMuted,
-            letterSpacing: 0.6,
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(
+            icon,
+            size: 14,
+            color: muted ? palette.textMuted : palette.textSecondary,
           ),
         ),
-        const SizedBox(height: AppSpacing.xs),
-        SelectableText(
-          display,
-          style:
-              (emphasize && !muted
-                      ? theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: palette.textPrimary,
-                        )
-                      : theme.textTheme.bodyMedium)
-                  ?.copyWith(
-                    color: muted ? palette.textMuted : palette.textPrimary,
-                  ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label.toUpperCase(),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: palette.textMuted,
+                  letterSpacing: 0.5,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 2),
+              SelectableText(
+                display,
+                maxLines: 2,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: muted ? palette.textMuted : palette.textPrimary,
+                  fontWeight: FontWeight.w500,
+                  height: 1.25,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
+    );
+  }
+}
+
+class _KeywordFocus extends StatelessWidget {
+  const _KeywordFocus({
+    required this.value,
+    required this.emptyHint,
+    required this.active,
+  });
+
+  final String value;
+  final String emptyHint;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final muted = value.isEmpty;
+    final display = muted ? emptyHint : value;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(
+          color: active && !muted ? palette.accentMuted : palette.borderSubtle,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.sm,
+          AppSpacing.sm,
+          AppSpacing.sm,
+          AppSpacing.md,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.play_arrow_rounded,
+                  size: 14,
+                  color: active && !muted ? palette.accent : palette.textMuted,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'KEYWORD',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: palette.textMuted,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            SelectableText(
+              display,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: muted ? palette.textMuted : palette.textPrimary,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

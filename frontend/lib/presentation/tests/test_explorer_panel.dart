@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/test_explorer_info.dart';
@@ -78,6 +80,63 @@ class _TestExplorerPanelState extends State<TestExplorerPanel> {
       );
     }
     _seedExpanded();
+    // Tree reload can replace hydrated suites with lazy shells while _expanded
+    // still marks them open — re-fetch so children stay visible.
+    if (!identical(oldWidget.tree, widget.tree)) {
+      _scheduleRehydrateExpandedLazyNodes();
+    }
+  }
+
+  void _scheduleRehydrateExpandedLazyNodes() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_rehydrateExpandedLazyNodes());
+    });
+  }
+
+  Future<void> _rehydrateExpandedLazyNodes() async {
+    final tree = widget.tree;
+    final expand = widget.onExpandNode;
+    if (tree == null || expand == null || _expanded.isEmpty) return;
+
+    final pending = <TestNodeInfo>[];
+    void walk(TestNodeInfo node) {
+      if (_expanded.contains(node.id) &&
+          node.needsLazyExpand &&
+          !_loadingExpand.contains(node.id)) {
+        pending.add(node);
+      }
+      for (final child in node.children) {
+        walk(child);
+      }
+    }
+
+    walk(tree);
+    for (final node in pending) {
+      if (!mounted) return;
+      final current = _findNode(widget.tree, node.id);
+      if (current == null || !current.needsLazyExpand) continue;
+      if (_loadingExpand.contains(current.id)) continue;
+
+      setState(() => _loadingExpand.add(current.id));
+      try {
+        await expand(current);
+      } finally {
+        if (mounted) {
+          setState(() => _loadingExpand.remove(current.id));
+        }
+      }
+    }
+  }
+
+  TestNodeInfo? _findNode(TestNodeInfo? root, String id) {
+    if (root == null) return null;
+    if (root.id == id) return root;
+    for (final child in root.children) {
+      final found = _findNode(child, id);
+      if (found != null) return found;
+    }
+    return null;
   }
 
   void _seedExpanded() {

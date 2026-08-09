@@ -86,6 +86,43 @@ class TestNodeInfo {
       ],
     );
   }
+
+  /// After a lazy tree reload, keep previously expanded suite/dir children so
+  /// the UI does not flash empty while those nodes stay visually expanded.
+  ///
+  /// Returns the merged tree plus suite/dir nodes that should be re-fetched
+  /// (e.g. to pick up post-run status).
+  static ({TestNodeInfo tree, List<TestNodeInfo> refresh})
+  retainHydratedChildren(TestNodeInfo previous, TestNodeInfo next) {
+    final prevById = <String, TestNodeInfo>{};
+    void index(TestNodeInfo node) {
+      prevById[node.id] = node;
+      for (final child in node.children) {
+        index(child);
+      }
+    }
+
+    index(previous);
+    final refresh = <TestNodeInfo>[];
+
+    TestNodeInfo merge(TestNodeInfo node) {
+      final mergedKids = [for (final child in node.children) merge(child)];
+      var result = node.copyWith(children: mergedKids);
+      if (result.needsLazyExpand) {
+        final prev = prevById[result.id];
+        if (prev != null && prev.children.isNotEmpty && !prev.needsLazyExpand) {
+          result = result.copyWith(children: prev.children, detail: '');
+          final path = result.path;
+          if (path != null && path.isNotEmpty) {
+            refresh.add(result);
+          }
+        }
+      }
+      return result;
+    }
+
+    return (tree: merge(next), refresh: refresh);
+  }
 }
 
 enum TestNodeStatus {
@@ -106,10 +143,10 @@ enum TestNodeStatus {
   }
 
   String get label => switch (this) {
-        TestNodeStatus.pass => 'PASS',
-        TestNodeStatus.fail => 'FAIL',
-        TestNodeStatus.skip => 'SKIP',
-        TestNodeStatus.notRun => 'NOT RUN',
-        TestNodeStatus.running => 'RUNNING',
-      };
+    TestNodeStatus.pass => 'PASS',
+    TestNodeStatus.fail => 'FAIL',
+    TestNodeStatus.skip => 'SKIP',
+    TestNodeStatus.notRun => 'NOT RUN',
+    TestNodeStatus.running => 'RUNNING',
+  };
 }

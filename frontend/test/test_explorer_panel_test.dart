@@ -68,7 +68,10 @@ void main() {
       ),
     );
 
-    expect(find.text('Demo WS'), findsNothing); // single-project: skip workspace row
+    expect(
+      find.text('Demo WS'),
+      findsNothing,
+    ); // single-project: skip workspace row
     expect(find.text('Shop'), findsOneWidget);
     expect(find.text('checkout'), findsOneWidget);
     expect(find.text('Pay'), findsOneWidget);
@@ -101,7 +104,10 @@ void main() {
       ),
     );
 
-    await tester.enterText(find.byKey(const Key('test-explorer-search')), 'pay');
+    await tester.enterText(
+      find.byKey(const Key('test-explorer-search')),
+      'pay',
+    );
     expect(filter, 'pay');
   });
 
@@ -186,7 +192,9 @@ void main() {
     expect(find.byKey(const Key('test-expand-suite:lazy')), findsOneWidget);
   });
 
-  testWidgets('single-project tree skips duplicate workspace row', (tester) async {
+  testWidgets('single-project tree skips duplicate workspace row', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -238,16 +246,8 @@ void main() {
                 kind: 'workspace',
                 name: 'Monorepo',
                 children: [
-                  TestNodeInfo(
-                    id: 'project:1',
-                    kind: 'project',
-                    name: 'Api',
-                  ),
-                  TestNodeInfo(
-                    id: 'project:2',
-                    kind: 'project',
-                    name: 'Ui',
-                  ),
+                  TestNodeInfo(id: 'project:1', kind: 'project', name: 'Api'),
+                  TestNodeInfo(id: 'project:2', kind: 'project', name: 'Ui'),
                 ],
               ),
             ),
@@ -259,5 +259,148 @@ void main() {
     expect(find.text('Monorepo'), findsOneWidget);
     expect(find.text('Api'), findsOneWidget);
     expect(find.text('Ui'), findsOneWidget);
+  });
+
+  test(
+    'retainHydratedChildren keeps expanded suite kids across lazy reload',
+    () {
+      final hydrated = sampleTree(status: TestNodeStatus.fail);
+      final lazyReload = TestNodeInfo(
+        id: 'workspace:1',
+        kind: 'workspace',
+        name: 'Demo WS',
+        children: [
+          TestNodeInfo(
+            id: 'project:1',
+            kind: 'project',
+            name: 'Shop',
+            children: [
+              const TestNodeInfo(
+                id: 'suite:1',
+                kind: 'suite',
+                name: 'checkout',
+                path: '/tmp/checkout.robot',
+                detail: 'expand',
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final retained = TestNodeInfo.retainHydratedChildren(
+        hydrated,
+        lazyReload,
+      );
+      final suite = retained.tree.children.single.children.single;
+      expect(suite.needsLazyExpand, isFalse);
+      expect(suite.children.map((c) => c.name), ['Pay', 'Nightly']);
+      expect(retained.refresh.map((n) => n.id), ['suite:1']);
+    },
+  );
+
+  testWidgets('expanded lazy suite rehydrates after tree reload', (
+    tester,
+  ) async {
+    const suiteId = 'suite:lazy';
+    var expandCalls = 0;
+    TestNodeInfo tree = const TestNodeInfo(
+      id: 'workspace:1',
+      kind: 'workspace',
+      name: 'WS',
+      children: [
+        TestNodeInfo(
+          id: 'project:1',
+          kind: 'project',
+          name: 'Shop',
+          children: [
+            TestNodeInfo(
+              id: suiteId,
+              kind: 'suite',
+              name: 'login',
+              path: '/tmp/login.robot',
+              children: [
+                TestNodeInfo(
+                  id: 'test:1',
+                  kind: 'test',
+                  name: 'Login with valid creds',
+                  path: '/tmp/login.robot',
+                  line: 16,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+    StateSetter? setHost;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            height: 600,
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                setHost = setState;
+                return TestExplorerPanel(
+                  tree: tree,
+                  onExpandNode: (node) async {
+                    expandCalls += 1;
+                    tree = tree.replaceChild(
+                      node.id,
+                      node.copyWith(
+                        detail: '',
+                        children: const [
+                          TestNodeInfo(
+                            id: 'test:1',
+                            kind: 'test',
+                            name: 'Login with valid creds',
+                            path: '/tmp/login.robot',
+                            line: 16,
+                            status: TestNodeStatus.fail,
+                          ),
+                        ],
+                      ),
+                    );
+                    setState(() {});
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Login with valid creds'), findsOneWidget);
+
+    // Simulate post-run lazy reload: same workspace id, empty suite shell.
+    tree = const TestNodeInfo(
+      id: 'workspace:1',
+      kind: 'workspace',
+      name: 'WS',
+      children: [
+        TestNodeInfo(
+          id: 'project:1',
+          kind: 'project',
+          name: 'Shop',
+          children: [
+            TestNodeInfo(
+              id: suiteId,
+              kind: 'suite',
+              name: 'login',
+              path: '/tmp/login.robot',
+              detail: 'expand',
+            ),
+          ],
+        ),
+      ],
+    );
+    setHost!(() {});
+    await tester.pump(); // apply lazy tree + schedule rehydrate
+    await tester.pump(); // expand completes + host rebuild
+
+    expect(expandCalls, 1);
+    expect(find.text('Login with valid creds'), findsOneWidget);
   });
 }

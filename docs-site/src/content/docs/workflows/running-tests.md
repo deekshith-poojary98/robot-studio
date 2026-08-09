@@ -12,7 +12,7 @@ description: How test execution works — toolbar runs, Tests tree, confirmation
 | **Tests** (activity bar) | One test, one suite, all, current file, or failed |
 | **Re-run Test** | A single failure from the last run (**Failed Tests**) |
 
-Logs stream into **Live Output** while a run is in progress (Robot is started with unbuffered stdout so lines are not held until the process exits). The **Now Running** panel on the right shows the current suite, test, and keyword (same idea as RIDE’s execution tree).
+Logs stream into **Live Output** while a run is in progress (Robot is started with unbuffered stdout so lines are not held until the process exits). The **Now Running** panel on the right shows the live call stack — suite, test, and current keyword — plus elapsed time while the run is active. After the run ends, it keeps the last location until the next start.
 
 **Stop** cancels the run (with a confirmation that shows what is currently executing). Output so far is kept; the HTML report may be incomplete.
 

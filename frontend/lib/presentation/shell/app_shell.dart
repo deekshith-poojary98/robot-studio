@@ -2737,7 +2737,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     setState(() => _loadingTestTree = true);
     try {
       final q = query ?? _testFilter;
-      final tree = await _gateway.getTestTree(query: q, lazy: q.trim().isEmpty);
+      final lazy = q.trim().isEmpty;
+      final previous = _testTree;
+      var tree = await _gateway.getTestTree(query: q, lazy: lazy);
+      var refresh = const <TestNodeInfo>[];
+      // Lazy reloads replace hydrated suites with empty shells. Keep children
+      // for nodes the user already expanded so the tree does not go blank.
+      if (lazy && previous != null) {
+        final retained = TestNodeInfo.retainHydratedChildren(previous, tree);
+        tree = retained.tree;
+        refresh = retained.refresh;
+      }
       List<IndexedSymbolInfo> suites = const [];
       try {
         suites = await _gateway.searchSymbols(
@@ -2751,6 +2761,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _testSuites = suites;
         _loadingTestTree = false;
       });
+      for (final node in refresh) {
+        unawaited(_expandTestNode(node));
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _loadingTestTree = false);
@@ -5731,6 +5744,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         liveSuite: _execution.liveSuite,
         liveTest: _execution.liveTest,
         liveKeyword: _execution.liveKeyword,
+        elapsedLabel: _elapsedLabel,
         failedTests: _failedTests,
         isLoadingFailures: _loadingFailures,
         onJumpToFailedTest: (failure) {

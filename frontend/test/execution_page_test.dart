@@ -50,7 +50,7 @@ void main() {
 
     expect(find.textContaining('toolbar or Tests'), findsOneWidget);
     expect(find.text('IDLE'), findsNothing);
-    expect(find.textContaining('appear here while a run'), findsOneWidget);
+    expect(find.textContaining('Suite → test → keyword'), findsOneWidget);
   });
 
   testWidgets('Now Running shows live suite test and keyword', (tester) async {
@@ -67,14 +67,41 @@ void main() {
             liveSuite: 'Demo',
             liveTest: 'Hello',
             liveKeyword: 'BuiltIn.Log',
+            elapsedLabel: '0:12',
           ),
         ),
       ),
     );
 
     expect(find.text('Now Running'), findsOneWidget);
+    expect(find.text('0:12'), findsOneWidget);
     expect(find.text('Demo'), findsOneWidget);
     expect(find.text('Hello'), findsOneWidget);
     expect(find.text('BuiltIn.Log'), findsOneWidget);
+    expect(find.text('KEYWORD'), findsOneWidget);
+  });
+
+  testWidgets('idle with last progress shows Last location', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: ExecutionPage(
+            consoleLines: [],
+            status: ExecutionStatus.finished,
+            currentRun: null,
+            liveSuite: 'Login',
+            liveTest: 'Login with valid creds',
+            liveKeyword: 'BuiltIn.Fail',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Last location'), findsOneWidget);
+    expect(find.text('Login'), findsOneWidget);
+    expect(find.textContaining('most recent run'), findsOneWidget);
   });
 }

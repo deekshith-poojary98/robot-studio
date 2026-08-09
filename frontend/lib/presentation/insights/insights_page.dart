@@ -5,6 +5,9 @@ import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/status_badge.dart';
 
+/// Shared thickness for horizontal progress / share bars on Insights.
+const double _kInsightBarThickness = 8;
+
 /// Project Insights — dense health + composition canvas (IDE chrome).
 class InsightsPage extends StatelessWidget {
   const InsightsPage({
@@ -99,6 +102,7 @@ class InsightsPage extends StatelessWidget {
                                 data: data,
                                 failing: failing,
                                 onOpenFile: onOpenFile,
+                                expandBody: true,
                               ),
                             ),
                           ],
@@ -377,12 +381,21 @@ class _Panel extends StatelessWidget {
   final Widget child;
   final Widget? trailing;
 
-  /// Stretch body when the panel is in a tall IntrinsicHeight row.
+  /// Stretch body when the panel sits in a tall IntrinsicHeight row.
+  /// Extra space settles under the content (not between sections).
   final bool fillBody;
 
   @override
   Widget build(BuildContext context) {
-    final body = Padding(padding: const EdgeInsets.all(12), child: child);
+    final body = Padding(
+      padding: const EdgeInsets.all(12),
+      child: fillBody
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [child, const Spacer()],
+            )
+          : child,
+    );
     return DecoratedBox(
       decoration: BoxDecoration(
         color: context.palette.surface,
@@ -433,8 +446,6 @@ class _CompositionPanel extends StatelessWidget {
   final InsightsInfo data;
   final VoidCallback? onRebuildIndex;
   final ValueChanged<String>? onOpenFile;
-
-  /// Stretch Focus card to match Run health height in wide layout.
   final bool expandBody;
 
   static const _kinds = <(String, String)>[
@@ -467,21 +478,23 @@ class _CompositionPanel extends StatelessWidget {
                 child: const Text('Rebuild Index'),
               ),
             ],
-            if (expandBody) const Spacer(),
           ],
         ),
       );
     }
 
-    final entries = _kinds
-        .where((k) => data.countFor(k.$1) > 0)
-        .map((k) => (k.$1, k.$2, data.countFor(k.$1)))
-        .toList();
+    // Always show every kind — zeros stay muted so the panel doesn't look sparse.
+    final entries = [for (final k in _kinds) (k.$1, k.$2, data.countFor(k.$1))];
     final maxCount = entries.fold<int>(0, (m, e) => e.$3 > m ? e.$3 : m);
-    // Content definitions only — file/suite rows are inventory, not "symbols".
     final contentTotal = entries
         .where((e) => e.$1 != 'file' && e.$1 != 'test_suite')
         .fold<int>(0, (s, e) => s + e.$3);
+    final mixSegments = <(String, int, Color)>[
+      ('Keywords', data.countFor('keyword'), _kindColor(context, 'keyword')),
+      ('Tests', data.countFor('test_case'), _kindColor(context, 'test_case')),
+      ('Variables', data.countFor('variable'), _kindColor(context, 'variable')),
+    ].where((s) => s.$2 > 0).toList();
+    final fileTypes = _fileTypeCounts(data.compositionFiles);
 
     return _Panel(
       title: 'Composition',
@@ -501,14 +514,24 @@ class _CompositionPanel extends StatelessWidget {
               child: _BarRow(
                 label: entry.$2,
                 value: entry.$3,
-                max: maxCount,
+                max: maxCount <= 0 ? 1 : maxCount,
                 color: _kindColor(context, entry.$1),
+                muted: entry.$3 <= 0,
               ),
             ),
-          if (expandBody)
-            const Spacer()
-          else
+          if (mixSegments.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            const _SectionLabel('Composition mix'),
+            const SizedBox(height: AppSpacing.sm),
+            _CompositionMixBar(segments: mixSegments),
+          ],
+          if (fileTypes.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.lg),
+            const _SectionLabel('File types'),
+            const SizedBox(height: AppSpacing.sm),
+            _FileTypeMix(counts: fileTypes),
+          ],
+          const SizedBox(height: AppSpacing.lg),
           _CompositionFocusCard(data: data, onOpenFile: onOpenFile),
         ],
       ),
@@ -526,6 +549,7 @@ class _CompositionFocusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final densest = _densestFiles(data.compositionFiles, limit: 4);
+    final testHeavy = _testHeavyFiles(data.compositionFiles, limit: 4);
     final keywords = data.countFor('keyword');
     final tests = data.countFor('test_case');
     final files = data.countFor('file');
@@ -612,6 +636,30 @@ class _CompositionFocusCard extends StatelessWidget {
                       : () => onOpenFile!(item.$1),
                 ),
             ],
+            if (testHeavy.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'TEST-HEAVY FILES',
+                style: TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 0.4,
+                  fontWeight: FontWeight.w600,
+                  color: context.palette.textMuted,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              for (final item in testHeavy)
+                _DenseFileRow(
+                  filePath: item.$1,
+                  total: item.$2,
+                  max: testHeavy.first.$2,
+                  unitLabel: 'tests',
+                  barColor: context.palette.info,
+                  onOpen: onOpenFile == null
+                      ? null
+                      : () => onOpenFile!(item.$1),
+                ),
+            ],
           ],
         ),
       ),
@@ -654,12 +702,16 @@ class _DenseFileRow extends StatefulWidget {
     required this.filePath,
     required this.total,
     required this.max,
+    this.unitLabel,
+    this.barColor,
     this.onOpen,
   });
 
   final String filePath;
   final int total;
   final int max;
+  final String? unitLabel;
+  final Color? barColor;
   final VoidCallback? onOpen;
 
   @override
@@ -673,6 +725,9 @@ class _DenseFileRowState extends State<_DenseFileRow> {
   Widget build(BuildContext context) {
     final name = widget.filePath.replaceAll('\\', '/').split('/').last;
     final fraction = widget.max <= 0 ? 0.0 : widget.total / widget.max;
+    final countLabel = widget.unitLabel == null
+        ? _formatCount(widget.total)
+        : '${_formatCount(widget.total)} ${widget.unitLabel}';
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -701,7 +756,7 @@ class _DenseFileRowState extends State<_DenseFileRow> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadii.xs),
                     child: SizedBox(
-                      height: 6,
+                      height: _kInsightBarThickness,
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
@@ -709,7 +764,9 @@ class _DenseFileRowState extends State<_DenseFileRow> {
                           FractionallySizedBox(
                             alignment: Alignment.centerLeft,
                             widthFactor: fraction.clamp(0.04, 1.0),
-                            child: ColoredBox(color: context.palette.accent),
+                            child: ColoredBox(
+                              color: widget.barColor ?? context.palette.accent,
+                            ),
                           ),
                         ],
                       ),
@@ -718,12 +775,12 @@ class _DenseFileRowState extends State<_DenseFileRow> {
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 SizedBox(
-                  width: 48,
+                  width: 64,
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerRight,
                     child: Text(
-                      _formatCount(widget.total),
+                      countLabel,
                       maxLines: 1,
                       softWrap: false,
                       textAlign: TextAlign.right,
@@ -767,48 +824,193 @@ List<(String, int)> _densestFiles(
   return scored.take(limit).toList();
 }
 
+List<(String, int)> _testHeavyFiles(
+  List<InsightsFileComposition> files, {
+  int limit = 4,
+}) {
+  final scored = <(String, int)>[];
+  for (final file in files) {
+    if (!_looksLikeSourceFile(file.filePath)) continue;
+    final tests = file.countFor('test_case');
+    if (tests <= 0) continue;
+    scored.add((file.filePath, tests));
+  }
+  scored.sort((a, b) {
+    final byCount = b.$2.compareTo(a.$2);
+    if (byCount != 0) return byCount;
+    return a.$1.compareTo(b.$1);
+  });
+  return scored.take(limit).toList();
+}
+
+/// Counts indexed source files by extension for the File types strip.
+Map<String, int> _fileTypeCounts(List<InsightsFileComposition> files) {
+  final counts = <String, int>{'robot': 0, 'resource': 0, 'py': 0, 'yaml': 0};
+  for (final file in files) {
+    final lower = file.filePath.toLowerCase().replaceAll('\\', '/');
+    if (lower.endsWith('.robot')) {
+      counts['robot'] = counts['robot']! + 1;
+    } else if (lower.endsWith('.resource')) {
+      counts['resource'] = counts['resource']! + 1;
+    } else if (lower.endsWith('.py')) {
+      counts['py'] = counts['py']! + 1;
+    } else if (lower.endsWith('.yaml') || lower.endsWith('.yml')) {
+      counts['yaml'] = counts['yaml']! + 1;
+    }
+  }
+  counts.removeWhere((_, value) => value <= 0);
+  return counts;
+}
+
+class _CompositionMixBar extends StatelessWidget {
+  const _CompositionMixBar({required this.segments});
+
+  final List<(String, int, Color)> segments;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = segments.fold<int>(0, (s, e) => s + e.$2);
+    if (total <= 0) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.xs),
+          child: SizedBox(
+            height: _kInsightBarThickness,
+            child: Row(
+              children: [
+                for (final segment in segments)
+                  Expanded(
+                    flex: segment.$2,
+                    child: ColoredBox(color: segment.$3),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.xs,
+          children: [
+            for (final segment in segments)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: segment.$3,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${segment.$1} ${_formatCount(segment.$2)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: context.palette.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _FileTypeMix extends StatelessWidget {
+  const _FileTypeMix({required this.counts});
+
+  final Map<String, int> counts;
+
+  static const _labels = <String, String>{
+    'robot': '.robot',
+    'resource': '.resource',
+    'py': '.py',
+    'yaml': '.yaml',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final max = counts.values.fold<int>(0, (m, v) => v > m ? v : m);
+    final entries = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Column(
+      children: [
+        for (final entry in entries)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: _BarRow(
+              label: _labels[entry.key] ?? entry.key,
+              value: entry.value,
+              max: max <= 0 ? 1 : max,
+              color: switch (entry.key) {
+                'robot' => context.palette.accent,
+                'resource' => context.palette.info,
+                'py' => context.palette.warning,
+                _ => context.palette.textMuted,
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _BarRow extends StatelessWidget {
   const _BarRow({
     required this.label,
     required this.value,
     required this.max,
     required this.color,
+    this.muted = false,
   });
 
   final String label;
   final int value;
   final int max;
   final Color color;
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
-    final fraction = max <= 0 ? 0.0 : value / max;
+    final fraction = max <= 0 || value <= 0 ? 0.0 : value / max;
+    final labelColor = muted
+        ? context.palette.textMuted
+        : context.palette.textSecondary;
+    final valueColor = muted
+        ? context.palette.textMuted
+        : context.palette.textPrimary;
     return Row(
       children: [
         SizedBox(
           width: 88,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: context.palette.textSecondary,
-            ),
-          ),
+          child: Text(label, style: TextStyle(fontSize: 12, color: labelColor)),
         ),
         Expanded(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(AppRadii.xs),
             child: SizedBox(
-              height: 8,
+              height: _kInsightBarThickness,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
                   ColoredBox(color: context.palette.surfaceElevated),
-                  FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: fraction.clamp(0.02, 1.0),
-                    child: ColoredBox(color: color),
-                  ),
+                  if (fraction > 0)
+                    FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: fraction.clamp(0.02, 1.0),
+                      child: ColoredBox(
+                        color: muted ? color.withValues(alpha: 0.35) : color,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -832,7 +1034,7 @@ class _BarRow extends StatelessWidget {
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   fontFeatures: const [FontFeature.tabularFigures()],
-                  color: context.palette.textPrimary,
+                  color: valueColor,
                 ),
               ),
             ),
@@ -848,11 +1050,13 @@ class _RunHealthPanel extends StatelessWidget {
     required this.data,
     required this.failing,
     this.onOpenFile,
+    this.expandBody = false,
   });
 
   final InsightsInfo data;
   final List<InsightsFileRuns> failing;
   final ValueChanged<String>? onOpenFile;
+  final bool expandBody;
 
   @override
   Widget build(BuildContext context) {
@@ -879,6 +1083,7 @@ class _RunHealthPanel extends StatelessWidget {
 
     return _Panel(
       title: 'Run health',
+      fillBody: expandBody,
       child: !data.hasRuns
           ? Text(
               'No runs yet. Execute a suite to unlock pass/fail trends and per-file health.',
@@ -897,13 +1102,43 @@ class _RunHealthPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.md),
                 _OutcomeShareBar(runs: runs),
+                if (chronological.length >= 2) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  Row(
+                    children: [
+                      const Expanded(child: _SectionLabel('Pass rate trend')),
+                      Text(
+                        'rolling · oldest → newest',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: context.palette.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: context.palette.surfaceElevated,
+                      borderRadius: BorderRadius.circular(AppRadii.xs),
+                      border: Border.all(color: context.palette.borderSubtle),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+                      child: SizedBox(
+                        height: 56,
+                        child: _PassRateSparkline(runs: chronological),
+                      ),
+                    ),
+                  ),
+                ],
                 if (chronological.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.lg),
                   Row(
                     children: [
                       const Expanded(child: _SectionLabel('Duration trend')),
                       Text(
-                        'last ${chronological.length} · oldest → newest',
+                        'bars = time · line = tests · oldest → newest',
                         style: TextStyle(
                           fontSize: 10,
                           color: context.palette.textMuted,
@@ -924,7 +1159,7 @@ class _RunHealthPanel extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           SizedBox(
-                            height: 88,
+                            height: 96,
                             child: _DurationTrendChart(runs: chronological),
                           ),
                           if (maxDuration > 0) ...[
@@ -948,15 +1183,9 @@ class _RunHealthPanel extends StatelessWidget {
                 ],
                 if (failing.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.lg),
-                  const _SectionLabel('Top failures'),
-                  const SizedBox(height: AppSpacing.xs),
-                  for (final file in failing)
-                    _FailingFileRow(
-                      file: file,
-                      onOpen: onOpenFile == null
-                          ? null
-                          : () => onOpenFile!(file.filePath),
-                    ),
+                  const _SectionLabel('Failure mix by suite'),
+                  const SizedBox(height: AppSpacing.sm),
+                  _SuiteFailureBars(files: failing, onOpenFile: onOpenFile),
                 ],
               ],
             ),
@@ -1146,7 +1375,7 @@ class _OutcomeShareBar extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadii.xs),
       child: SizedBox(
-        height: 6,
+        height: _kInsightBarThickness,
         child: segments.isEmpty
             ? ColoredBox(color: context.palette.surfaceElevated)
             : Row(
@@ -1158,6 +1387,255 @@ class _OutcomeShareBar extends StatelessWidget {
                     ),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+/// Rolling pass-rate sparkline (window of up to 5 runs ending at each point).
+class _PassRateSparkline extends StatelessWidget {
+  const _PassRateSparkline({required this.runs});
+
+  final List<InsightsRecentRun> runs;
+
+  @override
+  Widget build(BuildContext context) {
+    final rates = _rollingPassRates(runs);
+    final latest = rates.isEmpty ? null : rates.last;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: 44,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              latest == null ? '—' : '${latest.toStringAsFixed(0)}%',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
+                color: latest == null
+                    ? context.palette.textMuted
+                    : latest >= 80
+                    ? context.palette.success
+                    : latest >= 50
+                    ? context.palette.warning
+                    : context.palette.error,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: CustomPaint(
+            painter: _PassRateSparklinePainter(
+              rates: rates,
+              line: context.palette.accent,
+              fill: context.palette.accentSoft,
+              grid: context.palette.borderSubtle,
+              baseline: context.palette.textMuted,
+            ),
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PassRateSparklinePainter extends CustomPainter {
+  _PassRateSparklinePainter({
+    required this.rates,
+    required this.line,
+    required this.fill,
+    required this.grid,
+    required this.baseline,
+  });
+
+  final List<double> rates;
+  final Color line;
+  final Color fill;
+  final Color grid;
+  final Color baseline;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (rates.isEmpty) return;
+
+    final midY = size.height * 0.5;
+    canvas.drawLine(
+      Offset(0, midY),
+      Offset(size.width, midY),
+      Paint()
+        ..color = grid
+        ..strokeWidth = 1,
+    );
+
+    if (rates.length == 1) {
+      final y = size.height - (rates.first / 100).clamp(0.0, 1.0) * size.height;
+      canvas.drawCircle(Offset(size.width / 2, y), 3, Paint()..color = line);
+      return;
+    }
+
+    final path = Path();
+    final fillPath = Path();
+    for (var i = 0; i < rates.length; i++) {
+      final x = i / (rates.length - 1) * size.width;
+      final y = size.height - (rates[i] / 100).clamp(0.0, 1.0) * size.height;
+      if (i == 0) {
+        path.moveTo(x, y);
+        fillPath.moveTo(x, size.height);
+        fillPath.lineTo(x, y);
+      } else {
+        path.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
+    }
+    fillPath.lineTo(size.width, size.height);
+    fillPath.close();
+
+    canvas.drawPath(fillPath, Paint()..color = fill);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = line
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.8
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round,
+    );
+    final last = rates.last;
+    final lastX = size.width;
+    final lastY = size.height - (last / 100).clamp(0.0, 1.0) * size.height;
+    canvas.drawCircle(Offset(lastX, lastY), 2.6, Paint()..color = line);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PassRateSparklinePainter oldDelegate) =>
+      oldDelegate.rates != rates;
+}
+
+class _SuiteFailureBars extends StatelessWidget {
+  const _SuiteFailureBars({required this.files, this.onOpenFile});
+
+  final List<InsightsFileRuns> files;
+  final ValueChanged<String>? onOpenFile;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxFails = files
+        .map((f) => f.failed)
+        .fold<int>(0, (m, v) => v > m ? v : m)
+        .clamp(1, 1 << 30);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: context.palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadii.xs),
+        border: Border.all(color: context.palette.borderSubtle),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        child: Column(
+          children: [
+            for (var i = 0; i < files.length; i++) ...[
+              if (i > 0) const SizedBox(height: AppSpacing.sm),
+              _SuiteFailureBarRow(
+                file: files[i],
+                maxFails: maxFails,
+                onOpen: onOpenFile == null
+                    ? null
+                    : () => onOpenFile!(files[i].filePath),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SuiteFailureBarRow extends StatefulWidget {
+  const _SuiteFailureBarRow({
+    required this.file,
+    required this.maxFails,
+    this.onOpen,
+  });
+
+  final InsightsFileRuns file;
+  final int maxFails;
+  final VoidCallback? onOpen;
+
+  @override
+  State<_SuiteFailureBarRow> createState() => _SuiteFailureBarRowState();
+}
+
+class _SuiteFailureBarRowState extends State<_SuiteFailureBarRow> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final widthFactor = (widget.file.failed / widget.maxFails).clamp(0.04, 1.0);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Material(
+        color: _hover ? context.palette.surfaceHover : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadii.xs),
+        child: InkWell(
+          onTap: widget.onOpen,
+          borderRadius: BorderRadius.circular(AppRadii.xs),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _shortFileLabel(widget.file.filePath),
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: context.palette.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${widget.file.failed} failed · ${widget.file.runs} runs',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        color: context.palette.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadii.xs),
+                  child: SizedBox(
+                    height: _kInsightBarThickness,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ColoredBox(color: context.palette.borderSubtle),
+                        FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: widthFactor,
+                          child: ColoredBox(color: context.palette.error),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1252,86 +1730,19 @@ class _LastRunCard extends StatelessWidget {
 
 String _countLabel(int count, String noun) => '$count $noun';
 
-class _FailingFileRow extends StatefulWidget {
-  const _FailingFileRow({required this.file, this.onOpen});
-
-  final InsightsFileRuns file;
-  final VoidCallback? onOpen;
-
-  @override
-  State<_FailingFileRow> createState() => _FailingFileRowState();
-}
-
-class _FailingFileRowState extends State<_FailingFileRow> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final rate = widget.file.runs <= 0
-        ? 0.0
-        : widget.file.failed / widget.file.runs;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: Material(
-        color: _hover ? context.palette.surfaceHover : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadii.xs),
-        child: InkWell(
-          onTap: widget.onOpen,
-          borderRadius: BorderRadius.circular(AppRadii.xs),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xs,
-              vertical: 6,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _shortFileLabel(widget.file.filePath),
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: context.palette.textPrimary,
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: 56,
-                  height: 4,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: Stack(
-                      children: [
-                        ColoredBox(
-                          color: context.palette.surfaceElevated,
-                          child: const SizedBox.expand(),
-                        ),
-                        FractionallySizedBox(
-                          widthFactor: rate.clamp(0.0, 1.0),
-                          child: ColoredBox(color: context.palette.error),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  '${widget.file.failed}/${widget.file.runs}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: context.palette.error,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+List<double> _rollingPassRates(
+  List<InsightsRecentRun> chronological, {
+  int window = 5,
+}) {
+  if (chronological.isEmpty) return const [];
+  final rates = <double>[];
+  for (var i = 0; i < chronological.length; i++) {
+    final start = i - window + 1;
+    final slice = chronological.sublist(start < 0 ? 0 : start, i + 1);
+    final passes = slice.where((r) => r.outcome.toUpperCase() == 'PASS').length;
+    rates.add(passes / slice.length * 100.0);
   }
+  return rates;
 }
 
 /// Shared column widths so header and rows stay on one grid.
@@ -1646,6 +2057,11 @@ class _DurationTrendPainter extends CustomPainter {
     final slot = chartW / n;
     final barW = (slot * 0.62).clamp(3.0, 14.0);
     final linePoints = <Offset>[];
+    final testCounts = [
+      for (final run in runs) (run.passed ?? 0) + (run.failed ?? 0),
+    ];
+    final maxTests = testCounts.fold<int>(0, (m, v) => v > m ? v : m);
+    final testPoints = <Offset>[];
 
     for (var i = 0; i < n; i++) {
       final run = runs[i];
@@ -1671,6 +2087,12 @@ class _DurationTrendPainter extends CustomPainter {
         Paint()..color = color.withValues(alpha: 0.85),
       );
       linePoints.add(Offset(x + barW / 2, y));
+      if (maxTests > 0) {
+        final testFrac = (testCounts[i] / maxTests).clamp(0.0, 1.0);
+        // Keep the tests line in the upper 70% so it doesn't collide with axis.
+        final ty = chartH - testFrac * chartH * 0.7 - chartH * 0.08;
+        testPoints.add(Offset(x + barW / 2, ty));
+      }
     }
 
     if (hasDuration && linePoints.length >= 2) {
@@ -1688,6 +2110,28 @@ class _DurationTrendPainter extends CustomPainter {
       );
       for (final pt in linePoints) {
         canvas.drawCircle(pt, 2.2, Paint()..color = fallback);
+      }
+    }
+
+    if (testPoints.length >= 2) {
+      final path = Path()..moveTo(testPoints.first.dx, testPoints.first.dy);
+      for (var i = 1; i < testPoints.length; i++) {
+        path.lineTo(testPoints[i].dx, testPoints[i].dy);
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = label.withValues(alpha: 0.9)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..strokeJoin = StrokeJoin.round,
+      );
+      for (final pt in testPoints) {
+        canvas.drawCircle(
+          pt,
+          1.8,
+          Paint()..color = label.withValues(alpha: 0.95),
+        );
       }
     }
   }

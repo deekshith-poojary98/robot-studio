@@ -30,25 +30,35 @@ It does **not** count BuiltIn automatic variables (`${TEST_NAME}`, …) or envir
 
 **Keywords** counts user keyword definitions under `*** Keywords ***`, plus public methods from indexed project `.py` libraries — not BuiltIn keywords and not call sites.
 
-Below the bars, **Focus** adds:
+Also in Composition:
+
+| Section | Meaning |
+|---------|---------|
+| Composition mix | Stacked bar of keywords / tests / variables |
+| File types | Counts of `.robot`, `.resource`, `.py`, `.yaml` among indexed files |
+| Focus | Density chips, index state, densest files, and test-heavy files |
+
+**Focus** details:
 
 - Density chips — keywords per test, symbols per file, resource and library counts
 - Index state
 - **Densest files** — files with the most indexed definitions (click to open)
+- **Test-heavy files** — files with the most test-case definitions (click to open)
+
+Kind rows with a count of zero stay visible but muted so small projects still show the full shape of the index.
 
 ## Run health
 
 Once you have executed suites, Run health shows:
 
-| Metric | Meaning |
-|--------|---------|
-| Pass/Fail streak | Consecutive matching outcomes from the latest run backward |
-| Flaky files | Suites that both passed and failed across history (when any) |
-| Interrupted | Cancelled + aborted runs (when any) |
-| Last N | Pass rate over the newest few runs when it differs meaningfully from overall |
-| Duration trend | Recent runs as duration bars (color = outcome), oldest → newest; peak and average under the chart |
+| Metric / chart | Meaning |
+|----------------|---------|
+| Pass/Fail streak · Flaky · Interrupted · Last N | Compact signals in the metric row |
+| Outcome share | Thin bar of passed / failed / cancelled / aborted runs |
+| Pass rate trend | Rolling pass-rate sparkline (window of up to 5), oldest → newest |
+| Duration trend | Duration bars (colored by outcome) with a muted tests-count line overlaid |
 | Last run | Outcome, suite, duration, and passed/failed/skipped counts in plain language |
-| Top failures | Suite files with the most failed runs (path variants are merged; click to open) |
+| Failure mix by suite | Horizontal bars for the hottest failing files (click to open) |
 
 Overall pass rate still appears in the headline strip above the panels.
 
