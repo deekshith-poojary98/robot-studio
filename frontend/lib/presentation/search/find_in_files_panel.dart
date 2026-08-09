@@ -14,13 +14,11 @@ class FindInFilesPanel extends StatefulWidget {
     required this.hasProject,
     required this.onSearch,
     required this.onOpenMatch,
-    this.onOpenSymbols,
   });
 
   final bool hasProject;
   final Future<ContentSearchResultInfo> Function(String query) onSearch;
   final void Function(String path, int line, int column) onOpenMatch;
-  final VoidCallback? onOpenSymbols;
 
   @override
   State<FindInFilesPanel> createState() => _FindInFilesPanelState();
@@ -152,17 +150,6 @@ class _FindInFilesPanelState extends State<FindInFilesPanel> {
             },
           ),
         ),
-        if (widget.onOpenSymbols != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: widget.onOpenSymbols,
-                child: const Text('Symbols…'),
-              ),
-            ),
-          ),
         if (_searching) const LinearProgressIndicator(minHeight: 2),
         if (result != null)
           Padding(

@@ -12,6 +12,7 @@ export 'models/file_info.dart';
 export 'models/git_info.dart';
 export 'models/health_response.dart';
 export 'models/index_info.dart';
+export 'models/insights_info.dart';
 export 'models/language_info.dart';
 export 'models/library_info.dart';
 export 'models/package_info.dart';
@@ -538,6 +539,12 @@ class RestTransportGateway implements TransportGateway {
   Future<IndexStatusInfo> getIndexStatus() async {
     final response = await _get('/index/status');
     return IndexStatusInfo.fromJson(response);
+  }
+
+  @override
+  Future<InsightsInfo> getInsights() async {
+    final response = await _get('/insights');
+    return InsightsInfo.fromJson(response);
   }
 
   @override

@@ -75,7 +75,6 @@ class SidePanel extends StatelessWidget {
     this.onOutlineSelect,
     this.onContentSearch,
     this.onOpenContentMatch,
-    this.onOpenSymbols,
     this.libraryExplorerController,
     this.onLibraryJumpToSource,
   });
@@ -141,7 +140,6 @@ class SidePanel extends StatelessWidget {
   final ValueChanged<IndexedSymbolInfo>? onOutlineSelect;
   final Future<ContentSearchResultInfo> Function(String query)? onContentSearch;
   final void Function(String path, int line, int column)? onOpenContentMatch;
-  final VoidCallback? onOpenSymbols;
   final LibraryExplorerController? libraryExplorerController;
   final void Function(String path, int? line)? onLibraryJumpToSource;
 
@@ -317,7 +315,6 @@ class SidePanel extends StatelessWidget {
               files: [],
             )),
         onOpenMatch: onOpenContentMatch ?? (path, line, column) {},
-        onOpenSymbols: onOpenSymbols,
       );
     }
 

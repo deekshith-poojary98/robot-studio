@@ -238,6 +238,9 @@ class ApiClient implements TransportGateway {
   Future<IndexStatusInfo> getIndexStatus() => _gateway.getIndexStatus();
 
   @override
+  Future<InsightsInfo> getInsights() => _gateway.getInsights();
+
+  @override
   Future<List<IndexedSymbolInfo>> searchSymbols({
     String query = '',
     SymbolKind? kind,

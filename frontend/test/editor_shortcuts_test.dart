@@ -19,12 +19,14 @@ void main() {
     expect(map.values.whereType<ToggleSidebarIntent>(), isNotEmpty);
     expect(map.values.whereType<ToggleTerminalIntent>(), isNotEmpty);
     expect(map.values.whereType<FindInProjectIntent>(), isNotEmpty);
+    expect(map.values.whereType<OpenSymbolsIntent>(), isNotEmpty);
     expect(map.values.whereType<FormatDocumentIntent>(), isNotEmpty);
     expect(map.values.whereType<ShowProblemsIntent>(), isNotEmpty);
 
     // Never bind a bare letter key (would steal typing).
     for (final activator in map.keys.whereType<SingleActivator>()) {
-      final needsMod = activator.meta ||
+      final needsMod =
+          activator.meta ||
           activator.control ||
           activator.alt ||
           activator.shift;
@@ -66,11 +68,11 @@ void main() {
     );
     // Default re_editor ⌘D / Ctrl+D must not remain (conflicts with multi-cursor).
     final plainD = deleteLine.whereType<SingleActivator>().any(
-          (a) =>
-              a.trigger == LogicalKeyboardKey.keyD &&
-              (a.meta || a.control) &&
-              !a.shift,
-        );
+      (a) =>
+          a.trigger == LogicalKeyboardKey.keyD &&
+          (a.meta || a.control) &&
+          !a.shift,
+    );
     expect(plainD, isFalse);
   });
 

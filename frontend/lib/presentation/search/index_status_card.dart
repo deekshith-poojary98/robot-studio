@@ -10,15 +10,20 @@ class IndexStatusCard extends StatelessWidget {
     required this.status,
     this.isLoading = false,
     this.onRebuild,
+    this.compact = false,
   });
 
   final IndexStatusInfo? status;
   final bool isLoading;
   final VoidCallback? onRebuild;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final data = status;
+    if (compact) {
+      return _buildCompact(context, data);
+    }
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -77,6 +82,32 @@ class IndexStatusCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCompact(BuildContext context, IndexStatusInfo? data) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            data == null
+                ? (isLoading ? 'Indexing…' : 'Index not ready')
+                : '${data.keywordsIndexed} keywords · ${data.filesIndexed} files',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: context.palette.textMuted),
+          ),
+        ),
+        if (onRebuild != null)
+          IconButton(
+            tooltip: 'Rebuild index',
+            onPressed: isLoading ? null : onRebuild,
+            icon: const Icon(Icons.refresh, size: 16),
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          ),
+      ],
     );
   }
 }

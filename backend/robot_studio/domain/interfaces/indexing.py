@@ -66,6 +66,16 @@ class IndexStore(ABC):
     @abstractmethod
     async def status(self, workspace_id: UUID | None = None) -> dict: ...
 
+    @abstractmethod
+    async def composition_by_kind(self, workspace_id: UUID | None = None) -> dict[str, int]:
+        """Return {kind: count} for indexed symbols."""
+
+    @abstractmethod
+    async def composition_by_file(
+        self, workspace_id: UUID | None = None
+    ) -> list[dict]:
+        """Return [{file_path, counts: {kind: count}}] for indexed symbols."""
+
 
 class FileWatcher(ABC):
     @abstractmethod

@@ -9,6 +9,7 @@ from robot_studio.api.routes import (
     files,
     health,
     index,
+    insights,
     language,
     packages,
     plugins,
@@ -33,6 +34,7 @@ api_router.include_router(packages.router)
 api_router.include_router(execution.router)
 api_router.include_router(tests.router)
 api_router.include_router(reports.router)
+api_router.include_router(insights.router)
 api_router.include_router(index.router)
 api_router.include_router(search.router)
 api_router.include_router(analysis.router)

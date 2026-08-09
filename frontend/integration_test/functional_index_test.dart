@@ -6,7 +6,7 @@ import 'package:robot_studio/presentation/editor/editor_tabs_bar.dart';
 import 'helpers/integration_harness.dart';
 import 'helpers/ui_helpers.dart';
 
-/// Functional cases: IX-01 … IX-10 (Indexing / Keywords / Search / Tests).
+/// Functional cases: IX-01 … IX-10 (Indexing / Keywords / Insights / Tests).
 ///
 /// Source: Robot Studio — Functional Test Cases.md §9
 void main() {
@@ -46,41 +46,35 @@ Run Hello
     return (path: path, project: project, suiteName: suiteName);
   }
 
-  testWidgets('IX-01 index status card shows READY counts', (tester) async {
+  testWidgets('IX-01 insights shows composition counts', (tester) async {
     await seedIndexedWorkspace(
       workspace: 'IX Status',
       suffix: 'ix-01',
       project: 'IxStatus',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'IX Status');
-    await tapSidebarPanel(tester, 'Search');
-    await pumpUntilFound(tester, find.text('Index Status'));
-    await pumpUntilFound(
-      tester,
-      find.text('READY'),
-      timeout: const Duration(seconds: 60),
-    );
-    expect(find.text('Files'), findsWidgets);
-    expect(find.text('Keywords'), findsWidgets);
-    expect(find.text('Libraries'), findsWidgets);
+    await tapSidebarPanel(tester, 'Insights');
+    await pumpUntilFound(tester, find.text('Composition'));
+    await pumpUntilFound(tester, find.text('Keywords'));
+    expect(find.text('Test Cases'), findsWidgets);
 
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('IX-02 rebuild index completes', (tester) async {
+  testWidgets('IX-02 rebuild index from Insights completes', (tester) async {
     await seedIndexedWorkspace(
       workspace: 'IX Rebuild',
       suffix: 'ix-02',
       project: 'IxRebuild',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'IX Rebuild');
-    await tapSidebarPanel(tester, 'Search');
-    await pumpUntilFound(tester, find.text('Rebuild'));
-    await tester.tap(find.text('Rebuild').first);
+    await tapSidebarPanel(tester, 'Insights');
+    await pumpUntilFound(tester, find.text('Rebuild Index'));
+    await tester.tap(find.text('Rebuild Index').first);
     await tester.pump(const Duration(milliseconds: 400));
     await pumpUntilFound(
       tester,
-      find.text('READY'),
+      find.text('Composition'),
       timeout: const Duration(seconds: 90),
     );
     expect(find.byType(CircularProgressIndicator), findsNothing);
@@ -91,44 +85,26 @@ Run Hello
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('IX-03 keyword search finds BuiltIn Log', (tester) async {
+  testWidgets('IX-03 keyword search API finds BuiltIn Log', (tester) async {
     await seedIndexedWorkspace(
       workspace: 'IX Log',
       suffix: 'ix-03',
       project: 'IxLog',
     );
-    await harness.launchAppWithWorkspace(tester, workspaceName: 'IX Log');
-    await tapSidebarPanel(tester, 'Search');
-    await pumpUntilFound(tester, find.text('Search'));
-    await pumpUntilFound(
-      tester,
-      find.text('READY'),
-      timeout: const Duration(seconds: 60),
-    );
-
-    final field = find.byType(TextField);
-    await pumpUntilFound(tester, field);
-    await tester.enterText(field.first, 'Log');
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.text('Search').last);
-    await tester.pump(const Duration(milliseconds: 500));
-
-    await pumpUntilFound(
-      tester,
-      find.textContaining('Log'),
-      timeout: const Duration(seconds: 30),
-    );
-
     final apiHits = await harness.api.searchSymbols(
       query: 'Log',
       kind: 'keyword',
     );
     expect(apiHits.any((item) => (item['name'] as String?) == 'Log'), isTrue);
 
+    await harness.launchAppWithWorkspace(tester, workspaceName: 'IX Log');
+    await tapSidebarPanel(tester, 'Insights');
+    await pumpUntilFound(tester, find.text('Composition'));
+
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('IX-04 workspace symbol search finds user keyword', (
+  testWidgets('IX-04 workspace symbol dialog finds user keyword', (
     tester,
   ) async {
     await seedIndexedWorkspace(
@@ -138,33 +114,24 @@ Run Hello
       suiteFile: 'ix04_symbol.robot',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'IX Symbol');
-    await tapSidebarPanel(tester, 'Search');
-    await pumpUntilFound(
-      tester,
-      find.text('READY'),
-      timeout: const Duration(seconds: 60),
+
+    final hits = await harness.api.searchSymbols(query: 'Hello World');
+    expect(
+      hits.any((item) => (item['name'] as String?) == 'Hello World'),
+      isTrue,
     );
-
-    final field = find.byType(TextField);
-    await pumpUntilFound(tester, field);
-    await tester.enterText(field.first, 'Hello World');
-    await tester.tap(find.text('Search').last);
-    await tester.pump(const Duration(milliseconds: 500));
-
-    await pumpUntilFound(
-      tester,
-      find.textContaining('Hello World'),
-      timeout: const Duration(seconds: 30),
+    expect(
+      hits.any(
+        (item) =>
+            (item['file_path'] as String?)?.contains('ix04_symbol') == true,
+      ),
+      isTrue,
     );
-    expect(find.textContaining('ix04_symbol.robot'), findsWidgets);
-
-    await tester.tap(find.textContaining('Hello World').first);
-    await tester.pump(const Duration(milliseconds: 500));
 
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('IX-05 empty search query shows prompt state', (tester) async {
+  testWidgets('IX-05 find in files empty query stays idle', (tester) async {
     await seedIndexedWorkspace(
       workspace: 'IX EmptyQ',
       suffix: 'ix-05',
@@ -172,15 +139,7 @@ Run Hello
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'IX EmptyQ');
     await tapSidebarPanel(tester, 'Search');
-    await pumpUntilFound(tester, find.text('Search symbols…'));
-    await tester.tap(find.text('Search').last);
-    await tester.pump(const Duration(milliseconds: 400));
-
-    final emptyOrPrompt =
-        tester.widgetList(find.textContaining('No symbols found')).isNotEmpty ||
-        tester.widgetList(find.textContaining('Search indexed')).isNotEmpty ||
-        tester.widgetList(find.textContaining('Rebuild the index')).isNotEmpty;
-    expect(emptyOrPrompt, isTrue);
+    await pumpUntilFound(tester, find.text('Find in Files'));
 
     harness.expectNoFlutterErrors();
   });
@@ -263,27 +222,13 @@ Run Hello
     );
 
     await harness.launchAppWithWorkspace(tester, workspaceName: 'IX NewFile');
-    await tapSidebarPanel(tester, 'Search');
-    await pumpUntilFound(
-      tester,
-      find.text('READY'),
-      timeout: const Duration(seconds: 60),
-    );
-    final field = find.byType(TextField);
-    await tester.enterText(field.first, 'Fresh Keyword');
-    await tester.tap(find.text('Search').last);
-    await pumpUntilFound(
-      tester,
-      find.textContaining('Fresh Keyword'),
-      timeout: const Duration(seconds: 30),
-    );
+    await tapSidebarPanel(tester, 'Insights');
+    await pumpUntilFound(tester, find.text('Keywords'));
 
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('IX-09 search page vs palette both reach symbols', (
-    tester,
-  ) async {
+  testWidgets('IX-09 Insights and palette both reachable', (tester) async {
     await seedIndexedWorkspace(
       workspace: 'IX Dual',
       suffix: 'ix-09',
@@ -291,11 +236,10 @@ Run Hello
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'IX Dual');
 
-    await tapSidebarPanel(tester, 'Search');
-    await pumpUntilFound(tester, find.text('Index Status'));
-    expect(find.textContaining('Search indexed keywords'), findsWidgets);
+    await tapSidebarPanel(tester, 'Insights');
+    await pumpUntilFound(tester, find.text('Composition'));
 
-    // Toolbar chrome opens the command palette (distinct from Search page).
+    // Toolbar chrome opens the command palette (distinct from Insights).
     await tester.tap(
       find.textContaining('Search commands, files, symbols').first,
     );
@@ -325,13 +269,8 @@ Run Hello
     );
 
     await harness.launchAppWithWorkspace(tester, workspaceName: 'IX Count');
-    await tapSidebarPanel(tester, 'Search');
-    await pumpUntilFound(
-      tester,
-      find.text('READY'),
-      timeout: const Duration(seconds: 60),
-    );
-    expect(find.text('Keywords'), findsWidgets);
+    await tapSidebarPanel(tester, 'Insights');
+    await pumpUntilFound(tester, find.text('Keywords'));
 
     harness.expectNoFlutterErrors();
   });

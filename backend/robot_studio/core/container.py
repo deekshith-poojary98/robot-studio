@@ -16,6 +16,7 @@ from robot_studio.application.services.execution_service import ExecutionService
 from robot_studio.application.services.file_service import FileService
 from robot_studio.application.services.git_service import GitService
 from robot_studio.application.services.index_service import IndexService
+from robot_studio.application.services.insights_service import InsightsService
 from robot_studio.application.services.language_service import LanguageFacade
 from robot_studio.application.services.package_service import PackageService
 from robot_studio.application.services.plugin_service import PluginService
@@ -101,6 +102,7 @@ class Container:
     execution_service: ExecutionService | None = field(default=None, init=False)
     test_explorer_service: TestExplorerService | None = field(default=None, init=False)
     report_service: ReportService | None = field(default=None, init=False)
+    insights_service: InsightsService | None = field(default=None, init=False)
     index_store: SqliteIndexStore | None = field(default=None, init=False)
     analysis_store: SqliteAnalysisStore | None = field(default=None, init=False)
     analysis_engine: RobotAnalysisEngine | None = field(default=None, init=False)
@@ -256,6 +258,11 @@ class Container:
             project_repository=self.project_repository,
         )
         self.index_service.start()
+        self.insights_service = InsightsService(
+            context=self.workspace_context,
+            index_store=self.index_store,
+            execution_repository=self.execution_repository,
+        )
         from robot_studio.application.services.content_search_service import (
             ContentSearchService,
         )

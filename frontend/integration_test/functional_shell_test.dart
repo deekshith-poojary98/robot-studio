@@ -124,7 +124,8 @@ void main() {
 
     final expected = <String>[
       'Explorer — projects, environments, and files',
-      'Search — find keywords, symbols, and files',
+      'Search — find text across the project',
+      'Insights — project composition and run health',
       'Tests — browse, run, and track suites and tests',
       'Packages — install and manage Python packages',
       'Plugins — built-in and project extensions',

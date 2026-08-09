@@ -37,7 +37,7 @@ class AppMenuBarActions {
     required this.onShowExplorer,
     required this.onShowSearch,
     required this.onShowLibraries,
-    required this.onShowSymbols,
+    required this.onShowInsights,
     required this.onShowSourceControl,
     required this.onShowTests,
     required this.onShowReports,
@@ -84,7 +84,7 @@ class AppMenuBarActions {
   final VoidCallback onShowExplorer;
   final VoidCallback onShowSearch;
   final VoidCallback onShowLibraries;
-  final VoidCallback onShowSymbols;
+  final VoidCallback onShowInsights;
   final VoidCallback onShowSourceControl;
   final VoidCallback onShowTests;
   final VoidCallback onShowReports;
@@ -317,8 +317,8 @@ class RobotStudioMenuBar extends StatelessWidget {
                   onSelected: a.hasWorkspace ? a.onShowLibraries : null,
                 ),
                 PlatformMenuItem(
-                  label: 'Symbols',
-                  onSelected: a.hasWorkspace ? a.onShowSymbols : null,
+                  label: 'Insights',
+                  onSelected: a.hasWorkspace ? a.onShowInsights : null,
                 ),
                 PlatformMenuItem(
                   label: 'Source Control',
@@ -382,6 +382,7 @@ class RobotStudioMenuBar extends StatelessWidget {
                 ),
                 PlatformMenuItem(
                   label: 'Find Symbol in Project…',
+                  shortcut: _mod(LogicalKeyboardKey.keyT),
                   onSelected: a.hasWorkspace ? a.onFindSymbolInProject : null,
                 ),
                 PlatformMenuItem(

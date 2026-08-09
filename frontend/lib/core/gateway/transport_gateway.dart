@@ -5,6 +5,7 @@ import 'models/file_info.dart';
 import 'models/git_info.dart';
 import 'models/health_response.dart';
 import 'models/index_info.dart';
+import 'models/insights_info.dart';
 import 'models/language_info.dart';
 import 'models/library_info.dart';
 import 'models/package_info.dart';
@@ -24,6 +25,7 @@ export 'models/file_info.dart';
 export 'models/git_info.dart';
 export 'models/health_response.dart';
 export 'models/index_info.dart';
+export 'models/insights_info.dart';
 export 'models/language_info.dart';
 export 'models/library_info.dart';
 export 'models/package_info.dart';
@@ -168,6 +170,8 @@ abstract class TransportGateway {
   Future<IndexStatusInfo> rebuildIndex();
 
   Future<IndexStatusInfo> getIndexStatus();
+
+  Future<InsightsInfo> getInsights();
 
   Future<List<IndexedSymbolInfo>> searchSymbols({
     String query = '',

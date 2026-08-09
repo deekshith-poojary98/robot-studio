@@ -2331,6 +2331,11 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<InsightsInfo> getInsights() async {
+    return const InsightsInfo();
+  }
+
+  @override
   Future<List<IndexedSymbolInfo>> searchSymbols({
     String query = '',
     SymbolKind? kind,

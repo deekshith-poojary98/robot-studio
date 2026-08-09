@@ -14,6 +14,7 @@ from robot_studio.application.services.execution_knowledge_service import (
 from robot_studio.application.services.execution_service import ExecutionService
 from robot_studio.application.services.file_service import FileService
 from robot_studio.application.services.index_service import IndexService
+from robot_studio.application.services.insights_service import InsightsService
 from robot_studio.application.services.language_service import LanguageFacade
 from robot_studio.application.services.package_service import (
     PackageListResult,
@@ -58,6 +59,7 @@ from robot_studio.domain.models.doctor import (
     DoctorReportSummary,
     FindingProviderInfo,
 )
+from robot_studio.domain.models.insights import InsightsSnapshot
 from robot_studio.domain.models.execution_knowledge import (
     EntityExecutionStats,
     ExecutionHistoryEntry,
@@ -130,6 +132,13 @@ class RestGateway:
         service = self._container.index_service
         if service is None:
             raise RuntimeError("IndexService is not initialized")
+        return service
+
+    @property
+    def _insights_service(self) -> InsightsService:
+        service = self._container.insights_service
+        if service is None:
+            raise RuntimeError("InsightsService is not initialized")
         return service
 
     @property
@@ -533,6 +542,9 @@ class RestGateway:
 
     async def get_index_status(self) -> IndexStatus:
         return await self._index_service.get_status()
+
+    async def get_insights(self) -> InsightsSnapshot:
+        return await self._insights_service.get_snapshot()
 
     async def search_symbols(
         self,

@@ -542,6 +542,50 @@ class SqliteIndexStore(IndexStore):
             "last_indexed_at": last_indexed,
         }
 
+    async def composition_by_kind(self, workspace_id: UUID | None = None) -> dict[str, int]:
+        where = "WHERE workspace_id = ?" if workspace_id else ""
+        params: tuple = (str(workspace_id),) if workspace_id else ()
+        async with aiosqlite.connect(self._database_path) as db:
+            cursor = await db.execute(
+                f"""
+                SELECT kind, COUNT(*) AS cnt
+                FROM index_symbols
+                {where}
+                GROUP BY kind
+                ORDER BY cnt DESC
+                """,
+                params,
+            )
+            rows = await cursor.fetchall()
+        return {str(row[0]): int(row[1]) for row in rows}
+
+    async def composition_by_file(
+        self, workspace_id: UUID | None = None
+    ) -> list[dict]:
+        where = "WHERE workspace_id = ?" if workspace_id else ""
+        params: tuple = (str(workspace_id),) if workspace_id else ()
+        async with aiosqlite.connect(self._database_path) as db:
+            cursor = await db.execute(
+                f"""
+                SELECT file_path, kind, COUNT(*) AS cnt
+                FROM index_symbols
+                {where}
+                GROUP BY file_path, kind
+                ORDER BY file_path, kind
+                """,
+                params,
+            )
+            rows = await cursor.fetchall()
+        by_file: dict[str, dict[str, int]] = {}
+        for file_path, kind, cnt in rows:
+            path = str(file_path)
+            counts = by_file.setdefault(path, {})
+            counts[str(kind)] = int(cnt)
+        return [
+            {"file_path": path, "counts": counts}
+            for path, counts in by_file.items()
+        ]
+
     @staticmethod
     def _row_to_dict(row: aiosqlite.Row) -> dict:
         return {

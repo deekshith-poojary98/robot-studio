@@ -20,9 +20,7 @@ void main() {
   Future<void> ensureExecutionIdle() async {
     final status = await harness.api.executionStatus();
     final state = status['status']?.toString() ?? '';
-    if (state == 'running' ||
-        state == 'starting' ||
-        state == 'stopping') {
+    if (state == 'running' || state == 'starting' || state == 'stopping') {
       try {
         await harness.api.stopExecution();
       } catch (_) {}
@@ -68,6 +66,7 @@ void main() {
     const panels = [
       'Explorer',
       'Search',
+      'Insights',
       'Tests',
       'Source Control',
       'Reports',
@@ -115,11 +114,7 @@ void main() {
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'XR Loop');
     await openProjectInExplorer(tester, projectName: 'XrLoop');
-    await openRobotFileInExplorer(
-      tester,
-      'loop.robot',
-      projectName: 'XrLoop',
-    );
+    await openRobotFileInExplorer(tester, 'loop.robot', projectName: 'XrLoop');
 
     for (var i = 0; i < 3; i++) {
       await tapToolbarAction(tester, 'Run current file');

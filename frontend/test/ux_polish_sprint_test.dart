@@ -273,6 +273,7 @@ void main() {
       SidebarPanel.packages,
       SidebarPanel.plugins,
       SidebarPanel.sourceControl,
+      SidebarPanel.insights,
     ]) {
       expect(SidePanel.hasSideContent(panel), isFalse, reason: panel.label);
     }
@@ -284,6 +285,7 @@ void main() {
     ]) {
       expect(SidePanel.hasSideContent(panel), isTrue, reason: panel.label);
     }
+    expect(SidePanel.hasSideContent(SidebarPanel.insights), isFalse);
 
     await tester.pumpWidget(
       MaterialApp(

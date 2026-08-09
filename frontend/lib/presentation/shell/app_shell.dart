@@ -44,8 +44,8 @@ import '../project/project_details_panel.dart';
 import '../doctor/doctor_page.dart';
 import '../reports/delete_run_dialog.dart';
 import '../reports/reports_page.dart';
+import '../insights/insights_page.dart';
 import '../search/command_palette.dart';
-import '../search/symbols_page.dart';
 import '../sidebar/app_sidebar.dart';
 import '../sidebar/sidebar_panel.dart';
 import '../toolbar/app_toolbar.dart';
@@ -81,7 +81,7 @@ enum _CenterView {
   execution,
   reports,
   doctor,
-  symbols,
+  insights,
   editor,
 }
 
@@ -179,25 +179,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   final List<String> _recentlyClosedPaths = [];
   bool _showReportsPage = false;
   bool _showDoctorPage = false;
+  bool _showInsightsPage = false;
   bool _showSettingsPage = false;
   final _preferencesLeave = PreferencesLeaveBinding();
-  String _searchQuery = '';
-  SymbolKind? _searchKind;
-  List<IndexedSymbolInfo> _searchResults = [];
   List<IndexedSymbolInfo> _testSuites = [];
   TestNodeInfo? _testTree;
   bool _loadingTestTree = false;
   String _testFilter = '';
   Timer? _testFilterDebounce;
-  bool _isSearching = false;
-  IndexedSymbolInfo? _selectedSymbol;
-  HoverInfo? _hoverInfo;
-  List<SymbolReferenceInfo> _references = [];
-  bool _isLoadingLanguage = false;
-  String? _navigationMessage;
   IndexStatusInfo? _indexStatus;
   bool _loadingIndexStatus = false;
-  bool _showSymbolsPage = false;
+  InsightsInfo? _insights;
+  bool _loadingInsights = false;
   bool _showEditorPage = false;
   HoverInfo? _editorHover;
   List<SymbolReferenceInfo> _editorReferences = [];
@@ -672,7 +665,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _showDoctorPage = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
-      _showSymbolsPage = false;
       _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
@@ -788,7 +780,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _showPluginManager = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
-      _showSymbolsPage = false;
       _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
@@ -1010,11 +1001,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     setState(() {
       _showReportsPage = true;
       _showDoctorPage = false;
+      _showInsightsPage = false;
       _showSourceControl = false;
       _showPluginManager = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
-      _showSymbolsPage = false;
       _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
@@ -1039,11 +1030,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     setState(() {
       _showDoctorPage = true;
       _showReportsPage = false;
+      _showInsightsPage = false;
       _showSourceControl = false;
       _showPluginManager = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
-      _showSymbolsPage = false;
       _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
@@ -1064,7 +1055,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _showPluginManager = false;
       _showPackageManager = false;
       _showEnvironmentManager = false;
-      _showSymbolsPage = false;
       _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
@@ -1458,7 +1448,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _showExecutionPage = true;
       _showSettingsPage = false;
       _showEditorPage = false;
-      _showSymbolsPage = false;
       _showReportsPage = false;
       _showDoctorPage = false;
       _showSourceControl = false;
@@ -1702,17 +1691,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _showReportsPage = false;
       _showDoctorPage = false;
       _showSettingsPage = false;
-      _showSymbolsPage = false;
       _execution.selectedReport = null;
       _execution.reportRuns = [];
       _execution.reportsDashboard = null;
-      _searchQuery = '';
-      _searchKind = null;
-      _searchResults = [];
-      _selectedSymbol = null;
-      _hoverInfo = null;
-      _references = [];
-      _navigationMessage = null;
+      _insights = null;
       _activePanel = SidebarPanel.explorer;
       _editor.tabs = [];
       _editor.activePath = null;
@@ -2093,7 +2075,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _activePanel = SidebarPanel.search;
       _sidePanelCollapsed = false;
       _showSettingsPage = false;
-      _showSymbolsPage = false;
       _clearExecutionPageUnlessTests();
       _showReportsPage = false;
       _showDoctorPage = false;
@@ -2152,7 +2133,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     setState(() {
       _showEnvironmentManager = true;
       _showPackageManager = false;
-      _showSymbolsPage = false;
       _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
@@ -2176,7 +2156,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _showReportsPage = false;
       _showDoctorPage = false;
       _showEnvironmentManager = false;
-      _showSymbolsPage = false;
       _showSettingsPage = false;
       _showEditorPage = false;
       _selectedEnvironment = null;
@@ -2952,7 +2931,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _editor.activePath = path;
         _showEditorPage = true;
         _showSettingsPage = false;
-        _showSymbolsPage = false;
         _showExecutionPage = false;
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
@@ -2988,7 +2966,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _editor.activePath = file.path;
         _showEditorPage = true;
         _showSettingsPage = false;
-        _showSymbolsPage = false;
         _showExecutionPage = false;
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
@@ -3367,8 +3344,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<void> _handleLiveIndexUpdated(WorkspaceStreamEvent event) async {
     await _loadIndexStatus();
-    if (_showSymbolsPage && _searchQuery.trim().isNotEmpty) {
-      await _runSearch();
+    if (_showInsightsPage || _activePanel == SidebarPanel.insights) {
+      await _loadInsights();
     }
     final active = _activeEditorPath;
     if (active != null &&
@@ -3523,7 +3500,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _showPackageManager = false;
       _showReportsPage = false;
       _showDoctorPage = false;
-      _showSymbolsPage = false;
       _showSettingsPage = false;
       _showEditorPage = false;
       _showExecutionPage = false;
@@ -3535,7 +3511,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _gitHistory = [];
       _testTree = null;
       _indexStatus = null;
-      _searchResults = [];
+      _insights = null;
       _liveNotification = null;
     });
     await _loadRecent();
@@ -3845,12 +3821,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _showDoctorPage = true;
         _showReportsPage = false;
       } else if (panel == SidebarPanel.explorer ||
-          panel == SidebarPanel.search) {
+          panel == SidebarPanel.search ||
+          panel == SidebarPanel.libraries) {
         _showExecutionPage = false;
-        _showSymbolsPage = false;
         _showSourceControl = false;
         _showReportsPage = false;
         _showDoctorPage = false;
+        _showInsightsPage = false;
         _showPackageManager = false;
         _showPluginManager = false;
         _showEnvironmentManager = false;
@@ -3926,9 +3903,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   String? _editorTokenName() {
     final outline = _selectedOutlineSymbol?.name;
     if (outline != null && outline.isNotEmpty) return outline;
-
-    final search = _selectedSymbol?.name;
-    if (search != null && search.isNotEmpty) return search;
 
     final tab = _activeEditorTab;
     if (tab == null) return null;
@@ -4379,33 +4353,29 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _openSymbolsPage({SymbolKind? kind}) async {
+  Future<void> _openInsights() async {
     if (!await _ensureWorkspace(
-      message: 'Open a project before searching symbols.',
+      message: 'Open a project before viewing insights.',
     )) {
       return;
     }
     if (!await _prepareLeaveSettings()) return;
     setState(() {
-      _showSymbolsPage = true;
-      _showSettingsPage = false;
-      _showEditorPage = false;
-      _showEnvironmentManager = false;
-      _showPackageManager = false;
-      _showPluginManager = false;
-      _showSourceControl = false;
+      _showInsightsPage = true;
       _showReportsPage = false;
       _showDoctorPage = false;
-      _showExecutionPage = false;
+      _showSourceControl = false;
+      _showPluginManager = false;
+      _showPackageManager = false;
+      _showEnvironmentManager = false;
+      _showSettingsPage = false;
+      _showEditorPage = false;
       _selectedEnvironment = null;
       _selectedPackage = null;
-      _execution.selectedReport = null;
-      _searchKind = kind;
-      _searchResults = [];
-      _selectedSymbol = null;
+      _activePanel = SidebarPanel.insights;
+      _clearExecutionPageUnlessTests();
     });
-    _loadIndexStatus();
-    unawaited(_runSearch());
+    await _loadInsights();
   }
 
   Future<void> _openCommandPalette() async {
@@ -4612,12 +4582,22 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           onSelect: () => unawaited(_openDoctor()),
         ),
         PaletteItem(
-          id: 'search.symbols',
-          title: 'Symbols',
-          subtitle: 'Search indexed keywords, variables, and files',
+          id: 'view.insights',
+          title: 'Insights',
+          subtitle: 'Project composition and run health',
+          icon: Icons.insights_outlined,
+          kind: PaletteItemKind.command,
+          keywords: const ['analytics', 'stats', 'pass rate', 'composition'],
+          onSelect: () => unawaited(_openInsights()),
+        ),
+        PaletteItem(
+          id: 'search.symbol',
+          title: 'Find Symbol in Project',
+          subtitle: ShellShortcutActivators.label('⌘T', 'Ctrl+T'),
           icon: Icons.code,
           kind: PaletteItemKind.command,
-          onSelect: () => unawaited(_openSymbolsPage()),
+          keywords: const ['goto', 'workspace symbol', 'keyword'],
+          onSelect: () => unawaited(_editorWorkspaceSymbol()),
         ),
         PaletteItem(
           id: 'index.rebuild',
@@ -4930,8 +4910,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _loadingIndexStatus = false;
       });
       _appendLog('[info] Symbol index rebuilt');
-      if (_searchQuery.trim().isNotEmpty) {
-        await _runSearch();
+      if (_showInsightsPage || _activePanel == SidebarPanel.insights) {
+        await _loadInsights();
       }
     } catch (error) {
       if (!mounted) return;
@@ -4941,127 +4921,22 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _runSearch() async {
+  Future<void> _loadInsights() async {
     if (_workspace.activeWorkspace == null || _backendStatus != 'connected') {
       return;
     }
-
-    setState(() {
-      _isSearching = true;
-      _selectedSymbol = null;
-      _hoverInfo = null;
-      _references = [];
-      _navigationMessage = null;
-    });
+    setState(() => _loadingInsights = true);
     try {
-      final results = await _gateway.searchSymbols(
-        query: _searchQuery.trim(),
-        kind: _searchKind,
-      );
+      final insights = await _gateway.getInsights();
       if (!mounted) return;
       setState(() {
-        _searchResults = results;
-        _isSearching = false;
+        _insights = insights;
+        _loadingInsights = false;
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() => _isSearching = false);
-      _appendLog('[warn] Search failed: $error');
-      await _showError('Search', error);
-    }
-  }
-
-  void _selectSymbol(IndexedSymbolInfo symbol) {
-    setState(() {
-      _selectedSymbol = symbol;
-      _hoverInfo = null;
-      _references = [];
-      _navigationMessage = null;
-    });
-  }
-
-  Future<void> _goToDefinition() async {
-    final symbol = _selectedSymbol;
-    if (symbol == null) return;
-
-    setState(() {
-      _isLoadingLanguage = true;
-      _navigationMessage = null;
-    });
-    try {
-      final definition = await _gateway.languageDefinition(
-        name: symbol.name,
-        symbolId: symbol.id,
-        kind: symbol.kind,
-      );
-      if (!mounted) return;
-      setState(() => _isLoadingLanguage = false);
-      if (definition == null) {
-        setState(() {
-          _navigationMessage = 'No definition found for "${symbol.name}".';
-        });
-        return;
-      }
-      await _openDefinitionResult(definition, symbol.name);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _isLoadingLanguage = false);
-      _appendLog('[warn] Definition lookup failed: $error');
-      await _showError('Go to Definition', error);
-    }
-  }
-
-  Future<void> _findReferences() async {
-    final symbol = _selectedSymbol;
-    if (symbol == null) return;
-
-    setState(() {
-      _isLoadingLanguage = true;
-      _references = [];
-    });
-    try {
-      final refs = await _gateway.languageReferences(
-        name: symbol.name,
-        symbolId: symbol.id,
-        kind: symbol.kind,
-      );
-      if (!mounted) return;
-      setState(() {
-        _references = refs;
-        _isLoadingLanguage = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _isLoadingLanguage = false);
-      _appendLog('[warn] References lookup failed: $error');
-      await _showError('Find References', error);
-    }
-  }
-
-  Future<void> _showHover() async {
-    final symbol = _selectedSymbol;
-    if (symbol == null) return;
-
-    setState(() {
-      _isLoadingLanguage = true;
-      _hoverInfo = null;
-    });
-    try {
-      final hover = await _gateway.languageHover(
-        name: symbol.name,
-        symbolId: symbol.id,
-        kind: symbol.kind,
-      );
-      if (!mounted) return;
-      setState(() {
-        _hoverInfo = hover;
-        _isLoadingLanguage = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _isLoadingLanguage = false);
-      _appendLog('[warn] Hover lookup failed: $error');
-      await _showError('Hover Info', error);
+      setState(() => _loadingInsights = false);
+      _appendLog('[warn] Insights load failed: $error');
     }
   }
 
@@ -5083,8 +4958,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (_activePanel == SidebarPanel.tests) {
       return _CenterView.execution;
     }
-    if (_showSymbolsPage) {
-      return _CenterView.symbols;
+    if (_showInsightsPage || _activePanel == SidebarPanel.insights) {
+      return _CenterView.insights;
     }
     if (_showEnvironmentManager) return _CenterView.manager;
     if (_selectedPackage != null) return _CenterView.packageDetail;
@@ -5147,7 +5022,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onShowExplorer: () => _showSidebarPanel(SidebarPanel.explorer),
         onShowSearch: () => _showSidebarPanel(SidebarPanel.search),
         onShowLibraries: () => _showSidebarPanel(SidebarPanel.libraries),
-        onShowSymbols: () => unawaited(_openSymbolsPage()),
+        onShowInsights: () => unawaited(_openInsights()),
         onShowSourceControl: () => unawaited(_handleOpenSourceControl()),
         onShowTests: () => unawaited(_revealTests()),
         onShowReports: () => unawaited(_openReports()),
@@ -5229,6 +5104,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             FindInProjectIntent: CallbackAction<FindInProjectIntent>(
               onInvoke: (_) {
                 _openProjectSearch();
+                return null;
+              },
+            ),
+            OpenSymbolsIntent: CallbackAction<OpenSymbolsIntent>(
+              onInvoke: (_) {
+                unawaited(_editorWorkspaceSymbol());
                 return null;
               },
             ),
@@ -5341,13 +5222,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                       _showExecutionPage = false;
                                     }
                                     if (panel == SidebarPanel.search) {
-                                      _showSymbolsPage = false;
                                       _showEnvironmentManager = false;
                                       _showPackageManager = false;
                                       _showPluginManager = false;
                                       _showSourceControl = false;
                                       _showReportsPage = false;
                                       _showDoctorPage = false;
+                                      _showInsightsPage = false;
                                       _selectedEnvironment = null;
                                       _selectedPackage = null;
                                       _execution.selectedReport = null;
@@ -5356,13 +5237,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                         _showEditorPage = true;
                                       }
                                     } else if (panel == SidebarPanel.explorer) {
-                                      _showSymbolsPage = false;
                                       _showEnvironmentManager = false;
                                       _showPackageManager = false;
                                       _showPluginManager = false;
                                       _showSourceControl = false;
                                       _showReportsPage = false;
                                       _showDoctorPage = false;
+                                      _showInsightsPage = false;
                                       _selectedPackage = null;
                                       _execution.selectedReport = null;
                                       if (_editorTabs.isNotEmpty &&
@@ -5370,11 +5251,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                         _showEditorPage = true;
                                       }
                                     } else {
-                                      _showSymbolsPage = false;
                                       if (panel == SidebarPanel.packages ||
                                           panel == SidebarPanel.plugins ||
                                           panel == SidebarPanel.reports ||
                                           panel == SidebarPanel.doctor ||
+                                          panel == SidebarPanel.insights ||
                                           panel == SidebarPanel.sourceControl) {
                                         _showEditorPage = false;
                                       }
@@ -5391,6 +5272,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                     _openReports();
                                   } else if (panel == SidebarPanel.doctor) {
                                     _openDoctor();
+                                  } else if (panel == SidebarPanel.insights) {
+                                    unawaited(_openInsights());
                                   } else if (panel == SidebarPanel.tests) {
                                     _loadExecutionHistory();
                                     _loadTestSuites();
@@ -5478,7 +5361,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                     _editor.jumpToLine = symbol.line;
                                     _showEditorPage = true;
                                     _showSettingsPage = false;
-                                    _showSymbolsPage = false;
                                   });
                                 },
                                 onContentSearch: (query) =>
@@ -5488,8 +5370,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                     _openFile(path, line: line, column: column),
                                   );
                                 },
-                                onOpenSymbols: () =>
-                                    unawaited(_openSymbolsPage()),
                                 libraryExplorerController: _libraryExplorer,
                                 onLibraryJumpToSource: (path, line) {
                                   unawaited(_openFile(path, line: line ?? 1));
@@ -5808,32 +5688,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           unawaited(_openFile(path, line: line, column: column));
         },
       ),
-      _CenterView.symbols => SymbolsPage(
-        query: _searchQuery,
-        kind: _searchKind,
-        results: _searchResults,
-        isSearching: _isSearching,
-        indexStatus: _indexStatus,
-        isLoadingStatus: _loadingIndexStatus,
-        selected: _selectedSymbol,
-        hover: _hoverInfo,
-        references: _references,
-        isLoadingLanguage: _isLoadingLanguage,
-        navigationMessage: _navigationMessage,
-        onQueryChanged: (value) => setState(() => _searchQuery = value),
-        onKindChanged: (value) => setState(() => _searchKind = value),
-        onSearch: _runSearch,
-        onSelect: _selectSymbol,
-        onGoToDefinition: _goToDefinition,
-        onFindReferences: _findReferences,
-        onShowHover: _showHover,
-        onRebuildIndex: _rebuildIndex,
-        onOpenPlaceholder: _selectedSymbol == null
-            ? null
-            : () => _openFile(
-                _selectedSymbol!.filePath,
-                line: _selectedSymbol!.line,
-              ),
+      _CenterView.insights => InsightsPage(
+        insights: _insights,
+        isLoading: _loadingInsights,
+        onRefresh: () => unawaited(_loadInsights()),
+        onRebuildIndex: () => unawaited(_rebuildIndex()),
+        onOpenFile: (path) => unawaited(_openFile(path)),
+        onOpenReports: () => unawaited(_openReports()),
       ),
       _CenterView.editor => EditorPage(
         key: _editorPageKey,
