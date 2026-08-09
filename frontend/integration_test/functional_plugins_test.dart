@@ -9,6 +9,12 @@ import 'helpers/ui_helpers.dart';
 /// Functional cases: PL-01 … PL-07 (Plugins).
 ///
 /// Source: Robot Studio — Functional Test Cases.md §14
+///
+/// Beta: Plugin Manager is hidden from the activity bar and command palette.
+/// UI cases are skipped until that surface is restored; keep the bodies intact.
+const _pluginsUiHiddenForBeta =
+    'Plugin Manager UI hidden for beta (sidebar + command palette)';
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final harness = IntegrationHarness();
@@ -17,9 +23,9 @@ void main() {
   tearDownAll(() async => harness.tearDownAll());
 
   Finder pluginListScrollable() => find.descendant(
-        of: find.byType(PluginManagerPage),
-        matching: find.byType(Scrollable),
-      );
+    of: find.byType(PluginManagerPage),
+    matching: find.byType(Scrollable),
+  );
 
   testWidgets('PL-01 plugin manager lists builtins', (tester) async {
     await harness.seedWorkspace(name: 'PL List', suffix: 'pl-01');
@@ -30,12 +36,14 @@ void main() {
     final plugins = await harness.api.listPlugins();
     expect(plugins, isNotEmpty);
     expect(
-      plugins.any((item) => item['is_builtin'] == true || item['builtin'] == true),
+      plugins.any(
+        (item) => item['is_builtin'] == true || item['builtin'] == true,
+      ),
       isTrue,
     );
 
     harness.expectNoFlutterErrors();
-  });
+  }, skip: _pluginsUiHiddenForBeta);
 
   testWidgets('PL-02 no layout overflow on rows', (tester) async {
     await harness.seedWorkspace(name: 'PL Overflow', suffix: 'pl-02');
@@ -45,7 +53,7 @@ void main() {
     expect(tester.takeException(), isNull);
 
     harness.expectNoFlutterErrors();
-  });
+  }, skip: _pluginsUiHiddenForBeta);
 
   testWidgets('PL-03 enable disable exclusivity', (tester) async {
     final workspace = await harness.seedWorkspace(
@@ -82,7 +90,7 @@ void main() {
     await pumpUntilFound(tester, pluginName);
 
     harness.expectNoFlutterErrors();
-  });
+  }, skip: _pluginsUiHiddenForBeta);
 
   testWidgets('PL-04 builtin enable not dead control', (tester) async {
     await harness.seedWorkspace(name: 'PL Builtin', suffix: 'pl-04');
@@ -93,7 +101,7 @@ void main() {
     expect(find.text('Built-in'), findsWidgets);
 
     harness.expectNoFlutterErrors();
-  });
+  }, skip: _pluginsUiHiddenForBeta);
 
   testWidgets('PL-05 plugin details panel', (tester) async {
     final workspace = await harness.seedWorkspace(
@@ -116,7 +124,7 @@ void main() {
     expect(find.text('Reload'), findsWidgets);
 
     harness.expectNoFlutterErrors();
-  });
+  }, skip: _pluginsUiHiddenForBeta);
 
   testWidgets('PL-06 reload plugins', (tester) async {
     await harness.seedWorkspace(name: 'PL Reload', suffix: 'pl-06');
@@ -127,11 +135,7 @@ void main() {
     await harness.api.refreshPlugins();
 
     harness.expectNoFlutterErrors();
-  });
+  }, skip: _pluginsUiHiddenForBeta);
 
-  testWidgets(
-    'PL-07 plugins offline',
-    (tester) async {},
-    skip: true,
-  );
+  testWidgets('PL-07 plugins offline', (tester) async {}, skip: true);
 }

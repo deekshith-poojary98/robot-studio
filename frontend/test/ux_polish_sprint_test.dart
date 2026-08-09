@@ -328,6 +328,28 @@ void main() {
     expect(find.byTooltip(SidebarPanel.explorer.tooltip), findsOneWidget);
   });
 
+  testWidgets('sidebar hides Plugins for beta', (tester) async {
+    expect(SidebarPanel.plugins.showInActivityBar, isFalse);
+    expect(
+      SidebarPanel.activityBarPanels,
+      isNot(contains(SidebarPanel.plugins)),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppSidebar(
+            activePanel: SidebarPanel.explorer,
+            onPanelSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byTooltip(SidebarPanel.plugins.tooltip), findsNothing);
+    expect(find.byTooltip(SidebarPanel.packages.tooltip), findsOneWidget);
+  });
+
   testWidgets('sidebar logo toggles side bar and Help opens docs', (
     tester,
   ) async {

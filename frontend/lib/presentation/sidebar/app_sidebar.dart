@@ -83,7 +83,7 @@ class AppSidebar extends StatelessWidget {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                for (final panel in SidebarPanel.values)
+                for (final panel in SidebarPanel.activityBarPanels)
                   SidebarButton(
                     icon: panel.icon,
                     label: panel.label,

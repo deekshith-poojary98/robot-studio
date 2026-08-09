@@ -95,10 +95,15 @@ frontend/
 
 ### Sidebar panels
 
-Explorer · Search (Find in Files) · Tests · Packages · Plugins · Source Control · Reports · Doctor
+Explorer · Search (Find in Files) · Insights · Libraries · Tests · Packages · Source Control · Reports · Doctor
+
+Plugins remains fully implemented but is **hidden for beta** from the activity bar
+(`SidebarPanel.plugins.showInActivityBar = false`) and the command palette until the
+extension UX is ready. Restore the commented `plugins.open` palette item in
+`app_shell.dart` when re-enabling.
 
 AI and Settings are **not** in the rail until those features ship — nothing in the chrome
-opens a “coming soon” surface. Only Explorer, Search, Tests, and Reports own the 280px side rail;
+opens a “coming soon” surface. Only Explorer, Search, Tests, Libraries, and Reports own the 280px side rail;
 Doctor is a main-view Project Health Center (no side rail list).
 
 the other panels take over the main view, and the rail collapses instead of showing a

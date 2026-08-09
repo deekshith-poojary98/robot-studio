@@ -665,6 +665,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (!await _prepareLeaveSettings()) return;
     setState(() {
       _showPluginManager = true;
+      _showInsightsPage = false;
       _showSourceControl = false;
       _showReportsPage = false;
       _showDoctorPage = false;
@@ -780,6 +781,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (!await _prepareLeaveSettings()) return;
     setState(() {
       _showSourceControl = true;
+      _showInsightsPage = false;
       _showReportsPage = false;
       _showDoctorPage = false;
       _showPluginManager = false;
@@ -1056,6 +1058,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _execution.selectedReport = run;
       _showReportsPage = true;
       _showDoctorPage = false;
+      _showInsightsPage = false;
       _showSourceControl = false;
       _showPluginManager = false;
       _showPackageManager = false;
@@ -2187,6 +2190,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (!await _prepareLeaveSettings()) return;
     setState(() {
       _showPackageManager = true;
+      _showInsightsPage = false;
       _showSourceControl = false;
       _showPluginManager = false;
       _showReportsPage = false;
@@ -4621,13 +4625,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           kind: PaletteItemKind.command,
           onSelect: () => unawaited(_handleOpenPackageManager()),
         ),
-        PaletteItem(
-          id: 'plugins.open',
-          title: 'Open Plugin Manager',
-          icon: Icons.extension_outlined,
-          kind: PaletteItemKind.command,
-          onSelect: () => unawaited(_handleOpenPluginManager()),
-        ),
+        // Beta: Plugin Manager is hidden from the activity bar and palette.
+        // Keep _handleOpenPluginManager / PluginManagerPage wired; restore this
+        // entry when SidebarPanel.plugins.showInActivityBar is turned back on.
+        // PaletteItem(
+        //   id: 'plugins.open',
+        //   title: 'Open Plugin Manager',
+        //   icon: Icons.extension_outlined,
+        //   kind: PaletteItemKind.command,
+        //   onSelect: () => unawaited(_handleOpenPluginManager()),
+        // ),
         PaletteItem(
           id: 'git.open',
           title: 'Open Source Control',
@@ -5343,6 +5350,27 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                           panel == SidebarPanel.insights ||
                                           panel == SidebarPanel.sourceControl) {
                                         _showEditorPage = false;
+                                      }
+                                      // Drop sticky center flags for panels that
+                                      // are not the one being selected — otherwise
+                                      // e.g. Insights keeps winning over Packages.
+                                      if (panel != SidebarPanel.insights) {
+                                        _showInsightsPage = false;
+                                      }
+                                      if (panel != SidebarPanel.packages) {
+                                        _showPackageManager = false;
+                                      }
+                                      if (panel != SidebarPanel.plugins) {
+                                        _showPluginManager = false;
+                                      }
+                                      if (panel != SidebarPanel.sourceControl) {
+                                        _showSourceControl = false;
+                                      }
+                                      if (panel != SidebarPanel.reports) {
+                                        _showReportsPage = false;
+                                      }
+                                      if (panel != SidebarPanel.doctor) {
+                                        _showDoctorPage = false;
                                       }
                                     }
                                   });

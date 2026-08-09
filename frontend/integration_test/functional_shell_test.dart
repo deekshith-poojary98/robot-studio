@@ -128,7 +128,7 @@ void main() {
       'Insights — project composition and run health',
       'Tests — browse, run, and track suites and tests',
       'Packages — install and manage Python packages',
-      'Plugins — built-in and project extensions',
+      // Plugins is intentionally omitted from the activity bar for beta.
       'Source Control — Git status, commit, and branches',
       'Reports — run history, logs, and HTML reports',
     ];
@@ -140,6 +140,10 @@ void main() {
         reason: 'Missing tooltip: $tooltip',
       );
     }
+    expect(
+      find.byTooltip('Plugins — built-in and project extensions'),
+      findsNothing,
+    );
 
     harness.expectNoFlutterErrors();
   });

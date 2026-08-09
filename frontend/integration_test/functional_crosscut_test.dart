@@ -71,7 +71,6 @@ void main() {
       'Source Control',
       'Reports',
       'Packages',
-      'Plugins',
       'Explorer',
     ];
     for (final panel in panels) {

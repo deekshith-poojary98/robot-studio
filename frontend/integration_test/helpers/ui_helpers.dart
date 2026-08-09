@@ -285,8 +285,13 @@ Future<void> openSourceControl(WidgetTester tester) async {
 }
 
 Future<void> openPluginManager(WidgetTester tester) async {
-  await tapSidebarPanel(tester, 'Plugins');
-  await pumpUntilFound(tester, find.text('Plugin Manager'));
+  // Beta: Plugins is hidden from the activity bar and command palette.
+  // Re-enable when showInActivityBar is true and the plugins.open palette
+  // entry is restored in app_shell.dart.
+  throw TestFailure(
+    'Plugin Manager UI is hidden for beta '
+    '(no activity-bar button or command-palette entry).',
+  );
 }
 
 Future<void> openReports(WidgetTester tester) async {

@@ -12,7 +12,9 @@ void main() {
   setUpAll(() async => harness.setUpAll());
   tearDownAll(() async => harness.tearDownAll());
 
-  testWidgets('repeated panel switching and project creation remains stable', (tester) async {
+  testWidgets('repeated panel switching and project creation remains stable', (
+    tester,
+  ) async {
     await harness.seedWorkspace(name: 'Regression A', suffix: 'reg-a');
     await harness.seedEnvironment(name: 'regression-env', installRobot: false);
 
@@ -21,7 +23,7 @@ void main() {
     for (var i = 0; i < 3; i++) {
       await tapSidebarPanel(tester, 'Explorer');
       await tapSidebarPanel(tester, 'Packages');
-      await tapSidebarPanel(tester, 'Plugins');
+      await tapSidebarPanel(tester, 'Source Control');
       await tapSidebarPanel(tester, 'Explorer');
       await createProjectViaUi(tester, name: 'Temp Project $i');
       await pumpUntilFound(tester, find.text('Temp Project $i'));
@@ -32,7 +34,10 @@ void main() {
 
   testWidgets('repeated execution and environment activation', (tester) async {
     await harness.seedWorkspace(name: 'Regression Exec', suffix: 'reg-exec');
-    await harness.seedEnvironment(name: 'regression-exec-env', installRobot: true);
+    await harness.seedEnvironment(
+      name: 'regression-exec-env',
+      installRobot: true,
+    );
     final project = await harness.seedProject(name: 'ExecProject');
     final suite = '${project['path']}/tests/regression.robot';
     await harness.api.writeFile(
@@ -40,7 +45,10 @@ void main() {
       content: '*** Test Cases ***\nR\n    Log    ok\n',
     );
 
-    await harness.launchAppWithWorkspace(tester, workspaceName: 'Regression Exec');
+    await harness.launchAppWithWorkspace(
+      tester,
+      workspaceName: 'Regression Exec',
+    );
 
     // Opening the workspace from the UI clears the backend project session.
     await harness.api.openProject(project['id'] as String);
