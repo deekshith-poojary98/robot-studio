@@ -18,7 +18,7 @@ export default defineConfig({
 					tag: 'link',
 					attrs: {
 						rel: 'icon',
-						href: '/favicon-32.png',
+						href: '/robot-studio/favicon-32.png',
 						type: 'image/png',
 						sizes: '32x32',
 					},
@@ -27,7 +27,7 @@ export default defineConfig({
 					tag: 'link',
 					attrs: {
 						rel: 'icon',
-						href: '/favicon-192.png',
+						href: '/robot-studio/favicon-192.png',
 						type: 'image/png',
 						sizes: '192x192',
 					},
@@ -36,7 +36,7 @@ export default defineConfig({
 					tag: 'link',
 					attrs: {
 						rel: 'apple-touch-icon',
-						href: '/apple-touch-icon.png',
+						href: '/robot-studio/apple-touch-icon.png',
 						sizes: '180x180',
 					},
 				},
