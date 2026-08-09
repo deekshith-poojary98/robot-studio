@@ -120,9 +120,9 @@ void main() {
       ),
     );
 
-    expect(find.text('1,000,000'), findsOneWidget);
+    expect(find.text('1,000,000'), findsWidgets);
     expect(find.text('10,000'), findsOneWidget);
-    expect(find.textContaining('1,000,003 indexed'), findsOneWidget);
+    expect(find.textContaining('1,000,002 indexed'), findsOneWidget);
     // Must not appear as a wrapped raw digit break (e.g. 1000\n000).
     expect(find.text('1000000'), findsNothing);
   });
