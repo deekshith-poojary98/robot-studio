@@ -42,15 +42,15 @@ Once you have executed suites, Run health shows:
 
 | Metric | Meaning |
 |--------|---------|
-| Pass rate | Share of counted runs that passed |
-| Avg duration | Mean wall time across runs with a duration |
-| Pass / Fail | Outcome totals for the project |
 | Pass/Fail streak | Consecutive matching outcomes from the latest run backward |
-| Duration trend | Recent runs as duration bars (color = outcome), oldest → newest |
+| Flaky files | Suites that both passed and failed across history (when any) |
+| Interrupted | Cancelled + aborted runs (when any) |
+| Last N | Pass rate over the newest few runs when it differs meaningfully from overall |
+| Duration trend | Recent runs as duration bars (color = outcome), oldest → newest; peak and average under the chart |
 | Last run | Outcome, suite, duration, and passed/failed/skipped counts in plain language |
 | Top failures | Suite files with the most failed runs (path variants are merged; click to open) |
 
-**View in Reports** jumps to the report browser for artifacts from those runs.
+Overall pass rate still appears in the headline strip above the panels.
 
 ## Files table
 

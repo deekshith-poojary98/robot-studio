@@ -324,6 +324,35 @@ void main() {
     );
 
     expect(find.byTooltip('Settings'), findsNothing);
+    expect(find.byTooltip('User Guide'), findsNothing);
     expect(find.byTooltip(SidebarPanel.explorer.tooltip), findsOneWidget);
+  });
+
+  testWidgets('sidebar logo toggles side bar and Help opens docs', (
+    tester,
+  ) async {
+    var toggled = 0;
+    var helpOpened = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppSidebar(
+            activePanel: SidebarPanel.explorer,
+            onPanelSelected: (_) {},
+            onToggleSidebar: () => toggled++,
+            onOpenHelp: () => helpOpened++,
+            onSettings: () {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.bySemanticsLabel(RegExp(r'Toggle Side Bar')));
+    expect(toggled, 1);
+
+    await tester.tap(find.byTooltip('User Guide'));
+    expect(helpOpened, 1);
+    expect(find.byTooltip('Settings (⌘,)'), findsOneWidget);
   });
 }

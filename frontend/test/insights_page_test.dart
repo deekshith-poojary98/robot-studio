@@ -78,7 +78,6 @@ void main() {
             ),
             isLoading: false,
             onRefresh: () {},
-            onOpenReports: () {},
           ),
         ),
       ),
@@ -88,9 +87,14 @@ void main() {
     expect(find.text('12'), findsWidgets);
     expect(find.text('70%'), findsWidgets);
     expect(find.text('demo.robot'), findsWidgets);
-    expect(find.text('View in Reports'), findsOneWidget);
+    expect(find.text('View in Reports'), findsNothing);
     expect(find.text('Run health'), findsOneWidget);
-    expect(find.text('Pass rate'), findsOneWidget);
+    expect(find.text('Pass rate'), findsNothing);
+    expect(find.text('Failed'), findsNothing);
+    expect(find.text('Avg duration'), findsNothing);
+    expect(find.textContaining('streak'), findsWidgets);
+    expect(find.text('Flaky files'), findsOneWidget);
+    expect(find.text('Interrupted'), findsOneWidget);
     expect(find.text('DURATION TREND'), findsOneWidget);
     expect(find.text('LAST RUN'), findsOneWidget);
     expect(find.textContaining('4 passed'), findsOneWidget);

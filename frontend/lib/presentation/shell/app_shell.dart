@@ -5785,7 +5785,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onRefresh: () => unawaited(_loadInsights()),
         onRebuildIndex: () => unawaited(_rebuildIndex()),
         onOpenFile: (path) => unawaited(_openFile(path)),
-        onOpenReports: () => unawaited(_openReports()),
       ),
       _CenterView.editor => EditorPage(
         key: _editorPageKey,

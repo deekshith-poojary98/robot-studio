@@ -14,7 +14,6 @@ class InsightsPage extends StatelessWidget {
     this.onRefresh,
     this.onRebuildIndex,
     this.onOpenFile,
-    this.onOpenReports,
   });
 
   final InsightsInfo? insights;
@@ -22,7 +21,6 @@ class InsightsPage extends StatelessWidget {
   final VoidCallback? onRefresh;
   final VoidCallback? onRebuildIndex;
   final ValueChanged<String>? onOpenFile;
-  final VoidCallback? onOpenReports;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +98,6 @@ class InsightsPage extends StatelessWidget {
                               child: _RunHealthPanel(
                                 data: data,
                                 failing: failing,
-                                onOpenReports: onOpenReports,
                                 onOpenFile: onOpenFile,
                               ),
                             ),
@@ -118,7 +115,6 @@ class InsightsPage extends StatelessWidget {
                           _RunHealthPanel(
                             data: data,
                             failing: failing,
-                            onOpenReports: onOpenReports,
                             onOpenFile: onOpenFile,
                           ),
                         ],
@@ -851,13 +847,11 @@ class _RunHealthPanel extends StatelessWidget {
   const _RunHealthPanel({
     required this.data,
     required this.failing,
-    this.onOpenReports,
     this.onOpenFile,
   });
 
   final InsightsInfo data;
   final List<InsightsFileRuns> failing;
-  final VoidCallback? onOpenReports;
   final ValueChanged<String>? onOpenFile;
 
   @override
@@ -869,19 +863,22 @@ class _RunHealthPanel extends StatelessWidget {
     final maxDuration = chronological
         .map((r) => r.durationMs ?? 0)
         .fold<int>(0, (m, v) => v > m ? v : m);
+    final flakyFileCount = data.runFiles
+        .where((f) => f.passed > 0 && f.failed > 0)
+        .length;
+    final interrupted = runs.cancelled + runs.aborted;
+    final recentWindow = recent.take(5).toList();
+    final recentFails = recentWindow
+        .where(
+          (r) => (r.outcome.isEmpty ? r.status.label : r.outcome) == 'FAIL',
+        )
+        .length;
+    final recentPassRate = recentWindow.isEmpty
+        ? null
+        : ((recentWindow.length - recentFails) / recentWindow.length) * 100;
 
     return _Panel(
       title: 'Run health',
-      trailing: onOpenReports == null
-          ? null
-          : TextButton(
-              onPressed: onOpenReports,
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-              ),
-              child: const Text('View in Reports'),
-            ),
       child: !data.hasRuns
           ? Text(
               'No runs yet. Execute a suite to unlock pass/fail trends and per-file health.',
@@ -890,7 +887,14 @@ class _RunHealthPanel extends StatelessWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _HealthMetricGrid(runs: runs, streak: streak),
+                _HealthMetricGrid(
+                  runs: runs,
+                  streak: streak,
+                  flakyFileCount: flakyFileCount,
+                  interrupted: interrupted,
+                  recentPassRate: recentPassRate,
+                  recentWindowSize: recentWindow.length,
+                ),
                 const SizedBox(height: AppSpacing.md),
                 _OutcomeShareBar(runs: runs),
                 if (chronological.isNotEmpty) ...[
@@ -980,75 +984,78 @@ class _SectionLabel extends StatelessWidget {
 }
 
 class _HealthMetricGrid extends StatelessWidget {
-  const _HealthMetricGrid({required this.runs, required this.streak});
+  const _HealthMetricGrid({
+    required this.runs,
+    required this.streak,
+    required this.flakyFileCount,
+    required this.interrupted,
+    this.recentPassRate,
+    this.recentWindowSize = 0,
+  });
 
   final InsightsRunTotals runs;
   final _RunStreak streak;
+  final int flakyFileCount;
+  final int interrupted;
+  final double? recentPassRate;
+  final int recentWindowSize;
 
   @override
   Widget build(BuildContext context) {
-    final passColor = (runs.passRate ?? 0) >= 80
-        ? context.palette.success
-        : (runs.passRate ?? 0) >= 50
-        ? context.palette.warning
-        : context.palette.error;
+    final tiles = <Widget>[
+      _MetricTile(
+        label: streak.label,
+        value: streak.count == 0 ? '—' : '${streak.count}',
+        valueColor: streak.count == 0
+            ? null
+            : streak.isPass
+            ? context.palette.success
+            : context.palette.error,
+        subtitle: 'consecutive outcomes',
+      ),
+    ];
+    if (flakyFileCount > 0) {
+      tiles.add(
+        _MetricTile(
+          label: 'Flaky files',
+          value: '$flakyFileCount',
+          valueColor: context.palette.warning,
+          subtitle: 'passed and failed',
+        ),
+      );
+    }
+    if (interrupted > 0) {
+      tiles.add(
+        _MetricTile(
+          label: 'Interrupted',
+          value: '$interrupted',
+          valueColor: context.palette.warning,
+          subtitle: 'cancelled / aborted',
+        ),
+      );
+    }
+    final recent = recentPassRate;
+    if (recent != null &&
+        recentWindowSize >= 3 &&
+        runs.passRate != null &&
+        (recent - runs.passRate!).abs() >= 8) {
+      final better = recent > runs.passRate!;
+      tiles.add(
+        _MetricTile(
+          label: 'Last $recentWindowSize',
+          value: '${recent.toStringAsFixed(0)}%',
+          valueColor: better ? context.palette.success : context.palette.error,
+          subtitle: better ? 'above overall' : 'below overall',
+        ),
+      );
+    }
 
-    return Column(
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _MetricTile(
-                label: 'Pass rate',
-                value: runs.passRateLabel,
-                valueColor: passColor,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _MetricTile(
-                label: 'Avg duration',
-                value: runs.averageDurationLabel,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _MetricTile(label: 'Runs', value: '${runs.total}'),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Row(
-          children: [
-            Expanded(
-              child: _MetricTile(
-                label: 'Pass',
-                value: '${runs.passed}',
-                valueColor: runs.passed > 0 ? context.palette.success : null,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _MetricTile(
-                label: 'Fail',
-                value: '${runs.failed}',
-                valueColor: runs.failed > 0 ? context.palette.error : null,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _MetricTile(
-                label: streak.label,
-                value: streak.count == 0 ? '—' : '${streak.count}',
-                valueColor: streak.count == 0
-                    ? null
-                    : streak.isPass
-                    ? context.palette.success
-                    : context.palette.error,
-              ),
-            ),
-          ],
-        ),
+        for (var i = 0; i < tiles.length; i++) ...[
+          if (i > 0) const SizedBox(width: AppSpacing.sm),
+          Expanded(child: tiles[i]),
+        ],
       ],
     );
   }
@@ -1059,45 +1066,63 @@ class _MetricTile extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor,
+    this.subtitle,
   });
 
   final String label;
   final String value;
   final Color? valueColor;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: context.palette.surfaceElevated,
-        borderRadius: BorderRadius.circular(AppRadii.xs),
-        border: Border.all(color: context.palette.borderSubtle),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 10, color: context.palette.textMuted),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                height: 1.15,
-                fontFeatures: const [FontFeature.tabularFigures()],
-                color: valueColor ?? context.palette.textPrimary,
+    return SizedBox(
+      height: 68,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: context.palette.surfaceElevated,
+          borderRadius: BorderRadius.circular(AppRadii.xs),
+          border: Border.all(color: context.palette.borderSubtle),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: context.palette.textMuted,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  height: 1.15,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: valueColor ?? context.palette.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                subtitle ?? ' ',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: context.palette.textMuted,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
