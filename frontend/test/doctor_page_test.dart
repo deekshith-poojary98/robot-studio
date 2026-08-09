@@ -84,7 +84,8 @@ class _DoctorGateway implements TransportGateway {
         DoctorRecommendation(
           rank: 1,
           findingId: 'f1',
-          reason: 'Critical correctness / dependency issue — fix before shipping.',
+          reason:
+              'Critical correctness / dependency issue — fix before shipping.',
           finding: DoctorFinding(
             id: 'f1',
             inspectionId: 'missing_import',
@@ -101,8 +102,43 @@ class _DoctorGateway implements TransportGateway {
       ],
       executionSnapshot: const DoctorExecutionSnapshot(
         projectId: 'p1',
-        linkedRuns: 0,
+        linkedRuns: 4,
       ),
+    );
+  }
+}
+
+class _DoctorGatewayWithTrend extends _DoctorGateway {
+  @override
+  Future<DoctorReport> runDoctor({
+    String profile = 'default',
+    String? projectId,
+    List<String>? providerIds,
+  }) async {
+    final base = await super.runDoctor(profile: profile);
+    return DoctorReport(
+      id: base.id,
+      projectId: base.projectId,
+      profile: base.profile,
+      createdAt: base.createdAt,
+      graphVersion: base.graphVersion,
+      summary: DoctorHealthSummary(
+        totalFindings: base.summary.totalFindings,
+        bySeverity: base.summary.bySeverity,
+        byCategory: base.summary.byCategory,
+        criticalIssues: base.summary.criticalIssues,
+        improvementTrend: const DoctorImprovementTrend(
+          previousReportId: 'prev',
+          previousTotal: 3,
+          previousCritical: 2,
+          deltaTotal: -2,
+          deltaCritical: -1,
+        ),
+      ),
+      findings: base.findings,
+      grouped: base.grouped,
+      topRecommendations: base.topRecommendations,
+      executionSnapshot: base.executionSnapshot,
     );
   }
 }
@@ -127,23 +163,43 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Robot Doctor'), findsOneWidget);
-    expect(find.textContaining('Project Health Center'), findsOneWidget);
+    expect(find.textContaining('Find project problems ranked'), findsOneWidget);
     expect(find.text('Fix first'), findsOneWidget);
     expect(find.textContaining('Unresolved import'), findsWidgets);
-    expect(find.textContaining('Dependencies'), findsWidgets);
+    expect(find.textContaining('Imports & libraries'), findsWidgets);
     expect(find.text('ERROR'), findsWidgets);
-    expect(find.text('low'), findsWidgets);
+    expect(find.text('GRAPH'), findsNothing);
+    expect(find.text('LINKED RUNS'), findsNothing);
+    expect(find.text('FINDINGS'), findsOneWidget);
+    expect(
+      find.textContaining('Includes lessons from 4 past test runs'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.textContaining('Unresolved import').first);
     await tester.pumpAndSettle();
 
     expect(find.text('Why is this reported?'), findsOneWidget);
     expect(find.textContaining('could not be resolved'), findsOneWidget);
+    expect(find.textContaining('Confidence: low'), findsOneWidget);
     expect(find.text('Jump to source'), findsOneWidget);
     expect(find.text('Quick Fix'), findsNothing);
 
     await tester.tap(find.text('Jump to source'));
     await tester.pumpAndSettle();
     expect(jumped, 'tests/login.robot');
+  });
+
+  testWidgets('Doctor summary uses plain-language trend', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: DoctorPage(gateway: _DoctorGatewayWithTrend())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('SINCE LAST SCAN'), findsOneWidget);
+    expect(find.text('2 fewer'), findsOneWidget);
+    expect(find.text('GRAPH'), findsNothing);
   });
 }

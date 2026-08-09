@@ -242,7 +242,7 @@ class _DoctorPageState extends State<DoctorPage> {
                         ? 'Looking healthy'
                         : 'No matching findings',
                     message: _report!.findings.isEmpty
-                        ? 'Doctor found nothing for this profile. Try Full to include execution knowledge.'
+                        ? 'Nothing to fix for this profile. Try Full to also check patterns from past runs.'
                         : 'Adjust filters or search to see more findings.',
                   )
                 : _FindingsList(
@@ -298,7 +298,7 @@ class _Header extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Project Health Center — what should you fix first?',
+                  'Find project problems ranked by what to fix first.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -359,7 +359,7 @@ class _HealthSummaryStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = report.summary;
     final trend = s.improvementTrend;
-    final exec = report.executionSnapshot;
+    final linkedRuns = report.executionSnapshot?.linkedRuns ?? 0;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -367,50 +367,59 @@ class _HealthSummaryStrip extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadii.md),
         border: Border.all(color: context.palette.borderSubtle),
       ),
-      child: Wrap(
-        spacing: AppSpacing.lg,
-        runSpacing: AppSpacing.sm,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _StatChip(label: 'Findings', value: '${s.totalFindings}'),
-          _StatChip(
-            label: 'Critical',
-            value: '${s.criticalIssues}',
-            emphasize: s.criticalIssues > 0,
+          Wrap(
+            spacing: AppSpacing.lg,
+            runSpacing: AppSpacing.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _StatChip(label: 'Findings', value: '${s.totalFindings}'),
+              _StatChip(
+                label: 'Critical',
+                value: '${s.criticalIssues}',
+                emphasize: s.criticalIssues > 0,
+              ),
+              _StatChip(
+                label: 'Errors',
+                value: '${s.bySeverity['error'] ?? 0}',
+              ),
+              _StatChip(
+                label: 'Warnings',
+                value: '${s.bySeverity['warning'] ?? 0}',
+              ),
+              if (trend != null)
+                _StatChip(
+                  label: 'Since last scan',
+                  value: _trendLabel(trend),
+                  emphasize: trend.improved || trend.deltaTotal > 0,
+                  positive: trend.improved,
+                ),
+            ],
           ),
-          _StatChip(label: 'Errors', value: '${s.bySeverity['error'] ?? 0}'),
-          _StatChip(
-            label: 'Warnings',
-            value: '${s.bySeverity['warning'] ?? 0}',
-          ),
-          _StatChip(
-            label: 'Graph',
-            value: report.graphVersion.isEmpty
-                ? '—'
-                : report.graphVersion.length > 8
-                ? report.graphVersion.substring(0, 8)
-                : report.graphVersion,
-          ),
-          if (exec != null)
-            _StatChip(label: 'Linked runs', value: '${exec.linkedRuns}'),
-          if (trend != null)
-            _StatChip(
-              label: 'Trend',
-              value: trend.deltaTotal == 0
-                  ? 'unchanged'
-                  : trend.deltaTotal < 0
-                  ? '${trend.deltaTotal} vs last'
-                  : '+${trend.deltaTotal} vs last',
-              emphasize: trend.improved,
-              positive: trend.improved,
+          if (linkedRuns > 0) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Includes lessons from $linkedRuns past test run${linkedRuns == 1 ? '' : 's'}.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
             ),
-          ...s.byCategory.entries.map(
-            (e) => _StatChip(label: _categoryLabel(e.key), value: '${e.value}'),
-          ),
+          ],
         ],
       ),
     );
   }
+}
+
+String _trendLabel(DoctorImprovementTrend trend) {
+  if (trend.deltaTotal == 0) return 'Same findings';
+  if (trend.deltaTotal < 0) {
+    final n = -trend.deltaTotal;
+    return '$n fewer';
+  }
+  return '${trend.deltaTotal} more';
 }
 
 class _StatChip extends StatelessWidget {
@@ -696,6 +705,15 @@ class _FindingsList extends StatelessWidget {
                 '${_categoryLabel(category)} (${findings.length})',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
+              if (_categoryHint(category) != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  _categoryHint(category)!,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.palette.textMuted,
+                  ),
+                ),
+              ],
               const SizedBox(height: AppSpacing.sm),
               ...findings.map(
                 (f) => _FindingTile(
@@ -752,8 +770,6 @@ class _FindingTile extends StatelessWidget {
                   children: [
                     _SeverityBadge(severity: finding.severity),
                     const SizedBox(width: AppSpacing.sm),
-                    _ConfidenceBadge(confidence: finding.confidence),
-                    const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Text(
                         finding.message,
@@ -782,9 +798,16 @@ class _FindingTile extends StatelessWidget {
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     finding.rationale.isEmpty
-                        ? 'No additional rationale from the provider.'
+                        ? 'No additional detail from this check.'
                         : finding.rationale,
                     style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    _confidenceExplanation(finding.confidence),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.palette.textMuted,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Wrap(
@@ -846,41 +869,36 @@ class _SeverityBadge extends StatelessWidget {
   }
 }
 
-class _ConfidenceBadge extends StatelessWidget {
-  const _ConfidenceBadge({required this.confidence});
-
-  final String confidence;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: context.palette.accentSoft,
-        borderRadius: BorderRadius.circular(AppRadii.xs),
-        border: Border.all(
-          color: context.palette.accentMuted.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Text(
-        confidence,
-        style: Theme.of(
-          context,
-        ).textTheme.labelSmall?.copyWith(color: context.palette.accent),
-      ),
-    );
-  }
+String _confidenceExplanation(String confidence) {
+  return switch (confidence.toLowerCase()) {
+    'high' => 'Confidence: high — this check is usually reliable.',
+    'medium' => 'Confidence: medium — worth verifying before a big change.',
+    'low' => 'Confidence: low — double-check; this can be a false alarm.',
+    _ => 'Confidence: $confidence',
+  };
 }
 
 String _categoryLabel(String category) {
   return switch (category) {
     'correctness' => 'Correctness',
-    'maintainability' => 'Maintainability',
-    'performance' => 'Performance',
-    'dependencies' => 'Dependencies',
-    'execution' => 'Execution',
+    'maintainability' => 'Structure',
+    'performance' => 'Slow tests',
+    'dependencies' => 'Imports & libraries',
+    'execution' => 'From past runs',
     'style' => 'Style',
     _ => category,
+  };
+}
+
+String? _categoryHint(String category) {
+  return switch (category) {
+    'correctness' => 'Can make tests fail or behave wrongly.',
+    'maintainability' => 'Harder to maintain — not necessarily broken today.',
+    'performance' => 'Suites or keywords that look unusually slow.',
+    'dependencies' => 'Missing resources, libraries, or imports.',
+    'execution' => 'Patterns from your recent runs (flaky, failing, …).',
+    'style' => 'Conventions and readability.',
+    _ => null,
   };
 }
 
