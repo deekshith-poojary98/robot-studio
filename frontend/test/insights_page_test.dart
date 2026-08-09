@@ -50,8 +50,20 @@ void main() {
                 InsightsRecentRun(
                   id: '1',
                   suite: '/proj/tests/demo.robot',
-                  startedAt: DateTime.utc(2026, 8, 9),
+                  startedAt: DateTime.utc(2026, 8, 9, 12),
+                  durationMs: 1200,
+                  passed: 4,
+                  failed: 0,
                   outcome: 'PASS',
+                ),
+                InsightsRecentRun(
+                  id: '2',
+                  suite: '/proj/tests/demo.robot',
+                  startedAt: DateTime.utc(2026, 8, 9, 11),
+                  durationMs: 2400,
+                  passed: 3,
+                  failed: 1,
+                  outcome: 'FAIL',
                 ),
               ],
               runFiles: const [
@@ -74,9 +86,12 @@ void main() {
 
     expect(find.text('Composition'), findsOneWidget);
     expect(find.text('12'), findsWidgets);
-    expect(find.text('70%'), findsOneWidget);
+    expect(find.text('70%'), findsWidgets);
     expect(find.text('demo.robot'), findsWidgets);
     expect(find.text('View in Reports'), findsOneWidget);
     expect(find.text('Run health'), findsOneWidget);
+    expect(find.text('Pass rate'), findsOneWidget);
+    expect(find.text('DURATION TREND'), findsOneWidget);
+    expect(find.text('LAST RUN'), findsOneWidget);
   });
 }

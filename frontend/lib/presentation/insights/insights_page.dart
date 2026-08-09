@@ -476,6 +476,15 @@ class _RunHealthPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final runs = data.runs;
+    final recent = data.recentRuns;
+    final chronological = recent.reversed.toList();
+    final streak = _outcomeStreak(recent);
+    final maxDuration = chronological
+        .map((r) => r.durationMs ?? 0)
+        .fold<int>(0, (m, v) => v > m ? v : m);
+    final testsPassed = recent.fold<int>(0, (s, r) => s + (r.passed ?? 0));
+    final testsFailed = recent.fold<int>(0, (s, r) => s + (r.failed ?? 0));
+
     return _Panel(
       title: 'Run health',
       trailing: onOpenReports == null
@@ -496,12 +505,28 @@ class _RunHealthPanel extends StatelessWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _OutcomeStatRow(runs: runs),
+                _HealthMetricGrid(
+                  runs: runs,
+                  testsPassed: testsPassed,
+                  testsFailed: testsFailed,
+                  streak: streak,
+                ),
                 const SizedBox(height: AppSpacing.md),
                 _OutcomeShareBar(runs: runs),
-                if (data.recentRuns.isNotEmpty) ...[
+                if (chronological.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.lg),
-                  _SectionLabel('Recent'),
+                  Row(
+                    children: [
+                      const Expanded(child: _SectionLabel('Duration trend')),
+                      Text(
+                        'last ${chronological.length} · oldest → newest',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: context.palette.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   DecoratedBox(
                     decoration: BoxDecoration(
@@ -509,23 +534,37 @@ class _RunHealthPanel extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadii.xs),
                       border: Border.all(color: context.palette.borderSubtle),
                     ),
-                    child: SizedBox(
-                      height: 36,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm,
-                          vertical: AppSpacing.xs,
-                        ),
-                        child: _OutcomeSparkline(runs: data.recentRuns),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            height: 88,
+                            child: _DurationTrendChart(runs: chronological),
+                          ),
+                          if (maxDuration > 0) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Peak ${_formatDurationMs(maxDuration)} · avg ${runs.averageDurationLabel}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: context.palette.textMuted,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
+                  const SizedBox(height: AppSpacing.md),
+                  const _SectionLabel('Last run'),
                   const SizedBox(height: AppSpacing.sm),
-                  _LastRunLine(run: data.recentRuns.first),
+                  _LastRunCard(run: recent.first),
                 ],
                 if (failing.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.lg),
-                  _SectionLabel('Top failures'),
+                  const _SectionLabel('Top failures'),
                   const SizedBox(height: AppSpacing.xs),
                   for (final file in failing)
                     _FailingFileRow(
@@ -560,58 +599,164 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _OutcomeStatRow extends StatelessWidget {
-  const _OutcomeStatRow({required this.runs});
+class _HealthMetricGrid extends StatelessWidget {
+  const _HealthMetricGrid({
+    required this.runs,
+    required this.testsPassed,
+    required this.testsFailed,
+    required this.streak,
+  });
 
   final InsightsRunTotals runs;
+  final int testsPassed;
+  final int testsFailed;
+  final _RunStreak streak;
 
   @override
   Widget build(BuildContext context) {
-    final cells = <(String, int, Color)>[
-      ('Pass', runs.passed, context.palette.success),
-      ('Fail', runs.failed, context.palette.error),
-      ('Cancel', runs.cancelled, context.palette.warning),
-      ('Abort', runs.aborted, context.palette.textMuted),
-    ];
-    return Row(
+    final passColor = (runs.passRate ?? 0) >= 80
+        ? context.palette.success
+        : (runs.passRate ?? 0) >= 50
+            ? context.palette.warning
+            : context.palette.error;
+
+    return Column(
       children: [
-        for (var i = 0; i < cells.length; i++) ...[
-          if (i > 0)
-            Container(
-              width: 1,
-              height: 36,
-              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-              color: context.palette.borderSubtle,
+        Row(
+          children: [
+            Expanded(
+              child: _MetricTile(
+                label: 'Pass rate',
+                value: runs.passRateLabel,
+                valueColor: passColor,
+              ),
             ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  cells[i].$1,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: context.palette.textMuted,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${cells[i].$2}',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    height: 1.1,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                    color: cells[i].$2 > 0
-                        ? cells[i].$3
-                        : context.palette.textSecondary,
-                  ),
-                ),
-              ],
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _MetricTile(
+                label: 'Avg duration',
+                value: runs.averageDurationLabel,
+              ),
             ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _MetricTile(label: 'Runs', value: '${runs.total}'),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: _MetricTile(
+                label: 'Pass',
+                value: '${runs.passed}',
+                valueColor: runs.passed > 0 ? context.palette.success : null,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _MetricTile(
+                label: 'Fail',
+                value: '${runs.failed}',
+                valueColor: runs.failed > 0 ? context.palette.error : null,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _MetricTile(
+                label: streak.label,
+                value: streak.count == 0 ? '—' : '${streak.count}',
+                valueColor: streak.count == 0
+                    ? null
+                    : streak.isPass
+                        ? context.palette.success
+                        : context.palette.error,
+              ),
+            ),
+          ],
+        ),
+        if (testsPassed + testsFailed + runs.skippedTests > 0) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            _testsSummary(
+              testsPassed: testsPassed,
+              testsFailed: testsFailed,
+              skipped: runs.skippedTests,
+              cancelled: runs.cancelled,
+              aborted: runs.aborted,
+            ),
+            style: TextStyle(fontSize: 11, color: context.palette.textMuted),
           ),
         ],
       ],
+    );
+  }
+
+  static String _testsSummary({
+    required int testsPassed,
+    required int testsFailed,
+    required int skipped,
+    required int cancelled,
+    required int aborted,
+  }) {
+    final parts = <String>[];
+    if (testsPassed + testsFailed > 0) {
+      parts.add('$testsPassed pass / $testsFailed fail tests (recent)');
+    }
+    if (skipped > 0) parts.add('$skipped skipped');
+    if (cancelled > 0) parts.add('$cancelled cancelled');
+    if (aborted > 0) parts.add('$aborted aborted');
+    return parts.join(' · ');
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: context.palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadii.xs),
+        border: Border.all(color: context.palette.borderSubtle),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 10, color: context.palette.textMuted),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                height: 1.15,
+                fontFeatures: const [FontFeature.tabularFigures()],
+                color: valueColor ?? context.palette.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -623,47 +768,35 @@ class _OutcomeShareBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final segments = <(int, Color, String)>[
-      (runs.passed, context.palette.success, 'Pass'),
-      (runs.failed, context.palette.error, 'Fail'),
-      (runs.cancelled, context.palette.warning, 'Cancel'),
-      (runs.aborted, context.palette.textMuted, 'Abort'),
+    final segments = <(int, Color)>[
+      (runs.passed, context.palette.success),
+      (runs.failed, context.palette.error),
+      (runs.cancelled, context.palette.warning),
+      (runs.aborted, context.palette.textMuted),
     ].where((s) => s.$1 > 0).toList();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadii.xs),
-          child: SizedBox(
-            height: 10,
-            child: segments.isEmpty
-                ? ColoredBox(color: context.palette.surfaceElevated)
-                : Row(
-                    children: [
-                      for (final segment in segments)
-                        Expanded(
-                          flex: segment.$1,
-                          child: ColoredBox(color: segment.$2),
-                        ),
-                    ],
-                  ),
-          ),
-        ),
-        if (runs.skippedTests > 0) ...[
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            '${runs.skippedTests} skipped tests',
-            style: TextStyle(fontSize: 11, color: context.palette.textMuted),
-          ),
-        ],
-      ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadii.xs),
+      child: SizedBox(
+        height: 6,
+        child: segments.isEmpty
+            ? ColoredBox(color: context.palette.surfaceElevated)
+            : Row(
+                children: [
+                  for (final segment in segments)
+                    Expanded(
+                      flex: segment.$1,
+                      child: ColoredBox(color: segment.$2),
+                    ),
+                ],
+              ),
+      ),
     );
   }
 }
 
-class _LastRunLine extends StatelessWidget {
-  const _LastRunLine({required this.run});
+class _LastRunCard extends StatelessWidget {
+  const _LastRunCard({required this.run});
 
   final InsightsRecentRun run;
 
@@ -671,46 +804,77 @@ class _LastRunLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = run.suite.replaceAll('\\', '/').split('/').last;
     final outcome = run.outcome.isEmpty ? run.status.label : run.outcome;
-    final color = switch (outcome.toUpperCase()) {
-      'PASS' => context.palette.success,
-      'FAIL' => context.palette.error,
-      'CANCELLED' => context.palette.warning,
-      'ABORTED' => context.palette.textMuted,
-      _ => context.palette.textSecondary,
-    };
-    return Row(
-      children: [
-        Text(
-          'Last',
-          style: TextStyle(fontSize: 11, color: context.palette.textMuted),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: AppSpacing.xs),
-        Text(
-          outcome,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: color,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Flexible(
-          child: Text(
-            name.isEmpty ? run.id : name,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12,
-              color: context.palette.textSecondary,
+    final color = _outcomeColor(context, outcome);
+    final tests = <String>[];
+    if (run.passed != null) tests.add('${run.passed}p');
+    if (run.failed != null) tests.add('${run.failed}f');
+    if ((run.skipped ?? 0) > 0) tests.add('${run.skipped}s');
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: context.palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadii.xs),
+        border: Border.all(color: context.palette.borderSubtle),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
-          ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              outcome,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Flexible(
+              child: Text(
+                name.isEmpty ? run.id : name,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: context.palette.textPrimary,
+                ),
+              ),
+            ),
+            if (run.durationMs != null) ...[
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                _formatDurationMs(run.durationMs!),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: context.palette.textSecondary,
+                ),
+              ),
+            ],
+            if (tests.isNotEmpty) ...[
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                tests.join(' '),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: context.palette.textMuted,
+                ),
+              ),
+            ],
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              _relativeTime(run.startedAt),
+              style: TextStyle(fontSize: 11, color: context.palette.textMuted),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -731,6 +895,8 @@ class _FailingFileRowState extends State<_FailingFileRow> {
   @override
   Widget build(BuildContext context) {
     final name = widget.file.filePath.replaceAll('\\', '/').split('/').last;
+    final rate =
+        widget.file.runs <= 0 ? 0.0 : widget.file.failed / widget.file.runs;
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -743,7 +909,7 @@ class _FailingFileRowState extends State<_FailingFileRow> {
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.xs,
-              vertical: AppSpacing.xs,
+              vertical: 6,
             ),
             child: Row(
               children: [
@@ -757,20 +923,32 @@ class _FailingFileRowState extends State<_FailingFileRow> {
                     ),
                   ),
                 ),
+                SizedBox(
+                  width: 56,
+                  height: 4,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: Stack(
+                      children: [
+                        ColoredBox(
+                          color: context.palette.surfaceElevated,
+                          child: const SizedBox.expand(),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: rate.clamp(0.0, 1.0),
+                          child: ColoredBox(color: context.palette.error),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
                 Text(
-                  '${widget.file.failed}',
+                  '${widget.file.failed}/${widget.file.runs}',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: context.palette.error,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-                Text(
-                  ' / ${widget.file.runs}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: context.palette.textMuted,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
@@ -1067,75 +1245,206 @@ class _FileDataRowState extends State<_FileDataRow> {
   }
 }
 
-class _OutcomeSparkline extends StatelessWidget {
-  const _OutcomeSparkline({required this.runs});
+class _DurationTrendChart extends StatelessWidget {
+  const _DurationTrendChart({required this.runs});
 
   final List<InsightsRecentRun> runs;
 
   @override
   Widget build(BuildContext context) {
-    final ordered = runs.reversed.toList();
+    final p = context.palette;
     return CustomPaint(
-      painter: _SparklinePainter(
-        outcomes: ordered.map((r) => r.outcome).toList(),
-        pass: context.palette.success,
-        fail: context.palette.error,
-        cancel: context.palette.warning,
-        abort: context.palette.textMuted,
-        track: context.palette.surfaceElevated,
+      painter: _DurationTrendPainter(
+        runs: runs,
+        pass: p.success,
+        fail: p.error,
+        cancel: p.warning,
+        abort: p.textMuted,
+        grid: p.borderSubtle,
+        label: p.textMuted,
+        fallback: p.accent,
       ),
       child: const SizedBox.expand(),
     );
   }
 }
 
-class _SparklinePainter extends CustomPainter {
-  _SparklinePainter({
-    required this.outcomes,
+class _DurationTrendPainter extends CustomPainter {
+  _DurationTrendPainter({
+    required this.runs,
     required this.pass,
     required this.fail,
     required this.cancel,
     required this.abort,
-    required this.track,
+    required this.grid,
+    required this.label,
+    required this.fallback,
   });
 
-  final List<String> outcomes;
+  final List<InsightsRecentRun> runs;
   final Color pass;
   final Color fail;
   final Color cancel;
   final Color abort;
-  final Color track;
+  final Color grid;
+  final Color label;
+  final Color fallback;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (outcomes.isEmpty) return;
-    final n = outcomes.length;
-    final slot = size.width / n;
-    final barW = (slot * 0.58).clamp(3.0, 10.0);
-    final barH = size.height;
+    if (runs.isEmpty) return;
+
+    const leftGutter = 34.0;
+    final chartW = size.width - leftGutter;
+    final chartH = size.height;
+    final maxMs = runs
+        .map((r) => r.durationMs ?? 0)
+        .fold<int>(0, (m, v) => v > m ? v : m);
+    final hasDuration = maxMs > 0;
+    final scaleMax = hasDuration ? maxMs.toDouble() : 1.0;
+
+    final gridPaint = Paint()
+      ..color = grid
+      ..strokeWidth = 1;
+    for (final t in [0.0, 0.5, 1.0]) {
+      final y = chartH - t * chartH;
+      canvas.drawLine(Offset(leftGutter, y), Offset(size.width, y), gridPaint);
+    }
+
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    void drawY(String text, double y) {
+      tp.text = TextSpan(
+        text: text,
+        style: TextStyle(fontSize: 9, color: label),
+      );
+      tp.layout(maxWidth: leftGutter - 4);
+      tp.paint(canvas, Offset(0, (y - tp.height / 2).clamp(0.0, chartH - tp.height)));
+    }
+
+    if (hasDuration) {
+      drawY(_formatDurationMs(maxMs), 0);
+      drawY(_formatDurationMs(maxMs ~/ 2), chartH / 2);
+      drawY('0', chartH);
+    } else {
+      drawY('n/a', chartH / 2);
+    }
+
+    final n = runs.length;
+    final slot = chartW / n;
+    final barW = (slot * 0.62).clamp(3.0, 14.0);
+    final linePoints = <Offset>[];
+
     for (var i = 0; i < n; i++) {
-      final outcome = outcomes[i];
-      final color = switch (outcome) {
+      final run = runs[i];
+      final ms = run.durationMs;
+      final frac = hasDuration
+          ? ((ms ?? scaleMax * 0.18) / scaleMax).clamp(0.08, 1.0)
+          : 0.55;
+      final barH = frac * chartH;
+      final x = leftGutter + i * slot + (slot - barW) / 2;
+      final y = chartH - barH;
+      final color = switch (run.outcome.toUpperCase()) {
         'PASS' => pass,
         'FAIL' => fail,
         'CANCELLED' => cancel,
         'ABORTED' => abort,
-        _ => track,
+        _ => fallback,
       };
-      final x = i * slot + (slot - barW) / 2;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, 0, barW, barH),
+          Rect.fromLTWH(x, y, barW, barH),
           const Radius.circular(2),
         ),
-        Paint()..color = color,
+        Paint()..color = color.withValues(alpha: 0.85),
       );
+      linePoints.add(Offset(x + barW / 2, y));
+    }
+
+    if (hasDuration && linePoints.length >= 2) {
+      final path = Path()..moveTo(linePoints.first.dx, linePoints.first.dy);
+      for (var i = 1; i < linePoints.length; i++) {
+        path.lineTo(linePoints[i].dx, linePoints[i].dy);
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = fallback.withValues(alpha: 0.55)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..strokeJoin = StrokeJoin.round,
+      );
+      for (final pt in linePoints) {
+        canvas.drawCircle(pt, 2.2, Paint()..color = fallback);
+      }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _SparklinePainter oldDelegate) =>
-      oldDelegate.outcomes != outcomes;
+  bool shouldRepaint(covariant _DurationTrendPainter oldDelegate) =>
+      oldDelegate.runs != runs;
+}
+
+class _RunStreak {
+  const _RunStreak({required this.count, required this.isPass});
+
+  final int count;
+  final bool isPass;
+
+  String get label {
+    if (count <= 0) return 'Streak';
+    return isPass ? 'Pass streak' : 'Fail streak';
+  }
+}
+
+_RunStreak _outcomeStreak(List<InsightsRecentRun> recentNewestFirst) {
+  if (recentNewestFirst.isEmpty) {
+    return const _RunStreak(count: 0, isPass: true);
+  }
+  final first = recentNewestFirst.first.outcome.toUpperCase();
+  final isPass = first == 'PASS';
+  if (first != 'PASS' && first != 'FAIL') {
+    return const _RunStreak(count: 0, isPass: true);
+  }
+  var count = 0;
+  for (final run in recentNewestFirst) {
+    final o = run.outcome.toUpperCase();
+    if (o != first) break;
+    count++;
+  }
+  return _RunStreak(count: count, isPass: isPass);
+}
+
+Color _outcomeColor(BuildContext context, String outcome) {
+  return switch (outcome.toUpperCase()) {
+    'PASS' => context.palette.success,
+    'FAIL' => context.palette.error,
+    'CANCELLED' => context.palette.warning,
+    'ABORTED' => context.palette.textMuted,
+    _ => context.palette.textSecondary,
+  };
+}
+
+String _formatDurationMs(int ms) {
+  if (ms < 1000) return '${ms}ms';
+  final seconds = ms / 1000;
+  if (seconds < 60) {
+    return seconds >= 10
+        ? '${seconds.toStringAsFixed(0)}s'
+        : '${seconds.toStringAsFixed(1)}s';
+  }
+  final minutes = seconds ~/ 60;
+  final rem = (seconds % 60).round();
+  return rem == 0 ? '${minutes}m' : '${minutes}m ${rem}s';
+}
+
+String _relativeTime(DateTime at) {
+  final local = at.toLocal();
+  final delta = DateTime.now().difference(local);
+  if (delta.inSeconds < 60) return 'just now';
+  if (delta.inMinutes < 60) return '${delta.inMinutes}m ago';
+  if (delta.inHours < 24) return '${delta.inHours}h ago';
+  if (delta.inDays < 7) return '${delta.inDays}d ago';
+  return '${local.month}/${local.day}';
 }
 
 class _MergedFileRow {

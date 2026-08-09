@@ -72,7 +72,7 @@ class InsightsService:
     index_store: IndexStore
     execution_repository: SqliteExecutionRepository
 
-    async def get_snapshot(self, *, recent_limit: int = 20) -> InsightsSnapshot:
+    async def get_snapshot(self, *, recent_limit: int = 30) -> InsightsSnapshot:
         workspace = self.context.workspace
         if workspace is None:
             raise InsightsValidationError("Open a workspace before viewing insights")

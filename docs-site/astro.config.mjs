@@ -13,6 +13,34 @@ export default defineConfig({
 			description:
 				'User guide for Robot Studio — the desktop IDE for Robot Framework.',
 			favicon: '/favicon.svg',
+			head: [
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'icon',
+						href: '/favicon-32.png',
+						type: 'image/png',
+						sizes: '32x32',
+					},
+				},
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'icon',
+						href: '/favicon-192.png',
+						type: 'image/png',
+						sizes: '192x192',
+					},
+				},
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'apple-touch-icon',
+						href: '/apple-touch-icon.png',
+						sizes: '180x180',
+					},
+				},
+			],
 			logo: {
 				light: './src/assets/logo-light.png',
 				dark: './src/assets/logo-dark.png',
@@ -61,6 +89,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Editor & language intelligence', slug: 'features/editor' },
 						{ label: 'Test Explorer', slug: 'features/test-explorer' },
+						{ label: 'Insights', slug: 'features/insights' },
 						{ label: 'Robot Doctor', slug: 'features/robot-doctor' },
 						{ label: 'Terminal', slug: 'features/terminal' },
 						{ label: 'Command palette', slug: 'features/command-palette' },
