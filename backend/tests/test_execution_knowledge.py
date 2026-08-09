@@ -118,7 +118,7 @@ async def test_execution_knowledge_apis(api_client) -> None:
     project_id = project.json()["id"]
     suite = _write_suite(project_path)
 
-    rebuilt = await client.post("/api/v1/index/rebuild")
+    rebuilt = await client.post("/api/v1/index/rebuild?wait=true")
     assert rebuilt.status_code == 200, rebuilt.text
 
     out = project_path / ".robotstudio" / "reports" / "Run-test"

@@ -302,15 +302,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       onStatusMessage: (message) {
         if (!mounted) return;
         setState(() {
+          // Indexing progress lives in the status bar only — no floating toast.
           _liveNotification = message.isEmpty ? null : message;
           final lower = message.toLowerCase();
-          final isProgress =
-              lower.contains('indexing') || lower.contains('analyzing');
           if (message.isEmpty ||
               lower.contains('synchronized') ||
-              lower.contains('removed')) {
+              lower.contains('removed') ||
+              lower.contains('indexing')) {
             _progressOverlay = null;
-          } else if (isProgress) {
+          } else if (lower.contains('analyzing')) {
             _progressOverlay = message;
           }
         });
@@ -4923,7 +4923,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<void> _rebuildIndex() async {
     if (_workspace.activeWorkspace == null) return;
-    setState(() => _loadingIndexStatus = true);
+    setState(() {
+      _loadingIndexStatus = true;
+      _liveNotification = 'Indexing workspace…';
+      _progressOverlay = null;
+    });
     try {
       final status = await _gateway.rebuildIndex();
       if (!mounted) return;
@@ -4931,13 +4935,21 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _indexStatus = status;
         _loadingIndexStatus = false;
       });
+      // Background job — INDEX_PROGRESS / INDEX_UPDATED drive the rest.
+      if (status.state == 'indexing') {
+        _appendLog('[info] Symbol index rebuild started');
+        return;
+      }
       _appendLog('[info] Symbol index rebuilt');
       if (_showInsightsPage || _activePanel == SidebarPanel.insights) {
         await _loadInsights();
       }
     } catch (error) {
       if (!mounted) return;
-      setState(() => _loadingIndexStatus = false);
+      setState(() {
+        _loadingIndexStatus = false;
+        _liveNotification = null;
+      });
       _appendLog('[error] Index rebuild failed: $error');
       await _showError('Index rebuild', error);
     }

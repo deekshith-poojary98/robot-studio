@@ -80,7 +80,7 @@ async def _seed_project(client: AsyncClient, tmp_path: Path) -> str:
     assert project.status_code in (200, 201), project.text
     project_path = Path(project.json()["path"])
     _write_suite(project_path)
-    rebuilt = await client.post("/api/v1/index/rebuild")
+    rebuilt = await client.post("/api/v1/index/rebuild?wait=true")
     assert rebuilt.status_code == 200, rebuilt.text
     analysis = await client.post("/api/v1/analysis/rebuild")
     assert analysis.status_code == 200, analysis.text

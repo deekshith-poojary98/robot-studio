@@ -537,8 +537,12 @@ class RestGateway:
     async def get_reports_dashboard(self) -> DashboardSummary:
         return await self._report_service.dashboard()
 
-    async def rebuild_index(self) -> IndexStatus:
-        return await self._index_service.rebuild()
+    async def rebuild_index(self, *, wait: bool = False) -> IndexStatus:
+        # Default: fire-and-forget. Large projects (10k+ files) cannot finish
+        # within the UI HTTP timeout; progress arrives via INDEX_PROGRESS.
+        if wait:
+            return await self._index_service.rebuild()
+        return await self._index_service.schedule_rebuild(full=True)
 
     async def get_index_status(self) -> IndexStatus:
         return await self._index_service.get_status()

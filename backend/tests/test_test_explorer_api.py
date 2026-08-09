@@ -86,7 +86,7 @@ async def _seed_workspace(client: AsyncClient, tmp_path: Path) -> dict:
     )
 
     # Trigger index rebuild for discovery.
-    rebuild = await client.post("/api/v1/index/rebuild")
+    rebuild = await client.post("/api/v1/index/rebuild?wait=true")
     assert rebuild.status_code == 200, rebuild.text
     await asyncio.sleep(0.3)
 
@@ -225,7 +225,7 @@ async def test_discovery_excludes_robot_files_without_tests_or_tasks(
         encoding="utf-8",
     )
 
-    rebuild = await client.post("/api/v1/index/rebuild")
+    rebuild = await client.post("/api/v1/index/rebuild?wait=true")
     assert rebuild.status_code == 200, rebuild.text
     await asyncio.sleep(0.3)
 
@@ -270,7 +270,7 @@ async def test_incremental_refresh_after_file_change(api_client) -> None:
         + "\nGamma\n    Log    g\n",
         encoding="utf-8",
     )
-    rebuild = await client.post("/api/v1/index/rebuild")
+    rebuild = await client.post("/api/v1/index/rebuild?wait=true")
     assert rebuild.status_code == 200
     await asyncio.sleep(0.4)
 

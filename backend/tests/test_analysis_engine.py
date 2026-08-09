@@ -136,7 +136,7 @@ async def test_analysis_inspection_and_graph_apis(api_client) -> None:
         encoding="utf-8",
     )
 
-    rebuilt = await client.post("/api/v1/index/rebuild")
+    rebuilt = await client.post("/api/v1/index/rebuild?wait=true")
     assert rebuilt.status_code == 200, rebuilt.text
 
     snap = await client.get("/api/v1/analysis/snapshot")

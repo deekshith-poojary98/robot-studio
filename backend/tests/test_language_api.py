@@ -66,7 +66,7 @@ async def _open_workspace_with_suite(client: AsyncClient, tmp_path: Path) -> Pat
     suite.parent.mkdir(parents=True, exist_ok=True)
     suite.write_text(SAMPLE, encoding="utf-8")
 
-    rebuilt = await client.post("/api/v1/index/rebuild")
+    rebuilt = await client.post("/api/v1/index/rebuild?wait=true")
     assert rebuilt.status_code == 200
     return suite
 

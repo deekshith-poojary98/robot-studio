@@ -60,7 +60,7 @@ async def test_index_search_language_api(api_client) -> None:
         encoding="utf-8",
     )
 
-    rebuilt = await client.post("/api/v1/index/rebuild")
+    rebuilt = await client.post("/api/v1/index/rebuild?wait=true")
     assert rebuilt.status_code == 200, rebuilt.text
     assert rebuilt.json()["state"] == "ready"
     assert rebuilt.json()["files_indexed"] >= 1
@@ -122,3 +122,28 @@ async def test_health_unchanged_with_index_routes(api_client) -> None:
     assert body["status"] == "ok"
     assert "keywords" in body["modules"]
     assert "libraries" in body["modules"]
+
+
+@pytest.mark.asyncio
+async def test_index_rebuild_returns_immediately_by_default(api_client) -> None:
+    """UI rebuild must not block on large projects (HTTP 15s timeout)."""
+    client, fresh, tmp_path = api_client
+    location = tmp_path / "homes"
+    location.mkdir()
+    ws = await client.post(
+        "/api/v1/workspaces",
+        json={"name": "WS", "location": str(location)},
+    )
+    assert ws.status_code == 201
+    project = await client.post("/api/v1/projects", json={"name": "Demo"})
+    assert project.status_code == 201
+
+    started = await client.post("/api/v1/index/rebuild")
+    assert started.status_code == 200
+    assert started.json()["state"] == "indexing"
+
+    task = fresh.index_service._rebuild_task  # noqa: SLF001
+    assert task is not None
+    await task
+    ready = await client.get("/api/v1/index/status")
+    assert ready.json()["state"] == "ready"

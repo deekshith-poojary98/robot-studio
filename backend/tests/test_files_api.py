@@ -146,7 +146,7 @@ async def test_files_and_document_symbols(api_client) -> None:
     assert written.status_code == 200
     assert suite.read_text(encoding="utf-8").startswith("*** Keywords ***")
 
-    rebuild = await client.post("/api/v1/index/rebuild")
+    rebuild = await client.post("/api/v1/index/rebuild?wait=true")
     assert rebuild.status_code == 200
 
     symbols = await client.get(
