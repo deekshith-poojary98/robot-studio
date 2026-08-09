@@ -180,6 +180,44 @@ async def test_schedule_rebuild_returns_before_indexing_finishes(index_stack) ->
     assert ready.state == "ready"
 
 
+@pytest.mark.asyncio
+async def test_incremental_rebuild_skips_unchanged_files(index_stack) -> None:
+    service, store, _facade, suite, _lib, _bus, workspace, project = index_stack
+    await service.rebuild()
+    before = await store.get_file_mtime(suite)
+    assert before is not None
+
+    status = await service.schedule_rebuild(full=False)
+    assert status.state == "indexing"
+    await service._rebuild_task
+    after = await store.get_file_mtime(suite)
+    assert after == before
+    ready = await service.get_status()
+    assert ready.state == "ready"
+    assert ready.files_indexed >= 2
+
+
+@pytest.mark.asyncio
+async def test_project_opened_does_not_wipe_index(index_stack) -> None:
+    """Relaunch opens the project after the workspace — must stay incremental."""
+    from robot_studio.core.events import ProjectOpened
+
+    service, store, _facade, suite, _lib, bus, workspace, project = index_stack
+    await service.rebuild()
+    mtime = await store.get_file_mtime(suite)
+    assert mtime is not None
+
+    await bus.publish(
+        ProjectOpened(workspace_id=workspace.id, project_id=project.id),
+    )
+    # Give the handler a turn; it should be a no-op.
+    await asyncio.sleep(0)
+    task = service._rebuild_task
+    if task is not None and not task.done():
+        await task
+    assert await store.get_file_mtime(suite) == mtime
+
+
 def test_discover_files_prunes_venv(tmp_path: Path) -> None:
     root = tmp_path / "proj"
     root.mkdir()

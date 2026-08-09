@@ -405,6 +405,29 @@ class SqliteIndexStore(IndexStore):
             row = await cursor.fetchone()
         return float(row[0]) if row else None
 
+    async def get_file_mtimes(
+        self,
+        workspace_id: UUID | None = None,
+        *,
+        project_id: UUID | None = None,
+    ) -> dict[str, float]:
+        """Bulk mtimes for incremental skip — avoids N SQLite connects on open."""
+        async with aiosqlite.connect(self._database_path) as db:
+            if project_id is not None:
+                cursor = await db.execute(
+                    "SELECT file_path, mtime FROM index_files WHERE project_id = ?",
+                    (str(project_id),),
+                )
+            elif workspace_id is not None:
+                cursor = await db.execute(
+                    "SELECT file_path, mtime FROM index_files WHERE workspace_id = ?",
+                    (str(workspace_id),),
+                )
+            else:
+                cursor = await db.execute("SELECT file_path, mtime FROM index_files")
+            rows = await cursor.fetchall()
+        return {str(row[0]): float(row[1]) for row in rows}
+
     async def list_indexed_files(
         self,
         workspace_id: UUID | None = None,

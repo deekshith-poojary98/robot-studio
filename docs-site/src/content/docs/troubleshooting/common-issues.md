@@ -45,6 +45,8 @@ per-file cleanup stays fast as the store fills.
 - Confirm the active environment matches the libraries your suite imports.
 - Trigger a full index rebuild if results look stale.
 
+Relaunch only runs an **incremental** pass (mtime skip). If every open feels like a full rebuild, use **Rebuild Index** once, then relaunch again — later opens should settle quickly when files are unchanged.
+
 ## UI freezes while a huge run is in progress
 
 Long project runs (thousands of tests) rewrite `output.xml` continuously and stream a lot of console output. Robot Studio now:

@@ -22,4 +22,4 @@ Open **View → Symbols** or use the command palette.
 
 ## Indexing
 
-Indexing runs in the background when you open a project (incremental). Progress can appear in the status bar and a soft overlay. You can request a full rebuild when results look stale. Common noise folders (`.venv`, `node_modules`, `.git`) are excluded.
+Indexing runs in the background when you open a project (**incremental** — unchanged files are skipped). Progress can appear in the status bar. Use **Rebuild Index** when results look stale. Common noise folders (`.venv`, `node_modules`, `.git`) are excluded.

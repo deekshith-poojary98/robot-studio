@@ -68,6 +68,7 @@ class InsightsPage extends StatelessWidget {
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 900;
         return CustomScrollView(
+          cacheExtent: 320,
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(
@@ -82,29 +83,26 @@ class InsightsPage extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
               sliver: SliverToBoxAdapter(
                 child: wide
-                    ? IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(
-                              child: _CompositionPanel(
-                                data: data,
-                                onRebuildIndex: onRebuildIndex,
-                                onOpenFile: onOpenFile,
-                                expandBody: true,
-                              ),
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _CompositionPanel(
+                              data: data,
+                              onRebuildIndex: onRebuildIndex,
+                              onOpenFile: onOpenFile,
                             ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: _RunHealthPanel(
-                                data: data,
-                                failing: failing,
-                                onOpenReports: onOpenReports,
-                                onOpenFile: onOpenFile,
-                              ),
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: _RunHealthPanel(
+                              data: data,
+                              failing: failing,
+                              onOpenReports: onOpenReports,
+                              onOpenFile: onOpenFile,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       )
                     : Column(
                         children: [
@@ -124,22 +122,97 @@ class InsightsPage extends StatelessWidget {
                       ),
               ),
             ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.lg,
-                AppSpacing.xl,
-                AppSpacing.xl,
-              ),
-              sliver: SliverToBoxAdapter(
-                child: _FilesPanel(rows: files, onOpenFile: onOpenFile),
-              ),
+            // Lazy file rows — never mount 10k Table rows in one box.
+            ..._filesSlivers(
+              context: context,
+              rows: files,
+              onOpenFile: onOpenFile,
             ),
           ],
         );
       },
     );
   }
+}
+
+List<Widget> _filesSlivers({
+  required BuildContext context,
+  required List<_MergedFileRow> rows,
+  required ValueChanged<String>? onOpenFile,
+}) {
+  final palette = context.palette;
+  return [
+    SliverPadding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.lg,
+        AppSpacing.xl,
+        AppSpacing.xl,
+      ),
+      sliver: DecoratedSliver(
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          border: Border.all(color: palette.border),
+        ),
+        sliver: SliverMainAxisGroup(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                child: Row(
+                  children: [
+                    Text(
+                      'Files',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      _formatCount(rows.length),
+                      style: TextStyle(fontSize: 11, color: palette.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Divider(height: 1, color: palette.borderSubtle),
+            ),
+            if (rows.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'No file-level data yet.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              )
+            else ...[
+              const SliverToBoxAdapter(child: _FileTableHeader()),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final row = rows[index];
+                    return _FileDataRow(
+                      row: row,
+                      striped: index.isOdd,
+                      onOpen: onOpenFile == null
+                          ? null
+                          : () => onOpenFile(row.filePath),
+                    );
+                  },
+                  childCount: rows.length,
+                  addAutomaticKeepAlives: false,
+                  addRepaintBoundaries: true,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  ];
 }
 
 class _Header extends StatelessWidget {
@@ -294,23 +367,14 @@ class _HeadlineCell extends StatelessWidget {
 }
 
 class _Panel extends StatelessWidget {
-  const _Panel({
-    required this.title,
-    required this.child,
-    this.trailing,
-    this.fillBody = false,
-  });
+  const _Panel({required this.title, required this.child, this.trailing});
 
   final String title;
   final Widget child;
   final Widget? trailing;
 
-  /// When true, body expands to fill stretched panel height (wide layout).
-  final bool fillBody;
-
   @override
   Widget build(BuildContext context) {
-    final body = Padding(padding: const EdgeInsets.all(12), child: child);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: context.palette.surface,
@@ -343,7 +407,7 @@ class _Panel extends StatelessWidget {
             ),
           ),
           Divider(height: 1, color: context.palette.borderSubtle),
-          if (fillBody) Expanded(child: body) else body,
+          Padding(padding: const EdgeInsets.all(12), child: child),
         ],
       ),
     );
@@ -355,15 +419,11 @@ class _CompositionPanel extends StatelessWidget {
     required this.data,
     this.onRebuildIndex,
     this.onOpenFile,
-    this.expandBody = false,
   });
 
   final InsightsInfo data;
   final VoidCallback? onRebuildIndex;
   final ValueChanged<String>? onOpenFile;
-
-  /// Stretch Focus card to the bottom when paired beside Run health.
-  final bool expandBody;
 
   static const _kinds = <(String, String)>[
     ('keyword', 'Keywords'),
@@ -417,7 +477,6 @@ class _CompositionPanel extends StatelessWidget {
             : '${_formatCount(data.countFor('file'))} files',
         style: TextStyle(fontSize: 11, color: context.palette.textMuted),
       ),
-      fillBody: expandBody,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -431,10 +490,7 @@ class _CompositionPanel extends StatelessWidget {
                 color: _kindColor(context, entry.$1),
               ),
             ),
-          if (expandBody)
-            const Spacer()
-          else
-            const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.lg),
           _CompositionFocusCard(data: data, onOpenFile: onOpenFile),
         ],
       ),
@@ -1273,56 +1329,6 @@ class _FailingFileRowState extends State<_FailingFileRow> {
   }
 }
 
-class _FilesPanel extends StatelessWidget {
-  const _FilesPanel({required this.rows, this.onOpenFile});
-
-  final List<_MergedFileRow> rows;
-  final ValueChanged<String>? onOpenFile;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: context.palette.surface,
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: context.palette.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-            child: Row(
-              children: [
-                Text('Files', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  '${rows.length}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: context.palette.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: context.palette.borderSubtle),
-          if (rows.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'No file-level data yet.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            )
-          else
-            _FileTable(rows: rows, onOpenFile: onOpenFile),
-        ],
-      ),
-    );
-  }
-}
-
 /// Shared column widths so header and rows stay on one grid.
 abstract final class _FileCols {
   static const double pad = 12;
@@ -1356,47 +1362,32 @@ abstract final class _FileCols {
   ];
 }
 
-class _FileTable extends StatelessWidget {
-  const _FileTable({required this.rows, this.onOpenFile});
-
-  final List<_MergedFileRow> rows;
-  final ValueChanged<String>? onOpenFile;
+class _FileTableHeader extends StatelessWidget {
+  const _FileTableHeader();
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        ColoredBox(
-          color: context.palette.surfaceElevated,
-          child: Table(
-            columnWidths: _FileCols.widths,
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+    return ColoredBox(
+      color: context.palette.surfaceElevated,
+      child: Table(
+        columnWidths: _FileCols.widths,
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        children: [
+          TableRow(
             children: [
-              TableRow(
-                children: [
-                  for (var i = 0; i < _FileCols.headers.length; i++)
-                    _HeaderCell(
-                      label: _FileCols.headers[i],
-                      align: i == 0 ? Alignment.centerLeft : Alignment.center,
-                      padLeft: i == 0 ? _FileCols.pad : 2,
-                      padRight: i == _FileCols.headers.length - 1
-                          ? _FileCols.pad
-                          : 2,
-                    ),
-                ],
-              ),
+              for (var i = 0; i < _FileCols.headers.length; i++)
+                _HeaderCell(
+                  label: _FileCols.headers[i],
+                  align: i == 0 ? Alignment.centerLeft : Alignment.center,
+                  padLeft: i == 0 ? _FileCols.pad : 2,
+                  padRight: i == _FileCols.headers.length - 1
+                      ? _FileCols.pad
+                      : 2,
+                ),
             ],
           ),
-        ),
-        for (var i = 0; i < rows.length; i++)
-          _FileDataRow(
-            row: rows[i],
-            striped: i.isOdd,
-            onOpen: onOpenFile == null
-                ? null
-                : () => onOpenFile!(rows[i].filePath),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1576,6 +1567,8 @@ class _DurationTrendChart extends StatelessWidget {
         label: p.textMuted,
         fallback: p.accent,
       ),
+      isComplex: true,
+      willChange: false,
       child: const SizedBox.expand(),
     );
   }

@@ -107,8 +107,16 @@ class IndexService:
         # Never block open-path / workspace open on indexing (VS Code model).
         await self.schedule_rebuild(full=False)
 
-    async def _on_project_changed(self, event: ProjectOpened | ProjectCreated | ProjectImported) -> None:
+    async def _on_project_changed(
+        self,
+        event: ProjectOpened | ProjectCreated | ProjectImported,
+    ) -> None:
         if self.context.workspace is None:
+            return
+        # Opening an existing project must not wipe the index — workspace open
+        # already schedules an incremental pass. Only new/imported projects
+        # need a forced project reindex.
+        if isinstance(event, ProjectOpened):
             return
         await self.schedule_reindex_project(event.project_id)
 
@@ -358,7 +366,15 @@ class IndexService:
         ws_id = str(workspace_id)
         proj_id = str(project_id) if project_id else None
 
-        # Cheap mtime skip before scheduling workers (incremental open).
+        # One query for all known mtimes — per-file connects made relaunch ≈ full rebuild.
+        known_mtimes = (
+            {}
+            if force
+            else await self.store.get_file_mtimes(
+                workspace_id,
+                project_id=project_id,
+            )
+        )
         to_parse: list[Path] = []
         for path in paths:
             if not force:
@@ -367,7 +383,7 @@ class IndexService:
                 except OSError:
                     to_parse.append(path)
                     continue
-                previous = await self.store.get_file_mtime(path)
+                previous = known_mtimes.get(str(path))
                 if previous is not None and abs(previous - mtime) < 1e-6:
                     indexed_paths.add(str(path))
                     continue

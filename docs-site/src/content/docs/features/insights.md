@@ -54,7 +54,7 @@ Once you have executed suites, Run health shows:
 
 ## Files table
 
-The Files table merges index composition with per-file run stats so you can spot hot spots (high fail counts) next to keyword/test density.
+The Files table merges index composition with per-file run stats so you can spot hot spots (high fail counts) next to keyword/test density. Rows are built lazily as you scroll, so large projects stay responsive.
 
 ## Related
 
