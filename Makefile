@@ -29,6 +29,7 @@ SUITE ?=
 	run run-frontend build build-frontend \
 	package package-macos package-windows \
 	test test-backend test-frontend test-integration analyze \
+	docs docs-dev docs-build \
 	pub-get clean
 
 .DEFAULT_GOAL := help
@@ -144,6 +145,18 @@ test-integration: ## Integration E2E via scripts/run_integration_tests.sh [SUITE
 
 analyze: ## flutter analyze
 	cd "$(FRONTEND)" && flutter analyze
+
+# ---------------------------------------------------------------------------
+# Docs (Astro Starlight → GitHub Pages)
+# ---------------------------------------------------------------------------
+
+docs: docs-dev ## Alias for docs-dev
+
+docs-dev: ## Run user guide locally (http://localhost:4321/robot-studio/)
+	cd "$(ROOT)/docs-site" && npm install && npm run dev
+
+docs-build: ## Build user guide into docs-site/dist
+	cd "$(ROOT)/docs-site" && npm ci && npm run build
 
 # ---------------------------------------------------------------------------
 # Cleanup

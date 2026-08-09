@@ -1,0 +1,127 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+/* Robot Studio brand tokens — aligned with AppColors (muted teal). */
+:root {
+	--sl-color-accent-low: #1a2e2f;
+	--sl-color-accent: #4a8f90;
+	--sl-color-accent-high: #7bc4c5;
+	--sl-font: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+	--sl-font-mono: 'IBM Plex Mono', 'SF Mono', ui-monospace, monospace;
+}
+
+:root[data-theme='light'] {
+	--sl-color-accent-low: #d8ecec;
+	--sl-color-accent: #3a7273;
+	--sl-color-accent-high: #2a5556;
+}
+
+/* Splash hero — glow, float, rising ember particles */
+.hero {
+	padding-block: 2.5rem;
+}
+
+.hero-mark {
+	--ember-color: rgba(123, 196, 197, 0.95);
+	--ember-color-soft: rgba(74, 143, 144, 0.55);
+}
+
+:root[data-theme='light'] .hero-mark {
+	--ember-color: rgba(71, 85, 105, 0.75);
+	--ember-color-soft: rgba(100, 116, 139, 0.4);
+}
+
+.hero-mark img,
+.hero-mark .hero-html {
+	filter:
+		drop-shadow(0 0 8px rgba(74, 143, 144, 0.45))
+		drop-shadow(0 0 20px rgba(74, 143, 144, 0.28))
+		drop-shadow(0 0 40px rgba(123, 196, 197, 0.16));
+	animation: hero-mark-float 5.5s ease-in-out infinite;
+	will-change: transform;
+}
+
+:root[data-theme='light'] .hero-mark img,
+:root[data-theme='light'] .hero-mark .hero-html {
+	filter:
+		drop-shadow(0 0 8px rgba(71, 85, 105, 0.2))
+		drop-shadow(0 0 18px rgba(71, 85, 105, 0.12))
+		drop-shadow(0 6px 18px rgba(15, 23, 42, 0.06));
+}
+
+.hero-embers {
+	position: absolute;
+	inset: -18% 8% 0;
+	z-index: 0;
+	overflow: hidden;
+	pointer-events: none;
+	mask-image: linear-gradient(to top, transparent 0%, #000 12%, #000 78%, transparent 100%);
+}
+
+.hero-embers .ember {
+	position: absolute;
+	bottom: 12%;
+	left: var(--ember-left, 50%);
+	width: var(--ember-size, 3px);
+	height: var(--ember-size, 3px);
+	border-radius: 50%;
+	background: var(--ember-color);
+	box-shadow:
+		0 0 4px var(--ember-color),
+		0 0 10px var(--ember-color-soft);
+	opacity: 0;
+	animation: hero-ember-rise var(--ember-duration, 4s) ease-out infinite;
+	animation-delay: var(--ember-delay, 0s);
+}
+
+@keyframes hero-mark-float {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(-7px);
+	}
+}
+
+@keyframes hero-ember-rise {
+	0% {
+		opacity: 0;
+		transform: translate3d(0, 8px, 0) scale(0.6);
+	}
+	10% {
+		opacity: 0.9;
+	}
+	50% {
+		opacity: 0.55;
+	}
+	100% {
+		opacity: 0;
+		transform: translate3d(var(--ember-drift, 0), -175px, 0) scale(0.12);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.hero-mark img,
+	.hero-mark .hero-html,
+	.hero-embers .ember {
+		animation: none;
+	}
+
+	.hero-embers {
+		display: none;
+	}
+}
+
+/* Content readability */
+.sl-markdown-content table {
+	font-size: 0.92rem;
+}
+
+.sl-markdown-content kbd {
+	font-family: var(--sl-font-mono);
+	font-size: 0.85em;
+	padding: 0.1em 0.4em;
+	border: 1px solid var(--sl-color-gray-5);
+	border-radius: 4px;
+	background: var(--sl-color-gray-6);
+}

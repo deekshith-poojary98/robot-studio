@@ -1,0 +1,73 @@
+---
+title: Robot Studio
+description: The desktop IDE built for Robot Framework — write, run, and understand your tests in one place.
+template: splash
+hero:
+  tagline: A focused desktop IDE for Robot Framework. Open a project, pick an environment, and go from writing keywords to reading reports without leaving the app.
+  image:
+    alt: Robot Studio
+    dark: ../../assets/hero-mark-dark.png
+    light: ../../assets/hero-mark-light.png
+  actions:
+    - text: Get started
+      link: /getting-started/overview/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/deekshith-poojary98/robot-studio
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+{/* Astro BASE_URL may omit a trailing slash; normalize before joining paths. */}
+export function withBase(path) {
+	const base = String(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
+	return `${base}${String(path).replace(/^\//, '')}`;
+}
+
+## Start here
+
+<CardGrid>
+	<Card title="Install" icon="rocket">
+		Get the packaged app or run from source in a few minutes.
+		[Install guide →](/getting-started/install/)
+	</Card>
+	<Card title="First project" icon="document">
+		Create or open a Robot Framework folder and set up an environment.
+		[First project →](/getting-started/first-project/)
+	</Card>
+	<Card title="Run tests" icon="approve-check">
+		Use the toolbar or Test Explorer to run suites and jump to failures.
+		[First run →](/getting-started/first-run/)
+	</Card>
+	<Card title="Stuck?" icon="warning">
+		Backend offline, missing imports, or empty Test Explorer — start here.
+		[Troubleshooting →](/troubleshooting/common-issues/)
+	</Card>
+</CardGrid>
+
+## What you can do
+
+<CardGrid>
+	<LinkCard
+		title="Write with language intelligence"
+		href={withBase('features/editor/')}
+		description="Completions, go to definition, diagnostics, and outline for Robot files."
+	/>
+	<LinkCard
+		title="Manage environments & packages"
+		href={withBase('workflows/environments/')}
+		description="Create or import a venv, then install libraries from PyPI without leaving the IDE."
+	/>
+	<LinkCard
+		title="Search across the project"
+		href={withBase('workflows/search/')}
+		description="Find in Files and indexed symbol search for keywords and variables."
+	/>
+	<LinkCard
+		title="Review reports"
+		href={withBase('workflows/reports/')}
+		description="Open HTML reports and re-run failed tests from the last run."
+	/>
+</CardGrid>

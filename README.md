@@ -26,6 +26,8 @@ Robot Studio pairs a **Flutter desktop** UI with a local **Python FastAPI** back
 └─────────────────────────────────────────────────────────┘
 ```
 
+**User guide (GitHub Pages):** [docs-site/](./docs-site/) — local preview with `make docs-dev`.
+
 For the full design (modules, Event Bus, Plugin Host, Indexing, Language Service, transport roadmap), see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integration tests: [frontend/integration_test/README.md](./frontend/integration_test/README.md)
