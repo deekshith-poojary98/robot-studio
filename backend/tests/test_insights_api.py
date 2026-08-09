@@ -207,3 +207,12 @@ async def test_insights_skips_project_run_labels(api_client) -> None:
     paths = [item["file_path"] for item in body["run_files"]]
     assert "Project: OrangeHRM" not in paths
     assert any(p.endswith("demo.robot") for p in paths)
+    # Sole .robot file absorbs the Project: run as well as the file run.
+    demo = next(
+        item
+        for item in body["run_files"]
+        if item["file_path"].endswith("demo.robot")
+    )
+    assert demo["runs"] == 2
+    assert body["composition"]["file"] == 1
+    assert body["composition"]["test_suite"] == 1

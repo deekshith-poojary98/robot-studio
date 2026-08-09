@@ -83,6 +83,7 @@ class InsightsService:
             FileComposition(file_path=item["file_path"], counts=dict(item["counts"]))
             for item in raw_files
         ]
+        composition_totals = _composition_totals(totals, composition_files)
 
         runs = await self.execution_repository.list_by_workspace(
             workspace.id,
@@ -91,11 +92,12 @@ class InsightsService:
         run_totals, recent, file_stats = _aggregate_runs(
             runs,
             recent_limit=recent_limit,
+            composition_files=composition_files,
         )
 
         index_status = await self.index_store.status(workspace.id)
         return InsightsSnapshot(
-            composition_totals=totals,
+            composition_totals=composition_totals,
             composition_files=composition_files,
             run_totals=run_totals,
             recent_runs=recent,
@@ -109,6 +111,7 @@ def _aggregate_runs(
     runs: list[ExecutionRun],
     *,
     recent_limit: int,
+    composition_files: list[FileComposition] | None = None,
 ) -> tuple[RunOutcomeTotals, list[InsightsRecentRun], list[FileRunStats]]:
     passed = failed = cancelled = aborted = 0
     skipped_tests = 0
@@ -125,6 +128,13 @@ def _aggregate_runs(
             "last_started_at": None,
         }
     )
+
+    robot_files = [
+        item.file_path
+        for item in (composition_files or [])
+        if str(item.file_path).lower().endswith(".robot")
+    ]
+    sole_robot = robot_files[0] if len(robot_files) == 1 else None
 
     for run in runs:
         outcome = _run_outcome(run)
@@ -158,6 +168,13 @@ def _aggregate_runs(
             )
 
         path = _file_suite_key(run.suite)
+        if path is None and sole_robot is not None:
+            # Project/tag runs still belong to the only suite file in the project.
+            label = (run.suite or "").strip().lower()
+            if label.startswith(("project: ", "tag: ")) or label.startswith(
+                "selected ("
+            ):
+                path = sole_robot
         if not path:
             continue
         bucket = by_file[path]
@@ -208,3 +225,31 @@ def _aggregate_runs(
         recent,
         file_stats,
     )
+
+
+def _composition_totals(
+    raw_kind_counts: dict[str, int],
+    composition_files: list[FileComposition],
+) -> dict[str, int]:
+    """Prefer real file/suite inventory over meta symbol rows.
+
+    Indexing writes one ``file`` and one ``test_suite`` symbol per ``.robot``
+    file. Those inflate "symbol" charts and can diverge from what users mean by
+    Files / Suites. Count distinct indexed source paths instead.
+    """
+    totals = dict(raw_kind_counts)
+    source_files = [
+        item
+        for item in composition_files
+        if Path(item.file_path).suffix.lower()
+        in {".robot", ".resource", ".py", ".yaml", ".yml"}
+    ]
+    robot_suites = [
+        item
+        for item in source_files
+        if Path(item.file_path).suffix.lower() == ".robot"
+    ]
+    totals["file"] = len(source_files)
+    totals["test_suite"] = len(robot_suites)
+    # Test cases / keywords / variables stay as indexed definition counts.
+    return totals

@@ -7,7 +7,15 @@ Insights is a center view for how the project is shaped and how recent runs are 
 
 ## Composition
 
-After the index is ready, Composition shows counts for keywords, test cases, suites, resources, libraries, variables, and files. Use **Rebuild Index** if counts look stale.
+After the index is ready, Composition shows **indexed** counts:
+
+| Metric | Meaning |
+|--------|---------|
+| Keywords / test cases / variables / … | Definitions found by the indexer |
+| Suites | Distinct `.robot` files |
+| Files | Distinct indexed source files (`.robot`, `.resource`, `.py`, …) |
+
+Use **Rebuild Index** if counts look stale after adding files. Composition is **not** “tests executed in the last run” — that lives under Run health / Reports.
 
 **Variables** counts user-declared names from:
 
@@ -26,7 +34,7 @@ Below the bars, **Focus** adds:
 
 - Density chips — keywords per test, symbols per file, resource and library counts
 - Index state
-- **Densest files** — files with the most indexed symbols (click to open)
+- **Densest files** — files with the most indexed definitions (click to open)
 
 ## Run health
 

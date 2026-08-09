@@ -389,12 +389,17 @@ class _CompositionPanel extends StatelessWidget {
         .map((k) => (k.$1, k.$2, data.countFor(k.$1)))
         .toList();
     final maxCount = entries.fold<int>(0, (m, e) => e.$3 > m ? e.$3 : m);
-    final total = entries.fold<int>(0, (s, e) => s + e.$3);
+    // Content definitions only — file/suite rows are inventory, not "symbols".
+    final contentTotal = entries
+        .where((e) => e.$1 != 'file' && e.$1 != 'test_suite')
+        .fold<int>(0, (s, e) => s + e.$3);
 
     return _Panel(
       title: 'Composition',
       trailing: Text(
-        '$total symbols',
+        contentTotal > 0
+            ? '$contentTotal indexed · ${data.countFor('file')} files'
+            : '${data.countFor('file')} files',
         style: TextStyle(fontSize: 11, color: context.palette.textMuted),
       ),
       fillBody: expandBody,
@@ -437,10 +442,11 @@ class _CompositionFocusCard extends StatelessWidget {
     final files = data.countFor('file');
     final resources = data.countFor('resource');
     final libraries = data.countFor('library');
-    final symbolTotal = data.composition.values.fold<int>(0, (s, n) => s + n);
-    // Exclude the aggregate "file" kind from per-file density when possible.
-    final symbolForDensity = symbolTotal - (files > 0 ? files : 0);
-    final perFile = files > 0 ? (symbolForDensity / files) : 0.0;
+    const skipKinds = {'file', 'test_suite', 'tag', 'setting', 'documentation'};
+    final contentTotal = data.composition.entries
+        .where((e) => !skipKinds.contains(e.key))
+        .fold<int>(0, (s, e) => s + e.value);
+    final perFile = files > 0 ? (contentTotal / files) : 0.0;
     final kwPerTest = tests > 0 ? keywords / tests : null;
 
     return DecoratedBox(
@@ -644,10 +650,13 @@ List<(String, int)> _densestFiles(
   List<InsightsFileComposition> files, {
   int limit = 4,
 }) {
+  const skipKinds = {'file', 'test_suite', 'tag', 'setting', 'documentation'};
   final scored = <(String, int)>[];
   for (final file in files) {
     if (!_looksLikeSourceFile(file.filePath)) continue;
-    final total = file.counts.values.fold<int>(0, (s, n) => s + n);
+    final total = file.counts.entries
+        .where((e) => !skipKinds.contains(e.key))
+        .fold<int>(0, (s, e) => s + e.value);
     if (total <= 0) continue;
     scored.add((file.filePath, total));
   }
@@ -747,8 +756,10 @@ class _RunHealthPanel extends StatelessWidget {
     final maxDuration = chronological
         .map((r) => r.durationMs ?? 0)
         .fold<int>(0, (m, v) => v > m ? v : m);
-    final testsPassed = recent.fold<int>(0, (s, r) => s + (r.passed ?? 0));
-    final testsFailed = recent.fold<int>(0, (s, r) => s + (r.failed ?? 0));
+    // Last run only — summing test counts across runs double-counts suites.
+    final last = recent.isEmpty ? null : recent.first;
+    final testsPassed = last?.passed ?? 0;
+    final testsFailed = last?.failed ?? 0;
 
     return _Panel(
       title: 'Run health',
@@ -967,7 +978,7 @@ class _HealthMetricGrid extends StatelessWidget {
   }) {
     final parts = <String>[];
     if (testsPassed + testsFailed > 0) {
-      parts.add('$testsPassed pass / $testsFailed fail tests (recent)');
+      parts.add('$testsPassed pass / $testsFailed fail tests (last run)');
     }
     if (skipped > 0) parts.add('$skipped skipped');
     if (cancelled > 0) parts.add('$cancelled cancelled');
@@ -1756,13 +1767,40 @@ List<_MergedFileRow> _mergeFileRows(InsightsInfo data) {
       counts: Map<String, int>.from(file.counts),
     );
   }
-  for (final run in data.runFiles) {
-    final key = _matchRunToFile(run.filePath, map.keys);
-    if (key == null) continue;
+
+  void applyRun({
+    required String suite,
+    required int runs,
+    required int passed,
+    required int failed,
+    required int cancelled,
+    required int aborted,
+    String? lastOutcome,
+    DateTime? lastStartedAt,
+  }) {
+    final key = _matchRunToFile(suite, map.keys);
+    if (key == null) return;
     final existing = map[key]!;
+    final newer =
+        lastStartedAt != null &&
+        (existing.lastStartedAt == null ||
+            lastStartedAt.isAfter(existing.lastStartedAt!));
     map[key] = _MergedFileRow(
       filePath: existing.filePath,
       counts: existing.counts,
+      runs: existing.runs + runs,
+      passed: existing.passed + passed,
+      failed: existing.failed + failed,
+      cancelled: existing.cancelled + cancelled,
+      aborted: existing.aborted + aborted,
+      lastOutcome: newer ? lastOutcome : existing.lastOutcome,
+      lastStartedAt: newer ? lastStartedAt : existing.lastStartedAt,
+    );
+  }
+
+  for (final run in data.runFiles) {
+    applyRun(
+      suite: run.filePath,
       runs: run.runs,
       passed: run.passed,
       failed: run.failed,
@@ -1772,6 +1810,24 @@ List<_MergedFileRow> _mergeFileRows(InsightsInfo data) {
       lastStartedAt: run.lastStartedAt,
     );
   }
+
+  // Fallback: if aggregates missed a path, still stamp last recent file run.
+  if (data.runFiles.isEmpty) {
+    for (final recent in data.recentRuns) {
+      final outcome = recent.outcome.toUpperCase();
+      applyRun(
+        suite: recent.suite,
+        runs: 1,
+        passed: outcome == 'PASS' ? 1 : 0,
+        failed: outcome == 'FAIL' ? 1 : 0,
+        cancelled: outcome == 'CANCELLED' ? 1 : 0,
+        aborted: outcome == 'ABORTED' ? 1 : 0,
+        lastOutcome: recent.outcome.isEmpty ? null : recent.outcome,
+        lastStartedAt: recent.startedAt,
+      );
+    }
+  }
+
   final rows = map.values.toList()
     ..sort((a, b) {
       final failCmp = b.failed.compareTo(a.failed);
@@ -1793,11 +1849,12 @@ bool _looksLikeSourceFile(String path) {
 }
 
 String? _matchRunToFile(String suite, Iterable<String> files) {
-  if (!_looksLikeSourceFile(suite)) return null;
-  if (files.contains(suite)) return suite;
-  final suiteName = suite.replaceAll('\\', '/').split('/').last;
+  final cleaned = suite.trim();
+  if (!_looksLikeSourceFile(cleaned)) return null;
+  if (files.contains(cleaned)) return cleaned;
+  final suiteName = cleaned.replaceAll('\\', '/').split('/').last.toLowerCase();
   for (final file in files) {
-    final name = file.replaceAll('\\', '/').split('/').last;
+    final name = file.replaceAll('\\', '/').split('/').last.toLowerCase();
     if (name == suiteName) return file;
   }
   return null;

@@ -89,25 +89,35 @@ class RunDetailsPanel extends StatelessWidget {
           const SizedBox(height: 14),
           _Section(
             title: 'Statistics',
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _StatCard(label: 'Total', value: _n(run.totalTests)),
-                _StatCard(
-                  label: 'Passed',
-                  value: _n(run.passed),
-                  color: context.palette.success,
+                Expanded(
+                  child: _StatCard(label: 'Total', value: _n(run.totalTests)),
                 ),
-                _StatCard(
-                  label: 'Failed',
-                  value: _n(run.failed),
-                  color: context.palette.error,
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: _StatCard(
+                    label: 'Passed',
+                    value: _n(run.passed),
+                    color: context.palette.success,
+                  ),
                 ),
-                _StatCard(
-                  label: 'Skipped',
-                  value: _n(run.skipped),
-                  color: context.palette.warning,
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: _StatCard(
+                    label: 'Failed',
+                    value: _n(run.failed),
+                    color: context.palette.error,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: _StatCard(
+                    label: 'Skipped',
+                    value: _n(run.skipped),
+                    color: context.palette.warning,
+                  ),
                 ),
               ],
             ),
@@ -243,7 +253,7 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 100,
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: context.palette.surfaceElevated,
@@ -253,14 +263,27 @@ class _StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 4),
           Text(
-            value,
-            style: TextStyle(
-              color: color ?? context.palette.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              softWrap: false,
+              style: TextStyle(
+                color: color ?? context.palette.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                height: 1.15,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
           ),
         ],
