@@ -891,6 +891,8 @@ def completion_context(
                     "keyword": call["keyword"],
                     "arguments": call["arguments"],
                     "active_parameter": call["active_parameter"],
+                    "current_argument": call.get("current_argument") or "",
+                    "arguments_completed": call.get("arguments_completed") or [],
                 }
             return {"prefix": prefix, "context": "keyword_call", "section": section}
         return {"prefix": prefix, "context": "keyword", "section": section}
@@ -1026,13 +1028,22 @@ def _keyword_call_at(
                     in_arguments = True
                     args_through_caret = list(args_before_row)
 
-    active = max(0, len(args_through_caret))
+    prefix_text = cur[:col_in_row]
+    at_new_slot = bool(re.search(r"(?:[ \t]{2,}|\t)$", prefix_text))
+    args_completed = list(args_through_caret)
+    current_argument = ""
+    if in_arguments and not at_new_slot and args_completed:
+        current_argument = args_completed[-1]
+        args_completed = args_completed[:-1]
+    active = len(args_completed)
     return {
         "keyword": keyword,
         "arguments": all_cells,
         "active_parameter": active,
         "in_arguments": in_arguments,
         "arguments_through_caret": args_through_caret,
+        "arguments_completed": args_completed,
+        "current_argument": current_argument,
     }
 
 
@@ -1059,6 +1070,8 @@ def signature_help(
         "active_parameter": int(call.get("active_parameter") or 0),
         "arguments": list(call.get("arguments") or []),
         "in_arguments": bool(call.get("in_arguments")),
+        "current_argument": str(call.get("current_argument") or ""),
+        "arguments_completed": list(call.get("arguments_completed") or []),
     }
 
 

@@ -49,6 +49,17 @@ def parse_argument_cell(cell: str) -> tuple[str | None, str]:
     return name, value
 
 
+def is_typing_argument_value(cell: str) -> bool:
+    """True when [cell] is a value, not a bare ``name`` / empty next-arg slot."""
+    text = (cell or "").strip()
+    if not text:
+        return False
+    name, _value = parse_argument_cell(text)
+    if name is not None:
+        return True
+    return re.fullmatch(r"[A-Za-z_][\w]*", text) is None
+
+
 def present_named_args(arguments: list[str]) -> set[str]:
     """Casefolded names already supplied as ``name=…``."""
     found: set[str] = set()

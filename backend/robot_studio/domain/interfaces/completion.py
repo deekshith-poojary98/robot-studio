@@ -22,6 +22,7 @@ class CompletionRequestContext:
     keyword: str = ""
     arguments: tuple[str, ...] = ()
     active_parameter: int = 0
+    current_argument: str = ""
 
 
 @dataclass

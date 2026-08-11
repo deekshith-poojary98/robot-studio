@@ -35,7 +35,15 @@ class RobotAutocompletePromptsBuilder
     ];
     candidates = _dedupeByInsert(candidates);
 
-    if (inArgs && !typingValue) {
+    if (typingValue) {
+      // Still inside this cell's value (e.g. expression=random.randint( )).
+      // Next-arg ``name=`` inserts belong at a 2-space separator, not here.
+      candidates = [
+        for (final item in candidates)
+          if (item.kind != 'parameter') item,
+      ];
+      if (prefix.isEmpty || candidates.isEmpty) return null;
+    } else if (inArgs) {
       final params = [
         for (final item in candidates)
           if (item.kind == 'parameter') item,
@@ -179,11 +187,24 @@ class RobotAutocompletePromptsBuilder
     return RegExp(r'[ \t]{2,}|\t').hasMatch(before.trimLeft());
   }
 
-  /// Caret is after ``name=`` (typing the value, not the next argument name).
+  /// Caret is inside the current argument cell — a value, not a new ``name=``.
   @visibleForTesting
   static bool isTypingNamedArgValue(String line, int offset) {
+    final cell = _currentArgumentCell(line, offset);
+    if (cell.isEmpty) return false;
+    if (_namedArgName(cell) != null) return true;
+    return !_looksLikeParamPrefix(cell.trim());
+  }
+
+  static String _currentArgumentCell(String line, int offset) {
     final before = line.substring(0, offset.clamp(0, line.length));
-    return RegExp(r'(?:^|[ \t])[A-Za-z_][\w]*\=$').hasMatch(before);
+    if (RegExp(r'(?:[ \t]{2,}|\t)$').hasMatch(before)) return '';
+    final cells = before
+        .trimLeft()
+        .split(RegExp(r'[ \t]{2,}|\t+'))
+        .where((cell) => cell.isNotEmpty)
+        .toList();
+    return cells.isEmpty ? '' : cells.last;
   }
 
   /// ``name=`` inserts from the open signature card — available before the
@@ -261,7 +282,7 @@ class RobotAutocompletePromptsBuilder
     }
     if (cells.length <= keywordIndex + 1) return const [];
     final args = cells.sublist(keywordIndex + 1);
-    final trailingSep = RegExp(r'[ \t]{2,}|\t$').hasMatch(before);
+    final trailingSep = RegExp(r'(?:[ \t]{2,}|\t)$').hasMatch(before);
     if (trailingSep) return args;
     return args.length <= 1 ? const [] : args.sublist(0, args.length - 1);
   }

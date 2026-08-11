@@ -126,6 +126,47 @@ void main() {
     expect(value!.prompts.map((p) => p.word), ['modules=', 'namespace=']);
   });
 
+  testWidgets('named-arg popup stays closed inside an expression value', (
+    tester,
+  ) async {
+    const signature = SignatureHelpInfo(
+      keyword: 'Evaluate',
+      activeParameter: 1,
+      parameters: [
+        SignatureParameterInfo(label: 'expression', name: 'expression'),
+        SignatureParameterInfo(label: 'modules', name: 'modules'),
+        SignatureParameterInfo(label: 'namespace', name: 'namespace'),
+      ],
+    );
+    const line = r'    ${num}=    Evaluate    expression=random.randint(';
+    final builder = RobotAutocompletePromptsBuilder(const [
+      CompletionItemInfo(label: 'modules=', kind: 'parameter'),
+      CompletionItemInfo(label: 'namespace=', kind: 'parameter'),
+    ], signature: signature);
+
+    late CodeAutocompleteEditingValue? value;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            value = builder.build(
+              context,
+              const CodeLine(line),
+              CodeLineSelection.collapsed(index: 0, offset: line.length),
+            );
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(
+      RobotAutocompletePromptsBuilder.isTypingNamedArgValue(line, line.length),
+      isTrue,
+    );
+    expect(value, isNull);
+  });
+
   test('namedArgsFromSignature skips filled positional and present names', () {
     const signature = SignatureHelpInfo(
       keyword: 'Evaluate',
@@ -155,6 +196,20 @@ void main() {
       RobotAutocompletePromptsBuilder.isTypingNamedArgValue(
         '    Evaluate    modules=',
         '    Evaluate    modules='.length,
+      ),
+      isTrue,
+    );
+    expect(
+      RobotAutocompletePromptsBuilder.isTypingNamedArgValue(
+        '    Evaluate    modules',
+        '    Evaluate    modules'.length,
+      ),
+      isFalse,
+    );
+    expect(
+      RobotAutocompletePromptsBuilder.isTypingNamedArgValue(
+        '    Evaluate    int(1, 10)',
+        '    Evaluate    int(1, 10)'.length,
       ),
       isTrue,
     );

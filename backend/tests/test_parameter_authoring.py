@@ -21,6 +21,7 @@ from robot_studio.infrastructure.language.completion.named_argument_provider imp
 from robot_studio.domain.interfaces.completion import CompletionRequestContext
 from robot_studio.infrastructure.language.keyword_helpers import (
     active_parameter_index,
+    is_typing_argument_value,
     parameter_completion_score,
     present_named_args,
     strip_keyword_qualifier,
@@ -247,3 +248,63 @@ async def test_named_argument_provider_skips_positional_and_boosts_active() -> N
     assert "expression=" not in labels
     assert labels[0] == "modules="
     assert "namespace=" in labels
+
+
+def test_signature_stays_on_named_value_being_typed() -> None:
+    content = """*** Test Cases ***
+Demo
+    ${num}=    Evaluate    expression=random.randint(
+"""
+    row = content.splitlines()[2]
+    parsed = signature_help(content, "x.robot", 3, len(row) + 1)
+    assert parsed is not None
+    assert parsed["keyword"] == "Evaluate"
+    assert parsed["active_parameter"] == 0
+    assert parsed["current_argument"].startswith("expression=")
+    assert parsed["arguments_completed"] == []
+
+    after = f"{row}    "
+    content_next = "\n".join([*content.splitlines()[:2], after, ""])
+    parsed_next = signature_help(content_next, "x.robot", 3, len(after) + 1)
+    assert parsed_next is not None
+    assert parsed_next["active_parameter"] == 1
+    assert parsed_next["current_argument"] == ""
+
+
+def test_is_typing_argument_value() -> None:
+    assert is_typing_argument_value("expression=random.randint(")
+    assert is_typing_argument_value("random.randint(")
+    assert is_typing_argument_value("modules=")
+    assert not is_typing_argument_value("modules")
+    assert not is_typing_argument_value("")
+
+
+@pytest.mark.asyncio
+async def test_named_argument_provider_silent_inside_value() -> None:
+    meta = KeywordMetadata(
+        name="Evaluate",
+        parameters=(
+            ParameterMetadata(name="expression", required=True),
+            ParameterMetadata(name="modules", required=False),
+            ParameterMetadata(name="namespace", required=False),
+        ),
+    )
+
+    async def resolve(_ctx):  # noqa: ANN001
+        return meta
+
+    provider = NamedArgumentCompletionProvider(resolve_keyword=resolve)
+    items = await provider.complete(
+        CompletionRequestContext(
+            file_path="x.robot",
+            content="",
+            line=1,
+            column=1,
+            prefix="",
+            context="argument",
+            keyword="Evaluate",
+            arguments=("expression=random.randint(",),
+            current_argument="expression=random.randint(",
+        ),
+    )
+    assert items == []

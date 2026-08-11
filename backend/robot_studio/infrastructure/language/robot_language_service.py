@@ -366,6 +366,7 @@ class RobotLanguageService(LanguageService):
         keyword = str(ctx_raw.get("keyword") or "")
         arguments = tuple(str(a) for a in (ctx_raw.get("arguments") or []))
         active_parameter = int(ctx_raw.get("active_parameter") or 0)
+        current_argument = str(ctx_raw.get("current_argument") or "")
         project_id = None
         if self.context.project is not None:
             project_id = str(self.context.project.id)
@@ -382,6 +383,7 @@ class RobotLanguageService(LanguageService):
             keyword=keyword,
             arguments=arguments,
             active_parameter=active_parameter,
+            current_argument=current_argument,
         )
         ranked = await self._ensure_completion_pipeline().complete(
             request_ctx,
@@ -600,7 +602,12 @@ class RobotLanguageService(LanguageService):
         if not keyword:
             return None
         arguments = tuple(str(a) for a in (parsed.get("arguments") or []))
+        if "arguments_completed" in parsed:
+            completed = [str(a) for a in (parsed.get("arguments_completed") or [])]
+        else:
+            completed = list(arguments)
         hint = int(parsed.get("active_parameter") or 0)
+        current_argument = str(parsed.get("current_argument") or "")
 
         ctx = SignatureHelpRequestContext(
             file_path=file_path,
@@ -650,8 +657,9 @@ class RobotLanguageService(LanguageService):
 
         active = active_parameter_index(
             meta,
-            arguments=list(arguments),
+            arguments=completed,
             active_hint=hint,
+            typing_prefix=current_argument,
         )
         return meta.to_signature_api(active_parameter=active)
 

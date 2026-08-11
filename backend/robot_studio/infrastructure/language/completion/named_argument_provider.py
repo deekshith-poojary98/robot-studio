@@ -18,6 +18,7 @@ from robot_studio.domain.interfaces.signature_help import (
 )
 from robot_studio.domain.models.keyword_metadata import KeywordMetadata
 from robot_studio.infrastructure.language.keyword_helpers import (
+    is_typing_argument_value,
     parameter_completion_score,
     parse_argument_cell,
     present_named_args,
@@ -67,6 +68,8 @@ class NamedArgumentCompletionProvider(CompletionProvider):
             ),
         )
         if meta is None or not meta.parameters:
+            return []
+        if is_typing_argument_value(ctx.current_argument):
             return []
 
         already = present_named_args(list(ctx.arguments))
