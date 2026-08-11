@@ -45,6 +45,7 @@ class SourceControlPage extends StatelessWidget {
     this.onCreateBranch,
     this.onDeleteBranch,
     this.onAddRemote,
+    this.onEditIdentity,
   });
 
   final GitStatusInfo? status;
@@ -75,6 +76,7 @@ class SourceControlPage extends StatelessWidget {
   final ValueChanged<String>? onCreateBranch;
   final ValueChanged<String>? onDeleteBranch;
   final VoidCallback? onAddRemote;
+  final VoidCallback? onEditIdentity;
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +101,7 @@ class SourceControlPage extends StatelessWidget {
             onCreateBranch: onCreateBranch,
             onDeleteBranch: onDeleteBranch,
             onAddRemote: onAddRemote,
+            onEditIdentity: onEditIdentity,
           ),
           const Divider(height: 1),
           Expanded(
@@ -127,6 +130,8 @@ class SourceControlPage extends StatelessWidget {
                     isBusy: isBusy,
                     onCommitAll: onCommitAll,
                     onCommitSelected: onCommitSelected,
+                    identity: repository?.identity,
+                    onEditIdentity: onEditIdentity,
                     diff: diff,
                     isLoadingDiff: isLoadingDiff,
                     history: history,
@@ -157,6 +162,7 @@ class _Header extends StatelessWidget {
     this.onCreateBranch,
     this.onDeleteBranch,
     this.onAddRemote,
+    this.onEditIdentity,
   });
 
   final GitRepositoryInfo? repository;
@@ -171,6 +177,7 @@ class _Header extends StatelessWidget {
   final ValueChanged<String>? onCreateBranch;
   final ValueChanged<String>? onDeleteBranch;
   final VoidCallback? onAddRemote;
+  final VoidCallback? onEditIdentity;
 
   @override
   Widget build(BuildContext context) {
@@ -311,6 +318,12 @@ class _Header extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: AppSpacing.xs),
+              _IdentityStrip(
+                identity: repository?.identity ?? const GitIdentityInfo(),
+                isBusy: isBusy,
+                onEdit: onEditIdentity,
+              ),
             ],
           ],
         ),
@@ -333,6 +346,70 @@ class _Header extends StatelessWidget {
       return '$branch · $head · $root';
     }
     return '$branch · $head';
+  }
+}
+
+class _IdentityStrip extends StatelessWidget {
+  const _IdentityStrip({
+    required this.identity,
+    required this.isBusy,
+    this.onEdit,
+  });
+
+  final GitIdentityInfo identity;
+  final bool isBusy;
+  final VoidCallback? onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final complete = identity.isComplete;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadii.xs),
+        border: Border.all(color: palette.borderSubtle),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+        child: Row(
+          children: [
+            Icon(
+              complete ? Icons.badge_outlined : Icons.person_outline,
+              size: 14,
+              color: complete ? palette.textSecondary : palette.warning,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                complete
+                    ? 'Author · ${identity.displayLabel}'
+                    : 'Set your name and email to author commits.',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: palette.textSecondary,
+                  height: 1.3,
+                ),
+              ),
+            ),
+            if (onEdit != null)
+              TextButton(
+                onPressed: isBusy ? null : onEdit,
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  textStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                child: Text(complete ? 'Change' : 'Set identity'),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -399,6 +476,8 @@ class _RepositoryBody extends StatefulWidget {
     required this.isBusy,
     required this.onCommitAll,
     required this.onCommitSelected,
+    this.identity,
+    this.onEditIdentity,
     required this.diff,
     required this.isLoadingDiff,
     required this.history,
@@ -418,6 +497,8 @@ class _RepositoryBody extends StatefulWidget {
   final bool isBusy;
   final VoidCallback onCommitAll;
   final VoidCallback onCommitSelected;
+  final GitIdentityInfo? identity;
+  final VoidCallback? onEditIdentity;
   final GitDiffInfo? diff;
   final bool isLoadingDiff;
   final List<GitCommitInfo> history;
@@ -475,6 +556,8 @@ class _RepositoryBodyState extends State<_RepositoryBody> {
                   totalCount: widget.changes.length,
                   onCommit: widget.onCommitAll,
                   onCommitSelected: widget.onCommitSelected,
+                  identity: widget.identity,
+                  onEditIdentity: widget.onEditIdentity,
                 ),
               ],
             ),

@@ -16,6 +16,7 @@ from robot_studio.domain.models.git import (
     GitDiffLine,
     GitFileChange,
     GitFileStatus,
+    GitIdentity,
     GitRemote,
     GitRemoteResult,
     GitRepositoryInfo,
@@ -221,19 +222,16 @@ class CliGitProvider(GitProvider):
         *,
         files: list[str] | None = None,
     ) -> GitCommit:
+        identity = await self.get_identity(repo_root)
+        if not identity.is_complete:
+            raise GitCommandError(
+                "Git identity is not configured. Set your name and email before committing.",
+            )
         if files:
             await self._run(["add", "--", *files], cwd=repo_root)
         else:
             await self._run(["add", "-A"], cwd=repo_root)
-        # Prefer the user's Git identity (local or global). Only inject a
-        # fallback when name/email are unset so Init → Commit still works.
-        commit_args: list[str] = []
-        if not await self._config_value(repo_root, "user.name"):
-            commit_args.extend(["-c", "user.name=Robot Studio"])
-        if not await self._config_value(repo_root, "user.email"):
-            commit_args.extend(["-c", "user.email=robot-studio@local"])
-        commit_args.extend(["commit", "-m", message])
-        await self._run(commit_args, cwd=repo_root)
+        await self._run(["commit", "-m", message], cwd=repo_root)
         history = await self.history(repo_root, limit=1)
         if not history:
             raise GitCommandError("Commit succeeded but history is empty")
@@ -417,11 +415,51 @@ class CliGitProvider(GitProvider):
             detached=detached,
             clean=clean,
             remotes=remotes,
+            identity=await self.get_identity(repo_root),
         )
 
-    async def _config_value(self, repo_root: Path, key: str) -> str | None:
+    async def get_identity(self, repo_root: Path) -> GitIdentity:
+        local_name = await self._config_scoped(repo_root, "user.name", scope="local")
+        local_email = await self._config_scoped(repo_root, "user.email", scope="local")
+        global_name = await self._config_scoped(repo_root, "user.name", scope="global")
+        global_email = await self._config_scoped(repo_root, "user.email", scope="global")
+        name = local_name or global_name or ""
+        email = local_email or global_email or ""
+        if local_name or local_email:
+            source = "local"
+        elif global_name or global_email:
+            source = "global"
+        else:
+            source = "unset"
+        return GitIdentity(name=name, email=email, source=source)
+
+    async def set_identity(
+        self,
+        repo_root: Path,
+        *,
+        name: str,
+        email: str,
+        scope: str,
+    ) -> GitIdentity:
+        use_global = scope == "global"
+        flag = "--global" if use_global else "--local"
+        if use_global:
+            await self._unset_local_identity(repo_root)
+        await self._run(["config", flag, "user.name", name], cwd=repo_root)
+        await self._run(["config", flag, "user.email", email], cwd=repo_root)
+        return await self.get_identity(repo_root)
+
+    async def _unset_local_identity(self, repo_root: Path) -> None:
+        for key in ("user.name", "user.email"):
+            try:
+                await self._run(["config", "--local", "--unset", key], cwd=repo_root)
+            except GitCommandError:
+                continue
+
+    async def _config_scoped(self, repo_root: Path, key: str, *, scope: str) -> str | None:
+        flag = "--local" if scope == "local" else "--global"
         try:
-            value = (await self._run_text(["config", "--get", key], cwd=repo_root)).strip()
+            value = (await self._run_text(["config", flag, "--get", key], cwd=repo_root)).strip()
         except GitCommandError:
             return None
         return value or None

@@ -17,6 +17,7 @@ Git in Robot Studio is always scoped to the **active project**. It will not sile
 | Commit history + commit detail | History tab |
 | Switch / create / delete local branches | Branch control in Source Control header (and toolbar) |
 | Add / edit remote URL (`origin`) | **Add remote** in the Source Control header strip |
+| Set / change Git author name and email | **Set identity** / **Change** in the Source Control header (prompted on first commit if missing) |
 | Fetch / Pull / Push | Header icons (and toolbar ⋯) once a remote exists |
 | Refresh status | Header refresh |
 
@@ -31,7 +32,6 @@ Git in Robot Studio is always scoped to the **active project**. It will not sile
 | Discard / restore file | Not in UI yet |
 | Merge / rebase / stash / conflict UI | Not available |
 | Auth / credential helper UI | Relies on system Git credentials |
-| Commit author identity UI | Uses your Git `user.name` / `user.email` when set; otherwise falls back to `Robot Studio` |
 
 **Push after Init:** use **Add remote**, paste your GitHub/GitLab URL, then **Push**. The first push sets upstream automatically when needed.
 
@@ -40,4 +40,4 @@ Git in Robot Studio is always scoped to the **active project**. It will not sile
 - Keep `.robotstudio/` ignored (new projects get this in the seeded `.gitignore`).
 - If Git looks empty or wrong, confirm the project root is the repo you intend — not a parent folder opened by mistake.
 - Explorer and Tests refresh from live workspace events, including Git changes from outside the app.
-- History shows the **commit author** (Git `user.name`), not the project name. Set it with `git config user.name "Your Name"` and `git config user.email "you@example.com"`.
+- History shows the **commit author** (Git `user.name`), not the project name. Use **Set identity** if name and email are missing, or **Change** to update them. Existing commits keep the author they were created with.

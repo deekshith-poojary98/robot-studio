@@ -28,6 +28,7 @@ import '../execution/execution_page.dart';
 import '../execution/run_target.dart';
 import '../execution/stop_execution_dialog.dart';
 import '../git/add_remote_dialog.dart';
+import '../git/git_identity_dialog.dart';
 import '../git/source_control_page.dart';
 import '../packages/package_details_panel.dart';
 import '../packages/package_manager_page.dart';
@@ -828,6 +829,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       await _showError('Commit', 'Not a Git repository.');
       return;
     }
+    if (!await _ensureGitIdentity()) return;
     setState(() => _gitBusy = true);
     try {
       await _gateway.commitGitChanges(message: message, files: files);
@@ -899,6 +901,49 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       }
     } catch (error) {
       await _showError('Git $action', error);
+    } finally {
+      if (mounted) setState(() => _gitBusy = false);
+    }
+  }
+
+  Future<bool> _ensureGitIdentity() async {
+    final current = _gitStatus?.repository.identity;
+    if (current != null && current.isComplete) return true;
+    return _saveGitIdentity(
+      identity: current,
+      toastMessage: 'Git identity saved',
+    );
+  }
+
+  Future<void> _handleEditGitIdentity() async {
+    await _saveGitIdentity(
+      identity: _gitStatus?.repository.identity,
+      toastMessage: 'Git identity updated',
+    );
+  }
+
+  Future<bool> _saveGitIdentity({
+    required GitIdentityInfo? identity,
+    required String toastMessage,
+  }) async {
+    if (!mounted) return false;
+    final result = await showGitIdentityDialog(context, identity: identity);
+    if (result == null || !mounted) return false;
+    setState(() => _gitBusy = true);
+    try {
+      await _gateway.setGitIdentity(
+        name: result.name,
+        email: result.email,
+        scope: result.scope,
+      );
+      await _refreshGit();
+      if (!mounted) return true;
+      _appendLog('[info] Git identity set to ${result.name}');
+      showAppToast(context, message: toastMessage, icon: Icons.badge_outlined);
+      return true;
+    } catch (error) {
+      await _showError('Git identity', error);
+      return false;
     } finally {
       if (mounted) setState(() => _gitBusy = false);
     }
@@ -5779,6 +5824,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onCreateBranch: _handleGitCreateBranch,
         onDeleteBranch: _handleGitDeleteBranch,
         onAddRemote: () => unawaited(_handleAddGitRemote()),
+        onEditIdentity: () => unawaited(_handleEditGitIdentity()),
       ),
       _CenterView.packageDetail => PackageDetailsPanel(
         package: _selectedPackage!,

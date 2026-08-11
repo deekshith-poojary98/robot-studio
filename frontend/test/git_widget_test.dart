@@ -223,6 +223,7 @@ void main() {
               onPull: () {},
               onPush: () {},
               onAddRemote: () {},
+              onEditIdentity: () {},
             ),
           ),
         ),
@@ -230,6 +231,7 @@ void main() {
     );
 
     expect(find.text('CHANGES'), findsOneWidget);
+    expect(find.text('Set identity'), findsOneWidget);
     expect(find.textContaining('Modified'), findsOneWidget);
     expect(find.textContaining('Untracked'), findsOneWidget);
     expect(find.text('tests.robot'), findsOneWidget);
@@ -264,6 +266,12 @@ void main() {
                       url: 'https://github.com/acme/demo.git',
                     ),
                   ],
+                  identity: GitIdentityInfo(
+                    name: 'Ada Lovelace',
+                    email: 'ada@example.com',
+                    source: 'global',
+                    isComplete: true,
+                  ),
                 ),
               ),
               branches: const [GitBranchInfo(name: 'main', current: true)],
@@ -290,6 +298,7 @@ void main() {
               onPull: () {},
               onPush: () {},
               onAddRemote: () {},
+              onEditIdentity: () {},
             ),
           ),
         ),
@@ -298,6 +307,8 @@ void main() {
 
     expect(find.text('Up to date'), findsOneWidget);
     expect(find.text('Edit remote'), findsOneWidget);
+    expect(find.textContaining('Ada Lovelace'), findsWidgets);
+    expect(find.text('Change'), findsWidgets);
     expect(
       find.textContaining('https://github.com/acme/demo.git'),
       findsOneWidget,

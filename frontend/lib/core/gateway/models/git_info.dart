@@ -61,6 +61,40 @@ class GitRemoteInfo {
   final String url;
 }
 
+class GitIdentityInfo {
+  const GitIdentityInfo({
+    this.name = '',
+    this.email = '',
+    this.source = 'unset',
+    this.isComplete = false,
+  });
+
+  factory GitIdentityInfo.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const GitIdentityInfo();
+    final name = json['name'] as String? ?? '';
+    final email = json['email'] as String? ?? '';
+    return GitIdentityInfo(
+      name: name,
+      email: email,
+      source: json['source'] as String? ?? 'unset',
+      isComplete:
+          json['is_complete'] as bool? ??
+          (name.trim().isNotEmpty && email.contains('@')),
+    );
+  }
+
+  final String name;
+  final String email;
+  final String source;
+  final bool isComplete;
+
+  String get displayLabel {
+    if (name.isEmpty) return email;
+    if (email.isEmpty) return name;
+    return '$name <$email>';
+  }
+}
+
 class GitRepositoryInfo {
   const GitRepositoryInfo({
     required this.isRepository,
@@ -70,6 +104,7 @@ class GitRepositoryInfo {
     this.detached = false,
     this.clean = true,
     this.remotes = const [],
+    this.identity = const GitIdentityInfo(),
   });
 
   factory GitRepositoryInfo.fromJson(Map<String, dynamic> json) {
@@ -84,6 +119,9 @@ class GitRepositoryInfo {
       detached: json['detached'] as bool? ?? false,
       clean: json['clean'] as bool? ?? true,
       remotes: remotes,
+      identity: GitIdentityInfo.fromJson(
+        json['identity'] as Map<String, dynamic>?,
+      ),
     );
   }
 
@@ -94,6 +132,7 @@ class GitRepositoryInfo {
   final bool detached;
   final bool clean;
   final List<GitRemoteInfo> remotes;
+  final GitIdentityInfo identity;
 
   bool get hasRemote => remotes.isNotEmpty;
 }

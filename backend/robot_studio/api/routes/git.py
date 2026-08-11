@@ -12,6 +12,8 @@ from robot_studio.api.schemas.git import (
     GitCreateBranchRequest,
     GitDeleteBranchRequest,
     GitDiffResponse,
+    GitIdentityRequest,
+    GitIdentityResponse,
     GitRemoteResponse,
     GitRemoteResultResponse,
     GitRepositoryResponse,
@@ -20,6 +22,7 @@ from robot_studio.api.schemas.git import (
     to_commit_detail_response,
     to_commit_response,
     to_diff_response,
+    to_identity_response,
     to_remote_info_response,
     to_remote_response,
     to_repository_response,
@@ -184,6 +187,33 @@ async def git_list_remotes(
     except GitValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return [to_remote_info_response(item) for item in remotes]
+
+
+@router.get("/identity", response_model=GitIdentityResponse)
+async def git_get_identity(
+    gateway: RestGateway = Depends(get_gateway),
+) -> GitIdentityResponse:
+    try:
+        identity = await gateway.git_get_identity()
+    except GitValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return to_identity_response(identity)
+
+
+@router.put("/identity", response_model=GitIdentityResponse)
+async def git_set_identity(
+    request: GitIdentityRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> GitIdentityResponse:
+    try:
+        identity = await gateway.git_set_identity(
+            name=request.name,
+            email=request.email,
+            scope=request.scope,
+        )
+    except GitValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return to_identity_response(identity)
 
 
 @router.post("/remotes", response_model=list[GitRemoteResponse])

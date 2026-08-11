@@ -10,6 +10,7 @@ from robot_studio.domain.models.git import (
     GitCommit,
     GitCommitDetail,
     GitDiff,
+    GitIdentity,
     GitRemote,
     GitRemoteResult,
     GitRepositoryInfo,
@@ -84,6 +85,19 @@ class GitProvider(ABC):
         name: str,
         url: str,
     ) -> list[GitRemote]: ...
+
+    @abstractmethod
+    async def get_identity(self, repo_root: Path) -> GitIdentity: ...
+
+    @abstractmethod
+    async def set_identity(
+        self,
+        repo_root: Path,
+        *,
+        name: str,
+        email: str,
+        scope: str,
+    ) -> GitIdentity: ...
 
     @abstractmethod
     async def seed_local_remote(

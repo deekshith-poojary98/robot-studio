@@ -11,6 +11,7 @@ from robot_studio.domain.models.git import (
     GitDiff,
     GitDiffLine,
     GitFileChange,
+    GitIdentity,
     GitRemote,
     GitRemoteResult,
     GitRepositoryInfo,
@@ -28,6 +29,19 @@ class GitAddRemoteRequest(BaseModel):
     url: str
 
 
+class GitIdentityResponse(BaseModel):
+    name: str = ""
+    email: str = ""
+    source: str = "unset"
+    is_complete: bool = False
+
+
+class GitIdentityRequest(BaseModel):
+    name: str
+    email: str
+    scope: str = "local"
+
+
 class GitRepositoryResponse(BaseModel):
     is_repository: bool
     root: str | None = None
@@ -36,6 +50,7 @@ class GitRepositoryResponse(BaseModel):
     detached: bool = False
     clean: bool = True
     remotes: list[GitRemoteResponse] = Field(default_factory=list)
+    identity: GitIdentityResponse = Field(default_factory=GitIdentityResponse)
 
 
 class GitFileChangeResponse(BaseModel):
@@ -106,6 +121,15 @@ class GitDeleteBranchRequest(BaseModel):
     name: str
 
 
+def to_identity_response(item: GitIdentity) -> GitIdentityResponse:
+    return GitIdentityResponse(
+        name=item.name,
+        email=item.email,
+        source=item.source,
+        is_complete=item.is_complete,
+    )
+
+
 def to_repository_response(item: GitRepositoryInfo) -> GitRepositoryResponse:
     return GitRepositoryResponse(
         is_repository=item.is_repository,
@@ -115,6 +139,7 @@ def to_repository_response(item: GitRepositoryInfo) -> GitRepositoryResponse:
         detached=item.detached,
         clean=item.clean,
         remotes=[to_remote_info_response(remote) for remote in item.remotes],
+        identity=to_identity_response(item.identity),
     )
 
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/gateway/models/git_info.dart';
 import '../../core/theme/app_theme.dart';
 
 class CommitPanel extends StatelessWidget {
@@ -12,6 +13,8 @@ class CommitPanel extends StatelessWidget {
     required this.isBusy,
     required this.selectedCount,
     required this.totalCount,
+    this.identity,
+    this.onEditIdentity,
   });
 
   final TextEditingController controller;
@@ -21,6 +24,8 @@ class CommitPanel extends StatelessWidget {
   final bool isBusy;
   final int selectedCount;
   final int totalCount;
+  final GitIdentityInfo? identity;
+  final VoidCallback? onEditIdentity;
 
   @override
   Widget build(BuildContext context) {
@@ -145,6 +150,47 @@ class CommitPanel extends StatelessWidget {
                         color: palette.textMuted,
                       ),
                     ),
+                    if (identity != null) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              identity!.isComplete
+                                  ? 'Author · ${identity!.displayLabel}'
+                                  : 'Set name and email before committing',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: identity!.isComplete
+                                        ? palette.textMuted
+                                        : palette.warning,
+                                  ),
+                            ),
+                          ),
+                          if (onEditIdentity != null)
+                            TextButton(
+                              onPressed: isBusy ? null : onEditIdentity,
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                textStyle: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              child: Text(
+                                identity!.isComplete ? 'Change' : 'Set',
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
                   ],
                 );
               },

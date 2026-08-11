@@ -343,6 +343,14 @@ abstract class TransportGateway {
     required String url,
   });
 
+  Future<GitIdentityInfo> getGitIdentity();
+
+  Future<GitIdentityInfo> setGitIdentity({
+    required String name,
+    required String email,
+    String scope = 'local',
+  });
+
   Future<GitDiffInfo> getGitDiff({String? filePath, String? commit});
 
   Future<DoctorProfilesBundle> getDoctorProfiles();

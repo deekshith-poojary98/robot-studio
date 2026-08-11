@@ -854,6 +854,12 @@ class RestGateway:
     async def git_add_remote(self, *, name: str, url: str):
         return await self._git_service.add_remote(name=name, url=url)
 
+    async def git_get_identity(self):
+        return await self._git_service.get_identity()
+
+    async def git_set_identity(self, *, name: str, email: str, scope: str = "local"):
+        return await self._git_service.set_identity(name=name, email=email, scope=scope)
+
     async def git_seed_local_remote(
         self,
         *,

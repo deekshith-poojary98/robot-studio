@@ -25,6 +25,7 @@ from robot_studio.domain.models.git import (
     GitCommit,
     GitCommitDetail,
     GitDiff,
+    GitIdentity,
     GitRemote,
     GitRemoteResult,
     GitRepositoryInfo,
@@ -179,7 +180,19 @@ class GitService:
         if not message.strip():
             raise GitValidationError("Commit message is required")
         repo = await self._require_repository()
-        created = await self.provider.commit(Path(repo.root), message.strip(), files=files)
+        identity = await self.provider.get_identity(Path(repo.root))
+        if not identity.is_complete:
+            raise GitValidationError(
+                "Git identity is not configured. Set your name and email before committing.",
+            )
+        try:
+            created = await self.provider.commit(Path(repo.root), message.strip(), files=files)
+        except Exception as exc:
+            from robot_studio.infrastructure.git.cli_provider import GitCommandError
+
+            if isinstance(exc, GitCommandError):
+                raise GitValidationError(str(exc)) from exc
+            raise
         refreshed = await self.provider.detect(Path(repo.root))
         if refreshed is not None:
             self._repository = refreshed
@@ -234,6 +247,39 @@ class GitService:
             self._repository = refreshed
         await self.event_bus.publish(RepositoryUpdated(root=str(repo.root)))
         return remotes
+
+    async def get_identity(self) -> GitIdentity:
+        repo = await self._require_repository()
+        return await self.provider.get_identity(Path(repo.root))
+
+    async def set_identity(self, *, name: str, email: str, scope: str = "local") -> GitIdentity:
+        cleaned_name = name.strip()
+        cleaned_email = email.strip()
+        if not cleaned_name:
+            raise GitValidationError("Name is required")
+        if "@" not in cleaned_email:
+            raise GitValidationError("A valid email is required")
+        if scope not in {"local", "global"}:
+            raise GitValidationError("Scope must be local or global")
+        repo = await self._require_repository()
+        try:
+            identity = await self.provider.set_identity(
+                Path(repo.root),
+                name=cleaned_name,
+                email=cleaned_email,
+                scope=scope,
+            )
+        except Exception as exc:
+            from robot_studio.infrastructure.git.cli_provider import GitCommandError
+
+            if isinstance(exc, GitCommandError):
+                raise GitValidationError(str(exc)) from exc
+            raise
+        refreshed = await self.provider.detect(Path(repo.root))
+        if refreshed is not None:
+            self._repository = refreshed
+        await self.event_bus.publish(RepositoryUpdated(root=str(repo.root)))
+        return identity
 
     async def seed_local_remote(
         self,

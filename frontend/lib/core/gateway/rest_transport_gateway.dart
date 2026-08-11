@@ -1127,6 +1127,25 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<GitIdentityInfo> getGitIdentity() async {
+    final response = await _get('/git/identity');
+    return GitIdentityInfo.fromJson(response);
+  }
+
+  @override
+  Future<GitIdentityInfo> setGitIdentity({
+    required String name,
+    required String email,
+    String scope = 'local',
+  }) async {
+    final response = await _put(
+      '/git/identity',
+      body: {'name': name, 'email': email, 'scope': scope},
+    );
+    return GitIdentityInfo.fromJson(response);
+  }
+
+  @override
   Future<GitDiffInfo> getGitDiff({String? filePath, String? commit}) async {
     final buffer = StringBuffer('/git/diff?');
     if (filePath != null) {

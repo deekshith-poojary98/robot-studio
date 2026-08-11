@@ -86,6 +86,12 @@ async def test_init_status_commit_checkout_branch(git_stack) -> None:
     assert commit.message == "Initial commit"
     assert commit.author == "Dev"
 
+    identity = await service.get_identity()
+    assert identity.name == "Dev"
+    assert identity.email == "dev@example.com"
+    assert identity.source == "local"
+    assert identity.is_complete is True
+
     sample.write_text("*** Test Cases ***\nA\n    Log    updated\n", encoding="utf-8")
     dirty = await service.status()
     assert any(change.path.endswith("sample.robot") for change in dirty.changes)
@@ -131,6 +137,39 @@ async def test_commit_requires_message(git_stack) -> None:
     (workspace_path / "a.robot").write_text("*** Test Cases ***\nA\n    Log    1\n")
     with pytest.raises(GitValidationError, match="message"):
         await service.commit("   ")
+
+
+@pytest.mark.asyncio
+async def test_commit_requires_identity_when_unset(
+    git_stack,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "empty-home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(home / ".gitconfig"))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    service, _provider, workspace_path, _bus = git_stack
+    await service.init()
+    (workspace_path / "a.robot").write_text(
+        "*** Test Cases ***\nA\n    Log    1\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(GitValidationError, match="identity"):
+        await service.commit("Should not commit")
+
+    identity = await service.set_identity(
+        name="Ada Lovelace",
+        email="ada@example.com",
+        scope="local",
+    )
+    assert identity.name == "Ada Lovelace"
+    assert identity.email == "ada@example.com"
+    assert identity.source == "local"
+    commit = await service.commit("With identity")
+    assert commit.author == "Ada Lovelace"
+    assert commit.email == "ada@example.com"
 
 
 @pytest.mark.asyncio

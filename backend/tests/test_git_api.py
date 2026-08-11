@@ -84,12 +84,21 @@ async def test_git_init_commit_history_diff(api_client) -> None:
         for item in changes
     )
 
+    identity = await client.put(
+        "/api/v1/git/identity",
+        json={"name": "Dev", "email": "dev@example.com", "scope": "local"},
+    )
+    assert identity.status_code == 200
+    assert identity.json()["is_complete"] is True
+    assert identity.json()["name"] == "Dev"
+
     commit = await client.post(
         "/api/v1/git/commit",
         json={"message": "Add demo suite"},
     )
     assert commit.status_code == 200
     assert commit.json()["message"] == "Add demo suite"
+    assert commit.json()["author"] == "Dev"
 
     suite.write_text("*** Test Cases ***\nDemo\n    Log    updated\n", encoding="utf-8")
     dirty = await client.get("/api/v1/git/status")

@@ -116,6 +116,13 @@ ThemeData buildAppTheme([AppPalette palette = AppPalette.dark]) {
     ),
     iconTheme: IconThemeData(color: palette.textSecondary, size: 18),
     textTheme: TextTheme(
+      // TextField / TextFormField read bodyLarge (Material default 16). Keep
+      // it on the same 13px as bodyMedium so dialogs and forms stay dense.
+      bodyLarge: TextStyle(
+        color: palette.textPrimary,
+        fontSize: 13,
+        height: 1.35,
+      ),
       bodyMedium: TextStyle(
         color: palette.textPrimary,
         fontSize: 13,

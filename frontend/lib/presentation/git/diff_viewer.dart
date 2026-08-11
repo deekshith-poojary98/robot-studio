@@ -27,37 +27,40 @@ class DiffViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final path = fileLabel ?? diff?.filePath;
+    final hasFile = path != null && path.isNotEmpty;
+    final showDiff = !isLoading && diff != null && diff!.lines.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.sm,
-            AppSpacing.lg,
-            AppSpacing.xs,
-          ),
-          child: Text(
-            fileLabel ?? diff?.filePath ?? 'Select a changed file',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: context.palette.textSecondary,
+        if (hasFile) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.xs,
+            ),
+            child: Text(
+              path,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: context.palette.textSecondary,
+              ),
             ),
           ),
-        ),
-        Divider(height: 1, color: context.palette.borderSubtle),
+          Divider(height: 1, color: context.palette.borderSubtle),
+        ],
         Expanded(
           child: isLoading
               ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-              : diff == null || diff!.lines.isEmpty
-              ? Center(
+              : showDiff
+              ? _SideBySideDiff(lines: diff!.lines, filePath: path)
+              : Center(
                   child: Text(
                     'Select a changed file to view diff',
                     style: TextStyle(color: context.palette.textMuted),
                   ),
-                )
-              : _SideBySideDiff(
-                  lines: diff!.lines,
-                  filePath: fileLabel ?? diff!.filePath,
                 ),
         ),
       ],

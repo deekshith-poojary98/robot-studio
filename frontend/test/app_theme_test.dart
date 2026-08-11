@@ -17,6 +17,15 @@ void main() {
       );
     });
 
+    test('TextField input text is 13px, not Material 16', () {
+      for (final palette in [AppPalette.dark, AppPalette.light]) {
+        final theme = buildAppTheme(palette);
+        expect(theme.textTheme.bodyLarge!.fontSize, 13);
+        expect(theme.textTheme.bodyLarge!.color, palette.textPrimary);
+        expect(theme.textTheme.bodyMedium!.fontSize, 13);
+      }
+    });
+
     test('light theme does not inherit dark foregrounds', () {
       final light = buildAppTheme(AppPalette.light);
 

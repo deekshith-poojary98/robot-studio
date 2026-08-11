@@ -29,6 +29,18 @@ class GitRemote(BaseModel):
     url: str
 
 
+class GitIdentity(BaseModel):
+    """Effective Git author used for new commits."""
+
+    name: str = ""
+    email: str = ""
+    source: str = "unset"  # local | global | unset
+
+    @property
+    def is_complete(self) -> bool:
+        return bool(self.name.strip() and "@" in self.email)
+
+
 class GitRepositoryInfo(BaseModel):
     is_repository: bool = True
     root: Path | None = None
@@ -37,6 +49,7 @@ class GitRepositoryInfo(BaseModel):
     detached: bool = False
     clean: bool = True
     remotes: list[GitRemote] = Field(default_factory=list)
+    identity: GitIdentity = Field(default_factory=GitIdentity)
 
 
 class GitStatus(BaseModel):

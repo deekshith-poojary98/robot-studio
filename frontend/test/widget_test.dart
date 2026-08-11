@@ -2803,6 +2803,21 @@ class _FakeTransportGateway implements TransportGateway {
   }) async => [GitRemoteInfo(name: name, url: url)];
 
   @override
+  Future<GitIdentityInfo> getGitIdentity() async => const GitIdentityInfo();
+
+  @override
+  Future<GitIdentityInfo> setGitIdentity({
+    required String name,
+    required String email,
+    String scope = 'local',
+  }) async => GitIdentityInfo(
+    name: name,
+    email: email,
+    source: scope,
+    isComplete: true,
+  );
+
+  @override
   Future<GitDiffInfo> getGitDiff({String? filePath, String? commit}) async {
     return GitDiffInfo(
       filePath: filePath,
