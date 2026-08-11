@@ -144,6 +144,14 @@ def _absorb_file_bucket(target: dict, source: dict) -> None:
     if source_at is not None and (target_at is None or source_at > target_at):
         target["last_started_at"] = source_at
         target["last_outcome"] = source["last_outcome"]
+        target["last_run_id"] = source["last_run_id"]
+    source_failed_at = source.get("last_failed_at")
+    target_failed_at = target.get("last_failed_at")
+    if source_failed_at is not None and (
+        target_failed_at is None or source_failed_at > target_failed_at
+    ):
+        target["last_failed_at"] = source_failed_at
+        target["last_failed_run_id"] = source["last_failed_run_id"]
 
 
 def _empty_file_bucket() -> dict:
@@ -155,6 +163,9 @@ def _empty_file_bucket() -> dict:
         "aborted": 0,
         "last_outcome": None,
         "last_started_at": None,
+        "last_run_id": None,
+        "last_failed_run_id": None,
+        "last_failed_at": None,
     }
 
 
@@ -275,6 +286,12 @@ def _aggregate_runs(
         if last_at is None or run.started_at > last_at:
             bucket["last_started_at"] = run.started_at
             bucket["last_outcome"] = outcome
+            bucket["last_run_id"] = run.id
+        if outcome == "FAIL":
+            failed_at: datetime | None = bucket.get("last_failed_at")
+            if failed_at is None or run.started_at > failed_at:
+                bucket["last_failed_at"] = run.started_at
+                bucket["last_failed_run_id"] = run.id
 
     by_file = _merge_duplicate_file_buckets(dict(by_file))
 
@@ -306,6 +323,12 @@ def _aggregate_runs(
             if last_at is None or run.started_at > last_at:
                 only_bucket["last_started_at"] = run.started_at
                 only_bucket["last_outcome"] = outcome
+                only_bucket["last_run_id"] = run.id
+            if outcome == "FAIL":
+                failed_at = only_bucket.get("last_failed_at")
+                if failed_at is None or run.started_at > failed_at:
+                    only_bucket["last_failed_at"] = run.started_at
+                    only_bucket["last_failed_run_id"] = run.id
 
     counted = passed + failed + cancelled + aborted
     pass_rate = (passed / counted * 100.0) if counted else None
@@ -321,6 +344,8 @@ def _aggregate_runs(
             aborted=int(data["aborted"]),
             last_outcome=data["last_outcome"],
             last_started_at=data["last_started_at"],
+            last_run_id=data.get("last_run_id"),
+            last_failed_run_id=data.get("last_failed_run_id"),
         )
         for path, data in by_file.items()
     ]

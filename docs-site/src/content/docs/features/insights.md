@@ -1,13 +1,44 @@
 ---
 title: Insights
-description: Project composition and run health — symbols, pass rate, duration trend, and failing files.
+description: Triage failing files from run health, then inspect index composition.
 ---
 
-Insights is a center view for how the project is shaped and how recent runs are doing. Open it from the activity bar (**Insights**) or the command palette.
+Insights is a triage starting point for run health — not a metrics dashboard. Open it from the activity bar (**Insights**) or the command palette.
+
+Use it when you want to know **where the project is hurting** and jump straight into Failed Tests, source, Reports, or a rerun.
+
+## Run health
+
+Once you have executed suites, the left panel (top on a narrow window) is the primary surface:
+
+| Signal | What it does |
+|--------|----------------|
+| Headline **Failed** | Opens the last failed run in [Reports](/workflows/reports/) |
+| Fail / pass streak | Opens that last run in Reports so you can see why the streak exists |
+| Flaky files | Opens triage for files that both passed and failed |
+| Last run | Opens that run in Reports |
+| Failure mix by suite | Opens triage for the hottest failing file |
+
+Duration and pass-rate trends stay as context. They do not add extra destinations.
+
+## File triage
+
+Click a failing file in **Failure mix** or the **Files** table (for example `login.robot — 9 failed / 21 runs`). The triage dialog shows failure counts and the last failed test name when it is known, then:
+
+| Action | Destination |
+|--------|-------------|
+| **Open failed tests** | Reports, on the last failed run for that file |
+| **Open source** | The suite in the editor |
+| **View report** | Reports for the last failed run, or the last run if none failed |
+| **Rerun file** | Execution, running that `.robot` file |
+
+Files with no failures still open in the editor.
 
 ## Composition
 
-After the index is ready, Composition shows **indexed** counts:
+Composition is **secondary** — indexed shape of the project, not execution results.
+
+After the index is ready:
 
 | Metric | Meaning |
 |--------|---------|
@@ -15,7 +46,7 @@ After the index is ready, Composition shows **indexed** counts:
 | Suites | Distinct `.robot` files |
 | Files | Distinct indexed source files (`.robot`, `.resource`, `.py`, …) |
 
-Use **Rebuild Index** if counts look stale after adding files. Composition is **not** “tests executed in the last run” — that lives under Run health / Reports.
+Use **Rebuild Index** if counts look stale after adding files.
 
 **Variables** counts user-declared names from:
 
@@ -47,24 +78,9 @@ Also in Composition:
 
 Kind rows with a count of zero stay visible but muted so small projects still show the full shape of the index.
 
-## Run health
-
-Once you have executed suites, Run health shows:
-
-| Metric / chart | Meaning |
-|----------------|---------|
-| Pass/Fail streak · Flaky · Interrupted · Last N | Compact signals in the metric row |
-| Outcome share | Thin bar of passed / failed / cancelled / aborted runs |
-| Pass rate trend | Rolling pass-rate sparkline (window of up to 5), oldest → newest |
-| Duration trend | Duration bars (colored by outcome) with a muted tests-count line overlaid |
-| Last run | Outcome, suite, duration, and passed/failed/skipped counts in plain language |
-| Failure mix by suite | Horizontal bars for the hottest failing files (click to open) |
-
-Overall pass rate still appears in the headline strip above the panels.
-
 ## Files table
 
-The Files table merges index composition with per-file run stats so you can spot hot spots (high fail counts) next to keyword/test density. Rows are built lazily as you scroll, so large projects stay responsive.
+The Files table merges index composition with per-file run stats so you can spot hot spots (high fail counts) next to keyword/test density. Rows are built lazily as you scroll, so large projects stay responsive. Failing rows open triage; clean rows open source.
 
 ## Related
 

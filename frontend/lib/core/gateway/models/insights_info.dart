@@ -37,7 +37,9 @@ class InsightsInfo {
           )
           .toList(),
       runFiles: (json['run_files'] as List<dynamic>? ?? [])
-          .map((item) => InsightsFileRuns.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => InsightsFileRuns.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       indexState: json['index_state'] as String? ?? 'idle',
       indexMessage: json['index_message'] as String? ?? '',
@@ -186,6 +188,8 @@ class InsightsFileRuns {
     this.aborted = 0,
     this.lastOutcome,
     this.lastStartedAt,
+    this.lastRunId,
+    this.lastFailedRunId,
   });
 
   factory InsightsFileRuns.fromJson(Map<String, dynamic> json) {
@@ -199,6 +203,8 @@ class InsightsFileRuns {
       aborted: (json['aborted'] as num?)?.toInt() ?? 0,
       lastOutcome: json['last_outcome'] as String?,
       lastStartedAt: last is String ? DateTime.tryParse(last) : null,
+      lastRunId: json['last_run_id'] as String?,
+      lastFailedRunId: json['last_failed_run_id'] as String?,
     );
   }
 
@@ -210,4 +216,6 @@ class InsightsFileRuns {
   final int aborted;
   final String? lastOutcome;
   final DateTime? lastStartedAt;
+  final String? lastRunId;
+  final String? lastFailedRunId;
 }

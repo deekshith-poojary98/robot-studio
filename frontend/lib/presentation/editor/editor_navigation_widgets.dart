@@ -139,14 +139,18 @@ class HoverTooltipPlacement {
   final double top;
 }
 
-/// Prefer below the anchor; flip above / shift left when the card would
-/// overflow the editor viewport (VS Code-style).
+/// Prefer below the line; flip above when the card would not fit.
+///
+/// [anchor] may be the caret, a pointer in the glyphs, or line-top.
+/// The occupied line is snapped from that point so the card never covers
+/// the arguments. Vertical overflow is allowed (the editor stack does not
+/// clip) instead of sliding the card onto the line to stay in-viewport.
 HoverTooltipPlacement computeHoverTooltipPlacement({
   required Offset anchor,
   required Size viewport,
   required Size tooltipSize,
   double lineHeight = 20,
-  double gap = 4,
+  double gap = 8,
   double margin = 8,
   double offsetX = 12,
 }) {
@@ -157,14 +161,17 @@ HoverTooltipPlacement computeHoverTooltipPlacement({
       .clamp(48.0, EditorHoverTooltip.maxHeight)
       .toDouble();
 
-  final belowTop = anchor.dy + lineHeight + gap;
+  final safeLineHeight = lineHeight <= 0 ? 20.0 : lineHeight;
+  final lineTop = (anchor.dy / safeLineHeight).floor() * safeLineHeight;
+  final lineBottom = lineTop + safeLineHeight;
+
+  final belowTop = lineBottom + gap;
+  final aboveTop = lineTop - gap - height;
   final spaceBelow = viewport.height - belowTop - margin;
-  final spaceAbove = anchor.dy - gap - margin;
+  final spaceAbove = lineTop - gap - margin;
   final preferAbove = spaceBelow < height && spaceAbove > spaceBelow;
 
-  var top = preferAbove ? anchor.dy - gap - height : belowTop;
-  final maxTop = math.max(margin, viewport.height - height - margin);
-  top = top.clamp(margin, maxTop).toDouble();
+  final top = preferAbove ? aboveTop : belowTop;
 
   var left = anchor.dx + offsetX;
   final maxLeft = math.max(margin, viewport.width - width - margin);

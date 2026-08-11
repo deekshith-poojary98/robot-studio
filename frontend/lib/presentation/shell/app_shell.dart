@@ -1131,6 +1131,76 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     });
   }
 
+  Future<void> _openInsightsRun(String runId) async {
+    for (final run in _reportRuns) {
+      if (run.id == runId) {
+        await _selectReport(run);
+        return;
+      }
+    }
+    try {
+      final run = await _gateway.getReport(runId);
+      if (!mounted) return;
+      await _selectReport(run);
+    } catch (error) {
+      if (!mounted) return;
+      await _showError('Open report', error);
+    }
+  }
+
+  Future<String?> _loadInsightsLastFailureName(String runId) async {
+    try {
+      final result = await _gateway.getRunFailures(runId);
+      if (result.items.isEmpty) return null;
+      return result.items.first.name;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _rerunInsightsFile(String path) async {
+    if (!path.toLowerCase().endsWith('.robot')) return;
+    AppLogger.info(
+      'Insights rerun file',
+      tag: 'Shell',
+      data: {
+        'project': _selectedProject?.name,
+        'suite': path,
+        'env': _activeEnvironment?.name,
+      },
+    );
+    if (!await _ensureProject(
+      message: 'Open a project before running tests.',
+    )) {
+      return;
+    }
+    if (!await _ensureRobotReady()) return;
+    await _maybeSaveBeforeRun();
+    if (!mounted) return;
+    setState(() {
+      _revealExecutionCenter();
+    });
+    await _connectExecutionStream();
+    try {
+      final run = await _gateway.runFile(file: path);
+      if (!mounted) return;
+      AppLogger.info(
+        'Run started',
+        tag: 'Shell',
+        data: 'id=${run.id} status=${run.status.name}',
+      );
+      setState(() {
+        _execution.executionStatus = run.status;
+        _execution.currentExecution = run;
+      });
+      _startElapsedTimer();
+    } catch (error) {
+      if (!mounted) return;
+      _appendLog('[error] Run failed: $error');
+      await _handleExecutionError(error);
+    }
+  }
+
   Future<void> _selectReport(ExecutionInfo run) async {
     if (!await _prepareLeaveSettings()) return;
     setState(() {
@@ -5911,6 +5981,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onRefresh: () => unawaited(_loadInsights()),
         onRebuildIndex: () => unawaited(_rebuildIndex()),
         onOpenFile: (path) => unawaited(_openFile(path)),
+        onOpenRun: (runId) => unawaited(_openInsightsRun(runId)),
+        onRerunFile: (path) => unawaited(_rerunInsightsFile(path)),
+        onLoadLastFailureName: _loadInsightsLastFailureName,
       ),
       _CenterView.editor => EditorPage(
         key: _editorPageKey,

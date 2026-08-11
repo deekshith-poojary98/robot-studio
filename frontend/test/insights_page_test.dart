@@ -86,6 +86,8 @@ void main() {
                   passed: 3,
                   failed: 2,
                   lastOutcome: 'FAIL',
+                  lastRunId: '1',
+                  lastFailedRunId: '3',
                 ),
               ],
             ),
@@ -121,6 +123,7 @@ void main() {
     expect(find.text('FILE TYPES'), findsOneWidget);
     expect(find.text('TEST-HEAVY FILES'), findsOneWidget);
     expect(find.textContaining('3 tests'), findsOneWidget);
+    expect(find.textContaining('Indexed project shape'), findsOneWidget);
     expect(find.text('.robot'), findsOneWidget);
     expect(find.text('.resource'), findsOneWidget);
     // Zero kinds stay visible (muted), not hidden.
@@ -157,4 +160,170 @@ void main() {
     // Must not appear as a wrapped raw digit break (e.g. 1000\n000).
     expect(find.text('1000000'), findsNothing);
   });
+
+  testWidgets('Insights last run and fail count open Reports', (tester) async {
+    final opened = <String>[];
+    await _pumpTallInsights(
+      tester,
+      InsightsPage(
+        insights: _triageInsights(),
+        isLoading: false,
+        onOpenRun: opened.add,
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Open last failed run in Reports'));
+    await tester.pump();
+    expect(opened, ['fail-run']);
+
+    opened.clear();
+    await tester.tap(find.byTooltip('Open in Reports'));
+    await tester.pump();
+    expect(opened, ['pass-run']);
+  });
+
+  testWidgets('Insights file triage opens failed tests and source', (
+    tester,
+  ) async {
+    final openedRuns = <String>[];
+    final openedFiles = <String>[];
+    final reruns = <String>[];
+    await _pumpTallInsights(
+      tester,
+      InsightsPage(
+        insights: _triageInsights(),
+        isLoading: false,
+        onOpenFile: openedFiles.add,
+        onOpenRun: openedRuns.add,
+        onRerunFile: reruns.add,
+        onLoadLastFailureName: (id) async {
+          expect(id, 'fail-run');
+          return 'Login with valid creds';
+        },
+      ),
+    );
+
+    await tester.ensureVisible(find.textContaining('2 failed · 5 runs'));
+    await tester.tap(find.textContaining('2 failed · 5 runs'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('demo.robot'), findsWidgets);
+    expect(find.textContaining('2 failures across 5 runs'), findsOneWidget);
+    expect(find.text('Last failure: Login with valid creds'), findsOneWidget);
+    expect(find.text('Open failed tests'), findsOneWidget);
+    expect(find.text('Open source'), findsOneWidget);
+    expect(find.text('View report'), findsOneWidget);
+    expect(find.text('Rerun file'), findsOneWidget);
+
+    await tester.tap(find.text('Open failed tests'));
+    await tester.pumpAndSettle();
+    expect(openedRuns, ['fail-run']);
+    expect(find.text('Open failed tests'), findsNothing);
+
+    await tester.tap(find.textContaining('2 failed · 5 runs'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open source'));
+    await tester.pumpAndSettle();
+    expect(openedFiles, ['/proj/tests/demo.robot']);
+
+    await tester.tap(find.textContaining('2 failed · 5 runs'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rerun file'));
+    await tester.pumpAndSettle();
+    expect(reruns, ['/proj/tests/demo.robot']);
+  });
+
+  testWidgets('Insights flaky files and fail streak are actionable', (
+    tester,
+  ) async {
+    final opened = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: InsightsPage(
+            insights: _triageInsights(failStreak: true),
+            isLoading: false,
+            onOpenRun: opened.add,
+            onOpenFile: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Fail streak'), findsOneWidget);
+    await tester.tap(find.text('Fail streak'));
+    await tester.pump();
+    expect(opened, ['fail-run']);
+
+    opened.clear();
+    await tester.tap(find.text('Flaky files'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('2 failures across 5 runs'), findsOneWidget);
+    await tester.tap(find.text('View report'));
+    await tester.pumpAndSettle();
+    expect(opened, ['fail-run']);
+  });
+}
+
+Future<void> _pumpTallInsights(WidgetTester tester, InsightsPage page) async {
+  await tester.binding.setSurfaceSize(const Size(800, 2000));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: buildAppTheme(),
+      home: Scaffold(body: page),
+    ),
+  );
+}
+
+InsightsInfo _triageInsights({bool failStreak = false}) {
+  return InsightsInfo(
+    composition: const {'keyword': 12, 'test_case': 4, 'variable': 3},
+    compositionFiles: const [
+      InsightsFileComposition(
+        filePath: '/proj/tests/demo.robot',
+        counts: {'keyword': 2, 'test_case': 3},
+      ),
+    ],
+    runs: const InsightsRunTotals(
+      total: 10,
+      passed: 7,
+      failed: 2,
+      cancelled: 1,
+      passRate: 70,
+      averageDurationMs: 1500,
+    ),
+    recentRuns: [
+      InsightsRecentRun(
+        id: failStreak ? 'fail-run' : 'pass-run',
+        suite: '/proj/tests/demo.robot',
+        startedAt: DateTime.utc(2026, 8, 9, 12),
+        durationMs: 1200,
+        passed: failStreak ? 2 : 4,
+        failed: failStreak ? 1 : 0,
+        outcome: failStreak ? 'FAIL' : 'PASS',
+      ),
+      InsightsRecentRun(
+        id: 'fail-run',
+        suite: '/proj/tests/demo.robot',
+        startedAt: DateTime.utc(2026, 8, 9, 11, 30),
+        durationMs: 1800,
+        passed: 2,
+        failed: 1,
+        outcome: 'FAIL',
+      ),
+    ],
+    runFiles: const [
+      InsightsFileRuns(
+        filePath: '/proj/tests/demo.robot',
+        runs: 5,
+        passed: 3,
+        failed: 2,
+        lastOutcome: 'FAIL',
+        lastRunId: 'pass-run',
+        lastFailedRunId: 'fail-run',
+      ),
+    ],
+  );
 }

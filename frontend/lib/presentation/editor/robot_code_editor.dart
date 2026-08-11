@@ -98,10 +98,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   double _charWidth = 7.8;
   bool _pointerOverTooltip = false;
   final GlobalKey _hoverTooltipKey = GlobalKey();
-  Size _hoverTooltipSize = const Size(
-    EditorHoverTooltip.maxWidth,
-    EditorHoverTooltip.maxHeight,
-  );
+  Size _hoverTooltipSize = const Size(360, 88);
 
   CodeLineEditingController get controller => _controller;
 
@@ -370,10 +367,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _hoverLocal = null;
     _hoverLine = null;
     _hoverColumn = null;
-    _hoverTooltipSize = const Size(
-      EditorHoverTooltip.maxWidth,
-      EditorHoverTooltip.maxHeight,
-    );
+    _hoverTooltipSize = const Size(360, 88);
     if (hadTooltip) {
       widget.onHoverExit?.call();
       if (mounted) setState(() {});
@@ -410,9 +404,14 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     final vertical = _scrollController.verticalScroller.hasClients
         ? _scrollController.verticalScroller.offset
         : 0.0;
-    final y = sel.baseIndex * _lineHeight - vertical + _lineHeight + 4;
+    final y = sel.baseIndex * _lineHeight - vertical;
     final x = _gutterWidth + sel.baseOffset * _charWidth + 8;
-    return Offset(x.clamp(8.0, 480.0), y.clamp(8.0, 2000.0));
+    return Offset(x.clamp(8.0, 480.0), y);
+  }
+
+  Offset _lineTopAnchor(Offset local) {
+    final lineTop = (local.dy / _lineHeight).floor() * _lineHeight;
+    return Offset(local.dx, lineTop);
   }
 
   (int, int)? _lineColumnAt(Offset local) {
@@ -539,8 +538,9 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
         : editor;
 
     final tooltip = widget.hoverTooltip;
-    final tooltipPos =
-        _hoverLocal ?? (tooltip != null ? _caretTooltipOffset() : null);
+    final tooltipPos = _hoverLocal != null
+        ? _lineTopAnchor(_hoverLocal!)
+        : (tooltip != null ? _caretTooltipOffset() : null);
 
     return Shortcuts(
       shortcuts: {
@@ -657,6 +657,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
                         viewport: viewport,
                         tooltipSize: _hoverTooltipSize,
                         lineHeight: _lineHeight,
+                        gap: AppSpacing.sm,
                       )
                     : null;
 
@@ -737,6 +738,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       viewport: viewport,
       tooltipSize: box.size,
       lineHeight: _lineHeight,
+      gap: AppSpacing.sm,
     );
     if ((refined.left - current.left).abs() > 0.5 ||
         (refined.top - current.top).abs() > 0.5) {

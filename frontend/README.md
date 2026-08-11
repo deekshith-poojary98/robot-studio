@@ -145,6 +145,7 @@ column that says “open in the main view”.
 - Plugin rows show **Enable** or **Disable** (not both); built-ins don’t offer a disabled Enable control.
 - Reports: rail panel **Runs** lists recent runs by run number from `.robotstudio/reports/Run-*` (e.g. `Run 20260101-120000 · FAIL`; tap to open details); main Reports page shows dashboard + details only (no duplicate run list). Artifact filenames are hyperlinks; Reveal Folder remains.
 - **Robot Doctor**: structural project scanner (`DoctorPage`) — circular imports, duplicate keywords, potentially unused keywords/resources. Single **Scan project** action (no Quick/Default/Full). Findings expand to why-it-matters, cycle path, affected files, and **Open source**. Missing imports stay in Problems; run-health smells stay in Insights/Reports. Backed by `/api/v1/doctor/*`.
+- **Insights**: run-health triage first (last run, fail streak, flaky files, failure mix, Files table) into Reports / editor / rerun; composition stays secondary index context. No extra charts.
 - External file conflicts offer **Reload** / **Keep Mine** only (no unfinished Compare).
 - When a run finishes, the IDE **stays on the current view** and shows a toast with **View Report** — it does not auto-navigate to Reports.
 - Run / Run Project stay disabled until Robot Framework is installed in the active environment (tooltip explains why).

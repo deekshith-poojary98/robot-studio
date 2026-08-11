@@ -48,6 +48,8 @@ class FileRunStatsResponse(BaseModel):
     aborted: int = 0
     last_outcome: str | None = None
     last_started_at: datetime | None = None
+    last_run_id: UUID | None = None
+    last_failed_run_id: UUID | None = None
 
 
 class InsightsResponse(BaseModel):
@@ -102,6 +104,8 @@ def to_insights_response(snapshot: InsightsSnapshot) -> InsightsResponse:
                 aborted=item.aborted,
                 last_outcome=item.last_outcome,
                 last_started_at=item.last_started_at,
+                last_run_id=item.last_run_id,
+                last_failed_run_id=item.last_failed_run_id,
             )
             for item in snapshot.run_files
         ],

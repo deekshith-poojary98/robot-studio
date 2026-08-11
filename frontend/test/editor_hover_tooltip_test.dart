@@ -79,17 +79,31 @@ void main() {
   group('computeHoverTooltipPlacement', () {
     const tooltip = Size(200, 120);
     const viewport = Size(400, 300);
+    const lineHeight = 20.0;
+    const gap = 8.0;
+
+    bool overlapsLine(
+      HoverTooltipPlacement placement,
+      double anchorY, {
+      double height = 120,
+    }) {
+      final lineTop = (anchorY / lineHeight).floor() * lineHeight;
+      final lineBottom = lineTop + lineHeight;
+      final cardBottom = placement.top + height;
+      return cardBottom > lineTop && placement.top < lineBottom;
+    }
 
     test('places below when there is room', () {
       final placement = computeHoverTooltipPlacement(
         anchor: const Offset(40, 40),
         viewport: viewport,
         tooltipSize: tooltip,
-        lineHeight: 20,
-        gap: 4,
+        lineHeight: lineHeight,
+        gap: gap,
       );
-      expect(placement.top, 40 + 20 + 4);
+      expect(placement.top, 40 + lineHeight + gap);
       expect(placement.left, 40 + 12);
+      expect(overlapsLine(placement, 40), isFalse);
     });
 
     test('flips above near the bottom of the viewport', () {
@@ -97,11 +111,37 @@ void main() {
         anchor: const Offset(40, 250),
         viewport: viewport,
         tooltipSize: tooltip,
-        lineHeight: 20,
-        gap: 4,
+        lineHeight: lineHeight,
+        gap: gap,
       );
-      expect(placement.top, lessThan(250));
-      expect(placement.top + tooltip.height, lessThanOrEqualTo(250));
+      const lineTop = 240.0;
+      expect(placement.top + tooltip.height, lessThanOrEqualTo(lineTop - gap));
+      expect(overlapsLine(placement, 250), isFalse);
+    });
+
+    test('clears the full line when the anchor is mid-glyph', () {
+      final placement = computeHoverTooltipPlacement(
+        anchor: const Offset(80, 255),
+        viewport: viewport,
+        tooltipSize: tooltip,
+        lineHeight: lineHeight,
+        gap: gap,
+      );
+      const lineTop = 240.0;
+      expect(placement.top + tooltip.height, lessThanOrEqualTo(lineTop - gap));
+      expect(overlapsLine(placement, 255), isFalse);
+    });
+
+    test('does not slide onto the line to stay in-viewport', () {
+      final placement = computeHoverTooltipPlacement(
+        anchor: const Offset(40, 100),
+        viewport: const Size(400, 120),
+        tooltipSize: const Size(200, 80),
+        lineHeight: lineHeight,
+        gap: gap,
+      );
+      expect(placement.top + 80, lessThanOrEqualTo(100 - gap));
+      expect(overlapsLine(placement, 100, height: 80), isFalse);
     });
 
     test('shifts left near the right edge', () {
@@ -109,7 +149,7 @@ void main() {
         anchor: const Offset(350, 40),
         viewport: viewport,
         tooltipSize: tooltip,
-        lineHeight: 20,
+        lineHeight: lineHeight,
       );
       expect(placement.left + tooltip.width, lessThanOrEqualTo(400 - 8));
       expect(placement.left, greaterThanOrEqualTo(8));

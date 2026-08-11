@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/insights_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/status_badge.dart';
+import 'insights_file_triage_dialog.dart';
 
 /// Shared thickness for horizontal progress / share bars on Insights.
 const double _kInsightBarThickness = 8;
@@ -17,6 +20,9 @@ class InsightsPage extends StatelessWidget {
     this.onRefresh,
     this.onRebuildIndex,
     this.onOpenFile,
+    this.onOpenRun,
+    this.onRerunFile,
+    this.onLoadLastFailureName,
   });
 
   final InsightsInfo? insights;
@@ -24,6 +30,9 @@ class InsightsPage extends StatelessWidget {
   final VoidCallback? onRefresh;
   final VoidCallback? onRebuildIndex;
   final ValueChanged<String>? onOpenFile;
+  final ValueChanged<String>? onOpenRun;
+  final ValueChanged<String>? onRerunFile;
+  final Future<String?> Function(String runId)? onLoadLastFailureName;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +45,30 @@ class InsightsPage extends StatelessWidget {
           const Divider(height: 1),
           Expanded(child: _buildBody(context)),
         ],
+      ),
+    );
+  }
+
+  void _triageFile(BuildContext context, InsightsFileRuns file) {
+    final reportId = file.lastFailedRunId ?? file.lastRunId;
+    final canRerun = file.filePath.toLowerCase().endsWith('.robot');
+    unawaited(
+      showInsightsFileTriageDialog(
+        context,
+        file: file,
+        loadLastFailureName: onLoadLastFailureName,
+        onOpenSource: onOpenFile == null
+            ? null
+            : () => onOpenFile!(file.filePath),
+        onOpenFailedTests: file.lastFailedRunId == null || onOpenRun == null
+            ? null
+            : () => onOpenRun!(file.lastFailedRunId!),
+        onViewReport: reportId == null || onOpenRun == null
+            ? null
+            : () => onOpenRun!(reportId),
+        onRerun: onRerunFile == null || !canRerun
+            ? null
+            : () => onRerunFile!(file.filePath),
       ),
     );
   }
@@ -64,6 +97,14 @@ class InsightsPage extends StatelessWidget {
 
     final files = _mergeFileRows(data);
     final failing = data.runFiles.where((f) => f.failed > 0).take(5).toList();
+    InsightsRecentRun? failedRun;
+    for (final run in data.recentRuns) {
+      if (run.outcome.toUpperCase() == 'FAIL') {
+        failedRun = run;
+        break;
+      }
+    }
+    final failedRunId = failedRun?.id;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -78,7 +119,14 @@ class InsightsPage extends StatelessWidget {
                 AppSpacing.xl,
                 AppSpacing.md,
               ),
-              sliver: SliverToBoxAdapter(child: _HeadlineStrip(data: data)),
+              sliver: SliverToBoxAdapter(
+                child: _HeadlineStrip(
+                  data: data,
+                  onOpenFailed: failedRunId == null || onOpenRun == null
+                      ? null
+                      : () => onOpenRun!(failedRunId),
+                ),
+              ),
             ),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
@@ -89,18 +137,20 @@ class InsightsPage extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Expanded(
-                              child: _CompositionPanel(
+                              child: _RunHealthPanel(
                                 data: data,
-                                onRebuildIndex: onRebuildIndex,
-                                onOpenFile: onOpenFile,
+                                failing: failing,
+                                onOpenRun: onOpenRun,
+                                onTriageFile: (file) =>
+                                    _triageFile(context, file),
                                 expandBody: true,
                               ),
                             ),
                             const SizedBox(width: AppSpacing.md),
                             Expanded(
-                              child: _RunHealthPanel(
+                              child: _CompositionPanel(
                                 data: data,
-                                failing: failing,
+                                onRebuildIndex: onRebuildIndex,
                                 onOpenFile: onOpenFile,
                                 expandBody: true,
                               ),
@@ -110,15 +160,16 @@ class InsightsPage extends StatelessWidget {
                       )
                     : Column(
                         children: [
-                          _CompositionPanel(
-                            data: data,
-                            onRebuildIndex: onRebuildIndex,
-                            onOpenFile: onOpenFile,
-                          ),
-                          const SizedBox(height: AppSpacing.md),
                           _RunHealthPanel(
                             data: data,
                             failing: failing,
+                            onOpenRun: onOpenRun,
+                            onTriageFile: (file) => _triageFile(context, file),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          _CompositionPanel(
+                            data: data,
+                            onRebuildIndex: onRebuildIndex,
                             onOpenFile: onOpenFile,
                           ),
                         ],
@@ -130,6 +181,7 @@ class InsightsPage extends StatelessWidget {
               context: context,
               rows: files,
               onOpenFile: onOpenFile,
+              onTriageFile: (file) => _triageFile(context, file),
             ),
           ],
         );
@@ -138,10 +190,85 @@ class InsightsPage extends StatelessWidget {
   }
 }
 
+Future<void> _openFlakyFiles(
+  BuildContext context, {
+  required List<InsightsFileRuns> files,
+  required ValueChanged<InsightsFileRuns> onTriageFile,
+}) async {
+  if (files.isEmpty) return;
+  if (files.length == 1) {
+    onTriageFile(files.first);
+    return;
+  }
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) {
+      final style = TextStyle(fontSize: 12, fontWeight: FontWeight.w600);
+      return AlertDialog(
+        titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+        title: Text(
+          'Flaky files',
+          style: Theme.of(dialogContext).textTheme.titleLarge,
+        ),
+        content: SizedBox(
+          width: AppDialogWidth.form,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 320),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'These files passed and failed across runs. Open one to triage.',
+                    style: Theme.of(dialogContext).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  for (final file in files)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          onTriageFile(file);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          textStyle: style,
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            '${_shortFileLabel(file.filePath)} · '
+                            '${file.failed} failed / ${file.runs} runs',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 List<Widget> _filesSlivers({
   required BuildContext context,
   required List<_MergedFileRow> rows,
   required ValueChanged<String>? onOpenFile,
+  required ValueChanged<InsightsFileRuns>? onTriageFile,
 }) {
   final palette = context.palette;
   return [
@@ -174,6 +301,17 @@ List<Widget> _filesSlivers({
                       _formatCount(rows.length),
                       style: TextStyle(fontSize: 11, color: palette.textMuted),
                     ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        'Click a failing file to triage.',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: palette.textMuted,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -200,9 +338,17 @@ List<Widget> _filesSlivers({
                     return _FileDataRow(
                       row: row,
                       striped: index.isOdd,
-                      onOpen: onOpenFile == null
-                          ? null
-                          : () => onOpenFile(row.filePath),
+                      onOpen:
+                          (row.failed > 0 && onTriageFile != null) ||
+                              onOpenFile != null
+                          ? () {
+                              if (row.failed > 0 && onTriageFile != null) {
+                                onTriageFile(row.asFileRuns);
+                              } else if (onOpenFile != null) {
+                                onOpenFile(row.filePath);
+                              }
+                            }
+                          : null,
                     );
                   },
                   childCount: rows.length,
@@ -242,7 +388,7 @@ class _Header extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Composition and run health for this project.',
+                  'Triage failing files, then inspect composition.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -263,25 +409,34 @@ class _Header extends StatelessWidget {
 
 /// Single dense strip — the numbers you glance at first.
 class _HeadlineStrip extends StatelessWidget {
-  const _HeadlineStrip({required this.data});
+  const _HeadlineStrip({required this.data, this.onOpenFailed});
 
   final InsightsInfo data;
+  final VoidCallback? onOpenFailed;
 
   @override
   Widget build(BuildContext context) {
     final runs = data.runs;
-    final items = <(String, String, Color?)>[
+    final items = <(String, String, Color?, VoidCallback?)>[
       (
         'Pass rate',
         data.hasRuns ? runs.passRateLabel : '—',
         data.hasRuns ? context.palette.success : null,
+        null,
       ),
-      ('Runs', data.hasRuns ? '${runs.total}' : '0', null),
-      ('Failed', data.hasRuns ? '${runs.failed}' : '0', context.palette.error),
-      ('Avg duration', data.hasRuns ? runs.averageDurationLabel : '—', null),
-      ('Keywords', _formatCount(data.countFor('keyword')), null),
-      ('Test cases', _formatCount(data.countFor('test_case')), null),
-      ('Variables', _formatCount(data.countFor('variable')), null),
+      ('Runs', data.hasRuns ? '${runs.total}' : '0', null, null),
+      (
+        'Failed',
+        data.hasRuns ? '${runs.failed}' : '0',
+        context.palette.error,
+        (data.hasRuns && runs.failed > 0) ? onOpenFailed : null,
+      ),
+      (
+        'Avg duration',
+        data.hasRuns ? runs.averageDurationLabel : '—',
+        null,
+        null,
+      ),
     ];
 
     return DecoratedBox(
@@ -308,6 +463,7 @@ class _HeadlineStrip extends StatelessWidget {
                   label: items[i].$1,
                   value: items[i].$2,
                   valueColor: items[i].$3,
+                  onTap: items[i].$4,
                 ),
               ],
             ],
@@ -323,15 +479,17 @@ class _HeadlineCell extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor,
+    this.onTap,
   });
 
   final String label;
   final String value;
   final Color? valueColor;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final child = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -364,6 +522,14 @@ class _HeadlineCell extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+    if (onTap == null) return child;
+    return Tooltip(
+      message: 'Open last failed run in Reports',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(onTap: onTap, child: child),
       ),
     );
   }
@@ -508,6 +674,13 @@ class _CompositionPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text(
+            'Indexed project shape — not execution results.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
+          ),
+          const SizedBox(height: AppSpacing.md),
           for (final entry in entries)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -1049,13 +1222,15 @@ class _RunHealthPanel extends StatelessWidget {
   const _RunHealthPanel({
     required this.data,
     required this.failing,
-    this.onOpenFile,
+    this.onOpenRun,
+    this.onTriageFile,
     this.expandBody = false,
   });
 
   final InsightsInfo data;
   final List<InsightsFileRuns> failing;
-  final ValueChanged<String>? onOpenFile;
+  final ValueChanged<String>? onOpenRun;
+  final ValueChanged<InsightsFileRuns>? onTriageFile;
   final bool expandBody;
 
   @override
@@ -1067,9 +1242,10 @@ class _RunHealthPanel extends StatelessWidget {
     final maxDuration = chronological
         .map((r) => r.durationMs ?? 0)
         .fold<int>(0, (m, v) => v > m ? v : m);
-    final flakyFileCount = data.runFiles
+    final flakyFiles = data.runFiles
         .where((f) => f.passed > 0 && f.failed > 0)
-        .length;
+        .toList();
+    final flakyFileCount = flakyFiles.length;
     final interrupted = runs.cancelled + runs.aborted;
     final recentWindow = recent.take(5).toList();
     final recentFails = recentWindow
@@ -1099,6 +1275,19 @@ class _RunHealthPanel extends StatelessWidget {
                   interrupted: interrupted,
                   recentPassRate: recentPassRate,
                   recentWindowSize: recentWindow.length,
+                  onOpenStreak:
+                      streak.count == 0 || recent.isEmpty || onOpenRun == null
+                      ? null
+                      : () => onOpenRun!(recent.first.id),
+                  onOpenFlaky: flakyFileCount == 0 || onTriageFile == null
+                      ? null
+                      : () => unawaited(
+                          _openFlakyFiles(
+                            context,
+                            files: flakyFiles,
+                            onTriageFile: onTriageFile!,
+                          ),
+                        ),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 _OutcomeShareBar(runs: runs),
@@ -1179,13 +1368,18 @@ class _RunHealthPanel extends StatelessWidget {
                   const SizedBox(height: AppSpacing.md),
                   const _SectionLabel('Last run'),
                   const SizedBox(height: AppSpacing.sm),
-                  _LastRunCard(run: recent.first),
+                  _LastRunCard(
+                    run: recent.first,
+                    onOpen: onOpenRun == null
+                        ? null
+                        : () => onOpenRun!(recent.first.id),
+                  ),
                 ],
                 if (failing.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.lg),
                   const _SectionLabel('Failure mix by suite'),
                   const SizedBox(height: AppSpacing.sm),
-                  _SuiteFailureBars(files: failing, onOpenFile: onOpenFile),
+                  _SuiteFailureBars(files: failing, onTriageFile: onTriageFile),
                 ],
               ],
             ),
@@ -1220,6 +1414,8 @@ class _HealthMetricGrid extends StatelessWidget {
     required this.interrupted,
     this.recentPassRate,
     this.recentWindowSize = 0,
+    this.onOpenStreak,
+    this.onOpenFlaky,
   });
 
   final InsightsRunTotals runs;
@@ -1228,6 +1424,8 @@ class _HealthMetricGrid extends StatelessWidget {
   final int interrupted;
   final double? recentPassRate;
   final int recentWindowSize;
+  final VoidCallback? onOpenStreak;
+  final VoidCallback? onOpenFlaky;
 
   @override
   Widget build(BuildContext context) {
@@ -1240,7 +1438,12 @@ class _HealthMetricGrid extends StatelessWidget {
             : streak.isPass
             ? context.palette.success
             : context.palette.error,
-        subtitle: 'consecutive outcomes',
+        subtitle: streak.count == 0
+            ? 'consecutive outcomes'
+            : streak.isPass
+            ? 'open last run'
+            : 'open last failure',
+        onTap: onOpenStreak,
       ),
     ];
     if (flakyFileCount > 0) {
@@ -1249,7 +1452,8 @@ class _HealthMetricGrid extends StatelessWidget {
           label: 'Flaky files',
           value: '$flakyFileCount',
           valueColor: context.palette.warning,
-          subtitle: 'passed and failed',
+          subtitle: 'open to triage',
+          onTap: onOpenFlaky,
         ),
       );
     }
@@ -1296,16 +1500,18 @@ class _MetricTile extends StatelessWidget {
     required this.value,
     this.valueColor,
     this.subtitle,
+    this.onTap,
   });
 
   final String label;
   final String value;
   final Color? valueColor;
   final String? subtitle;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    final tile = SizedBox(
       height: 68,
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -1352,6 +1558,19 @@ class _MetricTile extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+    if (onTap == null) return tile;
+    return Tooltip(
+      message: label,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadii.xs),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadii.xs),
+          child: tile,
         ),
       ),
     );
@@ -1517,10 +1736,10 @@ class _PassRateSparklinePainter extends CustomPainter {
 }
 
 class _SuiteFailureBars extends StatelessWidget {
-  const _SuiteFailureBars({required this.files, this.onOpenFile});
+  const _SuiteFailureBars({required this.files, this.onTriageFile});
 
   final List<InsightsFileRuns> files;
-  final ValueChanged<String>? onOpenFile;
+  final ValueChanged<InsightsFileRuns>? onTriageFile;
 
   @override
   Widget build(BuildContext context) {
@@ -1544,9 +1763,9 @@ class _SuiteFailureBars extends StatelessWidget {
               _SuiteFailureBarRow(
                 file: files[i],
                 maxFails: maxFails,
-                onOpen: onOpenFile == null
+                onOpen: onTriageFile == null
                     ? null
-                    : () => onOpenFile!(files[i].filePath),
+                    : () => onTriageFile!(files[i]),
               ),
             ],
           ],
@@ -1642,9 +1861,10 @@ class _SuiteFailureBarRowState extends State<_SuiteFailureBarRow> {
 }
 
 class _LastRunCard extends StatelessWidget {
-  const _LastRunCard({required this.run});
+  const _LastRunCard({required this.run, this.onOpen});
 
   final InsightsRecentRun run;
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -1666,7 +1886,7 @@ class _LastRunCard extends StatelessWidget {
     }
     final summary = summaryParts.join(' · ');
 
-    return DecoratedBox(
+    final card = DecoratedBox(
       decoration: BoxDecoration(
         color: context.palette.surfaceElevated,
         borderRadius: BorderRadius.circular(AppRadii.xs),
@@ -1721,7 +1941,28 @@ class _LastRunCard extends StatelessWidget {
               _relativeTime(run.startedAt),
               style: TextStyle(fontSize: 11, color: context.palette.textMuted),
             ),
+            if (onOpen != null) ...[
+              const SizedBox(width: AppSpacing.xs),
+              Icon(
+                Icons.chevron_right,
+                size: 16,
+                color: context.palette.textMuted,
+              ),
+            ],
           ],
+        ),
+      ),
+    );
+    if (onOpen == null) return card;
+    return Tooltip(
+      message: 'Open in Reports',
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadii.xs),
+        child: InkWell(
+          onTap: onOpen,
+          borderRadius: BorderRadius.circular(AppRadii.xs),
+          child: card,
         ),
       ),
     );
@@ -1884,7 +2125,7 @@ class _FileDataRowState extends State<_FileDataRow> {
       );
     }
 
-    return MouseRegion(
+    final rowChild = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: Material(
@@ -1960,6 +2201,13 @@ class _FileDataRowState extends State<_FileDataRow> {
           ),
         ),
       ),
+    );
+    if (widget.onOpen == null) return rowChild;
+    return Tooltip(
+      message: row.failed > 0
+          ? 'Triage ${row.shortName}'
+          : 'Open ${row.shortName}',
+      child: rowChild,
     );
   }
 }
@@ -2227,6 +2475,8 @@ class _MergedFileRow {
     this.aborted = 0,
     this.lastOutcome,
     this.lastStartedAt,
+    this.lastRunId,
+    this.lastFailedRunId,
   });
 
   final String filePath;
@@ -2238,11 +2488,26 @@ class _MergedFileRow {
   final int aborted;
   final String? lastOutcome;
   final DateTime? lastStartedAt;
+  final String? lastRunId;
+  final String? lastFailedRunId;
 
   String get shortName {
     final parts = filePath.replaceAll('\\', '/').split('/');
     return parts.isEmpty ? filePath : parts.last;
   }
+
+  InsightsFileRuns get asFileRuns => InsightsFileRuns(
+    filePath: filePath,
+    runs: runs,
+    passed: passed,
+    failed: failed,
+    cancelled: cancelled,
+    aborted: aborted,
+    lastOutcome: lastOutcome,
+    lastStartedAt: lastStartedAt,
+    lastRunId: lastRunId,
+    lastFailedRunId: lastFailedRunId,
+  );
 }
 
 List<_MergedFileRow> _mergeFileRows(InsightsInfo data) {
@@ -2266,6 +2531,8 @@ List<_MergedFileRow> _mergeFileRows(InsightsInfo data) {
     required int aborted,
     String? lastOutcome,
     DateTime? lastStartedAt,
+    String? lastRunId,
+    String? lastFailedRunId,
   }) {
     final key = _matchRunToFile(suite, map.keys);
     if (key == null) return;
@@ -2284,6 +2551,10 @@ List<_MergedFileRow> _mergeFileRows(InsightsInfo data) {
       aborted: existing.aborted + aborted,
       lastOutcome: newer ? lastOutcome : existing.lastOutcome,
       lastStartedAt: newer ? lastStartedAt : existing.lastStartedAt,
+      lastRunId: newer
+          ? (lastRunId ?? existing.lastRunId)
+          : (existing.lastRunId ?? lastRunId),
+      lastFailedRunId: lastFailedRunId ?? existing.lastFailedRunId,
     );
   }
 
@@ -2297,6 +2568,8 @@ List<_MergedFileRow> _mergeFileRows(InsightsInfo data) {
       aborted: run.aborted,
       lastOutcome: run.lastOutcome,
       lastStartedAt: run.lastStartedAt,
+      lastRunId: run.lastRunId,
+      lastFailedRunId: run.lastFailedRunId,
     );
   }
 
@@ -2313,6 +2586,8 @@ List<_MergedFileRow> _mergeFileRows(InsightsInfo data) {
         aborted: outcome == 'ABORTED' ? 1 : 0,
         lastOutcome: recent.outcome.isEmpty ? null : recent.outcome,
         lastStartedAt: recent.startedAt,
+        lastRunId: recent.id,
+        lastFailedRunId: outcome == 'FAIL' ? recent.id : null,
       );
     }
   }

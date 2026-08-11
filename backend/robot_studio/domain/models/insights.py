@@ -52,6 +52,8 @@ class FileRunStats(BaseModel):
     aborted: int = 0
     last_outcome: str | None = None
     last_started_at: datetime | None = None
+    last_run_id: UUID | None = None
+    last_failed_run_id: UUID | None = None
 
 
 class InsightsSnapshot(BaseModel):

@@ -143,6 +143,8 @@ async def test_insights_composition_and_run_aggregates(api_client) -> None:
     assert len(body["recent_runs"]) == 4
     assert body["run_files"][0]["runs"] == 4
     assert body["run_files"][0]["failed"] == 1
+    assert body["run_files"][0]["last_run_id"]
+    assert body["run_files"][0]["last_failed_run_id"]
 
 
 @pytest.mark.asyncio
