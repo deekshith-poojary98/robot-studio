@@ -30,6 +30,10 @@ Robot Studio pairs a **Flutter desktop** UI with a local **Python** backend. Whe
 
 Data for the app (database, plugins, preferences) lives under `~/.robot-studio`. Project-specific Studio state lives under `.robotstudio/` inside the project.
 
+## Where we’re headed
+
+Beta stays on trust and polish. After freeze, the bet is semantic RF workflows (impact, safe rename) that a generic editor cannot match — see the [Roadmap](/getting-started/roadmap/).
+
 ## Next step
 
 → [Install Robot Studio](/getting-started/install/)

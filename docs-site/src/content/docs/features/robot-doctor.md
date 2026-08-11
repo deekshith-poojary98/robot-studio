@@ -1,23 +1,37 @@
 ---
 title: Robot Doctor
-description: Project health findings with jump-to-source for issues like missing imports.
+description: Structural project health — circular imports, duplicate keywords, potentially unused assets.
 ---
 
-**Robot Doctor** scans the open project for problems and ranks what to fix first — outside a single open file.
+**Robot Doctor** scans the open project for **structural problems that span files** — issues a single open file’s Problems list often will not show.
 
-Open it from the activity bar (**Doctor**), **View → Robot Doctor**, `⌘⇧D` / `Ctrl+Shift+D`, or the command palette.
+Open it from the activity bar (**Doctor**), **View → Robot Doctor**, `⌘⇧D` / `Ctrl+Shift+D`, or the command palette. Click **Scan project**.
 
-## What you see
+## What Doctor owns
 
-| Area | Meaning |
-|------|---------|
-| **Findings / Critical / Errors / Warnings** | How many issues this scan found, by severity |
-| **Since last scan** | Whether the count went up or down vs the previous Doctor run |
-| **Fix first** | Top issues to tackle before the rest |
-| **Grouped list** | Findings by type (imports, correctness, structure, past runs, …) |
+| Check | Severity | Meaning |
+|-------|----------|---------|
+| **Circular imports** | Error | Resources/suites import each other in a cycle |
+| **Duplicate keywords** | Error | Same keyword name defined in more than one place |
+| **Potentially unused keywords / resources** | Info | No static callers/imports found — confirm before deleting |
 
-Each finding expands to **Why is this reported?**, a confidence note, and **Jump to source** when a location is known.
+## What Doctor does **not** own
 
-Profiles (**Quick** / **Default** / **Full**) change how deep the scan goes. **Full** can also use patterns from past test runs.
+| Question | Use instead |
+|----------|-------------|
+| What’s wrong in this file? | **Problems** |
+| Why did my test fail? | **Execution / Reports → Failed Tests** |
+| Missing `Resource` / `Library` while editing | **Problems** / editor diagnostics |
+| Project composition / run trends | **Insights** |
+| Where is this symbol? | **Go → Find Symbol in Project…** |
 
-Quick Fix actions stay hidden until they are real and trustworthy — Doctor is honest about what it can fix today versus what it can only point at.
+## Finding details
+
+Expand a finding to see:
+
+- **Why this matters** — plain-language explanation
+- **Import cycle** (when applicable) — `a → b → a`
+- **Affected files** — click a row to open it
+- **Open source** — jump to the primary location
+
+Unused findings are deliberately conservative. Shared libraries, dynamic keyword names, and reserved helpers can look unused to the static graph.
