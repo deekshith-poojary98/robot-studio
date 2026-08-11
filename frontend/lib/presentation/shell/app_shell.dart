@@ -2920,7 +2920,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       } else {
         _offerViewReportToast(latest);
       }
-      unawaited(_execution.loadFailedTests(latest.id));
+      if (latest.shouldListFailures) {
+        unawaited(_execution.loadFailedTests(latest.id));
+      } else {
+        _execution.clearFailedTests();
+      }
     }
     await _suggestMissingLibraryInstall();
   }

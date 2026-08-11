@@ -132,6 +132,12 @@ class ExecutionInfo {
       status == ExecutionStatus.finished &&
       (exitCode == 0 || (failed ?? 0) == 0);
 
+  /// Whether Execution should fetch / show the Failed Tests list.
+  bool get shouldListFailures =>
+      status == ExecutionStatus.failed ||
+      (failed ?? 0) > 0 ||
+      ((exitCode ?? 0) != 0 && status == ExecutionStatus.finished);
+
   String get resultBadge {
     if (status == ExecutionStatus.cancelled) return 'CANCELLED';
     if (status == ExecutionStatus.failed ||

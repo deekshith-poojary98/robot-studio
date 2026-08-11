@@ -49,6 +49,7 @@ class ExecutionShellController {
 
   final Map<String, List<RunTestFailureInfo>> _reportFailuresCache = {};
   Timer? _reportFailuresSkeletonTimer;
+  Timer? _liveFailuresSkeletonTimer;
 
   static const _reportSkeletonDelay = Duration(milliseconds: 350);
 
@@ -79,6 +80,7 @@ class ExecutionShellController {
     elapsedTimer?.cancel();
     _outputFlushTimer?.cancel();
     _reportFailuresSkeletonTimer?.cancel();
+    _liveFailuresSkeletonTimer?.cancel();
     streamClient?.disconnect();
   }
 
@@ -361,6 +363,8 @@ class ExecutionShellController {
     failedTests = [];
     loadingFailures = false;
     failedTestsRunId = null;
+    _liveFailuresSkeletonTimer?.cancel();
+    _liveFailuresSkeletonTimer = null;
     reportFailedTests = [];
     loadingReportFailures = false;
     reportFailedTestsRunId = null;
@@ -372,6 +376,8 @@ class ExecutionShellController {
   }
 
   void clearFailedTests() {
+    _liveFailuresSkeletonTimer?.cancel();
+    _liveFailuresSkeletonTimer = null;
     failedTests = [];
     loadingFailures = false;
     failedTestsRunId = null;
@@ -397,6 +403,8 @@ class ExecutionShellController {
     failedTests = [];
     loadingFailures = false;
     failedTestsRunId = null;
+    _liveFailuresSkeletonTimer?.cancel();
+    _liveFailuresSkeletonTimer = null;
     _clearLiveProgress();
     // Clear so early stream lines for the new run are not filtered by the
     // previous run id while the start HTTP call is still in flight.
@@ -473,9 +481,16 @@ class ExecutionShellController {
     required String? Function() currentRunId,
     required void Function(List<RunTestFailureInfo> items) setItems,
   }) async {
-    setLoading(true);
+    _liveFailuresSkeletonTimer?.cancel();
+    setLoading(false);
     setRunId(runId);
+    setItems(const []);
     notify();
+    _liveFailuresSkeletonTimer = Timer(_reportSkeletonDelay, () {
+      if (!isMounted() || currentRunId() != runId) return;
+      setLoading(true);
+      notify();
+    });
     try {
       // Linking runs async after index — brief retry if xml just landed.
       RunFailuresInfo? result;
@@ -486,11 +501,15 @@ class ExecutionShellController {
         if (!isMounted() || currentRunId() != runId) return;
       }
       if (!isMounted() || currentRunId() != runId) return;
+      _liveFailuresSkeletonTimer?.cancel();
+      _liveFailuresSkeletonTimer = null;
       setItems(result?.items ?? const []);
       setLoading(false);
       notify();
     } catch (error) {
       if (!isMounted() || currentRunId() != runId) return;
+      _liveFailuresSkeletonTimer?.cancel();
+      _liveFailuresSkeletonTimer = null;
       setItems(const []);
       setLoading(false);
       notify();

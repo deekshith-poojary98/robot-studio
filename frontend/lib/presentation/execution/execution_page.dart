@@ -57,7 +57,9 @@ class ExecutionPage extends StatelessWidget {
     final theme = Theme.of(context);
     final running = status.isActive;
     final showFailures =
-        !running && (isLoadingFailures || failedTests.isNotEmpty);
+        !running &&
+        (failedTests.isNotEmpty ||
+            (isLoadingFailures && (currentRun?.shouldListFailures ?? false)));
 
     return Container(
       color: context.palette.background,

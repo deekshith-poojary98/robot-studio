@@ -7,6 +7,44 @@ import 'package:robot_studio/presentation/execution/failed_tests_panel.dart';
 import 'package:robot_studio/presentation/reports/run_details_panel.dart';
 
 void main() {
+  test('shouldListFailures skips a clean pass', () {
+    ExecutionInfo run({
+      required ExecutionStatus status,
+      int? exitCode,
+      int? failed,
+    }) {
+      return ExecutionInfo(
+        id: 'run',
+        workspaceId: 'ws',
+        projectId: 'p1',
+        environmentId: 'e1',
+        projectName: 'Demo',
+        suite: 'suite.robot',
+        status: status,
+        startedAt: DateTime.utc(2026, 7, 19),
+        exitCode: exitCode,
+        failed: failed,
+      );
+    }
+
+    expect(
+      run(
+        status: ExecutionStatus.finished,
+        exitCode: 0,
+        failed: 0,
+      ).shouldListFailures,
+      isFalse,
+    );
+    expect(
+      run(
+        status: ExecutionStatus.failed,
+        exitCode: 1,
+        failed: 1,
+      ).shouldListFailures,
+      isTrue,
+    );
+  });
+
   const failure = RunTestFailureInfo(
     runId: 'run-1',
     name: 'Broken Login',
@@ -69,6 +107,43 @@ void main() {
     expect(find.text('Failed Tests'), findsOneWidget);
     expect(find.text('Jump to Source'), findsOneWidget);
     expect(find.text('Re-run Test'), findsOneWidget);
+  });
+
+  testWidgets('Execution page hides Failed Tests skeleton on a passing run', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ExecutionPage(
+            consoleLines: const [],
+            status: ExecutionStatus.finished,
+            currentRun: ExecutionInfo(
+              id: 'run-pass',
+              workspaceId: 'ws',
+              projectId: 'p1',
+              environmentId: 'e1',
+              projectName: 'Demo',
+              suite: 'tests/ok.robot',
+              status: ExecutionStatus.finished,
+              startedAt: DateTime.utc(2026, 7, 19, 11, 0, 0),
+              exitCode: 0,
+              failed: 0,
+              passed: 1,
+              totalTests: 1,
+            ),
+            isLoadingFailures: true,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Failed Tests'), findsNothing);
+    expect(find.byKey(const ValueKey('failed-tests-skeleton')), findsNothing);
+    expect(find.text('Live Output'), findsOneWidget);
   });
 
   testWidgets('Execution page hides Failed Tests while running', (
