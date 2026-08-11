@@ -278,6 +278,19 @@ Highlight _sharedHighlight() {
   return highlight;
 }
 
+TextStyle _defaultHighlightBase(AppPalette palette) => TextStyle(
+  fontFamily: 'Menlo',
+  fontSize: 13,
+  height: 1.45,
+  letterSpacing: 0,
+  wordSpacing: 0,
+  color: palette.textPrimary,
+);
+
+void _ensureLanguageRegistered(String id, Mode mode) {
+  _sharedHighlight().registerLanguage(id, mode);
+}
+
 /// Highlight source with a registered language and the editor token theme.
 TextSpan highlightSource(
   String code,
@@ -285,14 +298,7 @@ TextSpan highlightSource(
   required String language,
   TextStyle? base,
 }) {
-  final baseStyle =
-      base ??
-      TextStyle(
-        fontFamily: 'monospace',
-        fontSize: 11,
-        height: 1.45,
-        color: palette.textPrimary,
-      );
+  final baseStyle = base ?? _defaultHighlightBase(palette);
   if (code.isEmpty) {
     return TextSpan(text: '', style: baseStyle);
   }
@@ -304,6 +310,113 @@ TextSpan highlightSource(
   } catch (_) {
     return TextSpan(text: code, style: baseStyle);
   }
+}
+
+/// Highlight [code] using the same grammar mapping as the code editor.
+///
+/// Unknown extensions fall back to a plain [TextSpan] (no tokens).
+TextSpan highlightSourceForPath(
+  String code,
+  String path,
+  AppPalette palette, {
+  TextStyle? base,
+}) {
+  final baseStyle = base ?? _defaultHighlightBase(palette);
+  final resolved = _resolveLanguage(path);
+  if (resolved == null) {
+    return TextSpan(text: code, style: baseStyle);
+  }
+  _ensureLanguageRegistered(resolved.id, resolved.mode);
+  return highlightSource(code, palette, language: resolved.id, base: baseStyle);
+}
+
+/// Flatten [root] and split on newlines into [expectedLineCount] line spans.
+///
+/// Used by the Git diff viewer so each side can be highlighted as one buffer
+/// (better grammar context) then rendered row-by-row.
+@visibleForTesting
+List<TextSpan> splitTextSpanByNewlines(
+  TextSpan root, {
+  required int expectedLineCount,
+  TextStyle? base,
+}) {
+  if (expectedLineCount <= 0) return const [];
+
+  final runs = <({String text, TextStyle? style})>[];
+  void walk(InlineSpan span, TextStyle? inherited) {
+    final style = span.style == null
+        ? inherited
+        : (inherited?.merge(span.style) ?? span.style);
+    if (span is! TextSpan) return;
+    final text = span.text;
+    if (text != null && text.isNotEmpty) {
+      runs.add((text: text, style: style));
+    }
+    final children = span.children;
+    if (children == null) return;
+    for (final child in children) {
+      walk(child, style);
+    }
+  }
+
+  walk(root, root.style ?? base);
+
+  final lines = <TextSpan>[];
+  var current = <InlineSpan>[];
+
+  void flush() {
+    if (current.isEmpty) {
+      lines.add(TextSpan(text: '', style: base ?? root.style));
+    } else {
+      lines.add(
+        TextSpan(
+          style: base ?? root.style,
+          children: List<InlineSpan>.of(current),
+        ),
+      );
+    }
+    current = <InlineSpan>[];
+  }
+
+  for (final run in runs) {
+    final parts = run.text.split('\n');
+    for (var i = 0; i < parts.length; i++) {
+      if (i > 0) flush();
+      if (parts[i].isEmpty) continue;
+      current.add(TextSpan(text: parts[i], style: run.style));
+    }
+  }
+  flush();
+
+  while (lines.length < expectedLineCount) {
+    lines.add(TextSpan(text: '', style: base ?? root.style));
+  }
+  if (lines.length > expectedLineCount) {
+    return lines.sublist(0, expectedLineCount);
+  }
+  return lines;
+}
+
+/// Highlight [lineTexts] joined as one buffer, then split back into rows.
+List<TextSpan> highlightLinesForPath(
+  List<String> lineTexts,
+  String path,
+  AppPalette palette, {
+  TextStyle? base,
+}) {
+  final baseStyle = base ?? _defaultHighlightBase(palette);
+  if (lineTexts.isEmpty) return const [];
+  final span = highlightSourceForPath(
+    lineTexts.join('\n'),
+    path,
+    palette,
+    base: baseStyle,
+  );
+  return splitTextSpanByNewlines(
+    span,
+    expectedLineCount: lineTexts.length,
+    base: baseStyle,
+  );
 }
 
 /// Highlight Robot Framework source with the same theme as the editor.

@@ -69,4 +69,77 @@ void main() {
     expect(darkTheme['type']?.color, dark.warning);
     expect(lightTheme['type']?.color, light.warning);
   });
+
+  test('highlightSourceForPath tokens Robot section headers', () {
+    final span = highlightSourceForPath(
+      '*** Variables ***\n\${URL}    https://example.com\n',
+      'tests/login.robot',
+      dark,
+    );
+    expect(_collectColors(span), contains(const Color(0xFF9CDCFE)));
+  });
+
+  test('highlightLinesForPath preserves row count across empty sides', () {
+    final spans = highlightLinesForPath(
+      const ['Library    Browser', '', '*** Variables ***'],
+      'tests/login.robot',
+      dark,
+    );
+    expect(spans, hasLength(3));
+    expect(_spanText(spans[0]), 'Library    Browser');
+    expect(_spanText(spans[1]), '');
+    expect(_spanText(spans[2]), '*** Variables ***');
+  });
+
+  test('splitTextSpanByNewlines keeps styles across line breaks', () {
+    const root = TextSpan(
+      children: [
+        TextSpan(
+          text: 'aaa',
+          style: TextStyle(color: Color(0xFF111111)),
+        ),
+        TextSpan(
+          text: '\nbbb',
+          style: TextStyle(color: Color(0xFF222222)),
+        ),
+      ],
+    );
+    final lines = splitTextSpanByNewlines(root, expectedLineCount: 2);
+    expect(lines, hasLength(2));
+    expect(_spanText(lines[0]), 'aaa');
+    expect(_spanText(lines[1]), 'bbb');
+  });
+}
+
+String _spanText(TextSpan span) {
+  final buffer = StringBuffer();
+  void walk(InlineSpan node) {
+    if (node is! TextSpan) return;
+    if (node.text != null) buffer.write(node.text);
+    final children = node.children;
+    if (children == null) return;
+    for (final child in children) {
+      walk(child);
+    }
+  }
+
+  walk(span);
+  return buffer.toString();
+}
+
+Set<Color> _collectColors(TextSpan span) {
+  final colors = <Color>{};
+  void walk(InlineSpan node) {
+    final color = node.style?.color;
+    if (color != null) colors.add(color);
+    if (node is! TextSpan) return;
+    final children = node.children;
+    if (children == null) return;
+    for (final child in children) {
+      walk(child);
+    }
+  }
+
+  walk(span);
+  return colors;
 }

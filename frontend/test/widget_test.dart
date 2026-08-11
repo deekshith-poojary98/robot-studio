@@ -2818,26 +2818,16 @@ class _FakeTransportGateway implements TransportGateway {
     return const DoctorProfilesBundle(
       profiles: [
         DoctorProfileInfo(
-          id: 'quick',
-          title: 'Quick',
-          description: 'Correctness + dependency blockers only.',
+          id: 'default',
+          title: 'Structural',
+          description:
+              'Circular imports, duplicate keywords, and potentially unused assets.',
           providerIds: [
-            'missing_import',
             'circular_dependency',
             'duplicate_keyword',
+            'unused_keyword',
+            'unused_resource',
           ],
-        ),
-        DoctorProfileInfo(
-          id: 'default',
-          title: 'Default',
-          description: 'All static semantic inspections.',
-          providerIds: ['unused_keyword', 'missing_import'],
-        ),
-        DoctorProfileInfo(
-          id: 'full',
-          title: 'Full',
-          description: 'Static + execution knowledge.',
-          providerIds: ['unused_keyword', 'flaky_test'],
         ),
       ],
     );

@@ -25,9 +25,12 @@ class UnusedKeywordInspection(Inspection):
     def info(self) -> InspectionInfo:
         return InspectionInfo(
             id="unused_keyword",
-            title="Unused keyword",
-            description="User keywords with no bound callers in the project call graph.",
-            default_severity=FindingSeverity.WARNING,
+            title="Potentially unused keyword",
+            description=(
+                "User keywords with no bound callers in the project call graph. "
+                "Conservative — dynamic/shared usage may still exist."
+            ),
+            default_severity=FindingSeverity.INFO,
         )
 
     async def run(self, project_id: UUID, engine: AnalysisEngine) -> list[Finding]:
@@ -37,13 +40,22 @@ class UnusedKeywordInspection(Inspection):
                 Finding(
                     id=_fid(self.info.id, entity.id),
                     inspection_id=self.info.id,
-                    severity=FindingSeverity.WARNING,
-                    message=f"Keyword '{entity.name}' is never called",
-                    confidence=BindingConfidence.HIGH,
+                    severity=FindingSeverity.INFO,
+                    message=f"Potentially unused keyword '{entity.name}'",
+                    confidence=BindingConfidence.MEDIUM,
                     entity=entity,
                     file_path=entity.file_path,
                     line=entity.line,
                     column=entity.column,
+                    metadata={
+                        "affected_files": [
+                            {
+                                "path": entity.file_path,
+                                "name": entity.name,
+                                "line": entity.line,
+                            },
+                        ],
+                    },
                 ),
             )
         return findings
@@ -54,9 +66,12 @@ class UnusedResourceInspection(Inspection):
     def info(self) -> InspectionInfo:
         return InspectionInfo(
             id="unused_resource",
-            title="Unused resource",
-            description="Resource files not imported by any suite/resource.",
-            default_severity=FindingSeverity.WARNING,
+            title="Potentially unused resource",
+            description=(
+                "Resource files not imported by any suite/resource in the static graph. "
+                "Conservative — dynamic loads may still exist."
+            ),
+            default_severity=FindingSeverity.INFO,
         )
 
     async def run(self, project_id: UUID, engine: AnalysisEngine) -> list[Finding]:
@@ -66,13 +81,22 @@ class UnusedResourceInspection(Inspection):
                 Finding(
                     id=_fid(self.info.id, entity.id),
                     inspection_id=self.info.id,
-                    severity=FindingSeverity.WARNING,
-                    message=f"Resource '{entity.name}' is never imported",
-                    confidence=BindingConfidence.HIGH,
+                    severity=FindingSeverity.INFO,
+                    message=f"Potentially unused resource '{entity.name}'",
+                    confidence=BindingConfidence.MEDIUM,
                     entity=entity,
                     file_path=entity.file_path,
                     line=entity.line,
                     column=entity.column,
+                    metadata={
+                        "affected_files": [
+                            {
+                                "path": entity.file_path,
+                                "name": entity.name,
+                                "line": entity.line,
+                            },
+                        ],
+                    },
                 ),
             )
         return findings
@@ -85,7 +109,7 @@ class DuplicateKeywordInspection(Inspection):
             id="duplicate_keyword",
             title="Duplicate keyword",
             description="Multiple keyword definitions share the same normalized name.",
-            default_severity=FindingSeverity.WARNING,
+            default_severity=FindingSeverity.ERROR,
         )
 
     async def run(self, project_id: UUID, engine: AnalysisEngine) -> list[Finding]:
@@ -94,20 +118,31 @@ class DuplicateKeywordInspection(Inspection):
             if len(group) < 2:
                 continue
             primary = group[0]
-            names = ", ".join(f"{g.file_path}:{g.line}" for g in group)
+            affected = [
+                {"path": g.file_path, "name": g.name, "line": g.line}
+                for g in group
+            ]
+            locations = ", ".join(f"{g.file_path}:{g.line}" for g in group)
             findings.append(
                 Finding(
                     id=_fid(self.info.id, primary.name, *(g.id for g in group)),
                     inspection_id=self.info.id,
-                    severity=FindingSeverity.WARNING,
-                    message=f"Duplicate keyword '{primary.name}' defined {len(group)} times ({names})",
+                    severity=FindingSeverity.ERROR,
+                    message=(
+                        f"Duplicate keyword '{primary.name}' "
+                        f"({len(group)} definitions)"
+                    ),
                     confidence=BindingConfidence.EXACT,
                     entity=primary,
                     secondary_entities=group[1:],
                     file_path=primary.file_path,
                     line=primary.line,
                     column=primary.column,
-                    metadata={"count": len(group)},
+                    metadata={
+                        "count": len(group),
+                        "locations": locations,
+                        "affected_files": affected,
+                    },
                 ),
             )
         return findings
@@ -217,17 +252,27 @@ class CircularDependencyInspection(Inspection):
             ]
             primary = entities[0]
             cycle = " → ".join(e.name for e in entities) + f" → {entities[0].name}"
+            affected = [
+                {"path": e.file_path, "name": e.name, "line": e.line}
+                for e in entities
+            ]
             findings.append(
                 Finding(
                     id=_fid(self.info.id, *sorted(comp)),
                     inspection_id=self.info.id,
                     severity=FindingSeverity.ERROR,
-                    message=f"Circular import: {cycle}",
+                    message=f"Circular Resource import: {cycle}",
                     confidence=BindingConfidence.HIGH,
                     entity=primary,
                     secondary_entities=entities[1:],
                     file_path=primary.file_path,
-                    metadata={"cycle": [e.id for e in entities]},
+                    line=primary.line,
+                    column=primary.column,
+                    metadata={
+                        "cycle": [e.id for e in entities],
+                        "cycle_path": cycle,
+                        "affected_files": affected,
+                    },
                 ),
             )
         return findings

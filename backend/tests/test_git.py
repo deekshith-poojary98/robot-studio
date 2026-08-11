@@ -84,6 +84,7 @@ async def test_init_status_commit_checkout_branch(git_stack) -> None:
 
     commit = await service.commit("Initial commit")
     assert commit.message == "Initial commit"
+    assert commit.author == "Dev"
 
     sample.write_text("*** Test Cases ***\nA\n    Log    updated\n", encoding="utf-8")
     dirty = await service.status()

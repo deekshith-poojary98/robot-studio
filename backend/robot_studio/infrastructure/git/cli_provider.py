@@ -225,20 +225,15 @@ class CliGitProvider(GitProvider):
             await self._run(["add", "--", *files], cwd=repo_root)
         else:
             await self._run(["add", "-A"], cwd=repo_root)
-        # Always set identity for the commit command so repos without a local
-        # user.email/name still work in CI and fresh workspaces.
-        await self._run(
-            [
-                "-c",
-                "user.email=robot-studio@local",
-                "-c",
-                "user.name=Robot Studio",
-                "commit",
-                "-m",
-                message,
-            ],
-            cwd=repo_root,
-        )
+        # Prefer the user's Git identity (local or global). Only inject a
+        # fallback when name/email are unset so Init → Commit still works.
+        commit_args: list[str] = []
+        if not await self._config_value(repo_root, "user.name"):
+            commit_args.extend(["-c", "user.name=Robot Studio"])
+        if not await self._config_value(repo_root, "user.email"):
+            commit_args.extend(["-c", "user.email=robot-studio@local"])
+        commit_args.extend(["commit", "-m", message])
+        await self._run(commit_args, cwd=repo_root)
         history = await self.history(repo_root, limit=1)
         if not history:
             raise GitCommandError("Commit succeeded but history is empty")
@@ -423,6 +418,13 @@ class CliGitProvider(GitProvider):
             clean=clean,
             remotes=remotes,
         )
+
+    async def _config_value(self, repo_root: Path, key: str) -> str | None:
+        try:
+            value = (await self._run_text(["config", "--get", key], cwd=repo_root)).strip()
+        except GitCommandError:
+            return None
+        return value or None
 
     async def _run(self, args: list[str], *, cwd: Path) -> None:
         await self._run_text(args, cwd=cwd)

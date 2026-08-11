@@ -23,11 +23,9 @@ class DoctorPage extends StatefulWidget {
 enum _SortMode { priority, severity, category, file }
 
 class _DoctorPageState extends State<DoctorPage> {
-  bool _loadingProfiles = true;
+  bool _loading = true;
   bool _running = false;
   String? _error;
-  DoctorProfilesBundle? _profiles;
-  String _selectedProfile = 'default';
   DoctorReport? _report;
 
   String _search = '';
@@ -44,51 +42,40 @@ class _DoctorPageState extends State<DoctorPage> {
 
   Future<void> _bootstrap() async {
     setState(() {
-      _loadingProfiles = true;
+      _loading = true;
       _error = null;
     });
     try {
-      final bundle = await widget.gateway.getDoctorProfiles();
-      if (!mounted) return;
-      setState(() {
-        _profiles = bundle;
-        _loadingProfiles = false;
-        if (bundle.profiles.isNotEmpty) {
-          _selectedProfile = bundle.profiles
-              .firstWhere(
-                (p) => p.id == 'default',
-                orElse: () => bundle.profiles.first,
-              )
-              .id;
-        }
-      });
-      await _runDoctor();
+      await _runDoctor(initial: true);
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _loadingProfiles = false;
+        _loading = false;
         _error = e.toString();
       });
     }
   }
 
-  Future<void> _runDoctor() async {
+  Future<void> _runDoctor({bool initial = false}) async {
     setState(() {
       _running = true;
+      if (initial) _loading = true;
       _error = null;
     });
     try {
-      final report = await widget.gateway.runDoctor(profile: _selectedProfile);
+      final report = await widget.gateway.runDoctor(profile: 'default');
       if (!mounted) return;
       setState(() {
         _report = report;
         _running = false;
+        _loading = false;
         _expandedFindingId = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _running = false;
+        _loading = false;
         _error = e.toString();
       });
     }
@@ -157,12 +144,7 @@ class _DoctorPageState extends State<DoctorPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _Header(
-            selectedProfile: _selectedProfile,
-            profiles: _profiles?.profiles ?? const [],
             running: _running,
-            onProfileChanged: (id) {
-              setState(() => _selectedProfile = id);
-            },
             onRun: _running ? null : () => unawaited(_runDoctor()),
           ),
           if (_error != null)
@@ -224,25 +206,28 @@ class _DoctorPageState extends State<DoctorPage> {
           ),
           const Divider(height: 1),
           Expanded(
-            child: _loadingProfiles || (_running && _report == null)
+            child: _loading || (_running && _report == null)
                 ? const Center(child: CircularProgressIndicator())
                 : _report == null
                 ? EmptyState(
                     icon: Icons.health_and_safety_outlined,
                     title: 'Run Robot Doctor',
                     message:
-                        'Analyze project health — prioritized findings, not a dump of every warning.',
-                    actionLabel: 'Run Doctor',
+                        'Scan the project for structural problems across files — '
+                        'circular imports, duplicate keywords, and potentially unused assets.',
+                    actionLabel: 'Scan project',
                     onAction: () => unawaited(_runDoctor()),
                   )
                 : _visibleFindings.isEmpty
                 ? EmptyState(
                     icon: Icons.verified_outlined,
                     title: _report!.findings.isEmpty
-                        ? 'Looking healthy'
+                        ? 'No structural problems found'
                         : 'No matching findings',
                     message: _report!.findings.isEmpty
-                        ? 'Nothing to fix for this profile. Try Full to also check patterns from past runs.'
+                        ? 'Circular imports, duplicate keywords, and potentially '
+                              'unused assets look clear. File-level issues still '
+                              'appear in Problems.'
                         : 'Adjust filters or search to see more findings.',
                   )
                 : _FindingsList(
@@ -261,18 +246,9 @@ class _DoctorPageState extends State<DoctorPage> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({
-    required this.selectedProfile,
-    required this.profiles,
-    required this.running,
-    required this.onProfileChanged,
-    required this.onRun,
-  });
+  const _Header({required this.running, required this.onRun});
 
-  final String selectedProfile;
-  final List<DoctorProfileInfo> profiles;
   final bool running;
-  final ValueChanged<String> onProfileChanged;
   final VoidCallback? onRun;
 
   @override
@@ -298,41 +274,13 @@ class _Header extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Find project problems ranked by what to fix first.',
+                  'Structural problems across the project — circular imports, '
+                  'duplicate keywords, potentially unused assets.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
             ),
           ),
-          if (profiles.isNotEmpty) ...[
-            SizedBox(
-              height: 32,
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: profiles.any((p) => p.id == selectedProfile)
-                      ? selectedProfile
-                      : profiles.first.id,
-                  items: profiles
-                      .map(
-                        (p) => DropdownMenuItem(
-                          value: p.id,
-                          child: Text(
-                            p.title,
-                            style: Theme.of(context).textTheme.labelMedium,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: running
-                      ? null
-                      : (v) {
-                          if (v != null) onProfileChanged(v);
-                        },
-                ),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-          ],
           FilledButton.icon(
             onPressed: onRun,
             icon: running
@@ -342,7 +290,7 @@ class _Header extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.play_arrow, size: 16),
-            label: Text(running ? 'Running…' : 'Run Doctor'),
+            label: Text(running ? 'Scanning…' : 'Scan project'),
           ),
         ],
       ),
@@ -359,7 +307,6 @@ class _HealthSummaryStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = report.summary;
     final trend = s.improvementTrend;
-    final linkedRuns = report.executionSnapshot?.linkedRuns ?? 0;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -367,46 +314,25 @@ class _HealthSummaryStrip extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadii.md),
         border: Border.all(color: context.palette.borderSubtle),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Wrap(
+        spacing: AppSpacing.lg,
+        runSpacing: AppSpacing.sm,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Wrap(
-            spacing: AppSpacing.lg,
-            runSpacing: AppSpacing.sm,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _StatChip(label: 'Findings', value: '${s.totalFindings}'),
-              _StatChip(
-                label: 'Critical',
-                value: '${s.criticalIssues}',
-                emphasize: s.criticalIssues > 0,
-              ),
-              _StatChip(
-                label: 'Errors',
-                value: '${s.bySeverity['error'] ?? 0}',
-              ),
-              _StatChip(
-                label: 'Warnings',
-                value: '${s.bySeverity['warning'] ?? 0}',
-              ),
-              if (trend != null)
-                _StatChip(
-                  label: 'Since last scan',
-                  value: _trendLabel(trend),
-                  emphasize: trend.improved || trend.deltaTotal > 0,
-                  positive: trend.improved,
-                ),
-            ],
+          _StatChip(label: 'Findings', value: '${s.totalFindings}'),
+          _StatChip(
+            label: 'Blockers',
+            value: '${s.criticalIssues}',
+            emphasize: s.criticalIssues > 0,
           ),
-          if (linkedRuns > 0) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Includes lessons from $linkedRuns past test run${linkedRuns == 1 ? '' : 's'}.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: context.palette.textMuted),
+          _StatChip(label: 'Info', value: '${s.bySeverity['info'] ?? 0}'),
+          if (trend != null)
+            _StatChip(
+              label: 'Since last scan',
+              value: _trendLabel(trend),
+              emphasize: trend.improved || trend.deltaTotal > 0,
+              positive: trend.improved,
             ),
-          ],
         ],
       ),
     );
@@ -789,8 +715,25 @@ class _FindingTile extends StatelessWidget {
                 ),
                 if (expanded) ...[
                   const SizedBox(height: AppSpacing.md),
+                  if (finding.cyclePath != null) ...[
+                    Text(
+                      'Import cycle',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: context.palette.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    SelectableText(
+                      finding.cyclePath!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontFamily: 'Menlo',
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
                   Text(
-                    'Why is this reported?',
+                    'Why this matters',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: context.palette.textSecondary,
                     ),
@@ -809,25 +752,81 @@ class _FindingTile extends StatelessWidget {
                       color: context.palette.textMuted,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.sm,
-                    children: [
-                      if (finding.filePath.isNotEmpty)
-                        OutlinedButton.icon(
-                          onPressed: onJump == null
+                  if (finding.affectedFiles.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      'Affected files',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: context.palette.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    ...finding.affectedFiles.map((file) {
+                      final label = '${file.path.split('/').last}:${file.line}';
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                        child: InkWell(
+                          onTap: onJump == null
                               ? null
                               : () => onJump!(
-                                  finding.filePath,
-                                  line: finding.line,
-                                  column: finding.column,
+                                  file.path,
+                                  line: file.line,
+                                  column: 1,
                                 ),
-                          icon: const Icon(Icons.open_in_new, size: 14),
-                          label: const Text('Jump to source'),
+                          borderRadius: BorderRadius.circular(AppRadii.xs),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 2,
+                              horizontal: 2,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.description_outlined,
+                                  size: 14,
+                                  color: context.palette.textMuted,
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    '$label  ·  ${file.name}',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: context.palette.accent,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                    ],
-                  ),
+                      );
+                    }),
+                  ],
+                  const SizedBox(height: AppSpacing.md),
+                  if (finding.filePath.isNotEmpty ||
+                      finding.affectedFiles.isNotEmpty)
+                    FilledButton.tonalIcon(
+                      key: const Key('doctor-open-source'),
+                      onPressed: onJump == null
+                          ? null
+                          : () {
+                              final first = finding.affectedFiles.isNotEmpty
+                                  ? finding.affectedFiles.first
+                                  : (
+                                      path: finding.filePath,
+                                      name: '',
+                                      line: finding.line,
+                                    );
+                              onJump!(
+                                first.path,
+                                line: first.line,
+                                column: finding.column,
+                              );
+                            },
+                      icon: const Icon(Icons.open_in_new, size: 14),
+                      label: const Text('Open source'),
+                    ),
                 ],
               ],
             ),
@@ -870,47 +869,40 @@ class _SeverityBadge extends StatelessWidget {
 }
 
 String _confidenceExplanation(String confidence) {
-  return switch (confidence.toLowerCase()) {
-    'high' => 'Confidence: high — this check is usually reliable.',
-    'medium' => 'Confidence: medium — worth verifying before a big change.',
-    'low' => 'Confidence: low — double-check; this can be a false alarm.',
-    _ => 'Confidence: $confidence',
-  };
+  final key = confidence.toLowerCase();
+  if (key == 'exact' || key == 'high') {
+    return 'Confidence: high — this structural check is usually reliable.';
+  }
+  if (key == 'medium') {
+    return 'Confidence: medium — verify before deleting or refactoring.';
+  }
+  if (key == 'low') {
+    return 'Confidence: low — double-check; this can be a false alarm.';
+  }
+  return 'Confidence: $confidence';
 }
 
 String _categoryLabel(String category) {
   return switch (category) {
-    'correctness' => 'Correctness',
-    'maintainability' => 'Structure',
-    'performance' => 'Slow tests',
-    'dependencies' => 'Imports & libraries',
-    'execution' => 'From past runs',
-    'style' => 'Style',
+    'correctness' => 'Duplicate keywords',
+    'maintainability' => 'Potentially unused',
+    'dependencies' => 'Circular imports',
     _ => category,
   };
 }
 
 String? _categoryHint(String category) {
   return switch (category) {
-    'correctness' => 'Can make tests fail or behave wrongly.',
-    'maintainability' => 'Harder to maintain — not necessarily broken today.',
-    'performance' => 'Suites or keywords that look unusually slow.',
-    'dependencies' => 'Missing resources, libraries, or imports.',
-    'execution' => 'Patterns from your recent runs (flaky, failing, …).',
-    'style' => 'Conventions and readability.',
+    'correctness' => 'Same keyword name defined in more than one place.',
+    'maintainability' =>
+      'No static callers/imports found — confirm before deleting.',
+    'dependencies' => 'Resources or suites that import each other in a cycle.',
     _ => null,
   };
 }
 
 int _categoryRank(String category) {
-  const order = [
-    'correctness',
-    'dependencies',
-    'execution',
-    'performance',
-    'maintainability',
-    'style',
-  ];
+  const order = ['dependencies', 'correctness', 'maintainability'];
   final i = order.indexOf(category);
   return i < 0 ? 99 : i;
 }

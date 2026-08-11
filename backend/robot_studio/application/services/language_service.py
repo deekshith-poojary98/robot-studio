@@ -18,9 +18,13 @@ class LanguageFacade:
     context: WorkspaceContext
     language: LanguageService
 
-    def _require_workspace(self) -> None:
-        if self.context.workspace is None:
-            raise LanguageValidationError("Open a workspace before using language features")
+    def _require_workspace(self):
+        workspace = self.context.workspace
+        if workspace is None:
+            raise LanguageValidationError(
+                "Open a workspace before using language features",
+            )
+        return workspace
 
     async def definition(
         self,

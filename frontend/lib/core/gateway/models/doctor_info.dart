@@ -121,6 +121,7 @@ class DoctorFinding {
     this.fixId,
     this.estimatedRisk,
     this.entity,
+    this.secondaryEntities = const [],
     this.filePath = '',
     this.line = 1,
     this.column = 1,
@@ -129,6 +130,7 @@ class DoctorFinding {
 
   factory DoctorFinding.fromJson(Map<String, dynamic> json) {
     final entity = json['entity'];
+    final secondary = json['secondary_entities'] as List<dynamic>? ?? const [];
     return DoctorFinding(
       id: json['id'] as String? ?? '',
       inspectionId: json['inspection_id'] as String? ?? '',
@@ -143,6 +145,10 @@ class DoctorFinding {
       entity: entity is Map<String, dynamic>
           ? DoctorEntityRef.fromJson(entity)
           : null,
+      secondaryEntities: secondary
+          .whereType<Map<String, dynamic>>()
+          .map(DoctorEntityRef.fromJson)
+          .toList(),
       filePath: json['file_path'] as String? ?? '',
       line: (json['line'] as num?)?.toInt() ?? 1,
       column: (json['column'] as num?)?.toInt() ?? 1,
@@ -161,6 +167,7 @@ class DoctorFinding {
   final String? fixId;
   final String? estimatedRisk;
   final DoctorEntityRef? entity;
+  final List<DoctorEntityRef> secondaryEntities;
   final String filePath;
   final int line;
   final int column;
@@ -170,6 +177,43 @@ class DoctorFinding {
     if (filePath.isEmpty) return '';
     final name = filePath.split('/').last;
     return '$name:$line';
+  }
+
+  String? get cyclePath {
+    final raw = metadata['cycle_path'];
+    if (raw is String && raw.trim().isNotEmpty) return raw;
+    return null;
+  }
+
+  List<({String path, String name, int line})> get affectedFiles {
+    final raw = metadata['affected_files'];
+    if (raw is! List) {
+      final fallback = <({String path, String name, int line})>[];
+      if (entity != null && entity!.filePath.isNotEmpty) {
+        fallback.add((
+          path: entity!.filePath,
+          name: entity!.name,
+          line: entity!.line,
+        ));
+      }
+      for (final e in secondaryEntities) {
+        if (e.filePath.isEmpty) continue;
+        fallback.add((path: e.filePath, name: e.name, line: e.line));
+      }
+      return fallback;
+    }
+    final out = <({String path, String name, int line})>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final path = item['path']?.toString() ?? '';
+      if (path.isEmpty) continue;
+      out.add((
+        path: path,
+        name: item['name']?.toString() ?? path.split('/').last,
+        line: (item['line'] as num?)?.toInt() ?? 1,
+      ));
+    }
+    return out;
   }
 }
 
@@ -264,10 +308,7 @@ class DoctorRecommendation {
 }
 
 class DoctorCategoryGroup {
-  const DoctorCategoryGroup({
-    required this.category,
-    this.findings = const [],
-  });
+  const DoctorCategoryGroup({required this.category, this.findings = const []});
 
   factory DoctorCategoryGroup.fromJson(Map<String, dynamic> json) {
     return DoctorCategoryGroup(
@@ -327,7 +368,8 @@ class DoctorReport {
       id: json['id'] as String? ?? '',
       projectId: json['project_id'] as String? ?? '',
       profile: json['profile'] as String? ?? 'default',
-      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(json['created_at'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       graphVersion: json['graph_version'] as String? ?? '',
       incrementalRevision: (json['incremental_revision'] as num?)?.toInt() ?? 0,
@@ -383,7 +425,8 @@ class DoctorReportSummary {
       id: json['id'] as String? ?? '',
       projectId: json['project_id'] as String? ?? '',
       profile: json['profile'] as String? ?? 'default',
-      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(json['created_at'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       graphVersion: json['graph_version'] as String? ?? '',
       totalFindings: (json['total_findings'] as num?)?.toInt() ?? 0,

@@ -168,7 +168,10 @@ async def test_analysis_inspection_and_graph_apis(api_client) -> None:
     assert "unused_keyword" in finding_ids
     assert "duplicate_keyword" in finding_ids
     assert "missing_import" in finding_ids
-    assert any(f["message"].startswith("Keyword 'Dead Keyword'") for f in payload["findings"])
+    assert any(
+        "Potentially unused keyword 'Dead Keyword'" in f["message"]
+        for f in payload["findings"]
+    )
     assert all(f["confidence"] in {"exact", "high", "medium", "low"} for f in payload["findings"])
 
     one = await client.get("/api/v1/analysis/inspect/unused_keyword")

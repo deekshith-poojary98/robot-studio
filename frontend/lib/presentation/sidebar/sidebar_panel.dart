@@ -49,7 +49,7 @@ enum SidebarPanel {
   doctor(
     'Doctor',
     Icons.health_and_safety_outlined,
-    'Robot Doctor — project health and prioritized findings',
+    'Robot Doctor — structural problems across the project',
   );
 
   const SidebarPanel(

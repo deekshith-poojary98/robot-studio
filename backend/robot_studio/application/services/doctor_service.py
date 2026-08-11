@@ -27,8 +27,6 @@ from robot_studio.domain.models.doctor import (
 )
 from robot_studio.infrastructure.doctor.providers import (
     DEFAULT_PROVIDER_IDS,
-    FULL_PROVIDER_IDS,
-    QUICK_PROVIDER_IDS,
     default_finding_providers,
 )
 from robot_studio.infrastructure.doctor.store import SqliteDoctorStore
@@ -70,20 +68,19 @@ def _priority(finding: Finding) -> int:
         finding.confidence.value if hasattr(finding.confidence, "value") else str(finding.confidence),
         0,
     )
-    # Prefer fixable critical items slightly
-    fix_boost = 10 if finding.supports_fix and finding.severity == FindingSeverity.ERROR else 0
-    return sev + conf + fix_boost
+    # Prefer blockers slightly; do not boost fictional Quick Fix flags
+    return sev + conf
 
 
 def _recommendation_reason(finding: Finding) -> str:
+    if finding.inspection_id == "circular_dependency":
+        return "Break this import cycle before it causes load-order failures."
+    if finding.inspection_id == "duplicate_keyword":
+        return "Ambiguous keyword — rename or remove a duplicate definition."
+    if finding.inspection_id in {"unused_keyword", "unused_resource"}:
+        return "Hygiene candidate — confirm it is unused before deleting."
     if finding.severity == FindingSeverity.ERROR:
-        return "Critical correctness / dependency issue — fix before shipping."
-    if finding.category == FindingCategory.EXECUTION and finding.inspection_id == "flaky_test":
-        return "Unstable execution hurts trust in the suite — investigate early."
-    if finding.supports_fix and finding.severity == FindingSeverity.WARNING:
-        return "High-impact and marked for a future Quick Fix."
-    if finding.category == FindingCategory.PERFORMANCE:
-        return "High average duration; good ROI if this path is hot."
+        return "Structural blocker — fix before relying on this suite."
     return "Next highest priority by severity and confidence."
 
 
@@ -114,24 +111,16 @@ class DoctorService:
 
     def list_profiles(self) -> list[DoctorProfile]:
         known = {p.info.id for p in self.providers}
+        ids = [i for i in DEFAULT_PROVIDER_IDS if i in known]
         return [
             DoctorProfile(
-                id=DoctorProfileId.QUICK,
-                title="Quick",
-                description="Correctness + dependency blockers only.",
-                provider_ids=[i for i in QUICK_PROVIDER_IDS if i in known],
-            ),
-            DoctorProfile(
                 id=DoctorProfileId.DEFAULT,
-                title="Default",
-                description="All static semantic inspections.",
-                provider_ids=[i for i in DEFAULT_PROVIDER_IDS if i in known],
-            ),
-            DoctorProfile(
-                id=DoctorProfileId.FULL,
-                title="Full",
-                description="Static inspections plus execution knowledge findings.",
-                provider_ids=[i for i in FULL_PROVIDER_IDS if i in known],
+                title="Structural",
+                description=(
+                    "Circular imports, duplicate keywords, and potentially "
+                    "unused keywords/resources across the project."
+                ),
+                provider_ids=ids,
             ),
         ]
 
@@ -153,10 +142,9 @@ class DoctorService:
             if unknown:
                 raise DoctorValidationError(f"Unknown providers: {', '.join(unknown)}")
             return list(override)
-        for p in self.list_profiles():
-            if p.id == profile:
-                return list(p.provider_ids)
-        raise DoctorValidationError(f"Unknown profile: {profile}")
+        # Quick / Full aliases still accepted; all map to the structural set.
+        _ = profile
+        return [i for i in DEFAULT_PROVIDER_IDS if i in self._by_id]
 
     async def run(
         self,

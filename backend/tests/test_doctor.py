@@ -39,7 +39,6 @@ def _write_suite(project_path: Path) -> None:
             """\
             *** Settings ***
             Resource    ../resources/common.resource
-            Resource    ../resources/missing.resource
 
             *** Test Cases ***
             Can Login
@@ -88,38 +87,52 @@ async def _seed_project(client: AsyncClient, tmp_path: Path) -> str:
 
 
 @pytest.mark.asyncio
-async def test_doctor_profiles(api_client) -> None:
+async def test_doctor_profiles_structural_only(api_client) -> None:
     client, _fresh, _tmp = api_client
     res = await client.get("/api/v1/doctor/profiles")
     assert res.status_code == 200
     body = res.json()
     ids = {p["id"] for p in body["profiles"]}
-    assert ids == {"quick", "default", "full"}
+    assert ids == {"default"}
     provider_ids = {p["id"] for p in body["providers"]}
-    assert "unused_keyword" in provider_ids
-    assert "flaky_test" in provider_ids
-    assert "never_executed_keyword" in provider_ids
+    assert provider_ids == {
+        "circular_dependency",
+        "duplicate_keyword",
+        "unused_keyword",
+        "unused_resource",
+    }
+    assert "missing_import" not in provider_ids
+    assert "flaky_test" not in provider_ids
+    assert "large_keyword" not in provider_ids
 
 
 @pytest.mark.asyncio
-async def test_doctor_run_quick_and_history(api_client) -> None:
+async def test_doctor_run_and_history(api_client) -> None:
     client, _fresh, tmp_path = api_client
     await _seed_project(client, tmp_path)
 
-    run1 = await client.post("/api/v1/doctor/run", json={"profile": "quick"})
+    run1 = await client.post("/api/v1/doctor/run", json={"profile": "default"})
     assert run1.status_code == 200, run1.text
     report = run1.json()
-    assert report["profile"] == "quick"
+    assert report["profile"] == "default"
     assert "summary" in report
     assert "grouped" in report
     assert "top_recommendations" in report
     assert report["graph_version"]
-    assert report["execution_snapshot"] is not None
+    providers = set(report["providers_run"])
+    assert providers == {
+        "circular_dependency",
+        "duplicate_keyword",
+        "unused_keyword",
+        "unused_resource",
+    }
+    assert "missing_import" not in providers
     messages = [f["message"] for f in report["findings"]]
-    assert any("Unresolved import" in m or "missing.resource" in m for m in messages)
+    assert any("Potentially unused" in m for m in messages)
     for finding in report["findings"]:
-        assert "supports_fix" in finding
-        assert "rationale" in finding
+        assert finding.get("supports_fix") is False
+        assert finding.get("fix_id") is None
+        assert finding.get("rationale")
         assert finding.get("category")
 
     report_id = report["id"]
@@ -127,38 +140,21 @@ async def test_doctor_run_quick_and_history(api_client) -> None:
     assert fetched.status_code == 200
     assert fetched.json()["id"] == report_id
 
-    run2 = await client.post("/api/v1/doctor/run", json={"profile": "default"})
+    # Legacy profile aliases still run the structural set.
+    run_quick = await client.post("/api/v1/doctor/run", json={"profile": "quick"})
+    assert run_quick.status_code == 200, run_quick.text
+    assert set(run_quick.json()["providers_run"]) == providers
+
+    run2 = await client.post("/api/v1/doctor/run", json={"profile": "full"})
     assert run2.status_code == 200, run2.text
+    assert "flaky_test" not in run2.json()["providers_run"]
     summary = run2.json()["summary"]
     assert summary["improvement_trend"] is not None
-    assert summary["improvement_trend"]["previous_report_id"] == report_id
-    assert isinstance(summary["total_findings"], int)
-    assert isinstance(summary["critical_issues"], int)
-    assert "by_severity" in summary
-    assert "by_category" in summary
+    assert summary["improvement_trend"]["previous_report_id"] == run_quick.json()["id"]
 
     history = await client.get("/api/v1/doctor/history")
     assert history.status_code == 200
     assert len(history.json()["items"]) >= 2
-
-
-@pytest.mark.asyncio
-async def test_doctor_full_includes_execution_providers(api_client) -> None:
-    client, _fresh, tmp_path = api_client
-    await _seed_project(client, tmp_path)
-
-    res = await client.post("/api/v1/doctor/run", json={"profile": "full"})
-    assert res.status_code == 200, res.text
-    providers = set(res.json()["providers_run"])
-    assert "flaky_test" in providers
-    assert "slow_keyword" in providers
-    assert "never_executed_keyword" in providers
-    never = [
-        f
-        for f in res.json()["findings"]
-        if f["inspection_id"] == "never_executed_keyword"
-    ]
-    assert never == []
 
 
 @pytest.mark.asyncio
@@ -167,7 +163,7 @@ async def test_doctor_unknown_provider(api_client) -> None:
     await _seed_project(client, tmp_path)
     res = await client.post(
         "/api/v1/doctor/run",
-        json={"profile": "quick", "provider_ids": ["not_a_provider"]},
+        json={"profile": "default", "provider_ids": ["not_a_provider"]},
     )
     assert res.status_code == 400
 

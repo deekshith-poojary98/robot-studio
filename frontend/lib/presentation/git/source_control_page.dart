@@ -3,11 +3,16 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/git_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/side_panel_resize_handle.dart';
 import '../widgets/skeleton_list.dart';
 import 'branch_selector.dart';
 import 'commit_panel.dart';
 import 'diff_viewer.dart';
 import 'history_panel.dart';
+
+const double _kChangesDefaultWidth = 320;
+const double _kChangesMinWidth = 220;
+const double _kChangesMaxWidth = 520;
 
 class SourceControlPage extends StatelessWidget {
   const SourceControlPage({
@@ -429,6 +434,7 @@ class _RepositoryBody extends StatefulWidget {
 class _RepositoryBodyState extends State<_RepositoryBody> {
   /// 0 = Diff, 1 = History
   int _rightTab = 0;
+  double _changesWidth = _kChangesDefaultWidth;
 
   @override
   void didUpdateWidget(covariant _RepositoryBody oldWidget) {
@@ -446,7 +452,7 @@ class _RepositoryBodyState extends State<_RepositoryBody> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          width: 320,
+          width: _changesWidth,
           child: ColoredBox(
             color: context.palette.surface,
             child: Column(
@@ -474,7 +480,16 @@ class _RepositoryBodyState extends State<_RepositoryBody> {
             ),
           ),
         ),
-        VerticalDivider(width: 1, thickness: 1, color: context.palette.border),
+        SidePanelResizeHandle(
+          onDragDelta: (dx) {
+            setState(() {
+              _changesWidth = (_changesWidth + dx).clamp(
+                _kChangesMinWidth,
+                _kChangesMaxWidth,
+              );
+            });
+          },
+        ),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

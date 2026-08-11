@@ -14,15 +14,14 @@ class _DoctorGateway implements TransportGateway {
       profiles: [
         DoctorProfileInfo(
           id: 'default',
-          title: 'Default',
-          description: 'Static inspections',
-          providerIds: ['missing_import'],
-        ),
-        DoctorProfileInfo(
-          id: 'quick',
-          title: 'Quick',
-          description: 'Fast',
-          providerIds: ['missing_import'],
+          title: 'Structural',
+          description: 'Structural project health',
+          providerIds: [
+            'circular_dependency',
+            'duplicate_keyword',
+            'unused_keyword',
+            'unused_resource',
+          ],
         ),
       ],
     );
@@ -49,16 +48,32 @@ class _DoctorGateway implements TransportGateway {
       findings: const [
         DoctorFinding(
           id: 'f1',
-          inspectionId: 'missing_import',
+          inspectionId: 'circular_dependency',
           severity: 'error',
-          message: "Unresolved import 'missing.resource'",
-          confidence: 'low',
+          message:
+              'Circular Resource import: login.resource → common.resource → login.resource',
+          confidence: 'high',
           category: 'dependencies',
-          rationale: 'Import path could not be resolved on disk.',
-          supportsFix: true,
-          fixId: 'fix_missing_import',
-          filePath: 'tests/login.robot',
-          line: 3,
+          rationale:
+              'These resources or suites import each other in a cycle. '
+              'Break the cycle by moving shared keywords into a third resource.',
+          filePath: 'resources/login.resource',
+          line: 12,
+          metadata: {
+            'cycle_path': 'login.resource → common.resource → login.resource',
+            'affected_files': [
+              {
+                'path': 'resources/login.resource',
+                'name': 'login.resource',
+                'line': 12,
+              },
+              {
+                'path': 'resources/common.resource',
+                'name': 'common.resource',
+                'line': 4,
+              },
+            ],
+          },
         ),
       ],
       grouped: const [
@@ -67,15 +82,16 @@ class _DoctorGateway implements TransportGateway {
           findings: [
             DoctorFinding(
               id: 'f1',
-              inspectionId: 'missing_import',
+              inspectionId: 'circular_dependency',
               severity: 'error',
-              message: "Unresolved import 'missing.resource'",
-              confidence: 'low',
+              message:
+                  'Circular Resource import: login.resource → common.resource → login.resource',
+              confidence: 'high',
               category: 'dependencies',
-              rationale: 'Import path could not be resolved on disk.',
-              supportsFix: true,
-              filePath: 'tests/login.robot',
-              line: 3,
+              rationale:
+                  'These resources or suites import each other in a cycle.',
+              filePath: 'resources/login.resource',
+              line: 12,
             ),
           ],
         ),
@@ -85,25 +101,22 @@ class _DoctorGateway implements TransportGateway {
           rank: 1,
           findingId: 'f1',
           reason:
-              'Critical correctness / dependency issue — fix before shipping.',
+              'Break this import cycle before it causes load-order failures.',
           finding: DoctorFinding(
             id: 'f1',
-            inspectionId: 'missing_import',
+            inspectionId: 'circular_dependency',
             severity: 'error',
-            message: "Unresolved import 'missing.resource'",
-            confidence: 'low',
+            message:
+                'Circular Resource import: login.resource → common.resource → login.resource',
+            confidence: 'high',
             category: 'dependencies',
-            rationale: 'Import path could not be resolved on disk.',
-            supportsFix: true,
-            filePath: 'tests/login.robot',
-            line: 3,
+            rationale:
+                'These resources or suites import each other in a cycle.',
+            filePath: 'resources/login.resource',
+            line: 12,
           ),
         ),
       ],
-      executionSnapshot: const DoctorExecutionSnapshot(
-        projectId: 'p1',
-        linkedRuns: 4,
-      ),
     );
   }
 }
@@ -144,8 +157,12 @@ class _DoctorGatewayWithTrend extends _DoctorGateway {
 }
 
 void main() {
-  testWidgets('Doctor page shows health summary and findings', (tester) async {
+  testWidgets('Doctor page shows structural finding details', (tester) async {
     String? jumped;
+    int? jumpedLine;
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
     await tester.pumpWidget(
       MaterialApp(
         theme: buildAppTheme(),
@@ -154,6 +171,7 @@ void main() {
             gateway: _DoctorGateway(),
             onJumpToSource: (path, {line, column}) {
               jumped = path;
+              jumpedLine = line;
             },
           ),
         ),
@@ -163,31 +181,36 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Robot Doctor'), findsOneWidget);
-    expect(find.textContaining('Find project problems ranked'), findsOneWidget);
-    expect(find.text('Fix first'), findsOneWidget);
-    expect(find.textContaining('Unresolved import'), findsWidgets);
-    expect(find.textContaining('Imports & libraries'), findsWidgets);
-    expect(find.text('ERROR'), findsWidgets);
-    expect(find.text('GRAPH'), findsNothing);
-    expect(find.text('LINKED RUNS'), findsNothing);
-    expect(find.text('FINDINGS'), findsOneWidget);
     expect(
-      find.textContaining('Includes lessons from 4 past test runs'),
+      find.textContaining('Structural problems across the project'),
       findsOneWidget,
     );
+    expect(find.text('Scan project'), findsOneWidget);
+    expect(find.text('Fix first'), findsOneWidget);
+    expect(find.textContaining('Circular Resource import'), findsWidgets);
+    expect(find.textContaining('Circular imports'), findsWidgets);
+    expect(find.text('ERROR'), findsWidgets);
+    expect(find.text('Quick'), findsNothing);
+    expect(find.text('Full'), findsNothing);
+    expect(find.text('BLOCKERS'), findsOneWidget);
 
-    await tester.tap(find.textContaining('Unresolved import').first);
+    // Expand via the findings list (not Fix first), then open source.
+    final findingRows = find.textContaining('Circular Resource import');
+    await tester.tap(findingRows.at(findingRows.evaluate().length - 1));
     await tester.pumpAndSettle();
 
-    expect(find.text('Why is this reported?'), findsOneWidget);
-    expect(find.textContaining('could not be resolved'), findsOneWidget);
-    expect(find.textContaining('Confidence: low'), findsOneWidget);
-    expect(find.text('Jump to source'), findsOneWidget);
+    expect(find.text('Why this matters'), findsOneWidget);
+    expect(find.text('Import cycle'), findsOneWidget);
+    expect(find.text('Affected files'), findsOneWidget);
+    expect(find.textContaining('login.resource:12'), findsWidgets);
+    expect(find.byKey(const Key('doctor-open-source')), findsOneWidget);
     expect(find.text('Quick Fix'), findsNothing);
 
-    await tester.tap(find.text('Jump to source'));
+    await tester.ensureVisible(find.byKey(const Key('doctor-open-source')));
+    await tester.tap(find.byKey(const Key('doctor-open-source')));
     await tester.pumpAndSettle();
-    expect(jumped, 'tests/login.robot');
+    expect(jumped, 'resources/login.resource');
+    expect(jumpedLine, 12);
   });
 
   testWidgets('Doctor summary uses plain-language trend', (tester) async {
@@ -200,6 +223,5 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('SINCE LAST SCAN'), findsOneWidget);
     expect(find.text('2 fewer'), findsOneWidget);
-    expect(find.text('GRAPH'), findsNothing);
   });
 }
