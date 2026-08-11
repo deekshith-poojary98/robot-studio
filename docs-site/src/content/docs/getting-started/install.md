@@ -1,33 +1,30 @@
 ---
 title: Install
-description: Launch a private beta build, or run from source for development.
+description: Download a private beta build from GitHub Releases, or run from source for development.
 ---
 
 :::caution[Private beta]
-Robot Studio beta is **not** distributed via a public download page.
+Packaged builds are **macOS** and **Windows** only. There is no installer (no `.dmg` / `.msi`) and **no packaged Linux build**.
 
-You need a **beta build provided by the Robot Studio team** (for example a shared `Robot Studio.app` or `RobotStudio.exe`). This guide does not invent a download URL.
-
-**Linux:** there is **no packaged Linux build**. Do not treat Linux as a packaged beta target — use [run from source](#run-from-source-developers) only if you are developing against the repo.
+Download the latest zip from [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases). File bugs and feature requests on that same repository.
 :::
 
 ## Packaged beta (recommended for testers)
 
-Once you have the artifact from the team:
-
-1. Place it somewhere convenient (Applications, Desktop, or a shared beta folder).
-2. **Double-click to launch** — do not start a Python process by hand.
-3. Quitting the app stops the embedded backend sidecar.
+1. Open [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases) and download the zip for your OS.
+2. Unzip it somewhere convenient (Applications, Desktop, or a beta folder). On macOS you can drag **Robot Studio.app** into Applications yourself.
+3. **Double-click to launch** — do not start a Python process by hand.
+4. Quitting the app stops the embedded backend sidecar.
 
 | Platform | Artifact | How to open |
 |----------|----------|-------------|
-| **macOS** | `Robot Studio.app` | Double-click the app |
-| **Windows** | `RobotStudio.exe` | Double-click the executable |
+| **macOS** | `Robot Studio.app` (inside the zip) | Double-click the app |
+| **Windows** | `RobotStudio/RobotStudio.exe` (inside the zip) | Double-click the executable |
 | **Linux** | *No packaged beta* | Not a packaged target — see source below |
 
 App data lives under `~/.robot-studio`.
 
-If the team builds packages from this repository (maintainers):
+Maintainers building packages from this repository:
 
 ```bash
 make package-macos      # → dist/macos/Robot Studio.app

@@ -9,6 +9,20 @@ Tags: `[Trust]` · `[Identity]` · `[Lifecycle]` · `[Autosave]` · `[Execution]
 
 ## Fixed
 
+- 2026-08-12
+
+  **[Packaging]**
+  - Private beta distribution is **GitHub Releases** (zip of `Robot Studio.app` / `RobotStudio.exe`). Not an installer. Linux stays source-only. Install guide and README updated.
+
+  **[Trust]**
+  - P0 exit met. Remaining highlighter / completion sweeps deferred to GitHub issues. Toolbar Stop spacing already shipped as the segmented Run / Project / Stop control.
+
+  **[UI]**
+  - Font Family lists **monospace fonts installed on the machine** (Menlo default). The earlier curated 10-name list is gone.
+
+  **[Docs]**
+  - Testers file bugs on GitHub Issues. In-app Send Feedback is deferred. User guide onboarding is no longer blocked on a side-channel artifact once a Release is published.
+
 - 2026-08-09
 
   **[UI]**
@@ -16,7 +30,6 @@ Tags: `[Trust]` · `[Identity]` · `[Lifecycle]` · `[Autosave]` · `[Execution]
 
   **[Docs]**
   - User guide content validation **PASS** against shipped product (selection-run / Symbols / Settings UI / Tests naming / private-beta install honesty).
-  - User guide **beta onboarding** remains **BLOCKED BY DISTRIBUTION** — private beta requires a team-provided artifact; no public download URL; Linux not a packaged target. Tracked in `polish.md` → User Guide milestones / Beta onboarding blockers.
 
   **[Doctor]**
   - Doctor Value Pass — structural-only scanner. Removed Quick/Default/Full UX; scan runs circular imports, duplicate keywords, potentially unused keywords/resources. Demoted missing_import (Problems), large_keyword, and execution smells (Insights/Reports). Findings show why / cycle / affected files / Open source. Unused findings are INFO + conservative copy.
@@ -24,7 +37,7 @@ Tags: `[Trust]` · `[Identity]` · `[Lifecycle]` · `[Autosave]` · `[Execution]
 - 2026-08-05
 
   **[Trust]**
-  - Emergency Lane cleared — audited; nothing qualified (crash / data loss / wrong suite / cannot open / identity corruption / severe perf). Remaining trust work is P0 verification + manual smoke.
+  - Emergency Lane cleared — audited; nothing qualified (crash / data loss / wrong suite / cannot open / identity corruption / severe perf).
 
   **[Execution]**
   - Wrong Run target — extracted `resolveRunTargetPath`; refuses sticky suite while a non-`.robot` editor is focused; regression in `frontend/test/run_target_test.dart`.
@@ -105,8 +118,7 @@ See `polish.md` → **Won't Fix (Beta)**.
 
 ## In progress
 
-- **Paused for manual smoke** (trust-layer fixes) — do not start Batch 2 until checklist feels boring.
-- Remaining Batch 1: ⌘Q orphan sidecar — **isolated packaging QA** (do not mix with Batch 2 UI polish).
+- Publish the first **GitHub Release** zip so testers can follow the Install guide with no side channel.
 
 ---
 
@@ -118,5 +130,3 @@ Create project → Create env → Run → Edit → Auto-save
 → Delete env → Recreate env → Delete project → Recreate project
 → Run again → Quit (⌘Q) → Reopen → Recent Projects → Run again
 ```
-
-When this feels boring → Batch 2 (PASS badge → Stop spacing → Toolbar spacing).

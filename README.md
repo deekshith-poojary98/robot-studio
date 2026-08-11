@@ -78,12 +78,12 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 
 ### Packaged app (closed beta)
 
-Beta users should **double-click** the app — not start a Python process by hand.
+Testers download the zip from [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases) and **double-click** the app — not start a Python process by hand. File bugs on GitHub Issues.
 
 | Platform | Artifact | Launch |
 |----------|----------|--------|
-| macOS | `dist/macos/Robot Studio.app` (also zipped) | Double-click **Robot Studio.app** |
-| Windows | `dist/windows/RobotStudio/RobotStudio.exe` (also zipped) | Double-click **RobotStudio.exe** |
+| macOS | `Robot Studio.app` (zipped on the release; also `dist/macos/` when you build locally) | Double-click **Robot Studio.app** |
+| Windows | `RobotStudio/RobotStudio.exe` (zipped on the release; also `dist/windows/` when you build locally) | Double-click **RobotStudio.exe** |
 
 Build packages from the repo root:
 
@@ -353,10 +353,10 @@ Core IDE milestones through execution, reports, indexing, language features, Git
 | **M6.6** | Robot Doctor (Project Health Center + `/doctor` APIs + UI) | Done |
 | **M7** | Test execution + WebSocket logs | Done |
 | **M8** | Reports | Done |
-| **M9+** | Settings / AI / packaging polish | Partial (Settings hidden until implemented; AI deferred; **desktop packaging shipped for closed beta** — `make package-macos` / `package-windows`) |
-| **M10** | Intelligent editor (parsing bridge, diagnostics, navigation) | In progress / shipping |
-| **M11** | Plugin framework + manager UI | In progress / shipping |
-| **M12** | Git source control | In progress / shipping |
+| **M9+** | Settings / AI / packaging polish | Settings shipped; AI deferred; **desktop packaging** is a zip of `.app` / `RobotStudio.exe` (`make package-macos` / `package-windows`) for GitHub Releases — no installer |
+| **M10** | Intelligent editor (parsing bridge, diagnostics, navigation) | Done |
+| **M11** | Plugin framework + manager UI | Done (manager hidden from the activity bar for beta) |
+| **M12** | Git source control | Done |
 
 `ARCHITECTURE.md` (v2.1) is the **design north star** and now tracks **implemented vs planned** status. Treat [README.md](./README.md) as the **product/runbook snapshot**.
 

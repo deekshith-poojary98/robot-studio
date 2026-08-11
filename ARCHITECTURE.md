@@ -342,7 +342,7 @@ abstract class TransportGateway {
 | **reports** | Dashboard, artifacts, open/reveal | `ReportProvider`, report service | Shipped |
 | **git** | Status, stage/commit, branches, remotes, diff | `GitProvider` / CLI | Shipped |
 | **plugins** | List/enable/disable/reload | Plugin host/manager | Shipped |
-| **settings** | App preferences | — | Stub / later |
+| **settings** | App preferences | `SettingsService` | Shipped |
 | **AI** | Assistant surface | `AIProvider` | Not shipped |
 
 ### Execution domain
@@ -736,10 +736,10 @@ Engineering audit notes: [audit.md](./audit.md).
 | **M6** | Indexing pipeline; Keyword/Search UI; Language Service (completion + hover + more) | ✅ Done |
 | **M7** | Runner + history + WebSocket log stream | ✅ Done (gRPC migration deferred) |
 | **M8** | ReportProvider + reports UI | ✅ Done |
-| **M9** | Settings, packaging polish, AI provider | 🔶 Partial (Settings hidden; AI deferred; **desktop packaging shipped** for closed beta) |
-| **M10** | Intelligent editor (parsing bridge, diagnostics, navigation) | 🔶 Shipping |
-| **M11** | Plugin framework + manager UI | 🔶 Shipping |
-| **M12** | Git source control | 🔶 Shipping |
+| **M9** | Settings, packaging polish, AI provider | Settings shipped; AI deferred; zip packaging for GitHub Releases (no installer) |
+| **M10** | Intelligent editor (parsing bridge, diagnostics, navigation) | ✅ Done |
+| **M11** | Plugin framework + manager UI | ✅ Done (manager hidden from the activity bar for beta) |
+| **M12** | Git source control | ✅ Done |
 | **M13** | Test Explorer (discover/run suites, tests, tags, failed) | ✅ Done |
 | **Pre-M14** | Workspace Explorer file ops (create/rename/delete/duplicate/move/reveal) | ✅ Done |
 | **UX** | Public-beta usability backlog (status, reports, guidance, terminology, …) | 🔶 In progress |

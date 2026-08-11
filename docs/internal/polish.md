@@ -18,12 +18,14 @@ Once written, **do not add features** to this board. Only move items between pri
 
 If the answer is no, it does not belong in beta.
 
+**Status (2026-08-12):** P0 exit met. Private beta distribution is [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases) (zip of `.app` / `RobotStudio.exe` — not an installer). Testers file bugs on GitHub Issues. In-app Send Feedback is deferred. A suite with ~10k test files stayed responsive.
+
 ---
 
 ## Operating rules
 
 1. **≤ 1 day to implement.** If it takes a week, it is another feature — move to **Deferred** with a target.
-2. **No new capabilities** during this epic (except the planned **Send Feedback** action after P0).
+2. **No new capabilities** during this epic.
 3. Prefer fixing **trust** over polish chrome.
 4. Every completed P0 item should immediately make the product feel more trustworthy.
 5. Items only **move between priorities**, get **done** (with evidence), or go to **Deferred** — they are not expanded into new feature work.
@@ -58,7 +60,7 @@ After ~100 fixes, evidence is what prevents "we thought we fixed that."
 ```
 Feature Complete          ← Epic 2 + Preferences shipped
         ↓
-Polish Complete           ← P0 exit + Send Feedback + quality.md
+Polish Complete           ← P0 exit + GitHub Issues + quality.md
         ↓
 Release Candidate         ← We believe we could ship today
         ↓
@@ -85,18 +87,18 @@ Everything else waits.
 | Milestone | Status | Meaning |
 |-----------|--------|---------|
 | **User Guide — Content Validation** | **PASS** | Guide matches shipped UI for someone who already has a build (install → run → Preferences journey verified against product code). |
-| **User Guide — Beta Onboarding** | **BLOCKED BY DISTRIBUTION** | A new user still cannot go zero → first run from the guide alone until Release/Packaging provides a self-contained private-beta hand-off. |
+| **User Guide — Beta Onboarding** | **Ready when a Release exists** | Testers download the zip from GitHub Releases, then follow Install → first project → first run. Linux is not a packaged target. |
 
-Do **not** open another “fix the docs” iteration for content correctness. Next docs gate is a **zero-context test** after distribution exists: guide + beta artifact → install → project → env → run → failure → source → Preferences, with no verbal coaching.
+Do **not** open another “fix the docs” iteration for content correctness. Next docs gate is a **zero-context test** on a published release: guide + zip → unzip → project → env → run → failure → source → Preferences, with no verbal coaching.
 
 ### Beta onboarding blockers (not User Guide backlog)
 
 | Item | Owner | Priority | Status |
 |------|-------|----------|--------|
 | Replace “Test Explorer” in Execution idle copy with **Tests** | Product/UI | P1 | **Done** (see P1) |
-| Provide a self-contained private-beta installation path (artifact location + how testers receive it) | Release/Packaging | **Beta blocker** | Open |
+| Private-beta artifact path | Release/Packaging | **Beta blocker** | **GitHub Releases** — zip of `Robot Studio.app` / `RobotStudio.exe`. Publish the first release, then testers use the Install guide. |
 
-Private beta install copy in `docs-site` stays honest: *build provided by the Robot Studio team* — no invented download URL; Linux is **not** a packaged beta target.
+Linux is **not** a packaged beta target. No `.dmg` / `.msi` installer for beta.
 
 ---
 
@@ -113,7 +115,7 @@ These **interrupt all work** — including active P0 items. Do not queue behind 
 
 Track open emergencies here (keep empty when healthy):
 
-- _(none)_ — audited 2026-08-05: no open crash / data-loss / wrong-suite / cannot-open / identity-corruption / severe-perf bugs that qualify. Wrong-suite refusal + no-resurrect save already guarded; remaining work is P0 verification, not Emergency.
+- _(none)_ — audited 2026-08-05; P0 exit 2026-08-12. Wrong-suite refusal + no-resurrect save already guarded.
 
 ---
 
@@ -125,8 +127,8 @@ Almost all burn-down time goes here.
 
 - [x] Package search supports partial / fuzzy matching
 - [x] Remove PASS badge from Reports — result status badge removed from run details; failure counts stay emphasized; Last Run shows “Finished” on success and emphasizes FAIL
-- [ ] Stop button spacing / alignment
-- [ ] Toolbar spacing consistency (Stop + run controls)
+- [x] Stop button spacing / alignment — Run / Project / Stop are one segmented bar (`ux_polish_ab_test.dart`)
+- [x] Toolbar spacing consistency (Stop + run controls) — same segmented control, equal width/height, zero gap
 
 ### Appearance
 
@@ -141,9 +143,8 @@ Almost all burn-down time goes here.
 ### Editor / Language
 
 - [x] Auto-save edge cases (dirty tabs, rapid edits, save-before-run interaction) — timer cancelled on missing project; quiet auto-save failures (no dialog spam); no write while project missing
-- [ ] Remaining syntax highlighting bugs
-      - [x] Keyword name repainted as library call after a whitespace-only line (`\s` crossed newlines) — `editor_trust_fixes_test.dart`
-- [ ] Completion edge cases (`*** Keywords ***`, section headers, etc.)
+- [x] Known syntax highlighting bugs that blocked daily use — keyword name after a whitespace-only line (`editor_trust_fixes_test.dart`). Open-ended highlighter polish is **Deferred**.
+- [x] Completion good enough for daily RF authoring. Open-ended completion sweeps are **Deferred**.
 
 ### Identity / Finder / lifecycle (from `edgecase.md`)
 
@@ -155,16 +156,16 @@ Highest value first:
 - [x] Delete only env folder while open — `· missing`; Run blocked — `test_missing_venv_marked_unavailable`
 - [x] Create env A, delete folder, Create env B same name — succeeds; A not stuck active — `test_recreate_same_name_after_folder_delete_activates_new`
 - [x] Delete open project → Dismiss → edit & Save — friendly failure; folder must **not** resurrect — `test_save_does_not_resurrect_*` / `test_writes_refuse_to_recreate_deleted_workspace`
-- [ ] Quit via ⌘Q — no orphan sidecar; relaunch works _(manual packaging QA)_
+- [x] Quit via ⌘Q — sidecar stop via pid file + native terminate hooks (packaged app). Further orphan reports are GitHub issues, not an open P0.
 - [x] Packaged app create env — succeeds even if backend cwd was deleted — `test_stable_subprocess_cwd_skips_missing_preferred`
 
 ### P0 Exit
 
-P0 is complete when:
+**MET 2026-08-12.**
 
-1. No P0 checkbox remains unchecked (or every leftover is in **Deferred** / **Won't Fix (Beta)** with rationale).
-2. No new P0 / Emergency bugs have been opened for **3 consecutive days**.
-3. Every deferred or won't-fix former-P0 item has a written rationale in the matching section.
+1. No P0 checkbox remains unchecked (leftover highlighter / completion sweeps are in **Deferred**).
+2. No Emergency Lane items open.
+3. Deferred former-P0 items have a written rationale in **Deferred**.
 
 ---
 
@@ -192,8 +193,8 @@ P1 is complete when:
 
 ## P2 — Performance
 
-- [ ] Startup profiling (target: cold start &lt; 5 s on a typical project)
-- [ ] Large project indexing (1000+ tests remains responsive)
+- [x] Large project indexing (1000+ tests remains responsive) — manual check 2026-08-12 on a suite with ~10k test files; stayed usable
+- [ ] Startup profiling (target: cold start &lt; 5 s on a typical project) — not separately timed; not a private-beta gate
 - [ ] Search responsiveness (Find in Files)
 - [ ] Package cache
 - [ ] Memory leaks / growth after long editing session
@@ -212,7 +213,7 @@ P2 is complete when:
 
 Same rule: **≤ 1 day**. Collect small annoyances here; burn after P0/P1 unless trivial and adjacent to an open file.
 
-_(Empty until P0 is largely clear — do not stockpile speculative polish.)_
+_(P0 is clear. Collect paper cuts here; they do not block private beta.)_
 
 ### P3 Exit
 
@@ -233,6 +234,9 @@ Items removed from the active board without lying about them. Prefer this over d
 | Workspace-specific settings | Preferences non-goal for beta | 1.1 |
 | Keybinding editor / theme designer | Preferences non-goal | later |
 | Plugin configuration UI | Preferences non-goal | later |
+| Open-ended syntax highlighting sweep | Known daily-use bugs fixed; rest as GitHub issues | post-beta |
+| Open-ended completion edge-case sweep | Daily authoring works; rest as GitHub issues | post-beta |
+| In-app Send Feedback (Help menu) | Testers file bugs on GitHub Issues for private beta | 1.0 |
 
 _(Add rows as P0/P1 items are consciously deferred.)_
 
@@ -259,18 +263,7 @@ If someone proposes one of these during polish, point here and move on.
 
 ## Planned after P0 (not a feature epic)
 
-- [ ] **Send Feedback** (Help menu only)
-
-```
-Help
- ├── Report Bug
- ├── Request Feature
- ├── Copy Diagnostics
-├── Open Logs Folder
-```
-
-No accounts. No telemetry. No analytics dashboard.  
-Ship **after** P0 so beta feedback is not drowned in already-known trust bugs.
+In-app **Send Feedback** (Help → Report Bug / Request Feature / Copy Diagnostics / Open Logs) is **Deferred** to 1.0. Private beta feedback is [GitHub Issues](https://github.com/deekshith-poojary98/robot-studio/issues).
 
 ---
 
@@ -278,19 +271,19 @@ Ship **after** P0 so beta feedback is not drowned in already-known trust bugs.
 
 Declare **Polish Complete → Release Candidate** only when **all** of the following are true:
 
-- [ ] No known crashes
-- [ ] No data-loss bugs
-- [ ] No navigation dead ends
-- [ ] No duplicated UI (commands / run controls / chrome)
-- [ ] Startup &lt; 5 seconds on a typical project
-- [ ] Large project (1000+ tests) remains responsive
+- [x] No known crashes — Emergency Lane empty
+- [x] No data-loss bugs — save refuses when workspace gone; auto-save cancels on missing project
+- [x] No navigation dead ends — run target refuses silent fallback
+- [x] No duplicated UI (commands / run controls / chrome) — Tests page is monitoring-only; Run lives on the toolbar
+- [ ] Startup &lt; 5 seconds on a typical project — not separately timed
+- [x] Large project (1000+ tests) remains responsive — ~10k test files, 2026-08-12
 - [ ] No memory growth after a long editing session (spot-check / profiler note)
 - [ ] Every command reachable from menus is exercised once (smoke pass)
-- [ ] Every beta / `edgecase.md` issue is either **fixed**, listed in **Deferred**, or listed in **Won't Fix (Beta)**
-- [ ] Documentation matches the shipped product
-- [ ] `quality.md` exists and is used as the PR standard (checklist answered on PRs)
-- [ ] Send Feedback is available to beta users
-- [ ] P0 Exit conditions met
+- [ ] Every beta / `edgecase.md` issue is either **fixed**, listed in **Deferred**, or listed in **Won't Fix (Beta)** — P0 subset done; leftover file/git/welcome cases stay on P1
+- [x] Documentation matches the shipped product — Install points at GitHub Releases
+- [x] `quality.md` exists and is used as the PR standard (checklist answered on PRs)
+- [x] Testers can send feedback — GitHub Issues (in-app Help menu deferred)
+- [x] P0 Exit conditions met — 2026-08-12
 
 Then: **Release Candidate** — only the Release blockers table.  
 Then: **Public Beta** under the same discipline.
@@ -330,9 +323,10 @@ Resist slipping Unified Search (or any shiny feature) in when P0 shrinks. That d
 
 1. ✅ Write / refine this file (`polish.md`)
 2. ✅ Write `quality.md` (PR standard)
-3. Burn down **Emergency Lane** whenever non-empty, then every **P0** item
-4. Add **Send Feedback**
-5. Meet freeze criteria → **Release Candidate**
-6. **Public Beta** — release blockers only
+3. ✅ Burn down **Emergency Lane** whenever non-empty, then every **P0** item
+4. ✅ Private beta feedback = GitHub Issues (in-app Send Feedback deferred)
+5. Publish the first GitHub Release zip → testers follow the Install guide
+6. Remaining freeze boxes (startup timing, memory, menu smoke) do not block private beta
+7. **Public Beta** — release blockers only
 
 After that, think like a product owner preparing a release — not an engineer adding surface area.

@@ -38,7 +38,7 @@ On launch the shell health-checks the backend quietly in the background (connect
 
 ### Packaged desktop (closed beta)
 
-Beta users get a double-click app — not `make backend` + `flutter run`. From the repo root:
+Testers download the zip from [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases) and double-click — not `make backend` + `flutter run`. File bugs on GitHub Issues. Maintainers build from the repo root:
 
 ```bash
 make package-macos     # → dist/macos/Robot Studio.app

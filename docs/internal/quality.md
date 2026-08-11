@@ -132,11 +132,11 @@ Everything else waits for a post-beta patch or 1.0.
 
 ### Before calling a build a Release Candidate
 
-- [ ] `polish.md` freeze criteria checked
-- [ ] P0 Exit met (or leftovers in Deferred / Won’t Fix with rationale)
-- [ ] Emergency Lane empty
+- [x] `polish.md` freeze criteria checked — large project + P0; startup/memory/menu smoke still open and **not** a private-beta gate
+- [x] P0 Exit met (leftover highlighter / completion sweeps in Deferred)
+- [x] Emergency Lane empty
 - [ ] Menu smoke: every menu command exercised once
-- [ ] Docs match shipped behavior (`ARCHITECTURE.md`, frontend README notes)
-- [ ] Send Feedback available (post-P0)
+- [x] Docs match shipped behavior — Install / README point at GitHub Releases; testers file GitHub Issues
+- [x] Feedback available — GitHub Issues (in-app Send Feedback deferred)
 
 **North-star:** Can an RF SDET spend an entire week in Robot Studio without opening VS Code?

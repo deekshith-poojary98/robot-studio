@@ -3,6 +3,10 @@ title: Troubleshooting
 description: Fix common Robot Studio issues — backend offline, empty runs, missing imports, and more.
 ---
 
+## How to report a bug
+
+Private beta: open an issue on [GitHub](https://github.com/deekshith-poojary98/robot-studio/issues). Include OS, what you did, and what you expected. Logs live under `~/.robot-studio/logs/` if you need to attach them.
+
 ## Status bar says BACKEND UNAVAILABLE
 
 The UI cannot reach the local API.
