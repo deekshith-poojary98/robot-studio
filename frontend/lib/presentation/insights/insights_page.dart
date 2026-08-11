@@ -1246,7 +1246,7 @@ class _RunHealthPanel extends StatelessWidget {
         .where((f) => f.passed > 0 && f.failed > 0)
         .toList();
     final flakyFileCount = flakyFiles.length;
-    final interrupted = runs.cancelled + runs.aborted;
+    final interrupted = runs.stopped;
     final recentWindow = recent.take(5).toList();
     final recentFails = recentWindow
         .where(
@@ -1463,7 +1463,7 @@ class _HealthMetricGrid extends StatelessWidget {
           label: 'Interrupted',
           value: '$interrupted',
           valueColor: context.palette.warning,
-          subtitle: 'cancelled / aborted',
+          subtitle: 'did not finish',
         ),
       );
     }
@@ -1587,8 +1587,7 @@ class _OutcomeShareBar extends StatelessWidget {
     final segments = <(int, Color)>[
       (runs.passed, context.palette.success),
       (runs.failed, context.palette.error),
-      (runs.cancelled, context.palette.warning),
-      (runs.aborted, context.palette.textMuted),
+      (runs.stopped, context.palette.warning),
     ].where((s) => s.$1 > 0).toList();
 
     return ClipRRect(
@@ -2001,8 +2000,7 @@ abstract final class _FileCols {
     5: const FlexColumnWidth(1),
     6: const FlexColumnWidth(1),
     7: const FlexColumnWidth(1),
-    8: const FlexColumnWidth(1),
-    9: const FlexColumnWidth(1.2),
+    8: const FlexColumnWidth(1.2),
   };
 
   static const headers = [
@@ -2013,8 +2011,7 @@ abstract final class _FileCols {
     'Runs',
     'Pass',
     'Fail',
-    'Cancel',
-    'Abort',
+    'Stop',
     'Last',
   ];
 }
@@ -2171,8 +2168,10 @@ class _FileDataRowState extends State<_FileDataRow> {
                       '${row.failed}',
                       color: row.failed > 0 ? context.palette.error : null,
                     ),
-                    numCell('${row.cancelled}'),
-                    numCell('${row.aborted}'),
+                    numCell(
+                      '${row.stopped}',
+                      color: row.stopped > 0 ? context.palette.warning : null,
+                    ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
                         2,
@@ -2490,6 +2489,8 @@ class _MergedFileRow {
   final DateTime? lastStartedAt;
   final String? lastRunId;
   final String? lastFailedRunId;
+
+  int get stopped => cancelled + aborted;
 
   String get shortName {
     final parts = filePath.replaceAll('\\', '/').split('/');

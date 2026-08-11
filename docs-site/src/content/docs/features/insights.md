@@ -82,7 +82,7 @@ Kind rows with a count of zero stay visible but muted so small projects still sh
 
 ## Files table
 
-The Files table merges index composition with per-file run stats so you can spot hot spots (high fail counts) next to keyword/test density. Rows are built lazily as you scroll, so large projects stay responsive. Failing rows open triage; clean rows open source.
+The Files table merges index composition with per-file run stats so you can spot hot spots (high fail counts) next to keyword/test density. **Pass** / **Fail** / **Stop** are run counts for that file. **Stop** is a run that did not finish — you pressed **Stop**, or Robot never started (those aborted launches are not kept in Reports). Rows are built lazily as you scroll, so large projects stay responsive. Failing rows open triage; clean rows open source.
 
 ## Related
 

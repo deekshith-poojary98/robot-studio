@@ -120,6 +120,9 @@ class InsightsRunTotals {
   final double? passRate;
   final double? averageDurationMs;
 
+  /// User Stop, or a launch that never started. Insights shows these as one count.
+  int get stopped => cancelled + aborted;
+
   String get passRateLabel {
     final rate = passRate;
     if (rate == null) return '—';
@@ -218,4 +221,6 @@ class InsightsFileRuns {
   final DateTime? lastStartedAt;
   final String? lastRunId;
   final String? lastFailedRunId;
+
+  int get stopped => cancelled + aborted;
 }
