@@ -38,7 +38,7 @@ enum SidebarPanel {
   ),
   sourceControl(
     'Source Control',
-    Icons.source_outlined,
+    Icons.call_split_outlined,
     'Source Control — Git status, commit, and branches',
   ),
   reports(

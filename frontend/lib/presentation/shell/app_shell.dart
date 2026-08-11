@@ -4980,7 +4980,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         PaletteItem(
           id: 'git.open',
           title: 'Open Source Control',
-          icon: Icons.source_outlined,
+          icon: Icons.call_split_outlined,
           kind: PaletteItemKind.command,
           keywords: const ['git'],
           onSelect: () => unawaited(_handleOpenSourceControl()),

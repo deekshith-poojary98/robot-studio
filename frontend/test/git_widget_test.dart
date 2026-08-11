@@ -231,7 +231,7 @@ void main() {
     );
 
     expect(find.text('CHANGES'), findsOneWidget);
-    expect(find.text('Set identity'), findsOneWidget);
+    expect(find.text('Set'), findsOneWidget);
     expect(find.textContaining('Modified'), findsOneWidget);
     expect(find.textContaining('Untracked'), findsOneWidget);
     expect(find.text('tests.robot'), findsOneWidget);
@@ -307,8 +307,8 @@ void main() {
 
     expect(find.text('Up to date'), findsOneWidget);
     expect(find.text('Edit remote'), findsOneWidget);
-    expect(find.textContaining('Ada Lovelace'), findsWidgets);
-    expect(find.text('Change'), findsWidgets);
+    expect(find.textContaining('Ada Lovelace'), findsOneWidget);
+    expect(find.text('Change'), findsOneWidget);
     expect(
       find.textContaining('https://github.com/acme/demo.git'),
       findsOneWidget,
