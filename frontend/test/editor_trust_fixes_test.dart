@@ -32,6 +32,15 @@ void main() {
       );
     });
 
+    test('argument prefix is the current cell, not the previous value', () {
+      const line =
+          '    Evaluate    expression=random.randint(1,10)    modules=random    name';
+      expect(
+        RobotAutocompletePromptsBuilder.prefixAt(line, line.length),
+        'name',
+      );
+    });
+
     test('Keywords header replaces *** Key without doubling stars', () {
       const prefix = '*** Key';
       const insert = '*** Keywords ***';
@@ -124,6 +133,46 @@ void main() {
 
     expect(value, isNotNull);
     expect(value!.prompts.map((p) => p.word), ['modules=', 'namespace=']);
+  });
+
+  testWidgets('typing name after a filled arg offers namespace=', (
+    tester,
+  ) async {
+    const signature = SignatureHelpInfo(
+      keyword: 'Evaluate',
+      activeParameter: 2,
+      parameters: [
+        SignatureParameterInfo(label: 'expression', name: 'expression'),
+        SignatureParameterInfo(label: 'modules', name: 'modules'),
+        SignatureParameterInfo(label: 'namespace', name: 'namespace'),
+      ],
+    );
+    const line =
+        '    Evaluate    expression=random.randint(1,10)    modules=random    name';
+    final builder = RobotAutocompletePromptsBuilder(
+      const [],
+      signature: signature,
+    );
+
+    late CodeAutocompleteEditingValue? value;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            value = builder.build(
+              context,
+              const CodeLine(line),
+              CodeLineSelection.collapsed(index: 0, offset: line.length),
+            );
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(value, isNotNull);
+    expect(value!.input, 'name');
+    expect(value!.prompts.map((p) => p.word), ['namespace=']);
   });
 
   testWidgets('named-arg popup stays closed inside an expression value', (
@@ -258,6 +307,38 @@ void main() {
           .toHtml();
       expect(html.toLowerCase(), contains('hljs-keyword'));
       expect(html.toLowerCase(), contains('>if<'));
+    });
+
+    test('does not paint DSL words inside argument values', () {
+      final html = highlight
+          .highlight(
+            code:
+                '    Sleep    time_=5s    reason=as for if in as var with me ok\n',
+            language: 'robot',
+          )
+          .toHtml();
+      expect(html.toLowerCase().contains('hljs-keyword">as'), isFalse);
+      expect(html.toLowerCase().contains('hljs-keyword">for'), isFalse);
+      expect(html.toLowerCase().contains('hljs-keyword">if'), isFalse);
+      expect(html.toLowerCase().contains('hljs-keyword">in'), isFalse);
+      expect(html.toLowerCase().contains('hljs-keyword">var'), isFalse);
+      expect(html.toLowerCase(), contains('hljs-attr'));
+    });
+
+    test('still highlights FOR / IN RANGE / AS as their own cells', () {
+      final html = highlight
+          .highlight(
+            code:
+                '    FOR    \${i}    IN RANGE    10\n'
+                '    EXCEPT    boom    AS    \${err}\n',
+            language: 'robot',
+          )
+          .toHtml();
+      final lower = html.toLowerCase();
+      expect(lower, contains('hljs-keyword'));
+      expect(lower, contains('>for<'));
+      expect(lower, contains('>in range<'));
+      expect(lower, contains('>as<'));
     });
   });
 

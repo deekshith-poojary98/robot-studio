@@ -84,6 +84,10 @@ class RunDetailsPanel extends StatelessWidget {
                       : run.environmentName,
                 ),
                 _DetailRow(
+                  label: 'Configuration',
+                  value: run.configurationLabel,
+                ),
+                _DetailRow(
                   label: 'Robot Version',
                   value: run.robotVersion ?? '—',
                 ),

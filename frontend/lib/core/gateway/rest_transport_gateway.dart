@@ -317,20 +317,23 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
-  Future<ExecutionInfo> runFile({String? file}) async {
+  Future<ExecutionInfo> runFile({String? file, String? configurationId}) async {
     final response = await _post(
       '/execution/run',
-      body: {'file': file},
+      body: _withConfiguration({'file': file}, configurationId),
       timeout: const Duration(seconds: 30),
     );
     return ExecutionInfo.fromJson(response);
   }
 
   @override
-  Future<ExecutionInfo> runProject({bool confirm = false}) async {
+  Future<ExecutionInfo> runProject({
+    bool confirm = false,
+    String? configurationId,
+  }) async {
     final response = await _post(
       '/execution/run-project',
-      body: {'confirm': confirm},
+      body: _withConfiguration({'confirm': confirm}, configurationId),
       timeout: const Duration(seconds: 30),
     );
     return ExecutionInfo.fromJson(response);
@@ -371,10 +374,11 @@ class RestTransportGateway implements TransportGateway {
   Future<ExecutionInfo> runTest({
     required String file,
     required String name,
+    String? configurationId,
   }) async {
     final response = await _post(
       '/tests/run',
-      body: {'file': file, 'name': name},
+      body: _withConfiguration({'file': file, 'name': name}, configurationId),
       timeout: const Duration(seconds: 30),
     );
     return ExecutionInfo.fromJson(response);
@@ -384,10 +388,14 @@ class RestTransportGateway implements TransportGateway {
   Future<ExecutionInfo> runTestSuite({
     String? file,
     bool confirm = false,
+    String? configurationId,
   }) async {
     final response = await _post(
       '/tests/run-suite',
-      body: {'file': file, 'confirm': confirm},
+      body: _withConfiguration({
+        'file': file,
+        'confirm': confirm,
+      }, configurationId),
       timeout: const Duration(seconds: 30),
     );
     return ExecutionInfo.fromJson(response);
@@ -397,20 +405,24 @@ class RestTransportGateway implements TransportGateway {
   Future<ExecutionInfo> runTestsByTag(
     String tag, {
     bool confirm = false,
+    String? configurationId,
   }) async {
     final response = await _post(
       '/tests/run-tag',
-      body: {'tag': tag, 'confirm': confirm},
+      body: _withConfiguration({
+        'tag': tag,
+        'confirm': confirm,
+      }, configurationId),
       timeout: const Duration(seconds: 30),
     );
     return ExecutionInfo.fromJson(response);
   }
 
   @override
-  Future<ExecutionInfo> runFailedTests() async {
+  Future<ExecutionInfo> runFailedTests({String? configurationId}) async {
     final response = await _post(
       '/tests/run-failed',
-      body: const {},
+      body: _withConfiguration(<String, dynamic>{}, configurationId),
       timeout: const Duration(seconds: 30),
     );
     return ExecutionInfo.fromJson(response);
@@ -418,15 +430,16 @@ class RestTransportGateway implements TransportGateway {
 
   @override
   Future<ExecutionInfo> runSelectedTests(
-    List<({String file, String name})> tests,
-  ) async {
+    List<({String file, String name})> tests, {
+    String? configurationId,
+  }) async {
     final response = await _post(
       '/tests/run-selected',
-      body: {
+      body: _withConfiguration({
         'tests': [
           for (final item in tests) {'file': item.file, 'name': item.name},
         ],
-      },
+      }, configurationId),
       timeout: const Duration(seconds: 30),
     );
     return ExecutionInfo.fromJson(response);
@@ -1198,6 +1211,104 @@ class RestTransportGateway implements TransportGateway {
     return items
         .map((e) => DoctorReportSummary.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  @override
+  Future<RunConfigurationListInfo> listRunConfigurations() async {
+    final response = await _get('/run-configurations');
+    return RunConfigurationListInfo.fromJson(response);
+  }
+
+  @override
+  Future<RunConfigurationInfo> createRunConfiguration(
+    RunConfigurationDraft draft,
+  ) async {
+    final response = await _post(
+      '/run-configurations',
+      body: _draftWriteBody(draft),
+    );
+    return RunConfigurationInfo.fromJson(response);
+  }
+
+  @override
+  Future<RunConfigurationInfo> updateRunConfiguration(
+    String configurationId,
+    RunConfigurationDraft draft,
+  ) async {
+    final response = await _patch(
+      '/run-configurations/$configurationId',
+      body: _draftPatchBody(draft),
+    );
+    return RunConfigurationInfo.fromJson(response);
+  }
+
+  @override
+  Future<void> deleteRunConfiguration(String configurationId) async {
+    final path = '/run-configurations/$configurationId';
+    await _send(
+      'DELETE',
+      path,
+      () => _client
+          .delete(Uri.parse('$baseUrl$path'))
+          .timeout(const Duration(seconds: 30)),
+      allowEmpty: true,
+    );
+  }
+
+  @override
+  Future<RunConfigurationInfo> duplicateRunConfiguration(
+    String configurationId,
+  ) async {
+    final response = await _post(
+      '/run-configurations/$configurationId/duplicate',
+      body: <String, dynamic>{},
+    );
+    return RunConfigurationInfo.fromJson(response);
+  }
+
+  @override
+  Future<String?> activateRunConfiguration(String? configurationId) async {
+    final response = await _post(
+      '/run-configurations/activate',
+      body: {'configuration_id': configurationId},
+    );
+    return response['active_id'] as String?;
+  }
+
+  Map<String, dynamic> _withConfiguration(
+    Map<String, dynamic> body,
+    String? configurationId,
+  ) {
+    if (configurationId != null && configurationId.isNotEmpty) {
+      body['configuration_id'] = configurationId;
+    }
+    return body;
+  }
+
+  Map<String, dynamic> _draftWriteBody(RunConfigurationDraft draft) {
+    return {
+      'name': draft.name,
+      'environment_id': draft.environmentId,
+      'include_tags': draft.includeTags,
+      'exclude_tags': draft.excludeTags,
+      'variables': [for (final item in draft.variables) item.toJson()],
+      'variable_files': draft.variableFiles,
+      'extra_robot_args': draft.extraRobotArgs,
+      'activate': true,
+    };
+  }
+
+  Map<String, dynamic> _draftPatchBody(RunConfigurationDraft draft) {
+    return {
+      'name': draft.name,
+      'environment_id': draft.environmentId,
+      'clear_environment': draft.environmentId == null,
+      'include_tags': draft.includeTags,
+      'exclude_tags': draft.excludeTags,
+      'variables': [for (final item in draft.variables) item.toJson()],
+      'variable_files': draft.variableFiles,
+      'extra_robot_args': draft.extraRobotArgs,
+    };
   }
 
   Future<Map<String, dynamic>> _get(String path, {bool quiet = false}) {

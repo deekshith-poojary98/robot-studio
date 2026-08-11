@@ -7,7 +7,7 @@ description: Browse run history, open Robot HTML reports, and jump back to failu
 
 Runs are listed by run number from `.robotstudio/reports/Run-*` (legacy root `Reports/` paths remain readable when stored). The active run in the sidebar is highlighted so you can see which details are open.
 
-Each run entry shows stats and links to the artifacts Robot Framework produced. Failure counts stay emphasized; there is no pass/fail status badge on the details header.
+Each run entry shows stats and links to the artifacts Robot Framework produced. Failure counts stay emphasized; there is no pass/fail status badge on the details header. Run details also show the **configuration** used for that run (**Default** when none was selected).
 
 - `report.html`
 - `log.html`

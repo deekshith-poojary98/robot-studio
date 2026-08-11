@@ -65,6 +65,8 @@ class ExecutionInfo {
     this.passed,
     this.failed,
     this.skipped,
+    this.configurationId,
+    this.configurationName = '',
   });
 
   factory ExecutionInfo.fromJson(Map<String, dynamic> json) {
@@ -93,6 +95,8 @@ class ExecutionInfo {
       passed: (json['passed'] as num?)?.toInt(),
       failed: (json['failed'] as num?)?.toInt(),
       skipped: (json['skipped'] as num?)?.toInt(),
+      configurationId: json['configuration_id'] as String?,
+      configurationName: json['configuration_name'] as String? ?? '',
     );
   }
 
@@ -118,6 +122,11 @@ class ExecutionInfo {
   final int? passed;
   final int? failed;
   final int? skipped;
+  final String? configurationId;
+  final String configurationName;
+
+  String get configurationLabel =>
+      configurationName.trim().isEmpty ? 'Default' : configurationName;
 
   bool get isPassBadge =>
       status == ExecutionStatus.finished &&

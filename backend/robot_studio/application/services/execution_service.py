@@ -10,6 +10,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
+from robot_studio.application.services.execution_plan import (
+    ExecutionPlan,
+    ExecutionPlanError,
+    plan_to_robot_args,
+    resolve_variable_files,
+)
+from robot_studio.application.services.run_configuration_service import (
+    RunConfigurationService,
+    RunConfigurationValidationError,
+)
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.events import (
     EventBus,
@@ -20,10 +30,13 @@ from robot_studio.core.events import (
     ExecutionStarted,
 )
 from robot_studio.domain.interfaces.runner import ResultsStore, Runner
-from robot_studio.domain.models import ExecutionRun, ExecutionStatus
+from robot_studio.domain.models import Environment, ExecutionRun, ExecutionStatus
 from robot_studio.infrastructure.execution.subprocess_runner import (
     RunnerError,
     SubprocessRunner,
+)
+from robot_studio.infrastructure.repositories.environment_repository import (
+    SqliteEnvironmentRepository,
 )
 from robot_studio.infrastructure.repositories.execution_repository import (
     SqliteExecutionRepository,
@@ -83,18 +96,15 @@ class ExecutionService:
     runner: Runner
     results_store: ResultsStore
     repository: SqliteExecutionRepository
+    environment_repository: SqliteEnvironmentRepository | None = None
+    run_configuration_service: RunConfigurationService | None = None
     _current: ExecutionRun | None = field(default=None, init=False)
     _monitor_task: asyncio.Task | None = field(default=None, init=False)
     _subscribers: list[_Subscriber] = field(default_factory=list, init=False)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     def _require_session(self):
-        workspace = self.context.workspace
-        if workspace is None:
-            raise ExecutionValidationError("Open a workspace before running tests")
-        project = self.context.project
-        if project is None:
-            raise ExecutionValidationError("Open a project before running tests")
+        workspace, project = self._require_workspace_project()
         environment = self.context.environment
         if environment is None:
             raise ExecutionValidationError(
@@ -102,6 +112,96 @@ class ExecutionService:
                 code="environment_required",
             )
         return workspace, project, environment
+
+    def _require_workspace_project(self):
+        workspace = self.context.workspace
+        if workspace is None:
+            raise ExecutionValidationError("Open a workspace before running tests")
+        project = self.context.project
+        if project is None:
+            raise ExecutionValidationError("Open a project before running tests")
+        return workspace, project
+
+    async def _load_pinned_environment(
+        self,
+        environment_id: UUID,
+        workspace_id: UUID,
+    ) -> Environment:
+        repo = self.environment_repository
+        if repo is None:
+            raise ExecutionValidationError(
+                "Environments are unavailable",
+                code="environment_missing",
+            )
+        environment = await repo.get(environment_id)
+        if environment is None or environment.workspace_id != workspace_id:
+            raise ExecutionValidationError(
+                "This run configuration's environment is missing. "
+                "Edit the configuration to pick another environment.",
+                code="environment_missing",
+            )
+        if not Path(environment.python_executable).is_file():
+            raise ExecutionValidationError(
+                f'The configuration environment "{environment.name}" is missing on disk. '
+                "Edit the configuration to pick another environment.",
+                code="environment_missing",
+            )
+        return environment
+
+    async def _plan_for_run(
+        self,
+        *,
+        suite: str,
+        target_robot_args: list[str] | None = None,
+        run_label: str | None = None,
+        configuration_id: UUID | None = None,
+    ) -> ExecutionPlan:
+        workspace, project = self._require_workspace_project()
+        config = None
+        if configuration_id is not None:
+            service = self.run_configuration_service
+            if service is None:
+                raise ExecutionValidationError("Run configurations are unavailable")
+            try:
+                config = service.get(configuration_id)
+            except RunConfigurationValidationError as exc:
+                raise ExecutionValidationError(
+                    str(exc),
+                    code=exc.code or "configuration_missing",
+                ) from exc
+
+        environment = self.context.environment
+        if config is not None and config.environment_id is not None:
+            environment = await self._load_pinned_environment(
+                config.environment_id,
+                workspace.id,
+            )
+        if environment is None:
+            raise ExecutionValidationError(
+                "Activate a Python environment before running tests",
+                code="environment_required",
+            )
+
+        try:
+            variable_files = resolve_variable_files(
+                project.path,
+                list(config.variable_files) if config else [],
+            )
+            return ExecutionPlan(
+                suite=suite,
+                environment=environment,
+                include_tags=list(config.include_tags) if config else [],
+                exclude_tags=list(config.exclude_tags) if config else [],
+                variables=list(config.variables) if config else [],
+                variable_files=variable_files,
+                extra_robot_args=list(config.extra_robot_args) if config else [],
+                target_robot_args=list(target_robot_args or []),
+                configuration_id=config.id if config else None,
+                configuration_name=config.name if config else None,
+                run_label=run_label,
+            )
+        except ExecutionPlanError as exc:
+            raise ExecutionValidationError(str(exc), code=exc.code) from exc
 
     async def _assert_robot_ready(self, environment) -> None:
         """Block execution before any run row is created when Robot is missing."""
@@ -137,41 +237,62 @@ class ExecutionService:
                 code="robot_missing",
             )
 
-    async def run_file(self, file_path: str | None = None) -> ExecutionRun:
-        workspace, project, environment = self._require_session()
-        await self._assert_robot_ready(environment)
+    async def run_file(
+        self,
+        file_path: str | None = None,
+        *,
+        configuration_id: UUID | None = None,
+    ) -> ExecutionRun:
+        workspace, project = self._require_workspace_project()
         suite = self._resolve_suite(project.path, file_path)
+        plan = await self._plan_for_run(
+            suite=suite,
+            configuration_id=configuration_id,
+        )
+        await self._assert_robot_ready(plan.environment)
         return await self._start_run(
             workspace_id=workspace.id,
             project_id=project.id,
             project_name=project.name,
             project_path=project.path,
-            environment_id=environment.id,
-            environment_name=environment.name,
-            python_executable=environment.python_executable,
+            environment_id=plan.environment.id,
+            environment_name=plan.environment.name,
+            python_executable=plan.environment.python_executable,
             suite=suite,
             workspace_path=workspace.path,
+            robot_args=plan_to_robot_args(plan),
+            configuration_id=plan.configuration_id,
+            configuration_name=plan.configuration_name,
         )
 
-    async def run_project(self) -> ExecutionRun:
-        workspace, project, environment = self._require_session()
-        await self._assert_robot_ready(environment)
+    async def run_project(self, *, configuration_id: UUID | None = None) -> ExecutionRun:
+        workspace, project = self._require_workspace_project()
         suites = list(project.path.rglob("*.robot"))
         if not suites:
             raise ExecutionValidationError(
                 f"No .robot files found in project '{project.name}'",
             )
+        label = f"Project: {project.name}"
+        plan = await self._plan_for_run(
+            suite=str(project.path),
+            run_label=label,
+            configuration_id=configuration_id,
+        )
+        await self._assert_robot_ready(plan.environment)
         return await self._start_run(
             workspace_id=workspace.id,
             project_id=project.id,
             project_name=project.name,
             project_path=project.path,
-            environment_id=environment.id,
-            environment_name=environment.name,
-            python_executable=environment.python_executable,
+            environment_id=plan.environment.id,
+            environment_name=plan.environment.name,
+            python_executable=plan.environment.python_executable,
             suite=str(project.path),
             workspace_path=workspace.path,
-            run_label=f"Project: {project.name}",
+            robot_args=plan_to_robot_args(plan),
+            run_label=label,
+            configuration_id=plan.configuration_id,
+            configuration_name=plan.configuration_name,
         )
 
     async def run_with_options(
@@ -181,27 +302,36 @@ class ExecutionService:
         robot_args: list[str] | None = None,
         run_label: str | None = None,
         project_path: Path | None = None,
+        configuration_id: UUID | None = None,
     ) -> ExecutionRun:
         """Start a Robot run with extra CLI args (e.g. --test / --include)."""
-        workspace, project, environment = self._require_session()
-        await self._assert_robot_ready(environment)
+        workspace, project = self._require_workspace_project()
         resolved_suite = suite
         if not Path(suite).is_absolute():
             candidate = (project.path / suite).resolve()
             if candidate.exists():
                 resolved_suite = str(candidate)
+        plan = await self._plan_for_run(
+            suite=resolved_suite,
+            target_robot_args=robot_args or [],
+            run_label=run_label,
+            configuration_id=configuration_id,
+        )
+        await self._assert_robot_ready(plan.environment)
         return await self._start_run(
             workspace_id=workspace.id,
             project_id=project.id,
             project_name=project.name,
             project_path=project_path or project.path,
-            environment_id=environment.id,
-            environment_name=environment.name,
-            python_executable=environment.python_executable,
+            environment_id=plan.environment.id,
+            environment_name=plan.environment.name,
+            python_executable=plan.environment.python_executable,
             suite=resolved_suite,
             workspace_path=workspace.path,
-            robot_args=robot_args or [],
+            robot_args=plan_to_robot_args(plan),
             run_label=run_label,
+            configuration_id=plan.configuration_id,
+            configuration_name=plan.configuration_name,
         )
 
     async def stop(self) -> ExecutionRun | None:
@@ -295,6 +425,8 @@ class ExecutionService:
         workspace_path: Path,
         robot_args: list[str] | None = None,
         run_label: str | None = None,
+        configuration_id: UUID | None = None,
+        configuration_name: str | None = None,
     ) -> ExecutionRun:
         async with self._lock:
             if self._current is not None and self._current.status in {
@@ -324,6 +456,8 @@ class ExecutionService:
             command="",
             output_dir=output_dir,
             environment_name=environment_name,
+            configuration_id=configuration_id,
+            configuration_name=configuration_name or "",
         )
         await self.repository.create(run)
         async with self._lock:

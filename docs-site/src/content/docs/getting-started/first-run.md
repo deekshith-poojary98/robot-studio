@@ -13,6 +13,7 @@ By default, **Save Before Run** is on (**Settings → Editor**), so pending edit
 
 The quiet toolbar keeps the essentials visible:
 
+- **Default** (or a named run configuration) — execution context for the next run; **Default** uses the active environment with no extra tags or variables. See [Run configurations](/workflows/running-tests/#run-configurations).
 - **Run** — run the **current open `.robot` suite** in the editor (`F5`, or **Run → Run File**). It does **not** run a text selection or an Explorer file selection.
 - **Project** — run the whole project (menu: **Run → Run Project**)
 - **Stop** — cancel an in-progress run (`Shift+F5`)

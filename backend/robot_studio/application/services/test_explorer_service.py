@@ -253,7 +253,13 @@ class TestExplorerService:
         self._tree = None
         return await self.get_tree()
 
-    async def run_test(self, *, file: str, name: str) -> ExecutionRun:
+    async def run_test(
+        self,
+        *,
+        file: str,
+        name: str,
+        configuration_id: UUID | None = None,
+    ) -> ExecutionRun:
         self._require_workspace()
         if not name.strip():
             raise TestExplorerValidationError("Test name is required")
@@ -263,9 +269,16 @@ class TestExplorerService:
             suite=suite,
             robot_args=["--test", name.strip()],
             run_label=f"{Path(suite).name} :: {name.strip()}",
+            configuration_id=configuration_id,
         )
 
-    async def run_suite(self, *, file: str | None = None, confirm: bool = False) -> ExecutionRun:
+    async def run_suite(
+        self,
+        *,
+        file: str | None = None,
+        confirm: bool = False,
+        configuration_id: UUID | None = None,
+    ) -> ExecutionRun:
         self._require_workspace()
         if file:
             suite = str(Path(file).expanduser().resolve())
@@ -273,11 +286,18 @@ class TestExplorerService:
             return await self.execution_service.run_with_options(
                 suite=suite,
                 run_label=label,
+                configuration_id=configuration_id,
             )
         await self._assert_large_run_allowed(confirm=confirm, tag=None, project_wide=True)
-        return await self.execution_service.run_project()
+        return await self.execution_service.run_project(configuration_id=configuration_id)
 
-    async def run_tag(self, *, tag: str, confirm: bool = False) -> ExecutionRun:
+    async def run_tag(
+        self,
+        *,
+        tag: str,
+        confirm: bool = False,
+        configuration_id: UUID | None = None,
+    ) -> ExecutionRun:
         self._require_workspace()
         cleaned = tag.strip()
         if not cleaned:
@@ -294,6 +314,7 @@ class TestExplorerService:
             suite=str(project.path),
             robot_args=["--include", cleaned],
             run_label=f"Tag: {cleaned}",
+            configuration_id=configuration_id,
         )
 
     async def _assert_large_run_allowed(
@@ -348,7 +369,7 @@ class TestExplorerService:
             project_wide=project_wide,
         )
 
-    async def run_failed(self) -> ExecutionRun:
+    async def run_failed(self, *, configuration_id: UUID | None = None) -> ExecutionRun:
         self._require_workspace()
         project = self.context.project
         if project is None:
@@ -392,8 +413,13 @@ class TestExplorerService:
                 suite=str(project.path),
                 robot_args=["--rerunfailed", str(output_xml)],
                 run_label=label,
+                configuration_id=configuration_id,
             )
-        return await self._run_tests_by_file(by_file, label=label)
+        return await self._run_tests_by_file(
+            by_file,
+            label=label,
+            configuration_id=configuration_id,
+        )
 
     @staticmethod
     def _group_tests_by_file(tests: list[dict]) -> dict[str, list[str]]:
@@ -415,6 +441,7 @@ class TestExplorerService:
         by_file: dict[str, list[str]],
         *,
         label: str | None = None,
+        configuration_id: UUID | None = None,
     ) -> ExecutionRun:
         """Run named tests: one suite file directly, several via the project."""
         # Robot allows multiple --test for one suite.
@@ -432,6 +459,7 @@ class TestExplorerService:
                     if len(names) == 1
                     else f"{Path(suite).name} :: {len(names)} tests"
                 ),
+                configuration_id=configuration_id,
             )
         # Multiple files: run whole project with name filters (OR).
         project = self.context.project
@@ -446,16 +474,22 @@ class TestExplorerService:
             suite=str(project.path),
             robot_args=args,
             run_label=label or f"Selected ({total})",
+            configuration_id=configuration_id,
         )
 
-    async def run_selected(self, *, tests: list[dict]) -> ExecutionRun:
+    async def run_selected(
+        self,
+        *,
+        tests: list[dict],
+        configuration_id: UUID | None = None,
+    ) -> ExecutionRun:
         self._require_workspace()
         if not tests:
             raise TestExplorerValidationError("Select at least one test")
         by_file = self._group_tests_by_file(tests)
         if not by_file:
             raise TestExplorerValidationError("No valid tests in selection")
-        return await self._run_tests_by_file(by_file)
+        return await self._run_tests_by_file(by_file, configuration_id=configuration_id)
 
     async def _parse_file_symbols(self, path: Path) -> list[dict]:
         try:

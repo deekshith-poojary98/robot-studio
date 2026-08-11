@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -29,16 +31,19 @@ class TestFileResponse(BaseModel):
 class RunTestRequest(BaseModel):
     file: str = Field(min_length=1)
     name: str = Field(min_length=1)
+    configuration_id: UUID | None = None
 
 
 class RunSuiteRequest(BaseModel):
     file: str | None = None
     confirm: bool = False
+    configuration_id: UUID | None = None
 
 
 class RunTagRequest(BaseModel):
     tag: str = Field(min_length=1)
     confirm: bool = False
+    configuration_id: UUID | None = None
 
 
 class RunSelectedTest(BaseModel):
@@ -48,6 +53,11 @@ class RunSelectedTest(BaseModel):
 
 class RunSelectedRequest(BaseModel):
     tests: list[RunSelectedTest] = Field(min_length=1)
+    configuration_id: UUID | None = None
+
+
+class RunFailedRequest(BaseModel):
+    configuration_id: UUID | None = None
 
 
 def to_test_node(node) -> TestNodeResponse:

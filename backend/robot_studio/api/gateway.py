@@ -24,6 +24,9 @@ from robot_studio.application.services.package_service import (
 from robot_studio.application.services.plugin_service import PluginService
 from robot_studio.application.services.project_service import ProjectService
 from robot_studio.application.services.report_service import ReportService
+from robot_studio.application.services.run_configuration_service import (
+    RunConfigurationService,
+)
 from robot_studio.application.services.test_explorer_service import (
     TestExplorerService,
     TestNode,
@@ -111,6 +114,13 @@ class RestGateway:
         service = self._container.execution_service
         if service is None:
             raise RuntimeError("ExecutionService is not initialized")
+        return service
+
+    @property
+    def _run_configuration_service(self) -> RunConfigurationService:
+        service = self._container.run_configuration_service
+        if service is None:
+            raise RuntimeError("RunConfigurationService is not initialized")
         return service
 
     @property
@@ -454,16 +464,31 @@ class RestGateway:
     async def uninstall_package(self, name: str) -> PackageOperationResult:
         return await self._package_service.uninstall_package(name=name)
 
-    async def run_file(self, file_path: str | None = None) -> ExecutionRun:
-        return await self._execution_service.run_file(file_path=file_path)
+    async def run_file(
+        self,
+        file_path: str | None = None,
+        *,
+        configuration_id: UUID | None = None,
+    ) -> ExecutionRun:
+        return await self._execution_service.run_file(
+            file_path=file_path,
+            configuration_id=configuration_id,
+        )
 
-    async def run_project(self, *, confirm: bool = False) -> ExecutionRun:
+    async def run_project(
+        self,
+        *,
+        confirm: bool = False,
+        configuration_id: UUID | None = None,
+    ) -> ExecutionRun:
         await self._test_explorer_service.ensure_large_run_allowed(
             confirm=confirm,
             tag=None,
             project_wide=True,
         )
-        return await self._execution_service.run_project()
+        return await self._execution_service.run_project(
+            configuration_id=configuration_id,
+        )
 
     async def get_test_tree(
         self,
@@ -487,22 +512,64 @@ class RestGateway:
     async def get_tests_for_file(self, path: str) -> list[TestNode]:
         return await self._test_explorer_service.get_file(path)
 
-    async def run_test(self, *, file: str, name: str) -> ExecutionRun:
-        return await self._test_explorer_service.run_test(file=file, name=name)
+    async def run_test(
+        self,
+        *,
+        file: str,
+        name: str,
+        configuration_id: UUID | None = None,
+    ) -> ExecutionRun:
+        return await self._test_explorer_service.run_test(
+            file=file,
+            name=name,
+            configuration_id=configuration_id,
+        )
 
     async def run_test_suite(
-        self, *, file: str | None = None, confirm: bool = False
+        self,
+        *,
+        file: str | None = None,
+        confirm: bool = False,
+        configuration_id: UUID | None = None,
     ) -> ExecutionRun:
-        return await self._test_explorer_service.run_suite(file=file, confirm=confirm)
+        return await self._test_explorer_service.run_suite(
+            file=file,
+            confirm=confirm,
+            configuration_id=configuration_id,
+        )
 
-    async def run_tests_by_tag(self, *, tag: str, confirm: bool = False) -> ExecutionRun:
-        return await self._test_explorer_service.run_tag(tag=tag, confirm=confirm)
+    async def run_tests_by_tag(
+        self,
+        *,
+        tag: str,
+        confirm: bool = False,
+        configuration_id: UUID | None = None,
+    ) -> ExecutionRun:
+        return await self._test_explorer_service.run_tag(
+            tag=tag,
+            confirm=confirm,
+            configuration_id=configuration_id,
+        )
 
-    async def run_failed_tests(self) -> ExecutionRun:
-        return await self._test_explorer_service.run_failed()
+    async def run_failed_tests(
+        self,
+        *,
+        configuration_id: UUID | None = None,
+    ) -> ExecutionRun:
+        return await self._test_explorer_service.run_failed(
+            configuration_id=configuration_id,
+        )
 
-    async def run_selected_tests(self, *, tests: list[dict]) -> ExecutionRun:
-        return await self._test_explorer_service.run_selected(tests=tests)
+    async def run_selected_tests(
+        self,
+        *,
+        tests: list[dict],
+        configuration_id: UUID | None = None,
+    ) -> ExecutionRun:
+        return await self._test_explorer_service.run_selected(
+            tests=tests,
+            configuration_id=configuration_id,
+        )
 
     async def stop_execution(self) -> ExecutionRun | None:
         return await self._execution_service.stop()
@@ -1093,3 +1160,69 @@ class RestGateway:
         limit: int = 20,
     ) -> list[DoctorReportSummary]:
         return await self._doctor_service.history(project_id, limit=limit)
+
+    async def list_run_configurations(self):
+        from robot_studio.api.schemas.run_configuration import (
+            RunConfigurationListResponse,
+            RunConfigurationResponse,
+        )
+
+        active_id, items = self._run_configuration_service.list_bundle()
+        return RunConfigurationListResponse(
+            active_id=active_id,
+            configurations=[RunConfigurationResponse.from_model(item) for item in items],
+        )
+
+    async def create_run_configuration(self, request):
+        from robot_studio.api.schemas.run_configuration import (
+            RunConfigurationResponse,
+            to_variables,
+        )
+
+        item = self._run_configuration_service.create(
+            name=request.name,
+            environment_id=request.environment_id,
+            include_tags=request.include_tags,
+            exclude_tags=request.exclude_tags,
+            variables=to_variables(request.variables),
+            variable_files=request.variable_files,
+            extra_robot_args=request.extra_robot_args,
+            activate=request.activate,
+        )
+        return RunConfigurationResponse.from_model(item)
+
+    async def update_run_configuration(self, configuration_id: UUID, request):
+        from robot_studio.api.schemas.run_configuration import (
+            RunConfigurationResponse,
+            to_variables,
+        )
+        from robot_studio.application.services.run_configuration_service import UNSET
+
+        env = UNSET
+        if request.clear_environment:
+            env = None
+        elif request.environment_id is not None:
+            env = request.environment_id
+        item = self._run_configuration_service.update(
+            configuration_id,
+            name=request.name,
+            environment_id=env,
+            include_tags=request.include_tags,
+            exclude_tags=request.exclude_tags,
+            variables=to_variables(request.variables),
+            variable_files=request.variable_files,
+            extra_robot_args=request.extra_robot_args,
+        )
+        return RunConfigurationResponse.from_model(item)
+
+    async def delete_run_configuration(self, configuration_id: UUID) -> None:
+        self._run_configuration_service.delete(configuration_id)
+
+    async def duplicate_run_configuration(self, configuration_id: UUID):
+        from robot_studio.api.schemas.run_configuration import RunConfigurationResponse
+
+        item = self._run_configuration_service.duplicate(configuration_id)
+        return RunConfigurationResponse.from_model(item)
+
+    async def activate_run_configuration(self, configuration_id: UUID | None) -> UUID | None:
+        return self._run_configuration_service.activate(configuration_id)

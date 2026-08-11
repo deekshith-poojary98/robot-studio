@@ -174,6 +174,8 @@ class ExecutionRun(BaseModel):
     passed: int | None = None
     failed: int | None = None
     skipped: int | None = None
+    configuration_id: UUID | None = None
+    configuration_name: str = ""
 
 
 class DashboardSummary(BaseModel):

@@ -15,6 +15,8 @@ import 'package:re_highlight/re_highlight.dart';
 ///
 /// Documentation lines are consumed as strings so words like `for` / `if`
 /// inside `[Documentation]` are not painted as control-flow keywords.
+/// Control-flow tokens only match at a Robot cell boundary, so `reason=as for
+/// if` stays plain argument text.
 final Mode langRobot = Mode(
   name: 'robot',
   aliases: ['robotframework', 'robot'],
@@ -83,12 +85,13 @@ final Mode langRobot = Mode(
           r'Keyword Tags|Task Setup|Task Teardown|Task Template|Task Timeout)\b',
     ),
 
-    // Control-flow DSL (NOT BuiltIn library keywords) — after Documentation
-    // so doc text does not pick these up.
+    // Control-flow DSL as its own Robot cell (after indent or 2+ spaces / tab).
+    // Word-boundary-only matching painted `if` / `for` / `as` inside argument
+    // values (`reason=as for if …`). Lookbehind keeps the token on the word.
     Mode(
       className: 'keyword',
       begin:
-          r'\b('
+          r'(?<=^|[ \t]{2,}|\t)(?:'
           r'IF|ELSE IF|ELSE|END|FOR|WHILE|BREAK|CONTINUE|RETURN|'
           r'TRY|EXCEPT|FINALLY|GROUP|VAR|'
           r'IN RANGE|IN ENUMERATE|IN ZIP|IN|'

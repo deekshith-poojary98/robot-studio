@@ -6,6 +6,7 @@ from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.execution import ExecutionResponse, to_execution_response
 from robot_studio.api.schemas.test_explorer import (
+    RunFailedRequest,
     RunSelectedRequest,
     RunSuiteRequest,
     RunTagRequest,
@@ -65,7 +66,11 @@ async def run_test(
     gateway: RestGateway = Depends(get_gateway),
 ) -> ExecutionResponse:
     try:
-        run = await gateway.run_test(file=request.file, name=request.name)
+        run = await gateway.run_test(
+            file=request.file,
+            name=request.name,
+            configuration_id=request.configuration_id,
+        )
     except (TestExplorerValidationError, ExecutionValidationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return to_execution_response(run)
@@ -77,7 +82,11 @@ async def run_suite(
     gateway: RestGateway = Depends(get_gateway),
 ) -> ExecutionResponse:
     try:
-        run = await gateway.run_test_suite(file=request.file, confirm=request.confirm)
+        run = await gateway.run_test_suite(
+            file=request.file,
+            confirm=request.confirm,
+            configuration_id=request.configuration_id,
+        )
     except (TestExplorerValidationError, ExecutionValidationError) as exc:
         if (
             isinstance(exc, TestExplorerValidationError)
@@ -102,7 +111,11 @@ async def run_tag(
     gateway: RestGateway = Depends(get_gateway),
 ) -> ExecutionResponse:
     try:
-        run = await gateway.run_tests_by_tag(tag=request.tag, confirm=request.confirm)
+        run = await gateway.run_tests_by_tag(
+            tag=request.tag,
+            confirm=request.confirm,
+            configuration_id=request.configuration_id,
+        )
     except (TestExplorerValidationError, ExecutionValidationError) as exc:
         if (
             isinstance(exc, TestExplorerValidationError)
@@ -123,10 +136,12 @@ async def run_tag(
 
 @router.post("/run-failed", response_model=ExecutionResponse)
 async def run_failed(
+    request: RunFailedRequest | None = None,
     gateway: RestGateway = Depends(get_gateway),
 ) -> ExecutionResponse:
+    body = request or RunFailedRequest()
     try:
-        run = await gateway.run_failed_tests()
+        run = await gateway.run_failed_tests(configuration_id=body.configuration_id)
     except (TestExplorerValidationError, ExecutionValidationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return to_execution_response(run)
@@ -140,6 +155,7 @@ async def run_selected(
     try:
         run = await gateway.run_selected_tests(
             tests=[item.model_dump() for item in request.tests],
+            configuration_id=request.configuration_id,
         )
     except (TestExplorerValidationError, ExecutionValidationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

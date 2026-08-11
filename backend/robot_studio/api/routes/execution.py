@@ -42,7 +42,10 @@ async def run_file(
     gateway: RestGateway = Depends(get_gateway),
 ) -> ExecutionResponse:
     try:
-        run = await gateway.run_file(file_path=request.file)
+        run = await gateway.run_file(
+            file_path=request.file,
+            configuration_id=request.configuration_id,
+        )
     except (ExecutionValidationError, TestExplorerValidationError) as exc:
         raise _http_run_error(exc) from exc
     return to_execution_response(run)
@@ -55,7 +58,10 @@ async def run_project(
 ) -> ExecutionResponse:
     body = request or RunProjectRequest()
     try:
-        run = await gateway.run_project(confirm=body.confirm)
+        run = await gateway.run_project(
+            confirm=body.confirm,
+            configuration_id=body.configuration_id,
+        )
     except (ExecutionValidationError, TestExplorerValidationError) as exc:
         raise _http_run_error(exc) from exc
     return to_execution_response(run)

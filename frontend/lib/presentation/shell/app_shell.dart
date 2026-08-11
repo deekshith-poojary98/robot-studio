@@ -47,6 +47,8 @@ import '../project/project_details_panel.dart';
 import '../doctor/doctor_page.dart';
 import '../reports/delete_run_dialog.dart';
 import '../reports/reports_page.dart';
+import '../run_configuration/manage_run_configurations_dialog.dart';
+import '../run_configuration/run_configuration_edit_dialog.dart';
 import '../insights/insights_page.dart';
 import '../search/command_palette.dart';
 import '../sidebar/app_sidebar.dart';
@@ -175,6 +177,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   ProjectInfo? _selectedProject;
   EnvironmentInfo? _selectedEnvironment;
+  List<RunConfigurationInfo> _runConfigurations = [];
+  String? _activeRunConfigurationId;
   bool _showExecutionPage = false;
   int _toggleTerminalToken = 0;
   int _revealProblemsToken = 0;
@@ -555,6 +559,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _workspace.environments = [];
         _workspace.loadingEnvironments = false;
         _selectedEnvironment = null;
+        _runConfigurations = [];
+        _activeRunConfigurationId = null;
       });
       return;
     }
@@ -576,12 +582,36 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         }
       });
       await _loadPackages();
+      await _loadRunConfigurations();
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _workspace.loadingEnvironments = false;
         _appendLog('[warn] Could not load environments: $error');
       });
+      await _loadRunConfigurations();
+    }
+  }
+
+  Future<void> _loadRunConfigurations() async {
+    if (_selectedProject == null || _backendStatus != 'connected') {
+      if (!mounted) return;
+      setState(() {
+        _runConfigurations = [];
+        _activeRunConfigurationId = null;
+      });
+      return;
+    }
+    try {
+      final bundle = await _gateway.listRunConfigurations();
+      if (!mounted) return;
+      setState(() {
+        _runConfigurations = bundle.configurations;
+        _activeRunConfigurationId = bundle.activeId;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      _appendLog('[warn] Could not load run configurations: $error');
     }
   }
 
@@ -1182,7 +1212,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     });
     await _connectExecutionStream();
     try {
-      final run = await _gateway.runFile(file: path);
+      final run = await _gateway.runFile(
+        file: path,
+        configurationId: _activeRunConfigurationId,
+      );
       if (!mounted) return;
       AppLogger.info(
         'Run started',
@@ -1374,7 +1407,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     await _connectExecutionStream();
 
     try {
-      final run = await _gateway.runFile(file: suite);
+      final run = await _gateway.runFile(
+        file: suite,
+        configurationId: _activeRunConfigurationId,
+      );
       if (!mounted) return;
       AppLogger.info(
         'Run started',
@@ -1421,8 +1457,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
     try {
       final run = await _runWithLargeRunGuard(
-        start: ({required bool confirm}) =>
-            _gateway.runProject(confirm: confirm),
+        start: ({required bool confirm}) => _gateway.runProject(
+          confirm: confirm,
+          configurationId: _activeRunConfigurationId,
+        ),
         projectWide: true,
       );
       if (run == null) return;
@@ -1560,7 +1598,59 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     return false;
   }
 
+  RunConfigurationInfo? get _activeRunConfiguration {
+    final id = _activeRunConfigurationId;
+    if (id == null) return null;
+    for (final item in _runConfigurations) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  EnvironmentInfo? get _runEnvironment {
+    final pinId = _activeRunConfiguration?.environmentId;
+    if (pinId != null) {
+      for (final env in _environments) {
+        if (env.id == pinId) return env;
+      }
+      return null;
+    }
+    return _activeEnvironment;
+  }
+
   Future<bool> _ensureRobotReady() async {
+    final pinId = _activeRunConfiguration?.environmentId;
+    if (pinId != null) {
+      final env = _runEnvironment;
+      if (env == null || !env.available) {
+        if (!mounted) return false;
+        await showGuidanceDialog(
+          context: context,
+          title: 'Configuration environment missing',
+          message:
+              'This run configuration pins an environment that is no longer '
+              'available. Edit the configuration or choose Default.',
+          primaryLabel: 'Manage Configurations…',
+          onPrimary: () => unawaited(_handleManageRunConfigurations()),
+        );
+        return false;
+      }
+      final installed =
+          env.robotVersion != null && env.robotVersion!.isNotEmpty;
+      if (installed) return true;
+      if (!mounted) return false;
+      await showGuidanceDialog(
+        context: context,
+        title: 'Robot Framework required',
+        message:
+            'Robot Framework is not installed in the configuration '
+            'environment "${env.name}". Install it there, or edit the '
+            'configuration to use another environment.',
+        primaryLabel: 'Manage Configurations…',
+        onPrimary: () => unawaited(_handleManageRunConfigurations()),
+      );
+      return false;
+    }
     if (!await _ensureEnvironment(
       message: 'Activate an environment before running tests.',
     )) {
@@ -1590,13 +1680,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   bool get _robotFrameworkReady {
-    final env = _activeEnvironment;
+    final env = _runEnvironment;
+    if (_activeRunConfiguration?.environmentId != null) {
+      return env?.robotVersion != null && env!.robotVersion!.isNotEmpty;
+    }
     return _robotFrameworkInstalled ||
         (env?.robotVersion != null && env!.robotVersion!.isNotEmpty);
   }
 
   bool get _canRunTests {
-    final env = _activeEnvironment;
+    final env = _runEnvironment;
+    final pinId = _activeRunConfiguration?.environmentId;
+    if (pinId != null && (env == null || !env.available)) return false;
     final envOk = env == null || env.available;
     return _selectedProject != null && envOk && _robotFrameworkReady;
   }
@@ -2330,6 +2425,64 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     await _loadEnvironments();
   }
 
+  Future<void> _handleSelectRunConfiguration(String? id) async {
+    if (!await _ensureProject(
+      message: 'Open a project before choosing a run configuration.',
+    )) {
+      return;
+    }
+    try {
+      final activeId = await _gateway.activateRunConfiguration(id);
+      if (!mounted) return;
+      setState(() => _activeRunConfigurationId = activeId);
+    } catch (error) {
+      if (!mounted) return;
+      await _showError('Run configuration', error);
+    }
+  }
+
+  Future<void> _handleNewRunConfiguration() async {
+    if (!await _ensureProject(
+      message: 'Open a project before creating a run configuration.',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    final draft = await showRunConfigurationEditDialog(
+      context,
+      environments: _environments,
+    );
+    if (draft == null || !mounted) return;
+    try {
+      final created = await _gateway.createRunConfiguration(draft);
+      if (!mounted) return;
+      setState(() {
+        _runConfigurations = [..._runConfigurations, created];
+        _activeRunConfigurationId = created.id;
+      });
+      await _loadRunConfigurations();
+    } catch (error) {
+      if (!mounted) return;
+      await _showError('Create run configuration', error);
+    }
+  }
+
+  Future<void> _handleManageRunConfigurations() async {
+    if (!await _ensureProject(
+      message: 'Open a project before managing run configurations.',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    await showManageRunConfigurationsDialog(
+      context,
+      gateway: _gateway,
+      environments: _environments,
+    );
+    if (!mounted) return;
+    await _loadRunConfigurations();
+  }
+
   Future<void> _handleOpenPackageManager() async {
     if (!await _ensureWorkspace(
       message: 'Open a project before managing packages.',
@@ -2963,13 +3116,22 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     try {
       final ExecutionInfo? run;
       if (node.kind == 'test' || node.kind == 'task') {
-        run = await _gateway.runTest(file: node.path!, name: node.name);
+        run = await _gateway.runTest(
+          file: node.path!,
+          name: node.name,
+          configurationId: _activeRunConfigurationId,
+        );
       } else if (node.kind == 'suite') {
-        run = await _gateway.runTestSuite(file: node.path);
+        run = await _gateway.runTestSuite(
+          file: node.path,
+          configurationId: _activeRunConfigurationId,
+        );
       } else if (node.kind == 'project' || node.kind == 'workspace') {
         run = await _runWithLargeRunGuard(
-          start: ({required bool confirm}) =>
-              _gateway.runTestSuite(confirm: confirm),
+          start: ({required bool confirm}) => _gateway.runTestSuite(
+            confirm: confirm,
+            configurationId: _activeRunConfigurationId,
+          ),
           projectWide: true,
         );
         if (run == null) return;
@@ -3005,8 +3167,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     await _connectExecutionStream();
     try {
       final run = await _runWithLargeRunGuard(
-        start: ({required bool confirm}) =>
-            _gateway.runTestSuite(confirm: confirm),
+        start: ({required bool confirm}) => _gateway.runTestSuite(
+          confirm: confirm,
+          configurationId: _activeRunConfigurationId,
+        ),
         projectWide: true,
       );
       if (run == null) return;
@@ -3041,7 +3205,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     });
     await _connectExecutionStream();
     try {
-      final run = await _gateway.runTestSuite(file: path);
+      final run = await _gateway.runTestSuite(
+        file: path,
+        configurationId: _activeRunConfigurationId,
+      );
       if (!mounted) return;
       setState(() {
         _execution.executionStatus = run.status;
@@ -3068,7 +3235,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     });
     await _connectExecutionStream();
     try {
-      final run = await _gateway.runFailedTests();
+      final run = await _gateway.runFailedTests(
+        configurationId: _activeRunConfigurationId,
+      );
       if (!mounted) return;
       setState(() {
         _execution.executionStatus = run.status;
@@ -3099,7 +3268,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     try {
       final run = await _gateway.runSelectedTests([
         (file: failure.source, name: failure.name),
-      ]);
+      ], configurationId: _activeRunConfigurationId);
       if (!mounted) return;
       setState(() {
         _execution.executionStatus = run.status;
@@ -3736,6 +3905,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _indexStatus = null;
       _insights = null;
       _liveNotification = null;
+      _runConfigurations = [];
+      _activeRunConfigurationId = null;
     });
     await _loadRecent();
   }
@@ -4768,6 +4939,22 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           onSelect: () => unawaited(_handleManageEnvironments()),
         ),
         PaletteItem(
+          id: 'run-config.new',
+          title: 'New Run Configuration',
+          icon: Icons.tune,
+          kind: PaletteItemKind.command,
+          keywords: const ['run', 'tags', 'variables'],
+          onSelect: () => unawaited(_handleNewRunConfiguration()),
+        ),
+        PaletteItem(
+          id: 'run-config.manage',
+          title: 'Manage Run Configurations',
+          icon: Icons.tune,
+          kind: PaletteItemKind.command,
+          keywords: const ['run', 'duplicate'],
+          onSelect: () => unawaited(_handleManageRunConfigurations()),
+        ),
+        PaletteItem(
           id: 'packages.open',
           title: 'Open Package Manager',
           icon: Icons.inventory_2_outlined,
@@ -5405,6 +5592,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                           onEnvironmentSelected: _handleActivateByName,
                           onCreateEnvironment: _handleCreateEnvironment,
                           onManageEnvironments: _handleManageEnvironments,
+                          runConfigurations: _runConfigurations,
+                          activeRunConfigurationId: _activeRunConfigurationId,
+                          runConfigurationsEnabled:
+                              connected && _selectedProject != null,
+                          onRunConfigurationSelected: (id) =>
+                              unawaited(_handleSelectRunConfiguration(id)),
+                          onNewRunConfiguration: () =>
+                              unawaited(_handleNewRunConfiguration()),
+                          onManageRunConfigurations: () =>
+                              unawaited(_handleManageRunConfigurations()),
                           backendConnected: connected,
                           onRun: _handleRunFile,
                           onRunProject: _handleRunProject,

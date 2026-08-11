@@ -42,10 +42,13 @@ def _word_at(text: str, line: int, column: int) -> str:
         return ""
     row = lines[line - 1]
     col = max(0, min(column - 1, len(row)))
-    match = re.search(r"[\w${}@&][\w\s${}@&.-]*", row[col:])
-    if match:
-        return match.group(0).strip()
-    match = re.search(r"[\w${}@&][\w\s${}@&.-]*$", row[:col])
+    before = row[:col]
+    # 2+ spaces / tabs are cell separators. Do not treat ``random    name``
+    # as one prefix — that hides ``namespace=`` when the user typed ``name``.
+    cells = re.split(r"[ \t]{2,}|\t+", before.lstrip())
+    if len(cells) > 1:
+        return cells[-1].strip()
+    match = re.search(r"[\w${}@&][\w\s${}@&.-]*$", before)
     return match.group(0).strip() if match else ""
 
 

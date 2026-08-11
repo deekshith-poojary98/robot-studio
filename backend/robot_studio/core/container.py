@@ -22,6 +22,9 @@ from robot_studio.application.services.package_service import PackageService
 from robot_studio.application.services.plugin_service import PluginService
 from robot_studio.application.services.project_service import ProjectService
 from robot_studio.application.services.report_service import ReportService
+from robot_studio.application.services.run_configuration_service import (
+    RunConfigurationService,
+)
 from robot_studio.application.services.settings_service import SettingsService
 from robot_studio.application.services.test_explorer_service import TestExplorerService
 from robot_studio.application.services.workspace_context import WorkspaceContext
@@ -100,6 +103,10 @@ class Container:
         init=False,
     )
     execution_service: ExecutionService | None = field(default=None, init=False)
+    run_configuration_service: RunConfigurationService | None = field(
+        default=None,
+        init=False,
+    )
     test_explorer_service: TestExplorerService | None = field(default=None, init=False)
     report_service: ReportService | None = field(default=None, init=False)
     insights_service: InsightsService | None = field(default=None, init=False)
@@ -163,6 +170,9 @@ class Container:
         )
 
         self.workspace_context = WorkspaceContext(self.event_bus)
+        self.run_configuration_service = RunConfigurationService(
+            context=self.workspace_context,
+        )
         self.workspace_repository = SqliteWorkspaceRepository(settings.database_path)
         self.workspace_service = WorkspaceService(
             repository=self.workspace_repository,
@@ -225,6 +235,8 @@ class Container:
             runner=self.plugin_host.get(Capability.RUNNER),
             results_store=self.plugin_host.get(Capability.RESULTS_STORE),
             repository=self.execution_repository,
+            environment_repository=self.environment_repository,
+            run_configuration_service=self.run_configuration_service,
         )
         self.report_service = ReportService(
             context=self.workspace_context,

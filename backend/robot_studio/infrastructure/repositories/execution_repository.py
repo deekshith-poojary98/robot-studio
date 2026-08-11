@@ -17,6 +17,8 @@ _EXTRA_COLUMNS = (
     ("passed", "INTEGER"),
     ("failed", "INTEGER"),
     ("skipped", "INTEGER"),
+    ("configuration_id", "TEXT"),
+    ("configuration_name", "TEXT NOT NULL DEFAULT ''"),
 )
 
 
@@ -50,7 +52,9 @@ class SqliteExecutionRepository:
                     total_tests INTEGER,
                     passed INTEGER,
                     failed INTEGER,
-                    skipped INTEGER
+                    skipped INTEGER,
+                    configuration_id TEXT,
+                    configuration_name TEXT NOT NULL DEFAULT ''
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_execution_workspace
@@ -78,8 +82,9 @@ class SqliteExecutionRepository:
                     id, workspace_id, project_id, environment_id, project_name,
                     suite, status, started_at, finished_at, duration_ms, exit_code,
                     command, output_dir, output_xml, log_html, report_html,
-                    environment_name, robot_version, total_tests, passed, failed, skipped
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    environment_name, robot_version, total_tests, passed, failed, skipped,
+                    configuration_id, configuration_name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 self._to_row(run),
             )
@@ -111,7 +116,9 @@ class SqliteExecutionRepository:
                     total_tests = ?,
                     passed = ?,
                     failed = ?,
-                    skipped = ?
+                    skipped = ?,
+                    configuration_id = ?,
+                    configuration_name = ?
                 WHERE id = ?
                 """,
                 (
@@ -136,6 +143,8 @@ class SqliteExecutionRepository:
                     run.passed,
                     run.failed,
                     run.skipped,
+                    str(run.configuration_id) if run.configuration_id else None,
+                    run.configuration_name,
                     str(run.id),
                 ),
             )
@@ -214,6 +223,8 @@ class SqliteExecutionRepository:
             run.passed,
             run.failed,
             run.skipped,
+            str(run.configuration_id) if run.configuration_id else None,
+            run.configuration_name,
         )
 
     @staticmethod
@@ -250,4 +261,13 @@ class SqliteExecutionRepository:
             passed=row["passed"] if "passed" in keys else None,
             failed=row["failed"] if "failed" in keys else None,
             skipped=row["skipped"] if "skipped" in keys else None,
+            configuration_id=(
+                UUID(row["configuration_id"])
+                if "configuration_id" in keys and row["configuration_id"]
+                else None
+            ),
+            configuration_name=(
+                row["configuration_name"] if "configuration_name" in keys else ""
+            )
+            or "",
         )

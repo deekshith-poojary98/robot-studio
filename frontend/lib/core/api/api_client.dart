@@ -157,11 +157,14 @@ class ApiClient implements TransportGateway {
       _gateway.uninstallPackage(name);
 
   @override
-  Future<ExecutionInfo> runFile({String? file}) => _gateway.runFile(file: file);
+  Future<ExecutionInfo> runFile({String? file, String? configurationId}) =>
+      _gateway.runFile(file: file, configurationId: configurationId);
 
   @override
-  Future<ExecutionInfo> runProject({bool confirm = false}) =>
-      _gateway.runProject(confirm: confirm);
+  Future<ExecutionInfo> runProject({
+    bool confirm = false,
+    String? configurationId,
+  }) => _gateway.runProject(confirm: confirm, configurationId: configurationId);
 
   @override
   Future<TestNodeInfo> getTestTree({String? query, bool lazy = true}) =>
@@ -176,24 +179,47 @@ class ApiClient implements TransportGateway {
       _gateway.getTestsForFile(path);
 
   @override
-  Future<ExecutionInfo> runTest({required String file, required String name}) =>
-      _gateway.runTest(file: file, name: name);
+  Future<ExecutionInfo> runTest({
+    required String file,
+    required String name,
+    String? configurationId,
+  }) => _gateway.runTest(
+    file: file,
+    name: name,
+    configurationId: configurationId,
+  );
 
   @override
-  Future<ExecutionInfo> runTestSuite({String? file, bool confirm = false}) =>
-      _gateway.runTestSuite(file: file, confirm: confirm);
+  Future<ExecutionInfo> runTestSuite({
+    String? file,
+    bool confirm = false,
+    String? configurationId,
+  }) => _gateway.runTestSuite(
+    file: file,
+    confirm: confirm,
+    configurationId: configurationId,
+  );
 
   @override
-  Future<ExecutionInfo> runTestsByTag(String tag, {bool confirm = false}) =>
-      _gateway.runTestsByTag(tag, confirm: confirm);
+  Future<ExecutionInfo> runTestsByTag(
+    String tag, {
+    bool confirm = false,
+    String? configurationId,
+  }) => _gateway.runTestsByTag(
+    tag,
+    confirm: confirm,
+    configurationId: configurationId,
+  );
 
   @override
-  Future<ExecutionInfo> runFailedTests() => _gateway.runFailedTests();
+  Future<ExecutionInfo> runFailedTests({String? configurationId}) =>
+      _gateway.runFailedTests(configurationId: configurationId);
 
   @override
   Future<ExecutionInfo> runSelectedTests(
-    List<({String file, String name})> tests,
-  ) => _gateway.runSelectedTests(tests);
+    List<({String file, String name})> tests, {
+    String? configurationId,
+  }) => _gateway.runSelectedTests(tests, configurationId: configurationId);
 
   @override
   Future<ExecutionInfo> stopExecution() => _gateway.stopExecution();
@@ -507,6 +533,34 @@ class ApiClient implements TransportGateway {
     String? projectId,
     int limit = 20,
   }) => _gateway.getDoctorHistory(projectId: projectId, limit: limit);
+
+  @override
+  Future<RunConfigurationListInfo> listRunConfigurations() =>
+      _gateway.listRunConfigurations();
+
+  @override
+  Future<RunConfigurationInfo> createRunConfiguration(
+    RunConfigurationDraft draft,
+  ) => _gateway.createRunConfiguration(draft);
+
+  @override
+  Future<RunConfigurationInfo> updateRunConfiguration(
+    String configurationId,
+    RunConfigurationDraft draft,
+  ) => _gateway.updateRunConfiguration(configurationId, draft);
+
+  @override
+  Future<void> deleteRunConfiguration(String configurationId) =>
+      _gateway.deleteRunConfiguration(configurationId);
+
+  @override
+  Future<RunConfigurationInfo> duplicateRunConfiguration(
+    String configurationId,
+  ) => _gateway.duplicateRunConfiguration(configurationId);
+
+  @override
+  Future<String?> activateRunConfiguration(String? configurationId) =>
+      _gateway.activateRunConfiguration(configurationId);
 
   @override
   Future<FileContentInfo> readFile(String path) => _gateway.readFile(path);

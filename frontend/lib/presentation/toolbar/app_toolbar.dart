@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/git_info.dart';
+import '../../core/gateway/models/run_configuration_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../git/branch_selector.dart';
+import '../run_configuration/run_configuration_selector.dart';
 import '../widgets/app_menu.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/toolbar_button.dart';
@@ -22,6 +24,12 @@ class AppToolbar extends StatelessWidget {
     this.onEnvironmentSelected,
     this.onCreateEnvironment,
     this.onManageEnvironments,
+    this.runConfigurations = const [],
+    this.activeRunConfigurationId,
+    this.onRunConfigurationSelected,
+    this.onNewRunConfiguration,
+    this.onManageRunConfigurations,
+    this.runConfigurationsEnabled = false,
     this.onRun,
     this.onRunProject,
     this.onStop,
@@ -56,6 +64,12 @@ class AppToolbar extends StatelessWidget {
   final ValueChanged<String>? onEnvironmentSelected;
   final VoidCallback? onCreateEnvironment;
   final VoidCallback? onManageEnvironments;
+  final List<RunConfigurationInfo> runConfigurations;
+  final String? activeRunConfigurationId;
+  final ValueChanged<String?>? onRunConfigurationSelected;
+  final VoidCallback? onNewRunConfiguration;
+  final VoidCallback? onManageRunConfigurations;
+  final bool runConfigurationsEnabled;
   final VoidCallback? onRun;
   final VoidCallback? onRunProject;
   final VoidCallback? onStop;
@@ -187,6 +201,15 @@ class AppToolbar extends StatelessWidget {
                       ),
                       const SizedBox(width: AppSpacing.md),
                     ],
+                    RunConfigurationSelector(
+                      configurations: runConfigurations,
+                      activeId: activeRunConfigurationId,
+                      enabled: runConfigurationsEnabled,
+                      onSelected: onRunConfigurationSelected ?? (_) {},
+                      onNew: onNewRunConfiguration ?? () {},
+                      onManage: onManageRunConfigurations ?? () {},
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
                     ToolbarButtonGroup(
                       buttons: [
                         ToolbarButton(

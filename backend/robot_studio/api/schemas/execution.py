@@ -9,10 +9,12 @@ from robot_studio.domain.models import ExecutionRun, ExecutionStatus
 class RunFileRequest(BaseModel):
     file: str | None = None
     confirm: bool = False
+    configuration_id: UUID | None = None
 
 
 class RunProjectRequest(BaseModel):
     confirm: bool = False
+    configuration_id: UUID | None = None
 
 
 class ExecutionResponse(BaseModel):
@@ -38,6 +40,8 @@ class ExecutionResponse(BaseModel):
     passed: int | None = None
     failed: int | None = None
     skipped: int | None = None
+    configuration_id: UUID | None = None
+    configuration_name: str = ""
 
 
 class ExecutionHistoryResponse(BaseModel):
@@ -73,4 +77,6 @@ def to_execution_response(run: ExecutionRun) -> ExecutionResponse:
         passed=run.passed,
         failed=run.failed,
         skipped=run.skipped,
+        configuration_id=run.configuration_id,
+        configuration_name=run.configuration_name,
     )

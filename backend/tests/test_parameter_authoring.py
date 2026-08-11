@@ -113,6 +113,18 @@ def test_strip_qualifier() -> None:
     assert strip_keyword_qualifier("Col.Append To List") == "Append To List"
 
 
+def test_completion_prefix_is_current_argument_cell() -> None:
+    content = """*** Test Cases ***
+Demo
+    Evaluate    expression=random.randint(1,10)    modules=random    name
+"""
+    row = content.splitlines()[2]
+    ctx = completion_context(content, "x.robot", 3, len(row) + 1)
+    assert ctx["context"] == "argument"
+    assert ctx["prefix"] == "name"
+    assert ctx["keyword"] == "Evaluate"
+
+
 def test_completion_context_argument_after_keyword() -> None:
     content = """*** Test Cases ***
 Demo

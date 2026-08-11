@@ -1070,6 +1070,7 @@ void main() {
     expect(runButton.onTap, isNull);
     expect(stopButton.onTap, isNotNull);
 
+    await tester.ensureVisible(find.byKey(const Key('toolbar.stop')));
     await tester.tap(find.byKey(const Key('toolbar.stop')));
     await tester.pump();
     expect(stopTapped, isTrue);
@@ -2188,8 +2189,13 @@ class _FakeTransportGateway implements TransportGateway {
     );
   }
 
+  String? lastRunConfigurationId;
+  final List<RunConfigurationInfo> _runConfigurations = [];
+  String? _activeRunConfigurationId;
+
   @override
-  Future<ExecutionInfo> runFile({String? file}) async {
+  Future<ExecutionInfo> runFile({String? file, String? configurationId}) async {
+    lastRunConfigurationId = configurationId;
     return ExecutionInfo(
       id: 'run-file',
       workspaceId: '1',
@@ -2199,11 +2205,17 @@ class _FakeTransportGateway implements TransportGateway {
       suite: file ?? 'tests',
       status: ExecutionStatus.idle,
       startedAt: DateTime.utc(2026, 1, 1),
+      configurationId: configurationId,
+      configurationName: _configName(configurationId),
     );
   }
 
   @override
-  Future<ExecutionInfo> runProject({bool confirm = false}) async {
+  Future<ExecutionInfo> runProject({
+    bool confirm = false,
+    String? configurationId,
+  }) async {
+    lastRunConfigurationId = configurationId;
     return ExecutionInfo(
       id: 'run-project',
       workspaceId: '1',
@@ -2213,7 +2225,17 @@ class _FakeTransportGateway implements TransportGateway {
       suite: 'project',
       status: ExecutionStatus.idle,
       startedAt: DateTime.utc(2026, 1, 1),
+      configurationId: configurationId,
+      configurationName: _configName(configurationId),
     );
+  }
+
+  String _configName(String? id) {
+    if (id == null) return '';
+    for (final item in _runConfigurations) {
+      if (item.id == id) return item.name;
+    }
+    return '';
   }
 
   @override
@@ -2258,24 +2280,35 @@ class _FakeTransportGateway implements TransportGateway {
   Future<List<TestNodeInfo>> getTestsForFile(String path) async => const [];
 
   @override
-  Future<ExecutionInfo> runTest({required String file, required String name}) =>
-      runFile(file: file);
+  Future<ExecutionInfo> runTest({
+    required String file,
+    required String name,
+    String? configurationId,
+  }) => runFile(file: file, configurationId: configurationId);
 
   @override
-  Future<ExecutionInfo> runTestSuite({String? file, bool confirm = false}) =>
-      runProject();
+  Future<ExecutionInfo> runTestSuite({
+    String? file,
+    bool confirm = false,
+    String? configurationId,
+  }) => runProject(configurationId: configurationId);
 
   @override
-  Future<ExecutionInfo> runTestsByTag(String tag, {bool confirm = false}) =>
-      runProject();
+  Future<ExecutionInfo> runTestsByTag(
+    String tag, {
+    bool confirm = false,
+    String? configurationId,
+  }) => runProject(configurationId: configurationId);
 
   @override
-  Future<ExecutionInfo> runFailedTests() => runProject();
+  Future<ExecutionInfo> runFailedTests({String? configurationId}) =>
+      runProject(configurationId: configurationId);
 
   @override
   Future<ExecutionInfo> runSelectedTests(
-    List<({String file, String name})> tests,
-  ) => runProject();
+    List<({String file, String name})> tests, {
+    String? configurationId,
+  }) => runProject(configurationId: configurationId);
 
   @override
   Future<ExecutionInfo> stopExecution() async {
@@ -2993,6 +3026,103 @@ class _FakeTransportGateway implements TransportGateway {
         criticalIssues: 1,
       ),
     ];
+  }
+
+  @override
+  Future<RunConfigurationListInfo> listRunConfigurations() async {
+    return RunConfigurationListInfo(
+      activeId: _activeRunConfigurationId,
+      configurations: List.unmodifiable(_runConfigurations),
+    );
+  }
+
+  @override
+  Future<RunConfigurationInfo> createRunConfiguration(
+    RunConfigurationDraft draft,
+  ) async {
+    final now = DateTime.utc(2026, 1, 1);
+    final item = RunConfigurationInfo(
+      id: 'cfg-${_runConfigurations.length + 1}',
+      name: draft.name,
+      environmentId: draft.environmentId,
+      includeTags: draft.includeTags,
+      excludeTags: draft.excludeTags,
+      variables: draft.variables,
+      variableFiles: draft.variableFiles,
+      extraRobotArgs: draft.extraRobotArgs,
+      createdAt: now,
+      updatedAt: now,
+    );
+    _runConfigurations.add(item);
+    _activeRunConfigurationId = item.id;
+    return item;
+  }
+
+  @override
+  Future<RunConfigurationInfo> updateRunConfiguration(
+    String configurationId,
+    RunConfigurationDraft draft,
+  ) async {
+    final index = _runConfigurations.indexWhere(
+      (item) => item.id == configurationId,
+    );
+    final now = DateTime.utc(2026, 1, 2);
+    final updated = RunConfigurationInfo(
+      id: configurationId,
+      name: draft.name,
+      environmentId: draft.environmentId,
+      includeTags: draft.includeTags,
+      excludeTags: draft.excludeTags,
+      variables: draft.variables,
+      variableFiles: draft.variableFiles,
+      extraRobotArgs: draft.extraRobotArgs,
+      createdAt: index >= 0 ? _runConfigurations[index].createdAt : now,
+      updatedAt: now,
+    );
+    if (index >= 0) {
+      _runConfigurations[index] = updated;
+    } else {
+      _runConfigurations.add(updated);
+    }
+    return updated;
+  }
+
+  @override
+  Future<void> deleteRunConfiguration(String configurationId) async {
+    _runConfigurations.removeWhere((item) => item.id == configurationId);
+    if (_activeRunConfigurationId == configurationId) {
+      _activeRunConfigurationId = null;
+    }
+  }
+
+  @override
+  Future<RunConfigurationInfo> duplicateRunConfiguration(
+    String configurationId,
+  ) async {
+    final source = _runConfigurations.firstWhere(
+      (item) => item.id == configurationId,
+    );
+    final now = DateTime.utc(2026, 1, 3);
+    final copy = RunConfigurationInfo(
+      id: 'cfg-copy-${_runConfigurations.length + 1}',
+      name: '${source.name} copy',
+      environmentId: source.environmentId,
+      includeTags: source.includeTags,
+      excludeTags: source.excludeTags,
+      variables: source.variables,
+      variableFiles: source.variableFiles,
+      extraRobotArgs: source.extraRobotArgs,
+      createdAt: now,
+      updatedAt: now,
+    );
+    _runConfigurations.add(copy);
+    return copy;
+  }
+
+  @override
+  Future<String?> activateRunConfiguration(String? configurationId) async {
+    _activeRunConfigurationId = configurationId;
+    return _activeRunConfigurationId;
   }
 
   @override

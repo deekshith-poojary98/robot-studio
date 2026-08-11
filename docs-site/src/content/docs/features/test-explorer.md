@@ -21,6 +21,6 @@ From the Tests panel you can run:
 - The current file
 - Failed tests from the last relevant run
 
-Toolbar **Run** still targets only the open `.robot` editor suite — not a text selection. Use the Tests tree when you need a specific test or suite node.
+Toolbar **Run** still targets only the open `.robot` editor suite — not a text selection. Use the Tests tree when you need a specific test or suite node. Tree Run / Run Failed / Re-run use the run configuration selected in the toolbar (see [Run configurations](/workflows/running-tests/#run-configurations)).
 
 For very large estimated runs, Robot Studio asks for confirmation before starting (**Settings → Execution → Large Run Threshold**).

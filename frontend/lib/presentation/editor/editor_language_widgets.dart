@@ -122,6 +122,13 @@ class RobotAutocompletePromptsBuilder
     if (bracket != null) {
       return bracket.group(0)!;
     }
+    // Robot cells split on 2+ spaces / tabs. A single space stays in the
+    // prefix so ``Open Browser`` still matches; the previous cell must not
+    // (``modules=random    name`` → ``name``, not ``random    name``).
+    final cells = before.trimLeft().split(RegExp(r'[ \t]{2,}|\t+'));
+    if (cells.length > 1) {
+      return cells.last.trim();
+    }
     final match = RegExp(r'[\w${}@&][\w\s${}@&.-]*$').firstMatch(before);
     return match?.group(0)?.trim() ?? '';
   }

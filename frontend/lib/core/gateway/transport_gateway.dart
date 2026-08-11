@@ -12,6 +12,7 @@ import 'models/package_info.dart';
 import 'models/plugin_info.dart';
 import 'models/project_info.dart';
 import 'models/report_info.dart';
+import 'models/run_configuration_info.dart';
 import 'models/run_failure_info.dart';
 import 'models/settings_info.dart';
 import 'models/test_explorer_info.dart';
@@ -32,6 +33,7 @@ export 'models/package_info.dart';
 export 'models/plugin_info.dart';
 export 'models/project_info.dart';
 export 'models/report_info.dart';
+export 'models/run_configuration_info.dart';
 export 'models/run_failure_info.dart';
 export 'models/settings_info.dart';
 export 'models/test_explorer_info.dart';
@@ -123,9 +125,12 @@ abstract class TransportGateway {
 
   Future<PackageOperationResult> uninstallPackage(String name);
 
-  Future<ExecutionInfo> runFile({String? file});
+  Future<ExecutionInfo> runFile({String? file, String? configurationId});
 
-  Future<ExecutionInfo> runProject({bool confirm = false});
+  Future<ExecutionInfo> runProject({
+    bool confirm = false,
+    String? configurationId,
+  });
 
   Future<TestNodeInfo> getTestTree({String? query, bool lazy = true});
 
@@ -133,17 +138,30 @@ abstract class TransportGateway {
 
   Future<List<TestNodeInfo>> getTestsForFile(String path);
 
-  Future<ExecutionInfo> runTest({required String file, required String name});
+  Future<ExecutionInfo> runTest({
+    required String file,
+    required String name,
+    String? configurationId,
+  });
 
-  Future<ExecutionInfo> runTestSuite({String? file, bool confirm = false});
+  Future<ExecutionInfo> runTestSuite({
+    String? file,
+    bool confirm = false,
+    String? configurationId,
+  });
 
-  Future<ExecutionInfo> runTestsByTag(String tag, {bool confirm = false});
+  Future<ExecutionInfo> runTestsByTag(
+    String tag, {
+    bool confirm = false,
+    String? configurationId,
+  });
 
-  Future<ExecutionInfo> runFailedTests();
+  Future<ExecutionInfo> runFailedTests({String? configurationId});
 
   Future<ExecutionInfo> runSelectedTests(
-    List<({String file, String name})> tests,
-  );
+    List<({String file, String name})> tests, {
+    String? configurationId,
+  });
 
   Future<ExecutionInfo> stopExecution();
 
@@ -367,6 +385,25 @@ abstract class TransportGateway {
     String? projectId,
     int limit = 20,
   });
+
+  Future<RunConfigurationListInfo> listRunConfigurations();
+
+  Future<RunConfigurationInfo> createRunConfiguration(
+    RunConfigurationDraft draft,
+  );
+
+  Future<RunConfigurationInfo> updateRunConfiguration(
+    String configurationId,
+    RunConfigurationDraft draft,
+  );
+
+  Future<void> deleteRunConfiguration(String configurationId);
+
+  Future<RunConfigurationInfo> duplicateRunConfiguration(
+    String configurationId,
+  );
+
+  Future<String?> activateRunConfiguration(String? configurationId);
 
   Future<AppSettings> getSettings();
 
