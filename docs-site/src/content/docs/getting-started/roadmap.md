@@ -3,7 +3,7 @@ title: Roadmap
 description: Strategic direction for Robot Studio — beta hardening first, then semantic RF workflows that a generic editor cannot match.
 ---
 
-This page is **locked product strategy**, not a release calendar and not a feature wishlist. Do not add roadmap items, panels, or beta scope here. Day-to-day rules for the current beta live in the repo’s `polish.md` and `quality.md` — those remain authoritative until freeze.
+This page is **locked product strategy**, not a release calendar and not a feature wishlist. Do not add roadmap items, panels, or beta scope here. Day-to-day rules for the current beta live in the repo’s `docs/internal/polish.md` and `docs/internal/quality.md` — those remain authoritative until freeze.
 
 ## North-star questions
 
@@ -52,7 +52,7 @@ Use that principle to evaluate every post-beta idea.
 
 **No feature expansion.** Interesting capabilities stay off this board.
 
-Aligned with `polish.md` / `quality.md`:
+Aligned with `docs/internal/polish.md` / `docs/internal/quality.md`:
 
 | Focus | Meaning |
 |-------|---------|
