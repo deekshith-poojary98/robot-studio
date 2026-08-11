@@ -10,7 +10,7 @@ import 'package:robot_studio/presentation/editor/editor_tabs_bar.dart';
 
 /// Functional cases: EX-01 … EX-08 (Explorer / Files).
 ///
-/// Source: Robot Studio — Functional Test Cases.md §4
+/// Source: docs/internal/functional-test-cases.md §4
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final harness = IntegrationHarness();

@@ -8,7 +8,7 @@ import 'helpers/ui_helpers.dart';
 
 /// Functional cases: ED-01 … ED-10 (Editor).
 ///
-/// Source: Robot Studio — Functional Test Cases.md §7
+/// Source: docs/internal/functional-test-cases.md §7
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final harness = IntegrationHarness();

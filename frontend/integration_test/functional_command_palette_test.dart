@@ -9,7 +9,7 @@ import 'helpers/ui_helpers.dart';
 
 /// Functional cases: CP-01 … CP-07 (Command palette).
 ///
-/// Source: Robot Studio — Functional Test Cases.md §10
+/// Source: docs/internal/functional-test-cases.md §10
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final harness = IntegrationHarness();

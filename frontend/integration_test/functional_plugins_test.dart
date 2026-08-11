@@ -8,7 +8,7 @@ import 'helpers/ui_helpers.dart';
 
 /// Functional cases: PL-01 … PL-07 (Plugins).
 ///
-/// Source: Robot Studio — Functional Test Cases.md §14
+/// Source: docs/internal/functional-test-cases.md §14
 ///
 /// Beta: Plugin Manager is hidden from the activity bar and command palette.
 /// UI cases are skipped until that surface is restored; keep the bodies intact.

@@ -114,7 +114,7 @@ Dart defines injected by the script:
 | `plugin_system_test.dart` | Plugin manager / fixtures |
 | `regression_test.dart` | Cross-cutting smoke / regressions |
 
-Functional suites map 1:1 to modules in [Robot Studio — Functional Test Cases.md](../../Robot%20Studio%20%E2%80%94%20Functional%20Test%20Cases.md). Skips: SH-02/SH-03 (external backend stop/restart), WS-02/WS-09 (native FilePicker), PK-04/PK-07/PK-09 (env/network/deferred), PL-07 / XR-05 (cannot stop external backend mid-suite). GT-10 seeds a local bare remote via `POST /git/seed-local-remote`.
+Functional suites map 1:1 to modules in [docs/internal/functional-test-cases.md](../../docs/internal/functional-test-cases.md). Skips: SH-02/SH-03 (external backend stop/restart), WS-02/WS-09 (native FilePicker), PK-04/PK-07/PK-09 (env/network/deferred), PL-07 / XR-05 (cannot stop external backend mid-suite). GT-10 seeds a local bare remote via `POST /git/seed-local-remote`.
 
 Some suites (environment creation with `installRobot: true`, package install, execution) may take several minutes on first run — watch for `[perf] environment_create_api` rather than assuming a hang.
 

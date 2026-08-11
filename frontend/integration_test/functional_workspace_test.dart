@@ -9,7 +9,7 @@ import 'helpers/ui_helpers.dart';
 
 /// Functional cases: WS-01 … WS-10 (Workspace).
 ///
-/// Source: Robot Studio — Functional Test Cases.md §2
+/// Source: docs/internal/functional-test-cases.md §2
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final harness = IntegrationHarness();

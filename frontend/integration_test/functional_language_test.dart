@@ -7,7 +7,7 @@ import 'helpers/ui_helpers.dart';
 
 /// Functional cases: LG-01 … LG-10 (Language intelligence / Problems).
 ///
-/// Source: Robot Studio — Functional Test Cases.md §8
+/// Source: docs/internal/functional-test-cases.md §8
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final harness = IntegrationHarness();

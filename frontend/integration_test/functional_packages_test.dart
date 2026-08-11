@@ -7,7 +7,7 @@ import 'helpers/ui_helpers.dart';
 
 /// Functional cases: PK-01 … PK-09 (Packages).
 ///
-/// Source: Robot Studio — Functional Test Cases.md §6
+/// Source: docs/internal/functional-test-cases.md §6
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final harness = IntegrationHarness();

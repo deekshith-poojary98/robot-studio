@@ -8,7 +8,7 @@ import 'helpers/ui_helpers.dart';
 
 /// Functional cases: EN-01 … EN-10 (Environment).
 ///
-/// Source: Robot Studio — Functional Test Cases.md §5
+/// Source: docs/internal/functional-test-cases.md §5
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final harness = IntegrationHarness();

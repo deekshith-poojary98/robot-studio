@@ -7,7 +7,7 @@ import 'helpers/ui_helpers.dart';
 
 /// Functional cases: SH-01 … SH-08 (Shell / Status / Connectivity).
 ///
-/// Source: Robot Studio — Functional Test Cases.md §1
+/// Source: docs/internal/functional-test-cases.md §1
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final harness = IntegrationHarness();

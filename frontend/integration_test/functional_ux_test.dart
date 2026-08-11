@@ -11,7 +11,7 @@ import 'helpers/ui_helpers.dart';
 
 /// Functional cases: UX-01 … UX-08 (Guidance & gating).
 ///
-/// Source: Robot Studio — Functional Test Cases.md §15
+/// Source: docs/internal/functional-test-cases.md §15
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final harness = IntegrationHarness();

@@ -9,7 +9,7 @@ import 'helpers/ui_helpers.dart';
 
 /// Functional cases: XR-01 … XR-06 (Cross-cutting / regression).
 ///
-/// Source: Robot Studio — Functional Test Cases.md §16
+/// Source: docs/internal/functional-test-cases.md §16
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final harness = IntegrationHarness();
