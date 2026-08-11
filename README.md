@@ -338,7 +338,7 @@ Details and suite list: [frontend/integration_test/README.md](./frontend/integra
 
 ## Current status
 
-Core IDE milestones through execution, reports, indexing, language features, Git, and plugins are in place. The product is in **public-beta usability hardening** against `qa-bench/QA-ISSUES.md` — focusing on the daily Open Project → Environment → F5 → Results → Doctor loop (no fake runs, project-rooted Explorer, actionable Robot-missing dialogs, keyboard Run/Stop/Doctor).
+Core IDE milestones through execution, reports, indexing, language features, Git, and plugins are in place. The product is in **public-beta usability hardening** — focusing on the daily Open Project → Environment → F5 → Results → Doctor loop (no fake runs, project-rooted Explorer, actionable Robot-missing dialogs, keyboard Run/Stop/Doctor).
 
 | Milestone | Scope | Status |
 |-----------|--------|--------|
