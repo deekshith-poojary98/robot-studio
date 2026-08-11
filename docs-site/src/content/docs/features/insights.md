@@ -7,6 +7,8 @@ Insights is a triage starting point for run health — not a metrics dashboard. 
 
 Use it when you want to know **where the project is hurting** and jump straight into Failed Tests, source, Reports, or a rerun.
 
+Run health is computed from the same run history as [Reports](/workflows/reports/). [Deleting a run](/workflows/reports/#delete-a-run) removes it from that history (database row and `Run-*` folder), so Insights no longer counts it. If Insights is already open, use **Refresh**.
+
 ## Run health
 
 Once you have executed suites, the left panel (top on a narrow window) is the primary surface:
@@ -84,5 +86,5 @@ The Files table merges index composition with per-file run stats so you can spot
 
 ## Related
 
-- [Reports & failed tests](/workflows/reports/) — open logs and output for a specific run
+- [Reports & failed tests](/workflows/reports/) — open logs and output, or [delete a run](/workflows/reports/#delete-a-run) from history
 - [Running tests](/workflows/running-tests/) — how runs get into history

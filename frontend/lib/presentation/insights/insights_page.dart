@@ -2323,7 +2323,7 @@ class _DurationTrendPainter extends CustomPainter {
       final color = switch (run.outcome.toUpperCase()) {
         'PASS' => pass,
         'FAIL' => fail,
-        'CANCELLED' => cancel,
+        'NO TESTS' || 'CANCELLED' => cancel,
         'ABORTED' => abort,
         _ => fallback,
       };
@@ -2423,7 +2423,7 @@ Color _outcomeColor(BuildContext context, String outcome) {
   return switch (outcome.toUpperCase()) {
     'PASS' => context.palette.success,
     'FAIL' => context.palette.error,
-    'CANCELLED' => context.palette.warning,
+    'NO TESTS' || 'CANCELLED' => context.palette.warning,
     'ABORTED' => context.palette.textMuted,
     _ => context.palette.textSecondary,
   };

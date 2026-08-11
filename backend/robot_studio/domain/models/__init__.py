@@ -177,6 +177,34 @@ class ExecutionRun(BaseModel):
     configuration_id: UUID | None = None
     configuration_name: str = ""
 
+    def result_badge(self) -> str:
+        """User-facing outcome. FAIL is failed tests only, not Robot CLI 252."""
+        if self.status == ExecutionStatus.CANCELLED or self.exit_code == 253:
+            return "CANCELLED"
+        if self.status == ExecutionStatus.ABORTED:
+            return "ABORTED"
+        if (self.failed or 0) > 0:
+            return "FAIL"
+        code = self.exit_code or 0
+        if self.failed is None and 1 <= code <= 250:
+            return "FAIL"
+        if code == 252:
+            return "NO TESTS"
+        empty = (
+            self.status in {ExecutionStatus.FINISHED, ExecutionStatus.FAILED}
+            and (self.total_tests or 0) == 0
+            and (self.passed or 0) == 0
+            and (self.failed or 0) == 0
+            and code != 255
+        )
+        if empty:
+            return "NO TESTS"
+        if code == 0:
+            if self.status == ExecutionStatus.FINISHED:
+                return "PASS"
+            return self.status.value.upper()
+        return "ERROR"
+
 
 class DashboardSummary(BaseModel):
     total_runs: int = 0

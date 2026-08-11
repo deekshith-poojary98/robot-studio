@@ -25,7 +25,7 @@ Settings are stored in `~/.robot-studio/settings.json`. Use **Save** to apply ch
 |---------|---------|----------------|
 | **Large Run Threshold** | `100` | Ask for confirmation before project-wide runs larger than this many tests |
 | **Reveal Execution On Run** | On | Bring the execution monitor forward when a run starts |
-| **Auto Open Report On Failure** | Off | Open the HTML report automatically when a run fails |
+| **Auto Open Report On Failure** | Off | Open Reports when tests failed. Empty selection (**NO TESTS**) does not count as a failure. |
 | **Stop Confirmation** | On | Confirm before stopping a running suite |
 
 ## Search

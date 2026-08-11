@@ -1265,11 +1265,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _loadReportFailedTests(ExecutionInfo run) async {
-    final looksFailed =
-        (run.failed ?? 0) > 0 ||
-        run.resultBadge == 'FAIL' ||
-        run.status == ExecutionStatus.failed;
-    if (!looksFailed) {
+    if (!run.shouldListFailures) {
       _execution.clearReportFailedTests();
       return;
     }
@@ -2908,14 +2904,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       unawaited(_editor.refreshParentOf(outputDir));
     }
     if (latest != null) {
-      final failed =
-          latest.status == ExecutionStatus.failed ||
-          latest.status == ExecutionStatus.aborted ||
-          latest.status == ExecutionStatus.cancelled ||
-          (latest.failed ?? 0) > 0 ||
-          ((latest.exitCode ?? 0) != 0 &&
-              latest.status == ExecutionStatus.finished);
-      if (failed && _settings.execution.autoOpenReportOnFailure) {
+      if (latest.resultBadge == 'FAIL' &&
+          _settings.execution.autoOpenReportOnFailure) {
         unawaited(_selectReport(latest));
       } else {
         _offerViewReportToast(latest);
@@ -2941,12 +2931,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _offerViewReportToast(ExecutionInfo run) {
     if (!mounted) return;
-    final failed =
-        run.status == ExecutionStatus.failed ||
-        run.status == ExecutionStatus.aborted ||
-        run.status == ExecutionStatus.cancelled ||
-        (run.failed ?? 0) > 0 ||
-        ((run.exitCode ?? 0) != 0 && run.status == ExecutionStatus.finished);
+    final badge = run.resultBadge;
     final label = () {
       final suite = run.suite.trim();
       if (suite.isNotEmpty) {
@@ -2958,12 +2943,29 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }();
     showAppToast(
       context,
-      message: failed ? '$label failed' : '$label passed',
+      message: switch (badge) {
+        'FAIL' => '$label failed',
+        'PASS' => '$label passed',
+        'NO TESTS' => '$label — no tests ran',
+        'ERROR' => '$label did not complete',
+        'CANCELLED' => '$label cancelled',
+        'ABORTED' => '$label aborted',
+        _ => label,
+      },
       actionLabel: 'View Report',
       onAction: () => unawaited(_selectReport(run)),
       duration: const Duration(seconds: 6),
-      icon: failed ? Icons.error_outline : Icons.check_circle_outline,
-      iconColor: failed ? context.palette.error : context.palette.success,
+      icon: switch (badge) {
+        'FAIL' || 'ERROR' => Icons.error_outline,
+        'PASS' => Icons.check_circle_outline,
+        _ => Icons.info_outline,
+      },
+      iconColor: switch (badge) {
+        'FAIL' || 'ERROR' => context.palette.error,
+        'PASS' => context.palette.success,
+        'NO TESTS' || 'CANCELLED' || 'ABORTED' => context.palette.warning,
+        _ => context.palette.textMuted,
+      },
     );
   }
 

@@ -44,6 +44,6 @@ If a project-wide run would execute more than the configured threshold (default 
 ## After you stop or finish
 
 - Finishing a run does not yank you into another view; use the **View Report** toast when you want results.
-- **Failed Tests** lists failures with **Jump to Source** and **Re-run Test**. It only appears when the run actually failed — a passing run stays on Live Output.
+- **Failed Tests** lists failures with **Jump to Source** and **Re-run Test**. It only appears when tests failed. A pass, or a Robot error with no tests (for example no cases matching a tag), stays on Live Output.
 - Run history is available from the reports flow — see [Reports & failed tests](/workflows/reports/).
 - Opening or creating another project clears the live console and failed-tests list for the previous project so you never see the wrong run’s output.

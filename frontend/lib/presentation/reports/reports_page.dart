@@ -168,9 +168,12 @@ class _DashboardStrip extends StatelessWidget {
 
 String _lastRunLabel(ExecutionInfo? run) {
   if (run == null) return '—';
-  final badge = run.resultBadge;
-  if (badge == 'PASS') return 'Finished';
-  return badge;
+  return switch (run.resultBadge) {
+    'PASS' => 'Finished',
+    'NO TESTS' => 'No tests',
+    'ERROR' => 'Error',
+    _ => run.resultBadge,
+  };
 }
 
 class _MetricChip extends StatelessWidget {

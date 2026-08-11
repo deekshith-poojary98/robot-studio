@@ -128,25 +128,43 @@ class ExecutionInfo {
   String get configurationLabel =>
       configurationName.trim().isEmpty ? 'Default' : configurationName;
 
-  bool get isPassBadge =>
-      status == ExecutionStatus.finished &&
-      (exitCode == 0 || (failed ?? 0) == 0);
+  bool get isPassBadge => resultBadge == 'PASS';
 
   /// Whether Execution should fetch / show the Failed Tests list.
-  bool get shouldListFailures =>
-      status == ExecutionStatus.failed ||
-      (failed ?? 0) > 0 ||
-      ((exitCode ?? 0) != 0 && status == ExecutionStatus.finished);
+  ///
+  /// A non-zero Robot exit is not enough: `--include smoke` with no matches
+  /// exits 252 and marks the run failed, but there are no failed tests.
+  bool get shouldListFailures {
+    if (failed != null) return failed! > 0;
+    final code = exitCode ?? 0;
+    // Robot: 1–250 = failed-test count (250 = 250+). 252 = no tests / invalid.
+    return code >= 1 && code <= 250;
+  }
 
+  /// User-facing outcome. FAIL is only for failed **tests**, not Robot CLI
+  /// errors (empty selection / invalid data = 252, crash = 255).
   String get resultBadge {
-    if (status == ExecutionStatus.cancelled) return 'CANCELLED';
-    if (status == ExecutionStatus.failed ||
-        (failed ?? 0) > 0 ||
-        (exitCode ?? 0) != 0) {
-      return 'FAIL';
+    if (status == ExecutionStatus.cancelled || exitCode == 253) {
+      return 'CANCELLED';
     }
-    if (status == ExecutionStatus.finished) return 'PASS';
-    return status.label.toUpperCase();
+    if (status == ExecutionStatus.aborted) return 'ABORTED';
+    if ((failed ?? 0) > 0) return 'FAIL';
+    final code = exitCode ?? 0;
+    if (failed == null && code >= 1 && code <= 250) return 'FAIL';
+    if (code == 252) return 'NO TESTS';
+    final emptySelection =
+        (status == ExecutionStatus.finished ||
+            status == ExecutionStatus.failed) &&
+        (totalTests ?? 0) == 0 &&
+        (passed ?? 0) == 0 &&
+        (failed ?? 0) == 0 &&
+        code != 255;
+    if (emptySelection) return 'NO TESTS';
+    if (code == 0) {
+      if (status == ExecutionStatus.finished) return 'PASS';
+      return status.label.toUpperCase();
+    }
+    return 'ERROR';
   }
 
   String get durationLabel {

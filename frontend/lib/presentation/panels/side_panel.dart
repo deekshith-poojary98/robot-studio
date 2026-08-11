@@ -346,8 +346,8 @@ Color _runResultIconColor(AppPalette palette, ExecutionInfo run) {
   return switch (run.resultBadge) {
     // Success stays quiet; failures / in-flight get the visual weight.
     'PASS' => palette.textMuted,
-    'FAIL' => palette.error,
-    'CANCELLED' || 'ABORTED' => palette.warning,
+    'FAIL' || 'ERROR' => palette.error,
+    'NO TESTS' || 'CANCELLED' || 'ABORTED' => palette.warning,
     'RUNNING' || 'STARTING' || 'STOPPING' => palette.info,
     _ => palette.textMuted,
   };

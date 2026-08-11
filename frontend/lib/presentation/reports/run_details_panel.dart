@@ -38,7 +38,7 @@ class RunDetailsPanel extends StatelessWidget {
   bool get _showFailedTests {
     if (failedTests.isNotEmpty || isLoadingFailures) return true;
     if (!failuresReady) return false;
-    return (run.failed ?? 0) > 0 || run.resultBadge == 'FAIL';
+    return run.shouldListFailures;
   }
 
   @override
@@ -61,7 +61,15 @@ class RunDetailsPanel extends StatelessWidget {
             title: 'General',
             child: Column(
               children: [
-                _DetailRow(label: 'Status', value: run.status.label),
+                _DetailRow(
+                  label: 'Status',
+                  value: switch (run.resultBadge) {
+                    'NO TESTS' => 'No tests',
+                    'ERROR' => 'Error',
+                    'PASS' => 'Finished',
+                    _ => run.status.label,
+                  },
+                ),
                 _DetailRow(
                   label: 'Started',
                   value: _formatDateTime(run.startedAt),

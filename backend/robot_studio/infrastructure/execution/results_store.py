@@ -74,23 +74,15 @@ class FilesystemResultsStore(ResultsStore):
             }
         ]
         total_runs = len(finished)
-        pass_runs = [
-            run
-            for run in finished
-            if run.status == ExecutionStatus.FINISHED
-            and (run.exit_code == 0 or (run.failed or 0) == 0)
+        pass_runs = [run for run in finished if run.result_badge() == "PASS"]
+        scored = [
+            run for run in finished if run.result_badge() in {"PASS", "FAIL"}
         ]
         durations = [run.duration_ms for run in finished if run.duration_ms is not None]
-        failures = [
-            run
-            for run in finished
-            if run.status == ExecutionStatus.FAILED
-            or (run.exit_code is not None and run.exit_code != 0)
-            or (run.failed is not None and run.failed > 0)
-        ]
+        failures = [run for run in finished if run.result_badge() == "FAIL"]
         return {
             "total_runs": total_runs,
-            "pass_rate": (len(pass_runs) / total_runs * 100.0) if total_runs else None,
+            "pass_rate": (len(pass_runs) / len(scored) * 100.0) if scored else None,
             "average_duration_ms": (sum(durations) / len(durations)) if durations else None,
             "last_run": finished[0] if finished else None,
             "recent_runs": finished[:5],

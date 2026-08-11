@@ -206,6 +206,35 @@ async def test_dashboard_aggregation(report_stack) -> None:
 
 
 @pytest.mark.asyncio
+async def test_dashboard_does_not_treat_empty_selection_as_failure(report_stack) -> None:
+    service, repository, _store, workspace, _bus = report_stack
+    empty = _run(
+        workspace,
+        status=ExecutionStatus.FAILED,
+        exit_code=252,
+        failed=0,
+        passed=0,
+        duration_ms=200,
+    )
+    await repository.create(empty)
+
+    summary = await service.dashboard()
+    assert empty.result_badge() == "NO TESTS"
+    assert summary.recent_failures == []
+    assert summary.pass_rate is None
+
+    crash = _run(
+        workspace,
+        status=ExecutionStatus.FAILED,
+        exit_code=255,
+        failed=0,
+        passed=0,
+        duration_ms=50,
+    )
+    assert crash.result_badge() == "ERROR"
+
+
+@pytest.mark.asyncio
 async def test_reopen_purges_missing_run_artifacts(report_stack) -> None:
     """Recreating a project at the same path must not revive ghost reports."""
     import shutil

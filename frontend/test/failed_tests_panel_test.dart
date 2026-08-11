@@ -43,6 +43,24 @@ void main() {
       ).shouldListFailures,
       isTrue,
     );
+    expect(
+      run(
+        status: ExecutionStatus.failed,
+        exitCode: 252,
+        failed: 0,
+      ).shouldListFailures,
+      isFalse,
+      reason: 'no tests matching tag — Robot 252, zero failed tests',
+    );
+    expect(
+      run(status: ExecutionStatus.failed, exitCode: 252, failed: 0).resultBadge,
+      'NO TESTS',
+    );
+    expect(
+      run(status: ExecutionStatus.failed, exitCode: 255, failed: 0).resultBadge,
+      'ERROR',
+      reason: 'Robot framework crash is ERROR, not a test FAIL',
+    );
   });
 
   const failure = RunTestFailureInfo(
@@ -146,6 +164,46 @@ void main() {
     expect(find.text('Live Output'), findsOneWidget);
   });
 
+  testWidgets(
+    'Execution page hides Failed Tests skeleton when no tests matched',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ExecutionPage(
+              consoleLines: const [
+                "[ ERROR ] Suite 'Extended Test' contains no tests matching tag 'smoke'.",
+              ],
+              status: ExecutionStatus.failed,
+              currentRun: ExecutionInfo(
+                id: 'run-empty',
+                workspaceId: 'ws',
+                projectId: 'p1',
+                environmentId: 'e1',
+                projectName: 'Demo',
+                suite: 'extended_test.robot',
+                status: ExecutionStatus.failed,
+                startedAt: DateTime.utc(2026, 7, 19, 11, 0, 0),
+                exitCode: 252,
+                failed: 0,
+                passed: 0,
+                totalTests: 0,
+              ),
+              isLoadingFailures: true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const ValueKey('failed-tests-skeleton')), findsNothing);
+      expect(find.text('Failed Tests'), findsNothing);
+      expect(find.text('Live Output'), findsOneWidget);
+    },
+  );
+
   testWidgets('Execution page hides Failed Tests while running', (
     tester,
   ) async {
@@ -181,6 +239,41 @@ void main() {
 
     expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.byKey(const ValueKey('failed-tests-skeleton')), findsOneWidget);
+  });
+
+  testWidgets('Run details show No tests instead of FAIL for empty selection', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RunDetailsPanel(
+            run: ExecutionInfo(
+              id: 'run-empty',
+              workspaceId: 'ws',
+              projectId: 'p1',
+              environmentId: 'e1',
+              projectName: 'Demo',
+              suite: 'extended_test.robot',
+              status: ExecutionStatus.failed,
+              startedAt: DateTime.utc(2026, 7, 19, 11, 0, 0),
+              exitCode: 252,
+              failed: 0,
+              passed: 0,
+              totalTests: 0,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('No tests'), findsOneWidget);
+    expect(find.text('FAIL'), findsNothing);
+    expect(find.text('Failed Tests'), findsNothing);
   });
 
   testWidgets('quiet load hides Failed Tests until ready', (tester) async {

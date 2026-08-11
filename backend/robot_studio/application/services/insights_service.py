@@ -9,7 +9,7 @@ from pathlib import Path
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.domain.interfaces.indexing import IndexStore
-from robot_studio.domain.models import ExecutionRun, ExecutionStatus
+from robot_studio.domain.models import ExecutionRun
 from robot_studio.domain.models.insights import (
     FileComposition,
     FileRunStats,
@@ -30,17 +30,7 @@ _FILE_SUFFIXES = {".robot", ".resource", ".py", ".yaml", ".yml"}
 
 
 def _run_outcome(run: ExecutionRun) -> str:
-    if run.status == ExecutionStatus.CANCELLED:
-        return "CANCELLED"
-    if run.status == ExecutionStatus.ABORTED:
-        return "ABORTED"
-    if run.status == ExecutionStatus.FAILED or (run.failed or 0) > 0 or (
-        run.exit_code is not None and run.exit_code != 0
-    ):
-        return "FAIL"
-    if run.status == ExecutionStatus.FINISHED:
-        return "PASS"
-    return run.status.value.upper()
+    return run.result_badge()
 
 
 def _file_suite_key(suite: str) -> str | None:

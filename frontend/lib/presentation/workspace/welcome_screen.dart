@@ -426,11 +426,14 @@ class _DashboardBody extends StatelessWidget {
                         StatusBadge(
                           label: run.resultBadge,
                           filled: run.resultBadge == 'PASS',
-                          dotColor: run.resultBadge == 'PASS'
-                              ? context.palette.success
-                              : run.resultBadge == 'FAIL'
-                              ? context.palette.error
-                              : context.palette.textMuted,
+                          dotColor: switch (run.resultBadge) {
+                            'PASS' => context.palette.success,
+                            'FAIL' || 'ERROR' => context.palette.error,
+                            'NO TESTS' ||
+                            'CANCELLED' ||
+                            'ABORTED' => context.palette.warning,
+                            _ => context.palette.textMuted,
+                          },
                         ),
                         if (run.durationLabel != '—') ...[
                           const SizedBox(width: 8),
