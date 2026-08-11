@@ -84,6 +84,82 @@ void main() {
     );
   });
 
+  testWidgets('next-arg name= shows even when keyword completions are stale', (
+    tester,
+  ) async {
+    const signature = SignatureHelpInfo(
+      keyword: 'Evaluate',
+      activeParameter: 1,
+      parameters: [
+        SignatureParameterInfo(
+          label: 'expression',
+          name: 'expression',
+          required: true,
+        ),
+        SignatureParameterInfo(label: 'modules', name: 'modules'),
+        SignatureParameterInfo(label: 'namespace', name: 'namespace'),
+      ],
+    );
+    const line = '    Evaluate    int(1, 10)    ';
+    final builder = RobotAutocompletePromptsBuilder([
+      for (var i = 0; i < 25; i++)
+        CompletionItemInfo(label: 'Keyword$i', kind: 'keyword'),
+    ], signature: signature);
+
+    late CodeAutocompleteEditingValue? value;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            value = builder.build(
+              context,
+              const CodeLine(line),
+              CodeLineSelection.collapsed(index: 0, offset: line.length),
+            );
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(value, isNotNull);
+    expect(value!.prompts.map((p) => p.word), ['modules=', 'namespace=']);
+  });
+
+  test('namedArgsFromSignature skips filled positional and present names', () {
+    const signature = SignatureHelpInfo(
+      keyword: 'Evaluate',
+      activeParameter: 1,
+      parameters: [
+        SignatureParameterInfo(label: 'expression', name: 'expression'),
+        SignatureParameterInfo(label: 'modules', name: 'modules'),
+        SignatureParameterInfo(label: 'namespace', name: 'namespace'),
+      ],
+    );
+    const line = '    Evaluate    int(1, 10)    ';
+    final items = RobotAutocompletePromptsBuilder.namedArgsFromSignature(
+      line,
+      line.length,
+      signature,
+    );
+    expect(items.map((i) => i.label), ['modules=', 'namespace=']);
+    expect(
+      RobotAutocompletePromptsBuilder.isArgumentSlot(
+        line,
+        line.length,
+        signature,
+      ),
+      isTrue,
+    );
+    expect(
+      RobotAutocompletePromptsBuilder.isTypingNamedArgValue(
+        '    Evaluate    modules=',
+        '    Evaluate    modules='.length,
+      ),
+      isTrue,
+    );
+  });
+
   test('indentMultilineInsert nests body under current line indent', () {
     expect(
       RobotAutocompletePromptsBuilder.indentMultilineInsert(

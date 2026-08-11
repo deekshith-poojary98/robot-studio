@@ -213,3 +213,37 @@ async def test_named_argument_provider_skips_present_and_ranks() -> None:
     assert "url=" in labels
     assert labels[0] == "url="
     assert present_named_args(["browser=firefox"]) == {"browser"}
+
+
+@pytest.mark.asyncio
+async def test_named_argument_provider_skips_positional_and_boosts_active() -> None:
+    meta = KeywordMetadata(
+        name="Evaluate",
+        parameters=(
+            ParameterMetadata(name="expression", required=True),
+            ParameterMetadata(name="modules", required=False),
+            ParameterMetadata(name="namespace", required=False),
+        ),
+    )
+
+    async def resolve(_ctx):  # noqa: ANN001
+        return meta
+
+    provider = NamedArgumentCompletionProvider(resolve_keyword=resolve)
+    items = await provider.complete(
+        CompletionRequestContext(
+            file_path="x.robot",
+            content="",
+            line=1,
+            column=1,
+            prefix="",
+            context="argument",
+            keyword="Evaluate",
+            arguments=("int(1, 10)",),
+            active_parameter=1,
+        ),
+    )
+    labels = [i.label for i in items]
+    assert "expression=" not in labels
+    assert labels[0] == "modules="
+    assert "namespace=" in labels

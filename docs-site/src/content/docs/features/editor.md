@@ -9,7 +9,7 @@ The editor is tuned for Robot Framework files rather than generic plain text.
 
 | Feature | Notes |
 |---------|--------|
-| Completions | Split between Robot DSL and BuiltIn keywords |
+| Completions | Split between Robot DSL and BuiltIn keywords. After a keyword argument separator, the popup offers the next `name=` (for example `modules=`) from the signature |
 | Hover | Keyword / symbol information as you pause |
 | Signature help | Argument hints while editing a keyword call |
 | Breadcrumbs | Path / structure trail above the editor |

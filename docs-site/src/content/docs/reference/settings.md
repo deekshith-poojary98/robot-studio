@@ -17,7 +17,7 @@ Settings are stored in `~/.robot-studio/settings.json`. Use **Save** to apply ch
 | **Insert Spaces** | On | Indent with spaces instead of tab characters |
 | **Tab Width** | `4` | Spaces per indent level |
 | **Font Size** | `13` | Editor font size |
-| **Font Family** | `Menlo` | Monospace face from the curated list |
+| **Font Family** | `Menlo` | Monospace fonts **installed on this computer**. Robot Studio does not ship extra typefaces and does not keep a hand-picked list beyond the Menlo default. Install a font in the OS (Font Book on macOS), relaunch if it does not appear, pick it here, then Save. |
 
 ## Execution
 

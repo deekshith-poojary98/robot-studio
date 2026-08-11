@@ -9,6 +9,7 @@ import 'package:re_editor/re_editor.dart';
 import '../../core/gateway/models/index_info.dart';
 import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../preferences/editor_font_families.dart';
 import 'editor_find_panel.dart';
 import 'editor_language_widgets.dart';
 import 'editor_navigation_widgets.dart';
@@ -147,7 +148,10 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _createController(widget.initialContent);
     _findController = CodeFindController(_controller);
     _scrollController = CodeScrollController();
-    _promptsBuilder = RobotAutocompletePromptsBuilder(widget.completionItems);
+    _promptsBuilder = RobotAutocompletePromptsBuilder(
+      widget.completionItems,
+      signature: widget.hoverTooltip,
+    );
     _controller.addListener(_onChanged);
     _listening = true;
     _measureCharWidth();
@@ -161,7 +165,11 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     final painter = TextPainter(
       text: TextSpan(
         text: 'M',
-        style: TextStyle(fontSize: _fontSize, fontFamily: widget.fontFamily),
+        style: TextStyle(
+          fontSize: _fontSize,
+          fontFamily: widget.fontFamily,
+          fontFamilyFallback: editorFontFamilyFallback(widget.fontFamily),
+        ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -188,8 +196,12 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       _controller.selection = selection;
       _controller.addListener(_onChanged);
     }
-    if (widget.completionItems != oldWidget.completionItems) {
-      _promptsBuilder.update(widget.completionItems);
+    if (widget.completionItems != oldWidget.completionItems ||
+        widget.hoverTooltip != oldWidget.hoverTooltip) {
+      _promptsBuilder.update(
+        widget.completionItems,
+        signature: widget.hoverTooltip,
+      );
     }
     if (widget.diagnostics != oldWidget.diagnostics) {
       _diagnostics = widget.diagnostics;
@@ -493,6 +505,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       style: CodeEditorStyle(
         fontSize: _fontSize,
         fontFamily: widget.fontFamily,
+        fontFamilyFallback: editorFontFamilyFallback(widget.fontFamily),
         fontHeight: _fontHeight,
         backgroundColor: context.palette.background,
         textColor: context.palette.textPrimary,

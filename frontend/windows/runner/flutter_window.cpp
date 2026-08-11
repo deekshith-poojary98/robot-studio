@@ -2,11 +2,70 @@
 
 #include <optional>
 #include <cstdio>
+#include <set>
 #include <string>
+#include <vector>
 
 #include <windows.h>
 
+#include <flutter/standard_method_codec.h>
+
 #include "flutter/generated_plugin_registrant.h"
+#include "utils.h"
+
+namespace {
+int CALLBACK EnumMonospaceFonts(const LOGFONTW* lf, const TEXTMETRICW*, DWORD,
+                                LPARAM lparam) {
+  auto* out = reinterpret_cast<std::set<std::string>*>(lparam);
+  if ((lf->lfPitchAndFamily & 0x3) != FIXED_PITCH) {
+    return TRUE;
+  }
+  if (lf->lfFaceName[0] == L'@' || lf->lfFaceName[0] == L'.') {
+    return TRUE;
+  }
+  std::string name = Utf8FromUtf16(lf->lfFaceName);
+  if (!name.empty()) {
+    out->insert(std::move(name));
+  }
+  return TRUE;
+}
+
+std::vector<std::string> ListMonospaceFontFamilies() {
+  std::set<std::string> names;
+  HDC hdc = GetDC(nullptr);
+  if (hdc == nullptr) {
+    return {};
+  }
+  LOGFONTW pattern = {};
+  pattern.lfCharSet = DEFAULT_CHARSET;
+  EnumFontFamiliesExW(hdc, &pattern, EnumMonospaceFonts,
+                      reinterpret_cast<LPARAM>(&names), 0);
+  ReleaseDC(nullptr, hdc);
+  return {names.begin(), names.end()};
+}
+
+void RegisterFontCatalogChannel(
+    flutter::BinaryMessenger* messenger,
+    std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>* slot) {
+  *slot = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+      messenger, "robot_studio/fonts",
+      &flutter::StandardMethodCodec::GetInstance());
+  slot->get()->SetMethodCallHandler(
+      [](const flutter::MethodCall<flutter::EncodableValue>& call,
+         std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+             result) {
+        if (call.method_name() != "listMonospaceFamilies") {
+          result->NotImplemented();
+          return;
+        }
+        flutter::EncodableList names;
+        for (const auto& family : ListMonospaceFontFamilies()) {
+          names.emplace_back(family);
+        }
+        result->Success(flutter::EncodableValue(std::move(names)));
+      });
+}
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -29,6 +88,8 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  RegisterFontCatalogChannel(flutter_controller_->engine()->messenger(),
+                             &fonts_channel_);
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {

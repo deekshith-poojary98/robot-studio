@@ -19,6 +19,7 @@ from robot_studio.domain.interfaces.signature_help import (
 from robot_studio.domain.models.keyword_metadata import KeywordMetadata
 from robot_studio.infrastructure.language.keyword_helpers import (
     parameter_completion_score,
+    parse_argument_cell,
     present_named_args,
     strip_keyword_qualifier,
 )
@@ -69,15 +70,25 @@ class NamedArgumentCompletionProvider(CompletionProvider):
             return []
 
         already = present_named_args(list(ctx.arguments))
+        positional_used = sum(
+            1
+            for cell in ctx.arguments
+            if cell.strip() and parse_argument_cell(cell)[0] is None
+        )
         prefix = ctx.prefix
         # Allow typing ``browser`` or ``browser=``
         prefix_name = prefix.rstrip("=")
 
+        skipped_positional = 0
         items: list[CompletionCandidate] = []
-        for param in meta.parameters:
+        for index, param in enumerate(meta.parameters):
             if param.kind in {"var_positional"}:
                 continue
             if param.name.casefold() in already:
+                continue
+            keyword_only = param.kind in {"keyword_only", "var_keyword"}
+            if not keyword_only and skipped_positional < positional_used:
+                skipped_positional += 1
                 continue
             insert = f"{param.name}="
             label = insert
@@ -93,6 +104,8 @@ class NamedArgumentCompletionProvider(CompletionProvider):
                 keyword_name=strip_keyword_qualifier(meta.name),
                 prefix=prefix_name,
             )
+            if index == ctx.active_parameter:
+                score += 40
             items.append(
                 CompletionCandidate(
                     label=label,

@@ -89,6 +89,14 @@ Future<void> _pump(
 }
 
 void main() {
+  setUp(() {
+    debugInstalledEditorFonts = ['Menlo', 'Fira Code', 'JetBrains Mono'];
+  });
+  tearDown(() {
+    debugInstalledEditorFonts = null;
+    debugResetEditorFontFamilyCache();
+  });
+
   testWidgets('opens on Editor and switches categories', (tester) async {
     final controller = AppSettingsController(gateway: _SettingsGateway());
     await _pump(tester, controller);
@@ -228,21 +236,7 @@ void main() {
     await _pump(tester, controller);
 
     await _tapSwitch(tester, 'Auto Save');
-
-    // Change font family via the curated dropdown (was a free-text field).
-    final fontRow = find.ancestor(
-      of: find.text('Font Family'),
-      matching: find.byType(Row),
-    );
-    await tester.tap(
-      find.descendant(
-        of: fontRow,
-        matching: find.byType(DropdownButton<String>),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('JetBrains Mono').last);
-    await tester.pumpAndSettle();
+    await _tapSwitch(tester, 'Insert Spaces');
 
     await controller.patch({
       'editor': {'word_wrap': false},
@@ -252,23 +246,22 @@ void main() {
     expect(_switchValue(tester, 'Word Wrap'), isFalse, reason: 'takes theirs');
     expect(_switchValue(tester, 'Auto Save'), isTrue, reason: 'keeps mine');
     expect(
-      tester
-          .widget<DropdownButton<String>>(
-            find.descendant(
-              of: fontRow,
-              matching: find.byType(DropdownButton<String>),
-            ),
-          )
-          .value,
-      'JetBrains Mono',
+      _switchValue(tester, 'Insert Spaces'),
+      isFalse,
+      reason: 'keeps mine',
     );
     expect(find.text('Unsaved changes'), findsOneWidget);
   });
 
-  testWidgets('font family offers the curated IDE list', (tester) async {
+  testWidgets('font family lists installed faces only', (tester) async {
     final gateway = _SettingsGateway();
     final controller = AppSettingsController(gateway: gateway);
     await _pump(tester, controller);
+
+    expect(
+      find.textContaining('Monospace fonts installed on this computer'),
+      findsOneWidget,
+    );
 
     final fontRow = find.ancestor(
       of: find.text('Font Family'),
@@ -282,9 +275,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    for (final family in kEditorFontFamilies) {
-      expect(find.text(family).hitTestable(), findsWidgets);
-    }
+    expect(find.byType(DropdownMenuItem<String>), findsWidgets);
+    expect(find.text('Fira Code').hitTestable(), findsWidgets);
+    expect(find.text('JetBrains Mono').hitTestable(), findsWidgets);
+    expect(find.text('Cascadia Code'), findsNothing);
   });
 
   testWidgets('saving after an external change writes both values', (

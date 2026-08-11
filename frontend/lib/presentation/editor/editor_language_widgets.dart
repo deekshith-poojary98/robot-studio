@@ -6,12 +6,14 @@ import '../../core/theme/app_theme.dart';
 
 class RobotAutocompletePromptsBuilder
     implements CodeAutocompletePromptsBuilder {
-  RobotAutocompletePromptsBuilder(this.items);
+  RobotAutocompletePromptsBuilder(this.items, {this.signature});
 
   List<CompletionItemInfo> items;
+  SignatureHelpInfo? signature;
 
-  void update(List<CompletionItemInfo> next) {
+  void update(List<CompletionItemInfo> next, {SignatureHelpInfo? signature}) {
     items = next;
+    this.signature = signature;
   }
 
   @override
@@ -20,13 +22,34 @@ class RobotAutocompletePromptsBuilder
     CodeLine codeLine,
     CodeLineSelection selection,
   ) {
-    if (items.isEmpty) return null;
     final lineText = codeLine.text;
     final offset = selection.baseOffset;
     final prefix = _prefixAt(lineText, offset);
-    if (prefix.isEmpty && items.length > 20) return null;
+    final inArgs = isArgumentSlot(lineText, offset, signature);
+    final typingValue = isTypingNamedArgValue(lineText, offset);
 
-    final prompts = items
+    var candidates = <CompletionItemInfo>[
+      if (inArgs && !typingValue)
+        ...namedArgsFromSignature(lineText, offset, signature),
+      ...items,
+    ];
+    candidates = _dedupeByInsert(candidates);
+
+    if (inArgs && !typingValue) {
+      final params = [
+        for (final item in candidates)
+          if (item.kind == 'parameter') item,
+      ];
+      if (params.isNotEmpty &&
+          (prefix.isEmpty || _looksLikeParamPrefix(prefix))) {
+        candidates = params;
+      }
+    } else if (prefix.isEmpty && candidates.length > 20) {
+      return null;
+    }
+    if (candidates.isEmpty) return null;
+
+    final prompts = candidates
         .where((item) => prefix.isEmpty || _labelMatches(item, prefix))
         .map((item) {
           final rawInsert = item.insertText;
@@ -118,6 +141,146 @@ class RobotAutocompletePromptsBuilder
   }
 
   String _prefixAt(String line, int offset) => prefixAt(line, offset);
+
+  static List<CompletionItemInfo> _dedupeByInsert(
+    List<CompletionItemInfo> items,
+  ) {
+    final seen = <String>{};
+    final out = <CompletionItemInfo>[];
+    for (final item in items) {
+      final key = (item.insertText.isEmpty ? item.label : item.insertText)
+          .toLowerCase();
+      if (key.isEmpty || !seen.add(key)) continue;
+      out.add(item);
+    }
+    return out;
+  }
+
+  static bool _looksLikeParamPrefix(String prefix) {
+    if (prefix.startsWith(r'${') ||
+        prefix.startsWith(r'@{') ||
+        prefix.startsWith('*') ||
+        prefix.startsWith('[')) {
+      return false;
+    }
+    return RegExp(r'^[A-Za-z_][\w]*$').hasMatch(prefix);
+  }
+
+  /// Caret is in an argument cell of a keyword call (not on the keyword name).
+  @visibleForTesting
+  static bool isArgumentSlot(
+    String line,
+    int offset,
+    SignatureHelpInfo? signature,
+  ) {
+    if (signature == null || signature.parameters.isEmpty) return false;
+    if (!(line.startsWith(' ') || line.startsWith('\t'))) return false;
+    final before = line.substring(0, offset.clamp(0, line.length));
+    return RegExp(r'[ \t]{2,}|\t').hasMatch(before.trimLeft());
+  }
+
+  /// Caret is after ``name=`` (typing the value, not the next argument name).
+  @visibleForTesting
+  static bool isTypingNamedArgValue(String line, int offset) {
+    final before = line.substring(0, offset.clamp(0, line.length));
+    return RegExp(r'(?:^|[ \t])[A-Za-z_][\w]*\=$').hasMatch(before);
+  }
+
+  /// ``name=`` inserts from the open signature card — available before the
+  /// completion round-trip, so the next-arg popup is not intermittent.
+  @visibleForTesting
+  static List<CompletionItemInfo> namedArgsFromSignature(
+    String line,
+    int offset,
+    SignatureHelpInfo? signature,
+  ) {
+    if (signature == null || signature.parameters.isEmpty) return const [];
+    final filled = _filledArgumentCells(line, offset);
+    final present = <String>{};
+    var positionalUsed = 0;
+    for (final cell in filled) {
+      final name = _namedArgName(cell);
+      if (name != null) {
+        present.add(name.toLowerCase());
+      } else if (cell.trim().isNotEmpty) {
+        positionalUsed++;
+      }
+    }
+
+    final consumed = <String>{...present};
+    var skippedPositional = 0;
+    for (final param in signature.parameters) {
+      if (param.kind == 'var_positional') continue;
+      final name = _parameterName(param);
+      if (name.isEmpty) continue;
+      if (consumed.contains(name.toLowerCase())) continue;
+      final keywordOnly =
+          param.kind == 'keyword_only' || param.kind == 'var_keyword';
+      if (!keywordOnly && skippedPositional < positionalUsed) {
+        skippedPositional++;
+        consumed.add(name.toLowerCase());
+      }
+    }
+
+    final ranked = List<SignatureParameterInfo>.from(signature.parameters);
+    final active = signature.activeParameter.clamp(0, ranked.length - 1);
+    if (ranked.isNotEmpty) {
+      ranked.insert(0, ranked.removeAt(active));
+    }
+
+    final out = <CompletionItemInfo>[];
+    for (final param in ranked) {
+      if (param.kind == 'var_positional') continue;
+      final name = _parameterName(param);
+      if (name.isEmpty || consumed.contains(name.toLowerCase())) continue;
+      out.add(
+        CompletionItemInfo(
+          label: '$name=',
+          kind: 'parameter',
+          detail: param.required ? 'required' : 'optional',
+          documentation: param.documentation,
+          insertText: '$name=',
+          provider: 'signature',
+        ),
+      );
+    }
+    return out;
+  }
+
+  static List<String> _filledArgumentCells(String line, int offset) {
+    final before = line.substring(0, offset.clamp(0, line.length));
+    final cells = before
+        .trimLeft()
+        .split(RegExp(r'[ \t]{2,}|\t+'))
+        .where((cell) => cell.isNotEmpty)
+        .toList();
+    if (cells.isEmpty) return const [];
+    var keywordIndex = 0;
+    if (RegExp(r'^[\$@&%]').hasMatch(cells.first) && cells.length > 1) {
+      keywordIndex = 1;
+    }
+    if (cells.length <= keywordIndex + 1) return const [];
+    final args = cells.sublist(keywordIndex + 1);
+    final trailingSep = RegExp(r'[ \t]{2,}|\t$').hasMatch(before);
+    if (trailingSep) return args;
+    return args.length <= 1 ? const [] : args.sublist(0, args.length - 1);
+  }
+
+  static String? _namedArgName(String cell) {
+    final text = cell.trim();
+    if (text.isEmpty || !text.contains('=')) return null;
+    if (RegExp(r'^[\$@&%]').hasMatch(text)) return null;
+    final name = text.split('=').first.trim();
+    if (name.isEmpty || name.contains(' ')) return null;
+    return name;
+  }
+
+  static String _parameterName(SignatureParameterInfo param) {
+    if (param.name.trim().isNotEmpty) return param.name.trim();
+    final label = param.label.trim();
+    if (label.isEmpty) return '';
+    return label.split('=').first.split(':').first.trim();
+  }
 }
 
 class RobotAutocompleteListView extends StatefulWidget

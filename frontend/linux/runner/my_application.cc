@@ -10,6 +10,7 @@
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
+  FlMethodChannel* fonts_channel;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -17,6 +18,55 @@ G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
+}
+
+static gint compare_font_names(gconstpointer a, gconstpointer b) {
+  const gchar* left = *static_cast<const gchar* const*>(a);
+  const gchar* right = *static_cast<const gchar* const*>(b);
+  return g_utf8_collate(left, right);
+}
+
+static FlValue* list_monospace_font_families(GtkWidget* widget) {
+  PangoContext* context = gtk_widget_get_pango_context(widget);
+  PangoFontMap* map = pango_context_get_font_map(context);
+  PangoFontFamily** families = nullptr;
+  int count = 0;
+  pango_font_map_list_families(map, &families, &count);
+
+  g_autoptr(GPtrArray) names = g_ptr_array_new_with_free_func(g_free);
+  for (int i = 0; i < count; i++) {
+    if (!pango_font_family_is_monospace(families[i])) {
+      continue;
+    }
+    const char* name = pango_font_family_get_name(families[i]);
+    if (name == nullptr || name[0] == '\0' || name[0] == '.') {
+      continue;
+    }
+    g_ptr_array_add(names, g_strdup(name));
+  }
+  g_free(families);
+  g_ptr_array_sort(names, compare_font_names);
+
+  FlValue* list = fl_value_new_list();
+  for (guint i = 0; i < names->len; i++) {
+    fl_value_append_take(
+        list, fl_value_new_string(static_cast<const gchar*>(names->pdata[i])));
+  }
+  return list;
+}
+
+static void fonts_method_call(FlMethodChannel* channel,
+                              FlMethodCall* method_call,
+                              gpointer user_data) {
+  (void)channel;
+  FlView* view = FL_VIEW(user_data);
+  const gchar* method = fl_method_call_get_name(method_call);
+  if (g_strcmp0(method, "listMonospaceFamilies") == 0) {
+    g_autoptr(FlValue) list = list_monospace_font_families(GTK_WIDGET(view));
+    fl_method_call_respond_success(method_call, list, nullptr);
+    return;
+  }
+  fl_method_call_respond_not_implemented(method_call, nullptr);
 }
 
 // Implements GApplication::activate.
@@ -81,6 +131,14 @@ static void my_application_activate(GApplication* application) {
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 
+  FlStandardMethodCodec* codec = fl_standard_method_codec_new();
+  self->fonts_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      "robot_studio/fonts", FL_METHOD_CODEC(codec));
+  g_object_unref(codec);
+  fl_method_channel_set_method_call_handler(self->fonts_channel,
+                                            fonts_method_call, view, nullptr);
+
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
@@ -127,6 +185,7 @@ static void my_application_shutdown(GApplication* application) {
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
+  g_clear_object(&self->fonts_channel);
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
 
@@ -139,7 +198,9 @@ static void my_application_class_init(MyApplicationClass* klass) {
   G_OBJECT_CLASS(klass)->dispose = my_application_dispose;
 }
 
-static void my_application_init(MyApplication* self) {}
+static void my_application_init(MyApplication* self) {
+  self->fonts_channel = nullptr;
+}
 
 MyApplication* my_application_new() {
   // Set the program name to the application ID, which helps various systems

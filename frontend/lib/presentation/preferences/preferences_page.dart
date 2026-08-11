@@ -107,6 +107,8 @@ class _PreferencesPageState extends State<PreferencesPage> {
 
   final _extensionsController = TextEditingController();
   final _ignoreController = TextEditingController();
+  List<String> _installedFonts = const [];
+  bool _fontsLoaded = false;
 
   @override
   void initState() {
@@ -120,6 +122,16 @@ class _PreferencesPageState extends State<PreferencesPage> {
       savePending: _savePending,
       isDirty: () => _isDirty,
     );
+    _loadInstalledFonts();
+  }
+
+  Future<void> _loadInstalledFonts() async {
+    final installed = await installedEditorFontFamilies();
+    if (!mounted) return;
+    setState(() {
+      _installedFonts = installed;
+      _fontsLoaded = true;
+    });
   }
 
   @override
@@ -525,11 +537,29 @@ class _PreferencesPageState extends State<PreferencesPage> {
         ),
         _DropdownRow<String>(
           label: 'Font Family',
+          hint:
+              'Monospace fonts installed on this computer. '
+              'Robot Studio does not bundle extra typefaces.',
           value: _draft.editor.fontFamily.trim().isEmpty
-              ? 'Menlo'
+              ? kDefaultEditorFontFamily
               : _draft.editor.fontFamily.trim(),
-          items: editorFontFamilyChoices(_draft.editor.fontFamily),
-          labelFor: (item) => item,
+          items: editorFontFamilyChoices(
+            _draft.editor.fontFamily,
+            installed: _installedFonts,
+          ),
+          labelFor: (item) {
+            if (!_fontsLoaded) return item;
+            return _installedFonts.contains(item)
+                ? item
+                : '$item (not installed)';
+          },
+          styleFor: (item) => TextStyle(
+            fontSize: 12.5,
+            height: 1.2,
+            fontFamily: item,
+            fontFamilyFallback: editorFontFamilyFallback(item),
+            color: context.palette.textPrimary,
+          ),
           onChanged: (value) {
             if (value == null) return;
             _markChanged();
@@ -1013,28 +1043,34 @@ class _DropdownRow<T> extends StatelessWidget {
     required this.items,
     required this.labelFor,
     required this.onChanged,
+    this.hint,
     this.leadingFor,
+    this.styleFor,
   });
 
   final String label;
+  final String? hint;
   final T value;
   final List<T> items;
   final String Function(T) labelFor;
   final Widget Function(T)? leadingFor;
+  final TextStyle Function(T)? styleFor;
   final ValueChanged<T?> onChanged;
 
-  Widget _itemChild(T item) {
+  Widget _itemChild(T item, TextStyle textStyle) {
     final leading = leadingFor?.call(item);
-    if (leading == null) {
-      return Text(labelFor(item));
-    }
+    final label = Text(
+      labelFor(item),
+      style: styleFor?.call(item) ?? textStyle,
+    );
+    if (leading == null) return label;
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         leading,
         const SizedBox(width: AppSpacing.sm),
-        Text(labelFor(item)),
+        label,
       ],
     );
   }
@@ -1046,28 +1082,31 @@ class _DropdownRow<T> extends StatelessWidget {
       height: 1.2,
       color: context.palette.textPrimary,
     );
+    final closedStyle = styleFor?.call(value) ?? textStyle;
     return _RowShell(
       label: label,
+      hint: hint,
       trailing: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
           value: value,
           isDense: true,
           padding: EdgeInsets.zero,
-          style: textStyle,
+          style: closedStyle,
           iconSize: 18,
           icon: Icon(
             Icons.expand_more,
             size: 18,
             color: context.palette.textMuted,
           ),
-          // Only needed when the closed state shows a swatch — otherwise
-          // Material's default closed item aligns more cleanly with the caret.
-          selectedItemBuilder: leadingFor == null
+          // Custom closed child when a swatch or per-item typeface is used.
+          selectedItemBuilder: leadingFor == null && styleFor == null
               ? null
-              : (context) => [for (final item in items) _itemChild(item)],
+              : (context) => [
+                  for (final item in items) _itemChild(item, closedStyle),
+                ],
           items: [
             for (final item in items)
-              DropdownMenuItem(value: item, child: _itemChild(item)),
+              DropdownMenuItem(value: item, child: _itemChild(item, textStyle)),
           ],
           onChanged: onChanged,
         ),
