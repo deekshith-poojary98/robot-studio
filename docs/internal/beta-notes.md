@@ -12,7 +12,7 @@ Tags: `[Trust]` · `[Identity]` · `[Lifecycle]` · `[Autosave]` · `[Execution]
 - 2026-08-12
 
   **[Packaging]**
-  - Private beta distribution is **GitHub Releases** (zip of `Robot Studio.app` / `RobotStudio.exe`). Not an installer. Linux stays source-only. Install guide and README updated.
+  - Private beta distribution is **GitHub Releases** (zips for macOS / Windows / Linux via **Package Desktop** Actions). Not an installer. Install guide and README updated.
 
   **[Trust]**
   - P0 exit met. Remaining highlighter / completion sweeps deferred to GitHub issues. Toolbar Stop spacing already shipped as the segmented Run / Project / Stop control.

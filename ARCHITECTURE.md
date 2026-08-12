@@ -77,7 +77,7 @@ Persistent state lives in **SQLite** under `~/.robot-studio` (configurable). Sym
 | Settings / AI assistant UI | **Not shipped** (both hidden from the rail until ready — no stub surfaces) |
 | Robot Doctor / Impact Analysis / Safe Rename (UI) | **Doctor shipped** (Project Health Center); Impact / Safe Rename **Planned** |
 | Integrated Terminal (bottom panel PTY) | **Shipped** — `xterm` + `flutter_pty`, cwd = project folder; macOS App Sandbox disabled so shells can spawn |
-| Desktop packaging: auto-start bundled backend sidecar | **Shipped (closed beta)** — PyInstaller freeze + Flutter `BackendHost` spawns sidecar from the `.app` / `.exe` bundle, health-waits, stops on quit; `make package-macos` / `package-windows` |
+| Desktop packaging: auto-start bundled backend sidecar | **Shipped (closed beta)** — PyInstaller freeze + Flutter `BackendHost` spawns sidecar from the `.app` / Windows / Linux bundle, health-waits, stops on quit; `make package-macos` / `package-windows` / `package-linux` (CI: **Package Desktop**) |
 | gRPC Language Service sidecar | **Planned** |
 | Full plugin subprocess sandbox (P2) | **Planned** |
 

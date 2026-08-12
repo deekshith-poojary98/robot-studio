@@ -1,0 +1,125 @@
+name: Package Desktop
+
+# Build packaged zips for macOS, Windows, and Linux on native runners.
+# You cannot cross-compile these from another OS.
+#
+# Run: Actions → Package Desktop → Run workflow
+# Or push a tag like v0.1.0 (attaches all three zips to the GitHub Release).
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: package-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos
+            flutter_config: --enable-macos-desktop
+            script: ./scripts/package_macos.sh
+            artifact_name: RobotStudio-macos
+            artifact_path: dist/macos/Robot-Studio-*-macos.zip
+          - os: windows-latest
+            platform: windows
+            flutter_config: --enable-windows-desktop
+            script: ./scripts/package_windows.sh
+            artifact_name: RobotStudio-windows
+            artifact_path: dist/windows/RobotStudio-*-windows.zip
+          - os: ubuntu-latest
+            platform: linux
+            flutter_config: --enable-linux-desktop
+            script: ./scripts/package_linux.sh
+            artifact_name: RobotStudio-linux
+            artifact_path: dist/linux/Robot-Studio-*-linux.zip
+
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux desktop deps
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev \
+            zip
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Flutter desktop
+        run: |
+          flutter config ${{ matrix.flutter_config }}
+          flutter doctor -v
+
+      - name: Create backend venv
+        run: |
+          cd backend
+          python -m venv .venv
+          if [[ -f .venv/Scripts/python.exe ]]; then
+            PY=.venv/Scripts/python.exe
+            PIP=.venv/Scripts/pip.exe
+          else
+            PY=.venv/bin/python
+            PIP=.venv/bin/pip
+          fi
+          "$PY" -m pip install --upgrade pip
+          "$PIP" install -r requirements.txt
+          "$PIP" install -e ".[dev]"
+          "$PIP" install 'pyinstaller>=6.0'
+
+      - name: Package app
+        run: ${{ matrix.script }}
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
+
+  release:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all platform zips
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: RobotStudio-*
+          merge-multiple: true
+
+      - name: Attach zips to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

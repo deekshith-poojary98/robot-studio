@@ -4,7 +4,7 @@ description: Download a private beta build from GitHub Releases, or run from sou
 ---
 
 :::caution[Private beta]
-Packaged builds are **macOS** and **Windows** only. There is no installer (no `.dmg` / `.msi`) and **no packaged Linux build**.
+Packaged builds are zip downloads for **macOS**, **Windows**, and **Linux**. There is no installer (no `.dmg` / `.msi` / `.deb`).
 
 Download the latest zip from [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases). File bugs and feature requests on that same repository.
 :::
@@ -13,14 +13,14 @@ Download the latest zip from [GitHub Releases](https://github.com/deekshith-pooj
 
 1. Open [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases) and download the zip for your OS.
 2. Unzip it somewhere convenient (Applications, Desktop, or a beta folder). On macOS you can drag **Robot Studio.app** into Applications yourself.
-3. **Double-click to launch** — do not start a Python process by hand.
+3. **Launch the app** — do not start a Python process by hand. Keep the unzipped folder together (Windows / Linux need `backend/` next to the binary).
 4. Quitting the app stops the embedded backend sidecar.
 
 | Platform | Artifact | How to open |
 |----------|----------|-------------|
 | **macOS** | `Robot Studio.app` (inside the zip) | Double-click the app |
 | **Windows** | `RobotStudio/RobotStudio.exe` (inside the zip) | Double-click the executable |
-| **Linux** | *No packaged beta* | Not a packaged target — see source below |
+| **Linux** | `RobotStudio/robot_studio` (inside the zip) | Run `./RobotStudio/robot_studio` |
 
 App data lives under `~/.robot-studio`.
 
@@ -29,8 +29,11 @@ Maintainers building packages from this repository:
 ```bash
 make package-macos      # → dist/macos/Robot Studio.app
 make package-windows   # → dist/windows/RobotStudio/  (run on Windows)
+make package-linux     # → dist/linux/RobotStudio/    (run on Linux)
 make package           # package for the OS you are on
 ```
+
+**Cross-OS builds:** do not use a VM. Push to GitHub, then **Actions → Package Desktop → Run workflow**. Download each OS zip from the run’s artifacts (or push a `v*` tag to attach all three to a Release).
 
 ## Run from source (developers)
 

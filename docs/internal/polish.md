@@ -87,7 +87,7 @@ Everything else waits.
 | Milestone | Status | Meaning |
 |-----------|--------|---------|
 | **User Guide — Content Validation** | **PASS** | Guide matches shipped UI for someone who already has a build (install → run → Preferences journey verified against product code). |
-| **User Guide — Beta Onboarding** | **Ready when a Release exists** | Testers download the zip from GitHub Releases, then follow Install → first project → first run. Linux is not a packaged target. |
+| **User Guide — Beta Onboarding** | **Ready when a Release exists** | Testers download the zip from GitHub Releases (macOS / Windows / Linux), then follow Install → first project → first run. |
 
 Do **not** open another “fix the docs” iteration for content correctness. Next docs gate is a **zero-context test** on a published release: guide + zip → unzip → project → env → run → failure → source → Preferences, with no verbal coaching.
 
@@ -98,7 +98,7 @@ Do **not** open another “fix the docs” iteration for content correctness. Ne
 | Replace “Test Explorer” in Execution idle copy with **Tests** | Product/UI | P1 | **Done** (see P1) |
 | Private-beta artifact path | Release/Packaging | **Beta blocker** | **GitHub Releases** — zip of `Robot Studio.app` / `RobotStudio.exe`. Publish the first release, then testers use the Install guide. |
 
-Linux is **not** a packaged beta target. No `.dmg` / `.msi` installer for beta.
+Packaged beta is zip-only for macOS / Windows / Linux via **Actions → Package Desktop**. No `.dmg` / `.msi` / `.deb` installer for beta.
 
 ---
 
