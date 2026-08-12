@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:robot_studio/core/gateway/models/execution_info.dart';
-import 'package:robot_studio/core/gateway/models/run_configuration_info.dart';
 import 'package:robot_studio/core/gateway/transport_gateway.dart';
 import 'package:robot_studio/core/theme/app_theme.dart';
 import 'package:robot_studio/presentation/reports/run_details_panel.dart';

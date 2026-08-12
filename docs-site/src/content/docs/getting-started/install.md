@@ -75,6 +75,10 @@ The UI connects to `http://127.0.0.1:8765`. When that backend is already healthy
 
 Override device or port if needed: `make run DEVICE=linux` · `make backend PORT=8766`.
 
+## What’s in this build
+
+See [RELEASE_NOTES.md](https://github.com/deekshith-poojary98/robot-studio/blob/main/RELEASE_NOTES.md) in the repository (same text as the GitHub Release).
+
 ## Next step
 
 → [Create or open your first project](/getting-started/first-project/)

@@ -12,9 +12,6 @@ import 'helpers/ui_helpers.dart';
 ///
 /// Beta: Plugin Manager is hidden from the activity bar and command palette.
 /// UI cases are skipped until that surface is restored; keep the bodies intact.
-const _pluginsUiHiddenForBeta =
-    'Plugin Manager UI hidden for beta (sidebar + command palette)';
-
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final harness = IntegrationHarness();
@@ -43,7 +40,7 @@ void main() {
     );
 
     harness.expectNoFlutterErrors();
-  }, skip: _pluginsUiHiddenForBeta);
+  }, skip: true);
 
   testWidgets('PL-02 no layout overflow on rows', (tester) async {
     await harness.seedWorkspace(name: 'PL Overflow', suffix: 'pl-02');
@@ -53,7 +50,7 @@ void main() {
     expect(tester.takeException(), isNull);
 
     harness.expectNoFlutterErrors();
-  }, skip: _pluginsUiHiddenForBeta);
+  }, skip: true);
 
   testWidgets('PL-03 enable disable exclusivity', (tester) async {
     final workspace = await harness.seedWorkspace(
@@ -90,7 +87,7 @@ void main() {
     await pumpUntilFound(tester, pluginName);
 
     harness.expectNoFlutterErrors();
-  }, skip: _pluginsUiHiddenForBeta);
+  }, skip: true);
 
   testWidgets('PL-04 builtin enable not dead control', (tester) async {
     await harness.seedWorkspace(name: 'PL Builtin', suffix: 'pl-04');
@@ -101,7 +98,7 @@ void main() {
     expect(find.text('Built-in'), findsWidgets);
 
     harness.expectNoFlutterErrors();
-  }, skip: _pluginsUiHiddenForBeta);
+  }, skip: true);
 
   testWidgets('PL-05 plugin details panel', (tester) async {
     final workspace = await harness.seedWorkspace(
@@ -124,7 +121,7 @@ void main() {
     expect(find.text('Reload'), findsWidgets);
 
     harness.expectNoFlutterErrors();
-  }, skip: _pluginsUiHiddenForBeta);
+  }, skip: true);
 
   testWidgets('PL-06 reload plugins', (tester) async {
     await harness.seedWorkspace(name: 'PL Reload', suffix: 'pl-06');
@@ -135,7 +132,7 @@ void main() {
     await harness.api.refreshPlugins();
 
     harness.expectNoFlutterErrors();
-  }, skip: _pluginsUiHiddenForBeta);
+  }, skip: true);
 
   testWidgets('PL-07 plugins offline', (tester) async {}, skip: true);
 }
