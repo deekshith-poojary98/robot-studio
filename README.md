@@ -17,7 +17,7 @@ Robot Studio pairs a **Flutter desktop** UI with a local **Python FastAPI** back
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Flutter Desktop                                        │
-│  Shell · Explorer · Editor · Git · Reports    │
+│  Shell · Explorer · Editor · Git · Reports              │
 └──────────────────────────┬──────────────────────────────┘
                            │  REST + WebSocket (localhost)
 ┌──────────────────────────▼──────────────────────────────┐
@@ -78,20 +78,24 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 
 ### Packaged app (closed beta)
 
-Testers download the zip from [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases) and **double-click** the app — not start a Python process by hand. File bugs on GitHub Issues.
+Testers download the zip from [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases) and **double-click** the app — not start a Python process by hand. File bugs on GitHub Issues. Full notes: [RELEASE_NOTES.md](./RELEASE_NOTES.md).
 
 | Platform | Artifact | Launch |
 |----------|----------|--------|
 | macOS | `Robot Studio.app` (zipped on the release; also `dist/macos/` when you build locally) | Double-click **Robot Studio.app** |
 | Windows | `RobotStudio/RobotStudio.exe` (zipped on the release; also `dist/windows/` when you build locally) | Double-click **RobotStudio.exe** |
+| Linux | `RobotStudio/robot_studio` (zipped on the release; also `dist/linux/` when you build locally) | Run `./robot_studio` |
 
-Build packages from the repo root:
+Build packages from the repo root (each script must run on that OS):
 
 ```bash
 make package-macos      # → dist/macos/Robot Studio.app
-make package-windows   # → dist/windows/RobotStudio/ (run on Windows)
+make package-windows   # → dist/windows/RobotStudio/
+make package-linux     # → dist/linux/RobotStudio/
 make package           # this OS
 ```
+
+Cross-OS packaging is not supported locally. Use **Actions → Package Desktop → Run workflow** (or push a `v*` tag) and download the zips from the workflow artifacts / Release.
 
 The app embeds a frozen backend sidecar and starts it on launch. Quit stops it via a pid file + native terminate hooks (Flutter lifecycle alone is unreliable on desktop). Data lives under `~/.robot-studio`.
 
@@ -111,9 +115,10 @@ make run               # flutter run -d macos|linux|windows
 make build             # flutter build <device>
 make test              # pytest + flutter test
 make test-integration  # E2E (or: make test-integration SUITE=startup_test.dart)
-make package           # double-click app for this OS
+make package           # package for this OS
 make package-macos     # dist/macos/Robot Studio.app
 make package-windows   # dist/windows/RobotStudio/
+make package-linux     # dist/linux/RobotStudio/
 make health            # curl /api/v1/health
 make backend-stop      # kill listener on PORT (default 8765)
 ```
@@ -199,7 +204,7 @@ Integration tests may also set `ROBOT_STUDIO_PYTHON` / `INTEGRATION_PYTHON` so e
 ## Typical workflow
 
 1. **New Project** or **Open Project** (any folder — Studio initializes `.robotstudio/` inside it; no wrapper workspace. Non-Robot-looking folders warn first with **Continue anyways**). **New Project** opens one dialog for name + location (prefilled, with **Browse…**), then always creates a standalone project and opens it fresh, even if another project is already open; adding to a multi-project container is the separate **New Project in Workspace** command. **Open Workspace** / **New Workspace** remain under Advanced for multi-project containers.
-2. Opening a project is immediate; environment setup, indexing, and git refresh continue in the background. If no Python environment is registered, a non-blocking bottom-right toast titled **Python environment required** offers Create Environment / Select Existing (dismiss with ✕), and suggests an existing `.venv` when found. **Create Environment** from that toast installs Robot Framework (same default as the Create dialog). If **no Python interpreter** is installed on the machine, that toast becomes **Python is not installed** with **How to Install** (Homebrew / python.org / apt) instead of a dead-end Create button. If interpreter discovery itself fails (backend error/offline), the toast becomes **Could not detect Python** with install / create / select actions — it does not assume Python is present.
+2. Opening a project is immediate; environment setup, indexing, and git refresh continue in the background. If no Python environment is registered, a non-blocking bottom-right toast titled **Python environment required** offers Create Environment / Select Existing (dismiss with ✕), and suggests an existing `.venv` when found. **Create Environment** from that toast installs Robot Framework (same default as the Create dialog). If **no Python interpreter** is installed on the machine, that toast becomes **Python is not installed** with **How to Install** (Homebrew / python.org / apt) instead of a dead-end Create button. If interpreter discovery itself fails, the toast becomes **Could not detect Python** with install-focused guidance (not “start the backend”) plus create / select actions.
 3. Create or activate a **Python environment**; install Robot Framework and libraries via the package manager. Run is blocked when the active environment is **missing on disk** (`available: false`) — recreate or select another before running. If you delete a project in Finder and recreate it at the same path, Studio mints a **new** durable identity under `.robotstudio/` (identity is never derived from the path), so ghost “missing” venvs and stale Reports from the previous folder life do not reappear.
 4. Open `.robot` files in the editor; rebuild the **index** if keyword search looks empty (BuiltIn keywords such as `Log` are always searchable).
 5. **Run** from the toolbar or **Tests** explorer (suite / test / tag / failed); watch output on the **Tests** view (click the run status badge to jump there). Use the bottom **Terminal** for an interactive shell in the project folder.
@@ -353,7 +358,7 @@ Core IDE milestones through execution, reports, indexing, language features, Git
 | **M6.6** | Robot Doctor (Project Health Center + `/doctor` APIs + UI) | Done |
 | **M7** | Test execution + WebSocket logs | Done |
 | **M8** | Reports | Done |
-| **M9+** | Settings / AI / packaging polish | Settings shipped; AI deferred; **desktop packaging** is a zip of `.app` / `RobotStudio.exe` (`make package-macos` / `package-windows`) for GitHub Releases — no installer |
+| **M9+** | Settings / AI / packaging polish | Settings shipped; AI deferred; **desktop packaging** is zips for macOS / Windows / Linux (`make package-*` / Actions **Package Desktop**) for GitHub Releases — no installer |
 | **M10** | Intelligent editor (parsing bridge, diagnostics, navigation) | Done |
 | **M11** | Plugin framework + manager UI | Done (manager hidden from the activity bar for beta) |
 | **M12** | Git source control | Done |

@@ -2109,9 +2109,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       setState(() {
         _envPromptTitle = 'Could not detect Python';
         _envPromptMessage =
-            'Robot Studio could not list Python interpreters. Install Python 3 '
-            'if needed, start the backend if it is offline, then try creating '
-            'an environment.';
+            'Robot Studio could not find a usable Python 3 interpreter. '
+            'Install Python 3, restart Robot Studio, then create an '
+            'environment.';
         _envPromptActions = [
           EnvironmentPromptAction(
             label: 'How to Install',

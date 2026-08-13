@@ -19,7 +19,7 @@ Download the latest zip from [GitHub Releases](https://github.com/deekshith-pooj
 | Platform | Artifact | How to open |
 |----------|----------|-------------|
 | **macOS** | `Robot Studio.app` (inside the zip) | Double-click the app |
-| **Windows** | `RobotStudio/RobotStudio.exe` (inside the zip) | Double-click the executable |
+| **Windows** | `RobotStudio/RobotStudio.exe` (inside the zip) | Double-click the executable. If Windows reports missing `MSVCP140.dll` / `VCRUNTIME140.dll`, install the [Visual C++ Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) once, then retry. |
 | **Linux** | `RobotStudio/robot_studio` (inside the zip) | Run `./RobotStudio/robot_studio` |
 
 App data lives under `~/.robot-studio`.

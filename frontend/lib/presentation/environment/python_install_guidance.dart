@@ -24,9 +24,10 @@ abstract final class PythonInstallGuidance {
           'Robot Studio, then create an environment.';
     }
     if (_windows) {
-      return 'Install Python 3 from python.org or the Microsoft Store '
-          '(enable “Add to PATH”), restart Robot Studio, then create an '
-          'environment.';
+      return 'Install Python 3 from https://www.python.org/downloads/ '
+          '(check “Add python.exe to PATH”), restart Robot Studio, then '
+          'create an environment. Microsoft Store Python works only if App '
+          'execution aliases for python.exe are enabled.';
     }
     return 'Install Python 3 with your package manager (e.g. sudo apt install '
         'python3), restart Robot Studio, then create an environment.';
@@ -44,10 +45,11 @@ abstract final class PythonInstallGuidance {
     }
     if (_windows) {
       return 'Robot Studio could not find Python 3 on this PC.\n\n'
-          'Install it, then restart Robot Studio:\n\n'
-          '• Download from https://www.python.org/downloads/ '
-          '(check “Add python.exe to PATH”)\n'
-          '• Or install “Python 3” from the Microsoft Store\n\n'
+          'Recommended: install from https://www.python.org/downloads/ and '
+          'check “Add python.exe to PATH”, then restart Robot Studio.\n\n'
+          'Microsoft Store Python: open Settings → Apps → Advanced app '
+          'settings → App execution aliases, and turn on python.exe / '
+          'python3.exe. Then restart Robot Studio.\n\n'
           'When Python is available, create an environment from the toast or '
           'Manage Environments.';
     }
@@ -67,8 +69,9 @@ abstract final class PythonInstallGuidance {
           'python.org), tap Refresh, or Browse to an interpreter.';
     }
     if (_windows) {
-      return 'No Python found. Install from python.org or the Microsoft Store '
-          '(Add to PATH), tap Refresh, or Browse to python.exe.';
+      return 'No Python found. Install from python.org (Add to PATH), enable '
+          'Store python.exe aliases if you use the Store, tap Refresh, or '
+          'Browse to python.exe.';
     }
     return 'No Python found. Install python3 (and python3-venv), tap Refresh, '
         'or Browse to an interpreter.';

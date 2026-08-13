@@ -267,6 +267,21 @@ def test_stable_subprocess_cwd_skips_missing_preferred(tmp_path: Path) -> None:
     assert resolved.is_dir()
 
 
+def test_discover_interpreters_finds_host_python() -> None:
+    from robot_studio.infrastructure.environment.python_provider import (
+        PythonEnvironmentProvider,
+        _is_bundled_sidecar,
+    )
+
+    assert _is_bundled_sidecar(Path("robot-studio-backend.exe"))
+    assert _is_bundled_sidecar(Path("/tmp/robot-studio-backend"))
+    assert not _is_bundled_sidecar(Path(sys.executable))
+
+    found = PythonEnvironmentProvider().discover_interpreters()
+    assert any(Path(item.path).exists() for item in found)
+    assert all("robot-studio-backend" not in item.path.lower() for item in found)
+
+
 @pytest.mark.asyncio
 async def test_missing_venv_marked_unavailable(services) -> None:
     environment = await services["environment_service"].create_environment(

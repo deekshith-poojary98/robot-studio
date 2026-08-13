@@ -18,6 +18,12 @@ from robot_studio.infrastructure.environment.filesystem import (
 )
 
 _VERSION_RE = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
+_SIDECAR_NAMES = frozenset(
+    {
+        "robot-studio-backend",
+        "robot-studio-backend.exe",
+    },
+)
 
 
 def stable_subprocess_cwd(preferred: Path | str | None = None) -> str:
@@ -43,6 +49,122 @@ def stable_subprocess_cwd(preferred: Path | str | None = None) -> str:
         except OSError:
             continue
     return tempfile.gettempdir()
+
+
+def _is_bundled_sidecar(path: Path) -> bool:
+    name = path.name.lower()
+    return name in _SIDECAR_NAMES
+
+
+def _discovery_environ() -> dict[str, str]:
+    """PATH for discovering host Python (helps Microsoft Store / user installs)."""
+    env = os.environ.copy()
+    extras: list[str] = []
+    if sys.platform == "win32":
+        local = os.environ.get("LOCALAPPDATA") or str(
+            Path.home() / "AppData" / "Local",
+        )
+        extras.extend(
+            [
+                str(Path(local) / "Microsoft" / "WindowsApps"),
+                str(Path(local) / "Programs" / "Python"),
+                str(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"),
+            ],
+        )
+        # Nested python.org installs: .../Python/Python312
+        programs = Path(local) / "Programs" / "Python"
+        if programs.is_dir():
+            try:
+                for child in programs.iterdir():
+                    if child.is_dir():
+                        extras.append(str(child))
+            except OSError:
+                pass
+    path_parts = extras + [
+        p for p in env.get("PATH", "").split(os.pathsep) if p
+    ]
+    # Dedupe preserving order
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for part in path_parts:
+        key = os.path.normcase(part)
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(part)
+    env["PATH"] = os.pathsep.join(ordered)
+    return env
+
+
+def _where_all(name: str, *, env: dict[str, str]) -> list[Path]:
+    if sys.platform != "win32":
+        return []
+    try:
+        result = subprocess.run(
+            ["where.exe", name],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+            cwd=stable_subprocess_cwd(),
+            env=env,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if result.returncode != 0:
+        return []
+    paths: list[Path] = []
+    for line in (result.stdout or "").splitlines():
+        line = line.strip().strip('"')
+        if line:
+            paths.append(Path(line))
+    return paths
+
+
+def _windows_registry_pythons() -> list[Path]:
+    if sys.platform != "win32":
+        return []
+    try:
+        import winreg
+    except ImportError:
+        return []
+
+    found: list[Path] = []
+    roots = (
+        (winreg.HKEY_CURRENT_USER, r"Software\Python\PythonCore"),
+        (winreg.HKEY_LOCAL_MACHINE, r"Software\Python\PythonCore"),
+        (winreg.HKEY_LOCAL_MACHINE, r"Software\Wow6432Node\Python\PythonCore"),
+    )
+    for hive, subkey in roots:
+        try:
+            with winreg.OpenKey(hive, subkey) as core:
+                index = 0
+                while True:
+                    try:
+                        version = winreg.EnumKey(core, index)
+                    except OSError:
+                        break
+                    index += 1
+                    try:
+                        with winreg.OpenKey(core, rf"{version}\InstallPath") as install:
+                            try:
+                                exe, _ = winreg.QueryValueEx(install, "ExecutablePath")
+                                if exe:
+                                    found.append(Path(str(exe)))
+                                    continue
+                            except OSError:
+                                pass
+                            try:
+                                root, _ = winreg.QueryValueEx(install, None)
+                                if root:
+                                    found.append(Path(str(root)) / "python.exe")
+                            except OSError:
+                                pass
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return found
 
 
 @dataclass(frozen=True)
@@ -284,16 +406,38 @@ class PythonEnvironmentProvider:
 
     def discover_interpreters(self) -> list[DiscoveredInterpreter]:
         """Find usable host Python interpreters for creating virtualenvs."""
+        try:
+            return self._discover_interpreters_impl()
+        except Exception:
+            # Never 500 the UI — empty list shows install guidance instead.
+            return []
+
+    def _discover_interpreters_impl(self) -> list[DiscoveredInterpreter]:
         candidates: list[Path] = []
+        seen_paths: set[str] = set()
 
         def add(path: Path | str | None) -> None:
             if path is None:
                 return
-            resolved = Path(path).expanduser()
-            if resolved.is_file():
-                candidates.append(resolved)
+            raw = Path(str(path).strip().strip('"')).expanduser()
+            if _is_bundled_sidecar(raw):
+                return
+            try:
+                if not raw.is_file():
+                    return
+            except OSError:
+                return
+            key = os.path.normcase(os.path.abspath(str(raw)))
+            if key in seen_paths:
+                return
+            seen_paths.add(key)
+            candidates.append(Path(key))
 
-        add(sys.executable)
+        # Host Python only — never offer the frozen sidecar as a venv base.
+        if not getattr(sys, "frozen", False):
+            add(sys.executable)
+
+        discovery_env = _discovery_environ()
         for name in (
             "python3",
             "python",
@@ -303,9 +447,11 @@ class PythonEnvironmentProvider:
             "python3.10",
             "python3.9",
         ):
-            which = shutil.which(name)
+            which = shutil.which(name, path=discovery_env.get("PATH"))
             if which:
                 add(which)
+            for found in _where_all(name, env=discovery_env):
+                add(found)
 
         search_dirs = [
             Path("/usr/bin"),
@@ -314,20 +460,24 @@ class PythonEnvironmentProvider:
             Path("/opt/local/bin"),
         ]
         if sys.platform == "win32":
+            local_app = Path(
+                os.environ.get("LOCALAPPDATA")
+                or (Path.home() / "AppData" / "Local"),
+            )
             search_dirs.extend(
                 [
                     Path(r"C:\Python310"),
                     Path(r"C:\Python311"),
                     Path(r"C:\Python312"),
                     Path(r"C:\Python313"),
-                    Path.home()
-                    / "AppData"
-                    / "Local"
-                    / "Programs"
-                    / "Python",
+                    local_app / "Programs" / "Python",
+                    # Microsoft Store App Execution Aliases
+                    local_app / "Microsoft" / "WindowsApps",
                 ],
             )
-            launcher = shutil.which("py")
+            for path in _windows_registry_pythons():
+                add(path)
+            launcher = shutil.which("py", path=discovery_env.get("PATH"))
             if launcher:
                 try:
                     listed = subprocess.run(
@@ -335,8 +485,9 @@ class PythonEnvironmentProvider:
                         capture_output=True,
                         text=True,
                         check=False,
-                        timeout=3,
+                        timeout=5,
                         cwd=stable_subprocess_cwd(),
+                        env=discovery_env,
                     )
                     if listed.returncode == 0:
                         for line in (listed.stdout or "").splitlines():
@@ -349,11 +500,15 @@ class PythonEnvironmentProvider:
         for directory in search_dirs:
             if not directory.is_dir():
                 continue
-            for match in directory.glob("python3*"):
-                add(match)
-            for match in directory.glob("Python*/python.exe"):
-                add(match)
-            add(directory / "python.exe")
+            try:
+                for match in directory.glob("python3*"):
+                    add(match)
+                for match in directory.glob("Python*/python.exe"):
+                    add(match)
+                add(directory / "python.exe")
+                add(directory / "python3.exe")
+            except OSError:
+                continue
 
         for base, pattern in (
             (Path.home() / ".pyenv" / "versions", "*/bin/python"),
@@ -369,21 +524,21 @@ class PythonEnvironmentProvider:
 
         discovered: dict[str, DiscoveredInterpreter] = {}
         for candidate in candidates:
-            try:
-                resolved = candidate.resolve()
-            except OSError:
+            if _is_bundled_sidecar(candidate):
                 continue
-            key = str(resolved)
+            key = os.path.normcase(str(candidate))
             if key in discovered:
                 continue
-            if not os.access(resolved, os.X_OK) and sys.platform != "win32":
+            if sys.platform != "win32" and not os.access(candidate, os.X_OK):
                 continue
-            version = self._probe_version(resolved)
+            version = self._probe_version(candidate)
             if version is None:
                 continue
-            display = f"Python {version} — {resolved}"
+            # Prefer a real install path in the UI when WindowsApps is an alias.
+            display_path = str(candidate)
+            display = f"Python {version} — {display_path}"
             discovered[key] = DiscoveredInterpreter(
-                path=key,
+                path=display_path,
                 version=version,
                 display_name=display,
             )
@@ -397,11 +552,14 @@ class PythonEnvironmentProvider:
                     parts.append(0)
             while len(parts) < 3:
                 parts.append(0)
-            return (-parts[0], -parts[1], -parts[2], item.path)
+            # Prefer non-WindowsApps paths when versions match (real install).
+            apps_penalty = 1 if "windowsapps" in item.path.lower() else 0
+            return (-parts[0], -parts[1], -parts[2], apps_penalty, item.path)
 
         return sorted(discovered.values(), key=sort_key)
 
     def _probe_version(self, python_executable: Path) -> str | None:
+        timeout = 5 if sys.platform == "win32" else 2
         try:
             result = subprocess.run(
                 [
@@ -414,14 +572,16 @@ class PythonEnvironmentProvider:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=2,
+                timeout=timeout,
                 cwd=stable_subprocess_cwd(),
+                env=_discovery_environ(),
             )
         except (OSError, subprocess.TimeoutExpired):
             return None
         if result.returncode != 0:
             return None
-        version = (result.stdout or "").strip()
+        version = (result.stdout or "").strip().splitlines()
+        version = version[-1].strip() if version else ""
         if not _VERSION_RE.fullmatch(version):
             return None
         return version

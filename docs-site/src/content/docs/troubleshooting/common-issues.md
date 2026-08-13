@@ -7,6 +7,23 @@ description: Fix common Robot Studio issues — backend offline, empty runs, mis
 
 Private beta: open an issue on [GitHub](https://github.com/deekshith-poojary98/robot-studio/issues). Include OS, what you did, and what you expected. Logs live under `~/.robot-studio/logs/` if you need to attach them.
 
+## Windows: missing `MSVCP140.dll` / `VCRUNTIME140.dll`
+
+The zip is fine — the VM is missing the Microsoft C++ runtime Flutter needs.
+
+1. Download and install **[Visual C++ Redistributable (x64)](https://aka.ms/vc14/vc_redist.x64.exe)** (`vc_redist.x64.exe`).
+2. Restart if Windows asks, then double-click `RobotStudio.exe` again.
+
+You only need this once per machine. Many full Windows installs already have it; clean VMs often do not.
+
+## Windows: Could not detect Python / Python is not installed
+
+Robot Studio still needs a **host Python 3** to create project environments (the app’s bundled backend is not a replacement).
+
+1. Prefer [python.org](https://www.python.org/downloads/) and check **Add python.exe to PATH**, then **restart Robot Studio**.
+2. If you use **Microsoft Store** Python: Settings → Apps → Advanced app settings → **App execution aliases** → turn on `python.exe` / `python3.exe`, then restart Robot Studio.
+3. Or use **Select Existing…** / **Browse** and pick `python.exe` yourself.
+
 ## Status bar says BACKEND UNAVAILABLE
 
 The UI cannot reach the local API.
