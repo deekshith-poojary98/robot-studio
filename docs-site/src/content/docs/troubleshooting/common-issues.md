@@ -16,6 +16,12 @@ The zip is fine — the VM is missing the Microsoft C++ runtime Flutter needs.
 
 You only need this once per machine. Many full Windows installs already have it; clean VMs often do not.
 
+## Windows: env toast takes ~1–2 minutes / APIs time out
+
+Usually the sidecar stalled after open (indexing used to spawn a process pool that hangs under the packaged Windows exe). Fixed in current builds — re-download the Windows zip from **Package Desktop**.
+
+Until then: quit and reopen Robot Studio; create the environment from **Manage Environments** if the toast is late. Logs: `%USERPROFILE%\.robot-studio\logs\`.
+
 ## Windows: Could not detect Python / Python is not installed
 
 Robot Studio still needs a **host Python 3** to create project environments (the app’s bundled backend is not a replacement).

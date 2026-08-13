@@ -519,3 +519,19 @@ async def test_parallel_rebuild_cancel_is_safe(index_stack, monkeypatch) -> None
     # A fresh rebuild after cancel must still complete.
     status = await service.rebuild()
     assert status.state == "ready"
+
+
+def test_use_process_pool_disabled_when_frozen(monkeypatch) -> None:
+    from robot_studio.application.services import index_service as mod
+
+    monkeypatch.setattr(mod.sys, "platform", "linux", raising=False)
+    monkeypatch.setattr(mod.sys, "frozen", True, raising=False)
+    assert mod._use_process_pool(20, 2) is False
+
+    monkeypatch.setattr(mod.sys, "frozen", False, raising=False)
+    monkeypatch.setattr(mod.sys, "platform", "win32", raising=False)
+    assert mod._use_process_pool(20, 2) is False
+
+    monkeypatch.setattr(mod.sys, "platform", "darwin", raising=False)
+    assert mod._use_process_pool(20, 2) is True
+    assert mod._use_process_pool(1, 2) is False

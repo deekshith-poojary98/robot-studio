@@ -69,6 +69,10 @@ def _is_frozen() -> bool:
 
 
 def main() -> None:
+    # Required for ProcessPool / spawn under the frozen Windows sidecar.
+    import multiprocessing
+
+    multiprocessing.freeze_support()
     # File logging before uvicorn so access/error lines land on disk too.
     configure_logging(settings.data_dir)
     # Pass the app object when frozen so PyInstaller does not need the

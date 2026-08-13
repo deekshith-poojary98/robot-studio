@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import tempfile
 from datetime import UTC
 from pathlib import Path
@@ -320,9 +321,10 @@ class EnvironmentService:
             )
         return count
 
-    def list_python_interpreters(self) -> list[DiscoveredInterpreter]:
+    async def list_python_interpreters(self) -> list[DiscoveredInterpreter]:
         """Discover host Python interpreters (does not require an open workspace)."""
-        return self._python.discover_interpreters()
+        # Subprocess probes must not block the asyncio loop (Windows Store / PATH).
+        return await asyncio.to_thread(self._python.discover_interpreters)
 
     async def detect_candidate_environments(self) -> list[dict[str, str]]:
         """Find unused local venvs under the active project/workspace root."""
@@ -604,7 +606,7 @@ class EnvironmentService:
                 python = self._python.resolve_executables(environment.path).python
             except EnvironmentValidationError:
                 return environment.model_copy(update={"available": False})
-        info = self._python.inspect(python)
+        info = await asyncio.to_thread(self._python.inspect, python)
         robot_exe = environment.robot_executable
         if info.robot_version and (robot_exe is None or not Path(robot_exe).is_file()):
             try:

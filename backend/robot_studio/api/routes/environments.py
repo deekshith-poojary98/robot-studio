@@ -62,7 +62,7 @@ async def list_environments(
 async def list_python_interpreters(
     gateway: RestGateway = Depends(get_gateway),
 ) -> PythonInterpreterListResponse:
-    interpreters = gateway.list_python_interpreters()
+    interpreters = await gateway.list_python_interpreters()
     return PythonInterpreterListResponse(
         interpreters=[
             PythonInterpreterResponse(

@@ -589,7 +589,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _workspace.loadingEnvironments = false;
         _appendLog('[warn] Could not load environments: $error');
       });
-      await _loadRunConfigurations();
+      // Don't await — a hung run-config request must not delay the env toast.
+      unawaited(_loadRunConfigurations());
     }
   }
 
@@ -2004,7 +2005,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     unawaited(_editor.loadFileTree());
     unawaited(_loadGitStatus());
     unawaited(() async {
-      await _loadEnvironments();
+      // Env list can hang on a stuck sidecar; don't wait the full HTTP timeout
+      // before offering Create Environment.
+      try {
+        await _loadEnvironments().timeout(const Duration(seconds: 8));
+      } catch (error) {
+        if (mounted && _environments.isEmpty) {
+          _appendLog('[warn] Environment load timed out: $error');
+        }
+      }
       if (!mounted || _environments.isNotEmpty) return;
       await _showEnvironmentPrompt(detectedEnvironments);
     }());

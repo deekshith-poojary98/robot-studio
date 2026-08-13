@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -42,6 +43,17 @@ _MAX_INDEX_WORKERS = 8
 
 def _index_worker_count() -> int:
     return min(_MAX_INDEX_WORKERS, max(2, os.cpu_count() or 4))
+
+
+def _use_process_pool(file_count: int, workers: int) -> bool:
+    """Process pools break under PyInstaller on Windows (spawn re-enters the frozen exe)."""
+    if file_count < workers:
+        return False
+    if getattr(sys, "frozen", False):
+        return False
+    if sys.platform == "win32":
+        return False
+    return True
 
 
 class IndexValidationError(Exception):
@@ -415,7 +427,9 @@ class IndexService:
 
         workers = _index_worker_count()
         # Small trees: avoid process-pool startup cost.
-        use_pool = len(to_parse) >= workers
+        # Frozen / Windows: never ProcessPoolExecutor — spawn re-runs the
+        # packaged sidecar and stalls the asyncio loop (HTTP timeouts).
+        use_pool = _use_process_pool(len(to_parse), workers)
 
         loop = asyncio.get_running_loop()
         pool: ProcessPoolExecutor | None = None

@@ -373,8 +373,8 @@ class RestGateway:
     async def list_environments(self, sort: str = "active") -> list[Environment]:
         return await self._environment_service.list_environments(sort=sort)
 
-    def list_python_interpreters(self):
-        return self._environment_service.list_python_interpreters()
+    async def list_python_interpreters(self):
+        return await self._environment_service.list_python_interpreters()
 
     async def create_environment(
         self,
