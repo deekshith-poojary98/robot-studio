@@ -24,10 +24,9 @@ abstract final class PythonInstallGuidance {
           'Robot Studio, then create an environment.';
     }
     if (_windows) {
-      return 'Install Python 3 from https://www.python.org/downloads/ '
-          '(check “Add python.exe to PATH”), restart Robot Studio, then '
-          'create an environment. Microsoft Store Python works only if App '
-          'execution aliases for python.exe are enabled.';
+      return 'Install a real Python 3 runtime (App execution aliases alone are '
+          'not enough): run “py install 3” in Command Prompt, or install from '
+          'python.org with “Add python.exe to PATH”, then restart Robot Studio.';
     }
     return 'Install Python 3 with your package manager (e.g. sudo apt install '
         'python3), restart Robot Studio, then create an environment.';
@@ -44,14 +43,16 @@ abstract final class PythonInstallGuidance {
           'Manage Environments.';
     }
     if (_windows) {
-      return 'Robot Studio could not find Python 3 on this PC.\n\n'
-          'Recommended: install from https://www.python.org/downloads/ and '
-          'check “Add python.exe to PATH”, then restart Robot Studio.\n\n'
-          'Microsoft Store Python: open Settings → Apps → Advanced app '
-          'settings → App execution aliases, and turn on python.exe / '
-          'python3.exe. Then restart Robot Studio.\n\n'
-          'When Python is available, create an environment from the toast or '
-          'Manage Environments.';
+      return 'Robot Studio could not find a usable Python 3 runtime on this PC.\n\n'
+          'Turning on App execution aliases only enables the Python install '
+          'manager stubs — you still need an installed runtime.\n\n'
+          'Do one of these, then restart Robot Studio:\n\n'
+          '1. Open Command Prompt and run:\n'
+          '   py install 3\n\n'
+          '2. Or install from https://www.python.org/downloads/ and check '
+          '“Add python.exe to PATH”.\n\n'
+          'Then create an environment from the toast or Manage Environments. '
+          'You can also Browse to python.exe in Create Environment.';
     }
     return 'Robot Studio could not find Python 3 on this machine.\n\n'
         'Install it, then restart Robot Studio:\n\n'
@@ -69,9 +70,9 @@ abstract final class PythonInstallGuidance {
           'python.org), tap Refresh, or Browse to an interpreter.';
     }
     if (_windows) {
-      return 'No Python found. Install from python.org (Add to PATH), enable '
-          'Store python.exe aliases if you use the Store, tap Refresh, or '
-          'Browse to python.exe.';
+      return 'No Python runtime found. Aliases alone are not enough — run '
+          '“py install 3” or install from python.org (Add to PATH), tap '
+          'Refresh, or Browse to python.exe.';
     }
     return 'No Python found. Install python3 (and python3-venv), tap Refresh, '
         'or Browse to an interpreter.';

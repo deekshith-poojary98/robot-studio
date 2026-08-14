@@ -18,17 +18,21 @@ You only need this once per machine. Many full Windows installs already have it;
 
 ## Windows: env toast takes ~1–2 minutes / APIs time out
 
-Usually the sidecar stalled after open (indexing used to spawn a process pool that hangs under the packaged Windows exe). Fixed in current builds — re-download the Windows zip from **Package Desktop**.
+Usually the sidecar stalled after open, or interpreter discovery hung on Microsoft Store **python.exe aliases**. Current builds fix both — re-run **Actions → Package Desktop** and use a fresh Windows zip.
 
-Until then: quit and reopen Robot Studio; create the environment from **Manage Environments** if the toast is late. Logs: `%USERPROFILE%\.robot-studio\logs\`.
+**Still says “Python is not installed” with Store / aliases:** App execution aliases only enable install-manager stubs. Install a runtime with `py install 3` (or python.org + Add to PATH), confirm `py list`, restart Robot Studio.
 
 ## Windows: Could not detect Python / Python is not installed
 
-Robot Studio still needs a **host Python 3** to create project environments (the app’s bundled backend is not a replacement).
+Robot Studio needs a **real Python 3 runtime** to create project environments. Enabling **App execution aliases** only turns on the install-manager stubs (`python.exe` / `py.exe` shortcuts) — that is **not** the same as having Python installed.
 
-1. Prefer [python.org](https://www.python.org/downloads/) and check **Add python.exe to PATH**, then **restart Robot Studio**.
-2. If you use **Microsoft Store** Python: Settings → Apps → Advanced app settings → **App execution aliases** → turn on `python.exe` / `python3.exe`, then restart Robot Studio.
-3. Or use **Select Existing…** / **Browse** and pick `python.exe` yourself.
+1. In Command Prompt on the VM run: `py install 3`  
+   **or** install from [python.org](https://www.python.org/downloads/) with **Add python.exe to PATH**
+2. Confirm with `py list` or `where python` (should show a real path, not only WindowsApps stubs)
+3. Restart Robot Studio
+4. Or in Create Environment use **Browse…** and pick `python.exe` yourself
+
+Logs: `%USERPROFILE%\.robot-studio\logs\` (`frontend-*.log` / `backend-*.log`).
 
 ## Status bar says BACKEND UNAVAILABLE
 

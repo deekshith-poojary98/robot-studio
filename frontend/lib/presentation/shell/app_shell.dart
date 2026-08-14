@@ -2004,16 +2004,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     unawaited(_loadIndexStatus());
     unawaited(_editor.loadFileTree());
     unawaited(_loadGitStatus());
+    unawaited(_loadEnvironments());
+    // Env toast immediately — never wait on hung /environments or Store stubs.
     unawaited(() async {
-      // Env list can hang on a stuck sidecar; don't wait the full HTTP timeout
-      // before offering Create Environment.
-      try {
-        await _loadEnvironments().timeout(const Duration(seconds: 8));
-      } catch (error) {
-        if (mounted && _environments.isEmpty) {
-          _appendLog('[warn] Environment load timed out: $error');
-        }
-      }
       if (!mounted || _environments.isNotEmpty) return;
       await _showEnvironmentPrompt(detectedEnvironments);
     }());
@@ -2107,29 +2100,32 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
 
     // Probe host Python before offering Create — otherwise users hit a dead end
-    // on machines with no interpreter installed.
+    // on machines with no interpreter installed. Keep a hard timeout so Store
+    // alias hangs cannot delay the toast.
     late final bool hasPython;
     try {
-      final interpreters = await _gateway.listPythonInterpreters();
+      final interpreters = await _gateway.listPythonInterpreters().timeout(
+        const Duration(seconds: 4),
+      );
       hasPython = interpreters.isNotEmpty;
     } catch (_) {
-      // Discovery failed (offline, 5xx, …) — do not pretend Python exists.
+      // Discovery failed / timed out — still offer create + install, no backend talk.
       if (!mounted) return;
       setState(() {
-        _envPromptTitle = 'Could not detect Python';
+        _envPromptTitle = 'Python environment required';
         _envPromptMessage =
-            'Robot Studio could not find a usable Python 3 interpreter. '
-            'Install Python 3, restart Robot Studio, then create an '
-            'environment.';
+            'Select an existing environment or create one. If Create fails, '
+            'install Python 3 from python.org (Add to PATH) and restart '
+            'Robot Studio.';
         _envPromptActions = [
           EnvironmentPromptAction(
-            label: 'How to Install',
+            label: 'Create Environment',
             primary: true,
-            onPressed: () => unawaited(_showNoPythonInstallGuide()),
+            onPressed: () => unawaited(_createDefaultEnvironmentInBackground()),
           ),
           EnvironmentPromptAction(
-            label: 'Create Environment',
-            onPressed: () => unawaited(_createDefaultEnvironmentInBackground()),
+            label: 'How to Install',
+            onPressed: () => unawaited(_showNoPythonInstallGuide()),
           ),
           EnvironmentPromptAction(
             label: 'Select Existing…',

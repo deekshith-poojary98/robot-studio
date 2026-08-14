@@ -12,7 +12,7 @@ from robot_studio.api.router import api_router
 from robot_studio.core.config import settings
 from robot_studio.core.container import container
 from robot_studio.core.database import init_database
-from robot_studio.core.logging_setup import configure_logging
+from robot_studio.core.logging_setup import configure_logging, ensure_file_logging
 
 
 def _ensure_process_cwd() -> None:
@@ -35,7 +35,8 @@ def _ensure_process_cwd() -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     _ensure_process_cwd()
-    configure_logging(settings.data_dir)
+    # Uvicorn may reconfigure logging after import-time setup — re-attach file log.
+    ensure_file_logging(settings.data_dir)
     await container.initialize_async()
     await init_database()
     yield
