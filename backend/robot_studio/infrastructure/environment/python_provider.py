@@ -239,15 +239,13 @@ def _py_launcher_paths(env: dict[str, str]) -> list[Path]:
     bin_dir = python_root / "bin"
     if bin_dir.is_dir():
         try:
-            for match in bin_dir.glob("python*.exe"):
-                found.append(match)
+            found.extend(bin_dir.glob("python*.exe"))
         except OSError:
             pass
     # PyManager runtime roots: ...\Python\pythoncore-3.14-64\python.exe
     if python_root.is_dir():
         try:
-            for match in python_root.glob("pythoncore-*/python.exe"):
-                found.append(match)
+            found.extend(python_root.glob("pythoncore-*/python.exe"))
         except OSError:
             pass
 
@@ -358,7 +356,7 @@ class PythonEnvironmentProvider:
                     upgrade_deps=False,
                 )
                 builder.create(target_dir)
-            except Exception as exc:  # noqa: BLE001 — surface to API layer
+            except Exception as exc:
                 raise EnvironmentValidationError(
                     f"Failed to create virtual environment: {exc}",
                 ) from exc
@@ -408,8 +406,10 @@ class PythonEnvironmentProvider:
             [
                 str(python_executable),
                 "-c",
-                "import sys; v = sys.version_info; "
-                "print(f'{v.major}.{v.minor}.{v.micro}')",
+                (
+                    "import sys; v = sys.version_info; "
+                    "print(f'{v.major}.{v.minor}.{v.micro}')"
+                ),
             ],
             error_prefix="Failed to read Python version",
         )
@@ -459,8 +459,10 @@ class PythonEnvironmentProvider:
             [
                 str(python_executable),
                 "-c",
-                "import platform, sys; "
-                "print(sys.platform); print(platform.machine())",
+                (
+                    "import platform, sys; "
+                    "print(sys.platform); print(platform.machine())"
+                ),
             ],
             capture_output=True,
             text=True,
@@ -722,9 +724,11 @@ class PythonEnvironmentProvider:
                 [
                     str(python_executable),
                     "-c",
-                    "import sys; "
-                    "print(f'{sys.version_info.major}."
-                    "{sys.version_info.minor}.{sys.version_info.micro}')",
+                    (
+                        "import sys; "
+                        "print(f'{sys.version_info.major}."
+                        "{sys.version_info.minor}.{sys.version_info.micro}')"
+                    ),
                 ],
                 capture_output=True,
                 text=True,
