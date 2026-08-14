@@ -235,10 +235,18 @@ def _py_launcher_paths(env: dict[str, str]) -> list[Path]:
                     break
 
     # Managed aliases after ``py install`` (optional PATH dir).
-    bin_dir = Path(local) / "Python" / "bin"
+    python_root = Path(local) / "Python"
+    bin_dir = python_root / "bin"
     if bin_dir.is_dir():
         try:
             for match in bin_dir.glob("python*.exe"):
+                found.append(match)
+        except OSError:
+            pass
+    # PyManager runtime roots: ...\Python\pythoncore-3.14-64\python.exe
+    if python_root.is_dir():
+        try:
+            for match in python_root.glob("pythoncore-*/python.exe"):
                 found.append(match)
         except OSError:
             pass
@@ -615,13 +623,17 @@ class PythonEnvironmentProvider:
                 Path(r"C:\Python312"),
                 Path(r"C:\Python313"),
                 local_app / "Programs" / "Python",
+                local_app / "Python",
             ):
                 if not directory.is_dir():
                     continue
                 try:
                     for match in directory.glob("Python*/python.exe"):
                         add(match)
+                    for match in directory.glob("pythoncore-*/python.exe"):
+                        add(match)
                     add(directory / "python.exe")
+                    add(directory / "bin" / "python.exe")
                 except OSError:
                     continue
         else:
