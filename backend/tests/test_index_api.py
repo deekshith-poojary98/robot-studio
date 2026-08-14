@@ -126,7 +126,13 @@ async def test_health_unchanged_with_index_routes(api_client) -> None:
 
 @pytest.mark.asyncio
 async def test_index_rebuild_returns_immediately_by_default(api_client) -> None:
-    """UI rebuild must not block on large projects (HTTP 15s timeout)."""
+    """UI rebuild must not block on large projects (HTTP 15s timeout).
+
+    Tiny workspaces may finish before the response is serialized, so ``state``
+    can already be ``ready`` — that still means the handler did not wait.
+    """
+    import time
+
     client, fresh, tmp_path = api_client
     location = tmp_path / "homes"
     location.mkdir()
@@ -138,12 +144,15 @@ async def test_index_rebuild_returns_immediately_by_default(api_client) -> None:
     project = await client.post("/api/v1/projects", json={"name": "Demo"})
     assert project.status_code == 201
 
+    started_at = time.perf_counter()
     started = await client.post("/api/v1/index/rebuild")
+    elapsed = time.perf_counter() - started_at
     assert started.status_code == 200
-    assert started.json()["state"] == "indexing"
+    assert elapsed < 2.0
+    assert started.json()["state"] in {"indexing", "ready"}
 
     task = fresh.index_service._rebuild_task  # noqa: SLF001
-    assert task is not None
-    await task
+    if task is not None and not task.done():
+        await task
     ready = await client.get("/api/v1/index/status")
     assert ready.json()["state"] == "ready"
