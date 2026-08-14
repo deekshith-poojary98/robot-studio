@@ -48,6 +48,12 @@ async def _open_workspace(client: AsyncClient, tmp_path: Path) -> Path:
     return Path(response.json()["path"])
 
 
+async def _wait_index_idle(client: AsyncClient) -> None:
+    """Drain the open-triggered background rebuild before manual upserts."""
+    rebuilt = await client.post("/api/v1/index/rebuild?wait=true")
+    assert rebuilt.status_code == 200, rebuilt.text
+
+
 @pytest.mark.asyncio
 async def test_insights_requires_workspace(api_client) -> None:
     client, _fresh, _tmp = api_client
@@ -64,10 +70,7 @@ async def test_insights_composition_and_run_aggregates(api_client) -> None:
     assert fresh.index_store is not None
     assert fresh.execution_repository is not None
 
-    # Wait out the open-triggered background rebuild so it cannot wipe the
-    # manual upserts below (common on slower Windows VMs).
-    rebuilt = await client.post("/api/v1/index/rebuild?wait=true")
-    assert rebuilt.status_code == 200, rebuilt.text
+    await _wait_index_idle(client)
 
     suite = str(tmp_path / "homes" / "demo.robot")
     await fresh.index_store.upsert_symbols(
@@ -159,6 +162,9 @@ async def test_insights_skips_project_run_labels(api_client) -> None:
     workspace = fresh.workspace_context.workspace
     assert workspace is not None
     assert fresh.execution_repository is not None
+    assert fresh.index_store is not None
+
+    await _wait_index_idle(client)
 
     suite = str(tmp_path / "homes" / "demo.robot")
     await fresh.index_store.upsert_symbols(
