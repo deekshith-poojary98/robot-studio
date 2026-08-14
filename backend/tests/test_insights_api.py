@@ -64,6 +64,11 @@ async def test_insights_composition_and_run_aggregates(api_client) -> None:
     assert fresh.index_store is not None
     assert fresh.execution_repository is not None
 
+    # Wait out the open-triggered background rebuild so it cannot wipe the
+    # manual upserts below (common on slower Windows VMs).
+    rebuilt = await client.post("/api/v1/index/rebuild?wait=true")
+    assert rebuilt.status_code == 200, rebuilt.text
+
     suite = str(tmp_path / "homes" / "demo.robot")
     await fresh.index_store.upsert_symbols(
         [

@@ -95,9 +95,12 @@ async def test_case_only_rename(file_stack) -> None:
     folder.mkdir()
     (folder / "marker.txt").write_text("ok", encoding="utf-8")
 
+    # Capture before rename: after a case-only rename, Windows resolve() on the
+    # old Path object may report the *new* on-disk spelling.
+    old_resolved = str(folder.resolve())
     renamed = await service.rename_path(str(folder), "Libs")
     assert Path(renamed["path"]).name == "Libs"
-    assert renamed["old_path"] == str(folder.resolve())
+    assert renamed["old_path"] == old_resolved
     assert (Path(renamed["path"]) / "marker.txt").read_text(encoding="utf-8") == "ok"
 
     # Directory listing should show the new spelling when the FS stores it.

@@ -234,6 +234,10 @@ async def test_delete_protection(services) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows refuses to delete a directory that is the process cwd",
+)
 async def test_install_robot_survives_deleted_process_cwd(services) -> None:
     """Pip calls os.getcwd(); a deleted backend cwd must not break install.
 

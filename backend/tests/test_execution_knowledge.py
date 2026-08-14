@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 import textwrap
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,7 +24,24 @@ from robot_studio.infrastructure.execution.execution_trace import (
 )
 from robot_studio.main import create_app
 
-ROBOT_BIN = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "robot"
+
+def _robot_bin() -> Path:
+    """Resolve the venv Robot CLI on Unix (bin/) and Windows (Scripts/)."""
+    root = Path(__file__).resolve().parents[1] / ".venv"
+    if sys.platform == "win32":
+        candidates = (
+            root / "Scripts" / "robot.exe",
+            root / "Scripts" / "robot",
+        )
+    else:
+        candidates = (root / "bin" / "robot",)
+    for path in candidates:
+        if path.is_file():
+            return path
+    return candidates[0]
+
+
+ROBOT_BIN = _robot_bin()
 
 
 def _write_suite(project_path: Path) -> Path:
