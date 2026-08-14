@@ -22,6 +22,7 @@ from robot_studio.domain.models.git import (
     GitRepositoryInfo,
     GitStatus,
 )
+from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
 
 
 class GitCommandError(Exception):
@@ -475,14 +476,20 @@ class CliGitProvider(GitProvider):
                 cwd=str(cwd),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                **windows_no_window_kwargs(),
             )
         except OSError as exc:
             raise GitCommandError(f"Failed to start git: {exc}") from exc
 
+        # Status/detect should fail fast; push/pull/fetch keep a longer budget.
+        timeout = self._timeout
+        if args and args[0] in {"status", "rev-parse", "diff", "log", "branch", "config"}:
+            timeout = min(timeout, 15.0)
+
         try:
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(),
-                timeout=self._timeout,
+                timeout=timeout,
             )
         except TimeoutError as exc:
             process.kill()

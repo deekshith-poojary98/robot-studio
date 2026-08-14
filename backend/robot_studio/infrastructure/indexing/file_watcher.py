@@ -125,11 +125,16 @@ class NativeFileWatcher(FileWatcher):
         observer = Observer()
         handler = _Handler(self)
         self._handler = handler
-        for root in list(self._roots):
-            if root.exists():
+        roots = [root for root in list(self._roots) if root.exists()]
+
+        def _attach() -> None:
+            for root in roots:
                 observer.schedule(handler, str(root), recursive=True)
-        observer.daemon = True  # type: ignore[attr-defined]
-        observer.start()
+            observer.daemon = True  # type: ignore[attr-defined]
+            observer.start()
+
+        # recursive schedule walks the tree synchronously — don't block the loop.
+        await asyncio.to_thread(_attach)
         self._observer = observer
 
     async def stop(self) -> None:

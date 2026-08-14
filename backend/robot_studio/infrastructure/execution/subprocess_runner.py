@@ -15,6 +15,7 @@ from uuid import UUID, uuid4
 
 from robot_studio.domain.interfaces.runner import Runner
 from robot_studio.domain.models import ExecutionStatus
+from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
 
 
 class RunnerError(Exception):
@@ -129,6 +130,7 @@ class SubprocessRunner(Runner):
                 stderr=asyncio.subprocess.PIPE,
                 start_new_session=sys.platform != "win32",
                 env=env,
+                **windows_no_window_kwargs(),
             )
         except OSError as exc:
             raise RunnerError(f"Failed to start robot: {exc}") from exc
@@ -282,6 +284,7 @@ class SubprocessRunner(Runner):
                 "/F",
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
+                **windows_no_window_kwargs(),
             )
             return
         try:

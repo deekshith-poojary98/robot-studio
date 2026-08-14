@@ -41,6 +41,7 @@ from robot_studio.infrastructure.repositories.environment_repository import (
 from robot_studio.infrastructure.repositories.execution_repository import (
     SqliteExecutionRepository,
 )
+from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
 from robot_studio.infrastructure.workspace.filesystem import studio_reports_root
 
 
@@ -221,6 +222,7 @@ class ExecutionService:
                 "import robot; print(getattr(robot, '__version__', 'ok'))",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                **windows_no_window_kwargs(),
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
         except (OSError, asyncio.TimeoutError) as exc:

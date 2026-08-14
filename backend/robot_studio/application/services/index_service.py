@@ -278,6 +278,9 @@ class IndexService:
             except Exception as exc:  # noqa: BLE001
                 self._errors.append(f"file watcher: {exc}")
 
+            # Yield so open-path HTTP handlers (envs / git / interpreters) can run.
+            await asyncio.sleep(0)
+
             if full:
                 await self.store.invalidate(IndexScope.WORKSPACE, str(workspace_id))
             indexed_paths: set[str] = set()

@@ -12,6 +12,7 @@ from typing import Any
 from robot_studio.infrastructure.environment.python_provider import (
     PythonEnvironmentProvider,
 )
+from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
 
 
 class RobotParsingError(Exception):
@@ -70,6 +71,7 @@ class RobotParsingBridge:
                 text=True,
                 check=False,
                 timeout=30,
+                **windows_no_window_kwargs(),
             )
         except subprocess.TimeoutExpired as exc:
             raise RobotParsingError("Robot parsing timed out") from exc

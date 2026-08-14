@@ -18,9 +18,9 @@ You only need this once per machine. Many full Windows installs already have it;
 
 ## Windows: env toast takes ~1–2 minutes / APIs time out
 
-Usually the sidecar stalled after open, or interpreter discovery hung on Microsoft Store **python.exe aliases**. Current builds fix both — re-run **Actions → Package Desktop** and use a fresh Windows zip.
+Usually the sidecar stalled after open: console subprocesses (`git`, etc.) spawned without `CREATE_NO_WINDOW` from the packaged GUI app can freeze the asyncio loop. Fixed in current builds — re-run **Actions → Package Desktop**.
 
-**Still says “Python is not installed” with Store / aliases:** App execution aliases only enable install-manager stubs. Install a runtime with `py install 3` (or python.org + Add to PATH), confirm `py list`, restart Robot Studio.
+**Still says “Python is not installed” with Store / aliases:** App execution aliases only enable install-manager stubs. Install a runtime with `py install 3` (or python.org + Add to PATH), add `%LOCALAPPDATA%\Python\bin` to PATH if prompted, confirm `py list`, restart Robot Studio.
 
 ## Windows: Could not detect Python / Python is not installed
 

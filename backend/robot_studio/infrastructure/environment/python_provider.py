@@ -59,10 +59,9 @@ def _is_bundled_sidecar(path: Path) -> bool:
 
 def _windows_no_window_kwargs() -> dict:
     """Avoid flashing consoles / hanging UI when probing from the sidecar."""
-    if sys.platform != "win32":
-        return {}
-    # CREATE_NO_WINDOW = 0x08000000
-    return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)}
+    from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
+
+    return windows_no_window_kwargs()
 
 
 def _is_windows_apps_alias(path: Path) -> bool:
@@ -368,6 +367,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(target_dir.parent),
+            **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "venv creation failed").strip()
@@ -431,6 +431,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python_executable.parent),
+            **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
             return None
@@ -444,6 +445,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python_executable.parent),
+            **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
             return 0
@@ -468,6 +470,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python_executable.parent),
+            **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
             return platform.system().lower(), platform.machine()
@@ -497,6 +500,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(preferred),
+            **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "pip install failed").strip()
@@ -511,6 +515,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python_executable.parent),
+            **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "pip freeze failed").strip()
@@ -542,6 +547,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python_executable.resolve().parent.parent),
+            **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "pip install -r failed").strip()
@@ -755,6 +761,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(),
+            **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "command failed").strip()

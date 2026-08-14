@@ -14,6 +14,7 @@ from robot_studio.domain.models import InstalledPackage
 from robot_studio.infrastructure.environment.python_provider import (
     stable_subprocess_cwd,
 )
+from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
 
 _METADATA_SCRIPT = r"""
 import json
@@ -223,6 +224,7 @@ class PipInstaller(Installer):
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python.resolve().parent.parent),
+            **windows_no_window_kwargs(),
         )
         logs = self._merge_logs(result.stdout, result.stderr)
         if result.returncode != 0:
@@ -237,6 +239,7 @@ class PipInstaller(Installer):
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python.resolve().parent.parent),
+            **windows_no_window_kwargs(),
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "pip freeze failed").strip()
@@ -260,6 +263,7 @@ class PipInstaller(Installer):
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python.resolve().parent.parent),
+            **windows_no_window_kwargs(),
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "command failed").strip()
