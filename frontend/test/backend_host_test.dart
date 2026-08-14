@@ -4,13 +4,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:robot_studio/core/backend_host.dart';
 
 void main() {
-  test('resolveSidecarPath finds MacOS sibling binary', () {
+  test('resolveSidecarPath finds sibling binary next to the app', () {
     final dir = Directory.systemTemp.createTempSync('rs-sidecar-');
     addTearDown(() => dir.deleteSync(recursive: true));
-    final fakeApp = File('${dir.path}/RobotStudio');
-    fakeApp.writeAsStringSync('');
-    final sidecar = File('${dir.path}/robot-studio-backend');
-    sidecar.writeAsStringSync('');
+    final sep = Platform.pathSeparator;
+    final appName = Platform.isWindows ? 'RobotStudio.exe' : 'RobotStudio';
+    final sidecarName = Platform.isWindows
+        ? 'robot-studio-backend.exe'
+        : 'robot-studio-backend';
+    final fakeApp = File('${dir.path}$sep$appName')..writeAsStringSync('');
+    final sidecar = File('${dir.path}$sep$sidecarName')..writeAsStringSync('');
 
     final found = BackendHost.resolveSidecarPath(
       resolvedExecutable: fakeApp.path,

@@ -8,6 +8,21 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(900, 700));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
+    // Starts collapsed; reveal token only applies when it *changes*.
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              Expanded(child: SizedBox()),
+              BottomPanel(),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(

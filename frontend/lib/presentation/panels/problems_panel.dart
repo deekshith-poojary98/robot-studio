@@ -38,27 +38,32 @@ class ProblemsPanel extends StatelessWidget {
           Divider(height: 1, color: context.palette.borderSubtle),
       itemBuilder: (context, index) {
         final item = diagnostics[index];
-        return ListTile(
-          key: Key('problem-${item.filePath}-${item.line}-$index'),
-          dense: true,
-          leading: Icon(
-            _iconFor(item.severity),
-            size: 16,
-            color: _colorFor(context.palette, item.severity),
+        // Own Material so ink/splash aren't painted under BottomPanel's
+        // DecoratedBox background (asserted on newer Flutter / Windows).
+        return Material(
+          type: MaterialType.transparency,
+          child: ListTile(
+            key: Key('problem-${item.filePath}-${item.line}-$index'),
+            dense: true,
+            leading: Icon(
+              _iconFor(item.severity),
+              size: 16,
+              color: _colorFor(context.palette, item.severity),
+            ),
+            title: Text(
+              item.message,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12),
+            ),
+            subtitle: Text(
+              '${item.locationLabel} · ${item.sourceLabel}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            onTap: () => onSelect(item),
           ),
-          title: Text(
-            item.message,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12),
-          ),
-          subtitle: Text(
-            '${item.locationLabel} · ${item.sourceLabel}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          onTap: () => onSelect(item),
         );
       },
     );

@@ -38,13 +38,14 @@ void main() {
 
   test('purgeOldLogs deletes files older than seven days', () async {
     final today = DateTime(2026, 8, 6);
-    final keep = File('${tempLogs.path}/frontend-2026-08-06.log')
+    final sep = Platform.pathSeparator;
+    final keep = File('${tempLogs.path}${sep}frontend-2026-08-06.log')
       ..writeAsStringSync('keep\n');
-    final mid = File('${tempLogs.path}/backend-2026-08-03.log')
+    final mid = File('${tempLogs.path}${sep}backend-2026-08-03.log')
       ..writeAsStringSync('mid\n');
-    final stale = File('${tempLogs.path}/frontend-2026-07-29.log')
+    final stale = File('${tempLogs.path}${sep}frontend-2026-07-29.log')
       ..writeAsStringSync('stale\n');
-    final notes = File('${tempLogs.path}/notes.txt')
+    final notes = File('${tempLogs.path}${sep}notes.txt')
       ..writeAsStringSync('leave\n');
 
     final deleted = AppLogger.purgeOldLogs(
