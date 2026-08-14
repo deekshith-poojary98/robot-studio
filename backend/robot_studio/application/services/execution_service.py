@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import subprocess
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -53,6 +54,22 @@ _ROBOT_MISSING_MARKERS = (
     "no module named robot",
     "no module named 'robot'",
 )
+
+
+def _probe_robot_version(python: Path) -> subprocess.CompletedProcess[str]:
+    """Import-check Robot off the asyncio thread (Windows CreateProcess safety)."""
+    return subprocess.run(
+        [
+            str(python),
+            "-c",
+            "import robot; print(getattr(robot, '__version__', 'ok'))",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=15,
+        **windows_no_window_kwargs(),
+    )
 
 
 def robot_is_missing(output: list[str]) -> bool:
@@ -216,22 +233,17 @@ class ExecutionService:
                 code="environment_missing",
             )
         try:
-            proc = await asyncio.create_subprocess_exec(
-                str(python),
-                "-c",
-                "import robot; print(getattr(robot, '__version__', 'ok'))",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                **windows_no_window_kwargs(),
+            result = await asyncio.to_thread(
+                _probe_robot_version,
+                python,
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
-        except (OSError, asyncio.TimeoutError) as exc:
+        except (OSError, subprocess.TimeoutExpired) as exc:
             raise ExecutionValidationError(
                 "Could not verify Robot Framework in the active environment.",
                 code="robot_missing",
             ) from exc
-        if proc.returncode != 0:
-            detail = (stderr or stdout or b"").decode("utf-8", errors="replace").strip()
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
             raise ExecutionValidationError(
                 "Robot Framework is not installed in the active environment. "
                 "Install Robot Framework before running tests."

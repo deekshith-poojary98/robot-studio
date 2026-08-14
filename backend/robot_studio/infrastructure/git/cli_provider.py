@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import shutil
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -23,6 +25,8 @@ from robot_studio.domain.models.git import (
     GitStatus,
 )
 from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
+
+logger = logging.getLogger(__name__)
 
 
 class GitCommandError(Exception):
@@ -469,38 +473,68 @@ class CliGitProvider(GitProvider):
         await self._run_text(args, cwd=cwd)
 
     async def _run_text(self, args: list[str], *, cwd: Path) -> str:
-        command = ["git", *args]
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                cwd=str(cwd),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                **windows_no_window_kwargs(),
-            )
-        except OSError as exc:
-            raise GitCommandError(f"Failed to start git: {exc}") from exc
+        """Run git off the asyncio thread.
 
-        # Status/detect should fail fast; push/pull/fetch keep a longer budget.
+        On Windows packaged apps, ``CreateProcess`` for console tools can block
+        the calling thread for a long time. Doing that on the event loop freezes
+        every HTTP handler (interpreters, reports, health). Always use a worker
+        thread + ``subprocess.run``.
+        """
+        if shutil.which("git") is None:
+            raise GitCommandError(
+                "Git is not installed or not on PATH. Install Git for Windows "
+                "to use Source Control.",
+            )
+
         timeout = self._timeout
-        if args and args[0] in {"status", "rev-parse", "diff", "log", "branch", "config"}:
+        if args and args[0] in {
+            "status",
+            "rev-parse",
+            "diff",
+            "log",
+            "branch",
+            "config",
+            "remote",
+            "show",
+        }:
             timeout = min(timeout, 15.0)
 
         try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=timeout,
+            return await asyncio.to_thread(
+                self._run_text_sync,
+                list(args),
+                Path(cwd),
+                timeout,
             )
-        except TimeoutError as exc:
-            process.kill()
-            await process.wait()
+        except subprocess.TimeoutExpired as exc:
             raise GitCommandError("Git command timed out") from exc
 
-        if process.returncode != 0:
-            detail = (stderr or stdout or b"").decode("utf-8", errors="replace").strip()
+    @staticmethod
+    def _run_text_sync(args: list[str], cwd: Path, timeout: float) -> str:
+        command = ["git", *args]
+        try:
+            result = subprocess.run(
+                command,
+                cwd=str(cwd),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout,
+                **windows_no_window_kwargs(),
+            )
+        except FileNotFoundError as exc:
+            raise GitCommandError(
+                "Git is not installed or not on PATH. Install Git for Windows "
+                "to use Source Control.",
+            ) from exc
+        except OSError as exc:
+            raise GitCommandError(f"Failed to start git: {exc}") from exc
+
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
             raise GitCommandError(detail or f"git {' '.join(args)} failed")
 
-        return (stdout or b"").decode("utf-8", errors="replace")
+        return result.stdout or ""
 
 
 def _parse_porcelain(raw: str) -> list[GitFileChange]:
