@@ -23,8 +23,14 @@ void main() {
     expect(map.values.whereType<FormatDocumentIntent>(), isNotEmpty);
     expect(map.values.whereType<ShowProblemsIntent>(), isNotEmpty);
 
-    // Never bind a bare letter key (would steal typing).
+    // Never bind a bare letter key (would steal typing). Function keys (F5)
+    // and similar are allowed without a modifier.
     for (final activator in map.keys.whereType<SingleActivator>()) {
+      final key = activator.trigger;
+      final isFunctionKey =
+          key.keyId >= LogicalKeyboardKey.f1.keyId &&
+          key.keyId <= LogicalKeyboardKey.f12.keyId;
+      if (isFunctionKey) continue;
       final needsMod =
           activator.meta ||
           activator.control ||
@@ -38,12 +44,32 @@ void main() {
     }
   });
 
-  test('flutter Shortcuts only keep Ctrl+Tab cycling (menu owns the rest)', () {
-    final flutter = ShellShortcutActivators.flutterShortcuts;
-    expect(flutter.values.whereType<NextEditorTabIntent>(), isNotEmpty);
-    expect(flutter.values.whereType<PreviousEditorTabIntent>(), isNotEmpty);
-    expect(flutter.values.whereType<SaveFileIntent>(), isEmpty);
-    expect(flutter.values.whereType<ToggleTerminalIntent>(), isEmpty);
+  test('macOS flutter Shortcuts only keep Ctrl+Tab cycling', () {
+    final previous = debugDefaultTargetPlatformOverride;
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      final flutter = ShellShortcutActivators.flutterShortcuts;
+      expect(flutter.values.whereType<NextEditorTabIntent>(), isNotEmpty);
+      expect(flutter.values.whereType<PreviousEditorTabIntent>(), isNotEmpty);
+      expect(flutter.values.whereType<SaveFileIntent>(), isEmpty);
+      expect(flutter.values.whereType<ToggleTerminalIntent>(), isEmpty);
+    } finally {
+      debugDefaultTargetPlatformOverride = previous;
+    }
+  });
+
+  test('Windows flutter Shortcuts include save and layout chords', () {
+    final previous = debugDefaultTargetPlatformOverride;
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    try {
+      final flutter = ShellShortcutActivators.flutterShortcuts;
+      expect(flutter.values.whereType<SaveFileIntent>(), isNotEmpty);
+      expect(flutter.values.whereType<ToggleTerminalIntent>(), isNotEmpty);
+      expect(flutter.values.whereType<OpenPreferencesIntent>(), isNotEmpty);
+      expect(flutter.values.whereType<RunFileIntent>(), isNotEmpty);
+    } finally {
+      debugDefaultTargetPlatformOverride = previous;
+    }
   });
 
   test('robot editor shortcuts use VS Code delete-line chord', () {

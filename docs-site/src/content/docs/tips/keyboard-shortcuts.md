@@ -35,3 +35,5 @@ Use ⌘ on macOS and Ctrl on Windows/Linux unless noted. When in doubt, the comm
 | Reopen Closed Editor | `⌘⇧T` / `Ctrl+Shift+T` |
 
 Open this user guide with the **Help** (?) icon above **Settings** in the activity bar.
+
+On **Windows** and **Linux**, File / Edit / View / Go / Run / Terminal appear as an in-window menu bar under the title (macOS uses the system menu bar).

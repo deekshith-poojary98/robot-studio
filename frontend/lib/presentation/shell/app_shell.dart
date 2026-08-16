@@ -5590,6 +5590,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 return null;
               },
             ),
+            OpenPreferencesIntent: CallbackAction<OpenPreferencesIntent>(
+              onInvoke: (_) {
+                _openPreferences();
+                return null;
+              },
+            ),
           },
           child: Focus(
             autofocus: true,
