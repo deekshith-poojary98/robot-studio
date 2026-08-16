@@ -28,6 +28,16 @@ sudo apt install python3.14-venv
 
 Confirm with `python3 -m venv --help`, then in Robot Studio use **Create Environment** again. This is host setup (like installing Python on Windows) — not part of the app zip.
 
+## Problems: can't open `robot_parsing_worker.py` / Missing library `BuiltIn`
+
+The language tools run a small worker script from the packaged backend. Older Linux/Windows/macOS zips omitted that file from the sidecar freeze, so Problems shows a missing path under `backend/_internal/.../robot_parsing_worker.py` and often `Missing library 'BuiltIn'`.
+
+**Fix:** download a build that includes the worker in PyInstaller datas (re-run **Actions → Package Desktop** after that fix), replace the unzipped app, and reopen the project. Confirm the file exists:
+
+```bash
+ls backend/_internal/robot_studio/infrastructure/language/robot_parsing_worker.py
+```
+
 ## Windows: missing `MSVCP140.dll` / `VCRUNTIME140.dll`
 
 The zip is fine — the VM is missing the Microsoft C++ runtime Flutter needs.

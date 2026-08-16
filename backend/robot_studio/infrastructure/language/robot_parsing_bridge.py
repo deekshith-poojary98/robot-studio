@@ -19,6 +19,28 @@ class RobotParsingError(Exception):
     """Raised when Robot parsing cannot run in the active environment."""
 
 
+def _robot_parsing_worker_source() -> Path:
+    """Locate robot_parsing_worker.py (dev tree or PyInstaller datas)."""
+    here = Path(__file__).resolve().with_name("robot_parsing_worker.py")
+    if here.is_file():
+        return here
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        bundled = (
+            Path(meipass)
+            / "robot_studio"
+            / "infrastructure"
+            / "language"
+            / "robot_parsing_worker.py"
+        )
+        if bundled.is_file():
+            return bundled
+    raise RobotParsingError(
+        "Robot parsing worker is missing from this install. "
+        "Reinstall or re-download Robot Studio.",
+    )
+
+
 class RobotParsingBridge:
     """Runs robot_parsing_worker.py using the workspace venv Python."""
 
@@ -27,7 +49,7 @@ class RobotParsingBridge:
         python_provider: PythonEnvironmentProvider | None = None,
     ) -> None:
         self._python = python_provider or PythonEnvironmentProvider()
-        self._worker = Path(__file__).with_name("robot_parsing_worker.py")
+        self._worker = _robot_parsing_worker_source()
 
     async def run(
         self,

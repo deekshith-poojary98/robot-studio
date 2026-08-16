@@ -50,8 +50,8 @@ for pkg in ("uvicorn", "fastapi", "starlette", "pydantic", "anyio", "robot"):
 
 hiddenimports = sorted(set(hiddenimports))
 
-# Progress listener must remain a real .py on disk for `robot --listener <path>`
-# (project venv cannot import robot_studio).
+# Scripts that must remain real .py files on disk for the project venv to exec
+# (project venv cannot import robot_studio from the frozen sidecar).
 datas += [
     (
         str(
@@ -62,7 +62,17 @@ datas += [
             / "studio_progress_listener.py"
         ),
         "robot_studio/infrastructure/execution",
-    )
+    ),
+    (
+        str(
+            BACKEND
+            / "robot_studio"
+            / "infrastructure"
+            / "language"
+            / "robot_parsing_worker.py"
+        ),
+        "robot_studio/infrastructure/language",
+    ),
 ]
 
 a = Analysis(
