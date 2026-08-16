@@ -36,7 +36,7 @@ Tests run inside a Python environment that has Robot Framework (and your librari
 2. **Create**, **import**, or **clone** an environment, then **activate** it.
 3. Studio-managed venvs live under `.robotstudio/environments/`. Existing `.venv` / `venv` / `env` folders are also discovered.
 
-If you open a project without an active environment, Robot Studio prompts you — you can continue editing, but runs need an environment.
+If you open a project without an active environment, Robot Studio prompts you — you can continue editing, but runs need an environment. Choosing **Create Environment** from that prompt builds a `default` venv in the background; the bottom status bar shows progress, then a short “ready” notice when it finishes.
 
 ## Install packages (optional)
 

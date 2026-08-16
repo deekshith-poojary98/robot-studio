@@ -126,6 +126,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late final WorkspaceLiveController _live;
   Timer? _autoSaveTimer;
   String? _liveNotification;
+
+  /// Ephemeral footer notice (env create success, etc.); preferred over [_liveNotification].
+  String? _footerNotice;
+  Timer? _footerNoticeTimer;
   String? _progressOverlay;
   bool _missingProjectDialogOpen = false;
   bool _missingWorkspaceDialogOpen = false;
@@ -378,11 +382,36 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     setState(() {});
   }
 
+  /// Show a transient message in the bottom status bar.
+  ///
+  /// Pass [ttl] as `null` to keep the notice until the next call (e.g. while
+  /// creating an environment in the background).
+  void _setFooterNotice(
+    String? message, {
+    Duration? ttl = const Duration(seconds: 5),
+  }) {
+    _footerNoticeTimer?.cancel();
+    _footerNoticeTimer = null;
+    if (!mounted) return;
+    setState(() => _footerNotice = message);
+    if (message == null || ttl == null) return;
+    final expected = message;
+    _footerNoticeTimer = Timer(ttl, () {
+      if (!mounted) return;
+      setState(() {
+        if (_footerNotice == expected) {
+          _footerNotice = null;
+        }
+      });
+    });
+  }
+
   @override
   void dispose() {
     AppLogger.debug('AppShell dispose', tag: 'Shell');
     WidgetsBinding.instance.removeObserver(this);
     _autoSaveTimer?.cancel();
+    _footerNoticeTimer?.cancel();
     _settings.removeListener(_onSettingsChanged);
     _settings.dispose();
     _testFilterDebounce?.cancel();
@@ -2210,6 +2239,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       await _gateway.importEnvironment(candidate.path);
       await _loadEnvironments();
       _appendLog('[info] Using environment "${candidate.name}"');
+      _setFooterNotice('Using environment "${candidate.name}"');
     } catch (error) {
       _appendLog('[error] $error');
       if (mounted) await _showError('Could not use environment', error);
@@ -2218,9 +2248,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<void> _createDefaultEnvironmentInBackground() async {
     _appendLog('[info] Creating Python environment in the background…');
+    _setFooterNotice('Creating Python environment…', ttl: null);
     try {
       final interpreters = await _gateway.listPythonInterpreters();
       if (interpreters.isEmpty) {
+        _setFooterNotice(null);
         if (!mounted) return;
         await _showNoPythonInstallGuide();
         return;
@@ -2234,8 +2266,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       await _loadEnvironments();
       _dismissEnvironmentPrompt();
       _appendLog('[info] Environment "default" is ready');
+      _setFooterNotice('Environment "default" is ready');
     } catch (error) {
       _appendLog('[error] $error');
+      _setFooterNotice(null);
       if (!mounted) return;
       if (PythonInstallGuidance.matchesError(error)) {
         await _showNoPythonInstallGuide();
@@ -2254,6 +2288,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       await _gateway.importEnvironment(selected);
       await _loadEnvironments();
       _appendLog('[info] Imported environment from $selected');
+      _setFooterNotice('Imported environment');
     } catch (error) {
       _appendLog('[error] $error');
       if (mounted) await _showError('Could not import environment', error);
@@ -2892,6 +2927,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _busy = false;
       });
       _appendLog('[info] $successMessage "${environment.name}"');
+      _setFooterNotice('$successMessage "${environment.name}"');
       await _loadEnvironments();
       await _loadPackages();
     } catch (error) {
@@ -5922,7 +5958,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                               : _revealProblemsPanel,
                           robotVersion: _activeEnvironment?.robotVersion,
                           pythonVersion: _activeEnvironment?.pythonVersion,
-                          notification: _liveNotification,
+                          notification: _footerNotice ?? _liveNotification,
                           backendUnavailable: !connected,
                         ),
                     ],

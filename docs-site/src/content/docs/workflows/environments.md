@@ -18,7 +18,7 @@ From **Manage Environments…** you can:
 
 Studio-managed environments live under `.robotstudio/environments/`. Legacy `Environments/` folders and common local names (`.venv`, `venv`, `env`) are still discovered.
 
-The status bar shows **ROBOT** and **PYTHON** versions from the active environment so you can confirm you are on the stack you expect.
+The status bar shows **ROBOT** and **PYTHON** versions from the active environment so you can confirm you are on the stack you expect. Creating or importing an environment also shows a short confirmation in the status bar.
 
 ## Packages
 
