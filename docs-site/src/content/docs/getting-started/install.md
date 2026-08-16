@@ -23,6 +23,8 @@ Download the latest zip from [GitHub Releases](https://github.com/deekshith-pooj
 | **Linux x64** | `Robot-Studio-*-linux-x64.zip` → `RobotStudio/` | Double-click `robot-studio.desktop` (first time: right-click → **Allow Launching**), or run `./robot_studio`. Optional once: `./install-desktop-launcher.sh` to add it to the app menu. |
 | **Linux arm64** | `Robot-Studio-*-linux-arm64.zip` → `RobotStudio/` | Same as Linux x64. Use this zip on Apple Silicon / ARM VMs (`uname -m` → `aarch64`). An x64 zip shows `Exec format error` on ARM. |
 
+On Ubuntu/Debian, creating a project environment also needs the host `venv` package once: `sudo apt install python3-venv` (or `python3.XX-venv` if the error names a version). See [Troubleshooting](/troubleshooting/common-issues/).
+
 App data lives under `~/.robot-studio`.
 
 Maintainers building packages from this repository:

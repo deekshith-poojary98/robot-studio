@@ -16,6 +16,18 @@ The zip CPU does not match the machine. Run `uname -m`:
 
 Then unzip and either double-click `robot-studio.desktop` (Allow Launching), run `./robot_studio`, or once run `./install-desktop-launcher.sh` for the app menu.
 
+## Linux: Could not create environment / `python3-venv`
+
+Ubuntu/Debian ship Python without the `venv` module. Install it once, then create the environment again:
+
+```bash
+sudo apt install python3-venv
+# or, if the dialog names a version (e.g. 3.14):
+sudo apt install python3.14-venv
+```
+
+Confirm with `python3 -m venv --help`, then in Robot Studio use **Create Environment** again. This is host setup (like installing Python on Windows) — not part of the app zip.
+
 ## Windows: missing `MSVCP140.dll` / `VCRUNTIME140.dll`
 
 The zip is fine — the VM is missing the Microsoft C++ runtime Flutter needs.
