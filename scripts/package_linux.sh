@@ -4,9 +4,9 @@
 # Usage (from repo root, on Linux):
 #   ./scripts/package_linux.sh
 #
-# Output:
-#   dist/linux/RobotStudio/          (robot_studio + lib/ + data/ + backend/)
-#   dist/linux/Robot-Studio-<version>-linux.zip
+# Output (arch-tagged; x64 and arm64 are separate CI artifacts):
+#   dist/linux/RobotStudio/          (robot_studio + lib/ + data/ + backend/ + launcher)
+#   dist/linux/Robot-Studio-<version>-linux-<x64|arm64>.zip
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -16,8 +16,16 @@ DIST="$ROOT/dist/linux"
 VENV_PY="${ROBOT_STUDIO_PYTHON:-$BACKEND/.venv/bin/python}"
 BUNDLE_NAME="RobotStudio"
 BINARY_NAME="robot_studio"
+LINUX_PACKAGING="$ROOT/packaging/linux"
 
-echo "==> Robot Studio Linux package"
+HOST_ARCH="$(uname -m)"
+case "$HOST_ARCH" in
+  x86_64|amd64) ARCH_TAG="x64" ;;
+  aarch64|arm64) ARCH_TAG="arm64" ;;
+  *) ARCH_TAG="$HOST_ARCH" ;;
+esac
+
+echo "==> Robot Studio Linux package ($ARCH_TAG)"
 echo "    root=$ROOT"
 
 if [[ ! -x "$VENV_PY" ]]; then
@@ -50,11 +58,14 @@ cd "$FRONTEND"
 flutter pub get
 flutter build linux --release
 
+# Prefer the bundle that matches this machine (CI builds one arch per job).
 BUNDLE_SRC=""
-for candidate in \
-  "$FRONTEND/build/linux/x64/release/bundle" \
-  "$FRONTEND/build/linux/arm64/release/bundle"
-do
+PREFERRED="$FRONTEND/build/linux/${ARCH_TAG}/release/bundle"
+OTHER="$FRONTEND/build/linux/x64/release/bundle"
+if [[ "$ARCH_TAG" == "x64" ]]; then
+  OTHER="$FRONTEND/build/linux/arm64/release/bundle"
+fi
+for candidate in "$PREFERRED" "$OTHER"; do
   if [[ -d "$candidate" && -f "$candidate/$BINARY_NAME" ]]; then
     BUNDLE_SRC="$candidate"
     break
@@ -75,15 +86,25 @@ mkdir -p "$DIST/$BUNDLE_NAME"
 cp -a "$BUNDLE_SRC"/. "$DIST/$BUNDLE_NAME/"
 mkdir -p "$DIST/$BUNDLE_NAME/backend"
 cp -a "$SIDECAR_DIR"/. "$DIST/$BUNDLE_NAME/backend/"
-chmod +x "$DIST/$BUNDLE_NAME/$BINARY_NAME" || true
+chmod +x "$DIST/$BUNDLE_NAME/$BINARY_NAME"
 chmod +x "$DIST/$BUNDLE_NAME/backend/robot-studio-backend"
 
+# Double-click / app-menu helpers (no Flutter/Python required for end users).
+cp "$LINUX_PACKAGING/robot-studio.desktop" "$DIST/$BUNDLE_NAME/"
+cp "$LINUX_PACKAGING/install-desktop-launcher.sh" "$DIST/$BUNDLE_NAME/"
+chmod +x "$DIST/$BUNDLE_NAME/install-desktop-launcher.sh"
+ICON_SRC="$FRONTEND/assets/branding/logo-mark.png"
+if [[ -f "$ICON_SRC" ]]; then
+  cp "$ICON_SRC" "$DIST/$BUNDLE_NAME/robot-studio.png"
+fi
+
 VERSION="$("$VENV_PY" -c 'from robot_studio import __version__; print(__version__)')"
-ZIP="$DIST/Robot-Studio-${VERSION}-linux.zip"
+ZIP="$DIST/Robot-Studio-${VERSION}-linux-${ARCH_TAG}.zip"
 echo "==> Zip $ZIP"
 rm -f "$ZIP"
 (
   cd "$DIST"
+  # zip(1) stores Unix modes — keep +x on robot_studio / launcher scripts.
   if command -v zip >/dev/null 2>&1; then
     zip -r "$(basename "$ZIP")" "$BUNDLE_NAME"
   else
@@ -98,5 +119,8 @@ echo "Packaged:"
 echo "  $DIST/$BUNDLE_NAME/$BINARY_NAME"
 echo "  $ZIP"
 echo ""
-echo "Beta users: unzip and run ./RobotStudio/robot_studio"
+echo "Beta users ($ARCH_TAG): unzip and either"
+echo "  ./RobotStudio/robot_studio"
+echo "  or double-click RobotStudio/robot-studio.desktop (Allow Launching)"
+echo "  or run ./RobotStudio/install-desktop-launcher.sh once for the app menu"
 echo "Keep the whole RobotStudio folder together (lib/, data/, backend/)."

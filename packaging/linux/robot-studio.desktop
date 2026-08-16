@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Robot Studio
+Comment=Robot Framework IDE
+# %k is this .desktop file's path — works when launched from the unzipped folder
+# (Ubuntu: right-click → Allow Launching, then double-click).
+Exec=bash -c 'cd "$(dirname "$(readlink -f "%k")")" && exec ./robot_studio'
+Icon=robot-studio
+Terminal=false
+Categories=Development;IDE;
+StartupWMClass=robot_studio
+Keywords=robot;framework;testing;ide;

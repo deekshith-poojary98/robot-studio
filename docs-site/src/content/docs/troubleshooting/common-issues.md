@@ -7,6 +7,15 @@ description: Fix common Robot Studio issues — backend offline, empty runs, mis
 
 Private beta: open an issue on [GitHub](https://github.com/deekshith-poojary98/robot-studio/issues). Include OS, what you did, and what you expected. Logs live under `~/.robot-studio/logs/` if you need to attach them.
 
+## Linux: `Exec format error` when running `./robot_studio`
+
+The zip CPU does not match the machine. Run `uname -m`:
+
+- `x86_64` → download **`Robot-Studio-*-linux-x64.zip`**
+- `aarch64` / `arm64` → download **`Robot-Studio-*-linux-arm64.zip`** (Apple Silicon / ARM VMs)
+
+Then unzip and either double-click `robot-studio.desktop` (Allow Launching), run `./robot_studio`, or once run `./install-desktop-launcher.sh` for the app menu.
+
 ## Windows: missing `MSVCP140.dll` / `VCRUNTIME140.dll`
 
 The zip is fine — the VM is missing the Microsoft C++ runtime Flutter needs.

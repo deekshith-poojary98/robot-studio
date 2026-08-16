@@ -1,10 +1,10 @@
 name: Package Desktop
 
-# Build packaged zips for macOS, Windows, and Linux on native runners.
+# Build packaged zips for macOS, Windows, and Linux (x64 + arm64) on native runners.
 # You cannot cross-compile these from another OS.
 #
 # Run: Actions → Package Desktop → Run workflow
-# Or push a tag like v0.1.0 (attaches all three zips to the GitHub Release).
+# Or push a tag like v0.1.0 (attaches all platform zips to the GitHub Release).
 
 on:
   workflow_dispatch:
@@ -41,8 +41,14 @@ jobs:
             platform: linux
             flutter_config: --enable-linux-desktop
             script: ./scripts/package_linux.sh
-            artifact_name: RobotStudio-linux
-            artifact_path: dist/linux/Robot-Studio-*-linux.zip
+            artifact_name: RobotStudio-linux-x64
+            artifact_path: dist/linux/Robot-Studio-*-linux-x64.zip
+          - os: ubuntu-24.04-arm
+            platform: linux
+            flutter_config: --enable-linux-desktop
+            script: ./scripts/package_linux.sh
+            artifact_name: RobotStudio-linux-arm64
+            artifact_path: dist/linux/Robot-Studio-*-linux-arm64.zip
 
     runs-on: ${{ matrix.os }}
     defaults:
