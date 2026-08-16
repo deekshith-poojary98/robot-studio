@@ -25,30 +25,36 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            platform: macos
-            flutter_config: --enable-macos-desktop
-            script: ./scripts/package_macos.sh
-            artifact_name: RobotStudio-macos
-            artifact_path: dist/macos/Robot-Studio-*-macos.zip
-          - os: windows-latest
-            platform: windows
-            flutter_config: --enable-windows-desktop
-            script: ./scripts/package_windows.sh
-            artifact_name: RobotStudio-windows
-            artifact_path: dist/windows/RobotStudio-*-windows.zip
           - os: ubuntu-latest
             platform: linux
             flutter_config: --enable-linux-desktop
             script: ./scripts/package_linux.sh
             artifact_name: RobotStudio-linux-x64
             artifact_path: dist/linux/Robot-Studio-*-linux-x64.zip
+            flutter_setup: action
           - os: ubuntu-24.04-arm
             platform: linux
             flutter_config: --enable-linux-desktop
             script: ./scripts/package_linux.sh
             artifact_name: RobotStudio-linux-arm64
             artifact_path: dist/linux/Robot-Studio-*-linux-arm64.zip
+            # releases_linux.json has no arm64 archives — flutter-action@stable fails.
+            # Git clone of stable still downloads the linux-arm64 engine.
+            flutter_setup: git-stable
+          - os: macos-latest
+            platform: macos
+            flutter_config: --enable-macos-desktop
+            script: ./scripts/package_macos.sh
+            artifact_name: RobotStudio-macos
+            artifact_path: dist/macos/Robot-Studio-*-macos.zip
+            flutter_setup: action
+          - os: windows-latest
+            platform: windows
+            flutter_config: --enable-windows-desktop
+            script: ./scripts/package_windows.sh
+            artifact_name: RobotStudio-windows
+            artifact_path: dist/windows/RobotStudio-*-windows.zip
+            flutter_setup: action
 
     runs-on: ${{ matrix.os }}
     defaults:
@@ -74,10 +80,22 @@ jobs:
           python-version: '3.12'
 
       - name: Setup Flutter
+        if: matrix.flutter_setup == 'action'
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+
+      - name: Setup Flutter (Linux arm64 via git)
+        if: matrix.flutter_setup == 'git-stable'
+        run: |
+          # Official release zips omit linux-arm64; clone stable and let Flutter
+          # fetch the matching engine (same approach as local ARM Linux installs).
+          git clone --depth 1 -b stable https://github.com/flutter/flutter.git "$HOME/flutter"
+          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/flutter/bin:$PATH"
+          flutter precache --linux
+          flutter --version
 
       - name: Enable Flutter desktop
         run: |
