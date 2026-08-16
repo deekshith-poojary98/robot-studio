@@ -610,6 +610,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           _selectedEnvironment = match.isEmpty ? null : match.first;
         }
       });
+      // Open-project used to race the env toast ahead of this list; dismiss if
+      // a project already has environments (e.g. restored "default").
+      if (environments.isNotEmpty) {
+        _dismissEnvironmentPrompt();
+      }
       await _loadPackages();
       await _loadRunConfigurations();
     } catch (error) {
@@ -2033,9 +2038,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     unawaited(_loadIndexStatus());
     unawaited(_editor.loadFileTree());
     unawaited(_loadGitStatus());
-    unawaited(_loadEnvironments());
-    // Env toast immediately — never wait on hung /environments or Store stubs.
+    // Load envs before deciding on the toast. Do not race the prompt against an
+    // empty in-memory list (cleared above) while /environments is still in
+    // flight — that wrongly showed "Create Environment" when "default" existed.
+    // Keep this off the critical paint path; timeout so a hung list cannot
+    // delay a legitimate first-run prompt forever.
     unawaited(() async {
+      try {
+        await _loadEnvironments().timeout(const Duration(seconds: 10));
+      } catch (_) {
+        // Timeout or load error — decide from whatever state we have.
+      }
       if (!mounted || _environments.isNotEmpty) return;
       await _showEnvironmentPrompt(detectedEnvironments);
     }());
@@ -2115,6 +2128,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (!mounted) return;
     // Prefer a bottom-right toast — MaterialBanner pushes the whole IDE chrome down.
     ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+    if (_environments.isNotEmpty) {
+      _dismissEnvironmentPrompt();
+      return;
+    }
 
     if (detected.isNotEmpty) {
       final candidate = detected.first;
@@ -2144,7 +2161,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       hasPython = interpreters.isNotEmpty;
     } catch (_) {
       // Discovery failed / timed out — still offer create + install, no backend talk.
-      if (!mounted) return;
+      if (!mounted || _environments.isNotEmpty) return;
       setState(() {
         _envPromptTitle = 'Python environment required';
         _envPromptMessage =
@@ -2169,7 +2186,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       });
       return;
     }
-    if (!mounted) return;
+    // Interpreters can take seconds; envs may have loaded while we waited.
+    if (!mounted || _environments.isNotEmpty) return;
 
     if (!hasPython) {
       setState(() {
