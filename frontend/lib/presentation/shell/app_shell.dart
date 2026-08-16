@@ -2014,14 +2014,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   /// Folder to prefill as the parent for a new project: sibling of whatever is
   /// currently open, else the user's home directory.
+  ///
+  /// Only returns paths that still exist on disk — after an externally deleted
+  /// project the in-memory path can briefly linger and must not be offered.
   String? _defaultNewProjectLocation() {
     final current = _selectedProject?.path ?? _activeWorkspace?.path;
     if (current != null && current.isNotEmpty) {
-      return ExplorerFileActions.parentPath(current);
+      final parent = ExplorerFileActions.parentPath(current);
+      if (Directory(parent).existsSync()) return parent;
     }
     final home =
         Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-    return (home == null || home.isEmpty) ? null : home;
+    if (home == null || home.isEmpty) return null;
+    return Directory(home).existsSync() ? home : null;
   }
 
   Future<void> _handleNewStandaloneProject() async {
@@ -3668,6 +3673,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleLiveFilesystemEvent(WorkspaceStreamEvent event) async {
+    // Dead/missing session — do not refresh trees against a gone root.
+    if (_activeWorkspace == null) return;
     final absolute = event.absolutePath ?? event.path;
     if (absolute == null || absolute.isEmpty) return;
     // Report artifacts churn continuously during long runs; ignore so Save
@@ -3797,36 +3804,39 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleLiveWorkspaceMissing(WorkspaceStreamEvent event) async {
-    if (_missingWorkspaceDialogOpen || _activeWorkspace == null) return;
+    if (_missingWorkspaceDialogOpen) return;
     _missingWorkspaceDialogOpen = true;
     try {
+      // Unload immediately — waiting on the dialog left the shell calling
+      // files/git APIs against a deleted root, which then crashed New Project.
+      if (_activeWorkspace != null) {
+        await _unloadActiveWorkspace(force: true);
+      }
+      if (!mounted) return;
       final action = await showDialog<String>(
         context: context,
+        barrierDismissible: false,
         builder: (context) => AlertDialog(
           title: const Text('Workspace no longer exists'),
-          content: const Text('The active workspace was removed from disk.'),
+          content: const Text(
+            'The open project folder was removed from disk. '
+            'You can create or open another project from the welcome screen.',
+          ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop('dismiss'),
-              child: const Text('Dismiss'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop('locate'),
-              child: const Text('Locate'),
+              onPressed: () => Navigator.of(context).pop('ok'),
+              child: const Text('OK'),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop('close'),
-              child: const Text('Close Workspace'),
+              onPressed: () => Navigator.of(context).pop('new'),
+              child: const Text('New Project'),
             ),
           ],
         ),
       );
       if (!mounted) return;
-      if (action == 'close' || action == 'locate') {
-        await _unloadActiveWorkspace();
-        if (action == 'locate') {
-          await _handleOpenWorkspace();
-        }
+      if (action == 'new') {
+        await _handleNewStandaloneProject();
       }
     } finally {
       _missingWorkspaceDialogOpen = false;
@@ -3890,8 +3900,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _appendLog('[info] Closed project — returned to welcome');
   }
 
-  Future<void> _unloadActiveWorkspace() async {
-    if (!await _prepareLeaveSettings()) return;
+  Future<void> _unloadActiveWorkspace({bool force = false}) async {
+    if (!force && !await _prepareLeaveSettings()) return;
     setState(() {
       _workspace.activeWorkspace = null;
       _selectedProject = null;

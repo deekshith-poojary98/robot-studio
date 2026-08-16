@@ -133,12 +133,16 @@ class WorkspaceLiveController {
         return;
       case 'PROJECT_CHANGED':
         if (event.reason == 'missing') {
+          _dropPendingFilesystemWork();
           onStatusMessage('Project removed');
           unawaited(onProjectMissing(event));
         }
         return;
       case 'WORKSPACE_CHANGED':
         if (event.reason == 'missing') {
+          // Stop explorer/git flushes against a root that is already gone —
+          // otherwise listFileTree 400s stack up while the missing dialog is open.
+          _dropPendingFilesystemWork();
           onStatusMessage('Workspace removed');
           unawaited(onWorkspaceMissing(event));
         }
@@ -174,6 +178,14 @@ class WorkspaceLiveController {
       return '$verb… $current/$total';
     }
     return '$verb…';
+  }
+
+  void _dropPendingFilesystemWork() {
+    _explorerDebounce?.cancel();
+    _gitDebounce?.cancel();
+    _testsDebounce?.cancel();
+    _pendingFs.clear();
+    _externalChangeCount = 0;
   }
 
   void _scheduleExplorerFlush() {

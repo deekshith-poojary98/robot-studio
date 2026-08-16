@@ -422,7 +422,12 @@ class Container:
         await self.plugin_manager.initialize()
 
     async def _purge_on_workspace_missing(self, workspace_id: UUID) -> int:
-        """Drop orphaned registry rows when the workspace root vanishes."""
+        """Drop orphaned registry rows and clear the dead session.
+
+        Leaving the context open after the root vanishes keeps Git / files /
+        environments APIs pointed at a path that no longer exists, which the
+        UI then hammers while the "workspace missing" dialog is up.
+        """
         removed = 0
         if self.environment_service is not None:
             removed += await self.environment_service.purge_workspace_environments(
@@ -430,6 +435,11 @@ class Container:
             )
         if self.report_service is not None:
             removed += await self.report_service.purge_workspace_runs(workspace_id)
+        if (
+            self.workspace_context is not None
+            and self.workspace_context.workspace_id == workspace_id
+        ):
+            await self.workspace_context.close()
         return removed
 
     async def shutdown(self) -> None:

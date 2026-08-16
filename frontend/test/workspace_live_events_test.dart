@@ -64,6 +64,41 @@ void main() {
     await controller.disconnect();
   });
 
+  test('WorkspaceLiveController drops pending FS work on missing workspace', () async {
+    var missingCalls = 0;
+    final fs = <WorkspaceStreamEvent>[];
+    final controller = WorkspaceLiveController(
+      notify: () {},
+      isMounted: () => true,
+      appendLog: (_) {},
+      onFilesystemEvent: (event) async => fs.add(event),
+      onGitChanged: () async {},
+      onIndexUpdated: (_) async {},
+      onTestsChanged: () async {},
+      onEnvironmentChanged: () async {},
+      onProjectMissing: (_) async {},
+      onWorkspaceMissing: (_) async {
+        missingCalls += 1;
+      },
+      onStatusMessage: (_) {},
+    );
+
+    controller.handleEvent(
+      const WorkspaceStreamEvent(type: 'FILE_MODIFIED', path: 'a.robot'),
+    );
+    controller.handleEvent(
+      const WorkspaceStreamEvent(
+        type: 'WORKSPACE_CHANGED',
+        reason: 'missing',
+        path: '/tmp/gone',
+      ),
+    );
+    expect(missingCalls, 1);
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    expect(fs, isEmpty);
+    await controller.disconnect();
+  });
+
   test('pathsEqual normalizes separators', () {
     expect(
       WorkspaceLiveController.pathsEqual('/tmp/a/b.robot', '/tmp/a/b.robot'),

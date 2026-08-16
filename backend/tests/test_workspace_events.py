@@ -151,6 +151,10 @@ async def test_deleted_workspace_root_detected_without_fs_events(tmp_path: Path)
         assert missing is not None, "no missing event emitted for deleted root"
         assert missing["type"] == "WORKSPACE_CHANGED"
         assert missing["path"] == str(root)
+        # Session must be cleared so subsequent create/open is not stuck on
+        # the deleted path.
+        assert container.workspace_context is not None
+        assert container.workspace_context.workspace is None
         await service.unsubscribe(queue)
     finally:
         await container.shutdown()
