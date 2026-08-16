@@ -35,7 +35,10 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   http: ^1.2.2
-  file_picker: ^8.1.7
+  # 9.0.1+ runs Windows getDirectoryPath in its own isolate so COM init
+  # cannot kill the process (common on Windows ARM / VMware). Keep <11:
+  # 11+ switches to static FilePicker.pickFiles() APIs.
+  file_picker: ^9.2.3
   re_editor: ^0.10.0
   re_highlight: ^0.0.3
   vscode_material_icon_theme: ^5.26.0

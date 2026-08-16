@@ -34,6 +34,14 @@ Robot Studio needs a **real Python 3 runtime** to create project environments. E
 
 Logs: `%USERPROFILE%\.robot-studio\logs\` (`frontend-*.log` / `backend-*.log`).
 
+## Windows: Browse… closes the app (New Project / Open)
+
+Folder picker used an older `file_picker` build that could kill the process on some Windows hosts (especially **ARM64 / VMware**) via a COM conflict — no Dart error, just “Lost connection to device”.
+
+**Workaround:** type or paste the folder path instead of Browse.
+
+**Fix:** update to a build with `file_picker` ≥ 9.2.3 (isolate-safe Windows directory picker), then `flutter pub get` and rebuild.
+
 ## Status bar says BACKEND UNAVAILABLE
 
 The UI cannot reach the local API.
