@@ -404,6 +404,25 @@ class EditorShellController {
     }
   }
 
+  /// Explorer tree keys must be slash-stable: Windows backends return `\`,
+  /// while create/refresh paths often use `/`. Mixing them left expanded
+  /// folders stuck on an empty cache after new files were created.
+  static String normalizeTreePath(String path) => path.replaceAll('\\', '/');
+
+  String _treeKey(String path) => normalizeTreePath(path);
+
+  /// Resolve a possibly-relative directory to an absolute tree key.
+  String _absoluteTreeKey(String path, String workspaceRoot) {
+    final normalized = _treeKey(path);
+    final root = _treeKey(workspaceRoot).replaceAll(RegExp(r'/+$'), '');
+    if (normalized.isEmpty) return root;
+    final isAbsolute =
+        normalized.startsWith('/') ||
+        RegExp(r'^[a-zA-Z]:/').hasMatch(normalized);
+    if (isAbsolute) return normalized;
+    return '$root/$normalized';
+  }
+
   Future<void> loadFileTree() async {
     if (workspace() == null) {
       fileTree = [];
@@ -435,8 +454,8 @@ class EditorShellController {
   Future<void> refreshParentOf(String path) async {
     final ws = workspace();
     if (ws == null) return;
-    final normalized = path.replaceAll('\\', '/');
-    final wsPath = ws.path.replaceAll('\\', '/');
+    final normalized = _treeKey(path);
+    final wsPath = _treeKey(ws.path);
     String? parent;
     final slash = normalized.lastIndexOf('/');
     if (slash > 0) {
@@ -451,10 +470,11 @@ class EditorShellController {
   }) async {
     final ws = workspace();
     if (ws == null) return;
-    final isRoot =
-        directoryPath == null ||
-        directoryPath.isEmpty ||
-        directoryPath.replaceAll('\\', '/') == workspaceRoot;
+    final root = _treeKey(workspaceRoot);
+    final normalizedDir = directoryPath == null || directoryPath.isEmpty
+        ? null
+        : _treeKey(directoryPath);
+    final isRoot = normalizedDir == null || normalizedDir == root;
 
     try {
       if (isRoot) {
@@ -466,17 +486,19 @@ class EditorShellController {
         return;
       }
 
-      final parent = directoryPath.replaceAll('\\', '/');
+      final parent = _absoluteTreeKey(normalizedDir, root);
       // Only hit the API when the parent is visible (expanded or cached).
       if (!expandedDirs.contains(parent) &&
           !childrenByPath.containsKey(parent)) {
-        // Parent collapsed — mark hasChildren on ancestor if present in root.
+        // Parent collapsed — still flip hasChildren so the chevron appears.
+        _markDirHasChildren(parent, true);
         notify();
         return;
       }
       final kids = await gateway.listFileTree(path: parent, depth: 0);
       if (!isMounted()) return;
       childrenByPath[parent] = kids;
+      _markDirHasChildren(parent, kids.isNotEmpty);
       _pruneMissingTreeState(fileTree);
       notify();
     } catch (_) {
@@ -484,28 +506,54 @@ class EditorShellController {
     }
   }
 
+  void _markDirHasChildren(String directoryPath, bool hasChildren) {
+    final target = _treeKey(directoryPath);
+    bool walk(List<FileTreeNode> nodes) {
+      for (var i = 0; i < nodes.length; i++) {
+        final node = nodes[i];
+        if (_treeKey(node.path) == target) {
+          if (node.hasChildren != hasChildren) {
+            nodes[i] = node.copyWith(hasChildren: hasChildren);
+          }
+          return true;
+        }
+        final cached = childrenByPath[_treeKey(node.path)];
+        if (cached != null && walk(cached)) return true;
+      }
+      return false;
+    }
+
+    walk(fileTree);
+  }
+
   void removePathFromTree(String path) {
-    final normalized = path.replaceAll('\\', '/');
+    final normalized = _treeKey(path);
     fileTree = _filterNodes(fileTree, normalized);
     final updated = <String, List<FileTreeNode>>{};
     for (final entry in childrenByPath.entries) {
-      if (entry.key == normalized || entry.key.startsWith('$normalized/')) {
+      final key = _treeKey(entry.key);
+      if (key == normalized || key.startsWith('$normalized/')) {
         continue;
       }
-      updated[entry.key] = _filterNodes(entry.value, normalized);
+      updated[key] = _filterNodes(entry.value, normalized);
     }
     childrenByPath
       ..clear()
       ..addAll(updated);
-    expandedDirs.removeWhere(
-      (item) => item == normalized || item.startsWith('$normalized/'),
-    );
+    expandedDirs.removeWhere((item) {
+      final key = _treeKey(item);
+      return key == normalized || key.startsWith('$normalized/');
+    });
+    loadingDirs.removeWhere((item) {
+      final key = _treeKey(item);
+      return key == normalized || key.startsWith('$normalized/');
+    });
     notify();
   }
 
   List<FileTreeNode> _filterNodes(List<FileTreeNode> nodes, String removed) {
     return nodes.where((node) {
-      final p = node.path.replaceAll('\\', '/');
+      final p = _treeKey(node.path);
       return p != removed && !p.startsWith('$removed/');
     }).toList();
   }
@@ -514,8 +562,8 @@ class EditorShellController {
     final alive = <String>{};
     void walk(List<FileTreeNode> nodes) {
       for (final node in nodes) {
-        alive.add(node.path.replaceAll('\\', '/'));
-        final cached = childrenByPath[node.path];
+        alive.add(_treeKey(node.path));
+        final cached = childrenByPath[_treeKey(node.path)];
         if (cached != null) walk(cached);
       }
     }
@@ -524,19 +572,15 @@ class EditorShellController {
     for (final entry in childrenByPath.entries) {
       walk(entry.value);
     }
-    expandedDirs.removeWhere((path) {
-      final n = path.replaceAll('\\', '/');
-      return !alive.contains(n);
-    });
-    childrenByPath.removeWhere((key, _) {
-      final n = key.replaceAll('\\', '/');
-      return !alive.contains(n);
-    });
+    expandedDirs.removeWhere((path) => !alive.contains(_treeKey(path)));
+    childrenByPath.removeWhere((key, _) => !alive.contains(_treeKey(key)));
+    loadingDirs.removeWhere((path) => !alive.contains(_treeKey(path)));
   }
 
   Future<void> toggleDirectory(String path) async {
-    if (expandedDirs.contains(path)) {
-      expandedDirs.remove(path);
+    final key = _treeKey(path);
+    if (expandedDirs.contains(key)) {
+      expandedDirs.remove(key);
       notify();
       return;
     }
@@ -545,20 +589,21 @@ class EditorShellController {
 
   /// Expand [path] if collapsed, loading children when needed.
   Future<void> ensureExpanded(String path) async {
-    if (expandedDirs.contains(path) && childrenByPath.containsKey(path)) {
+    final key = _treeKey(path);
+    if (expandedDirs.contains(key) && childrenByPath.containsKey(key)) {
       return;
     }
-    expandedDirs.add(path);
-    if (!childrenByPath.containsKey(path)) {
-      loadingDirs.add(path);
+    expandedDirs.add(key);
+    if (!childrenByPath.containsKey(key)) {
+      loadingDirs.add(key);
       notify();
       try {
         final kids = await gateway.listFileTree(path: path, depth: 0);
-        childrenByPath[path] = kids;
+        childrenByPath[key] = kids;
       } catch (_) {
-        childrenByPath[path] = const [];
+        childrenByPath[key] = const [];
       } finally {
-        loadingDirs.remove(path);
+        loadingDirs.remove(key);
       }
     }
     if (!isMounted()) return;
@@ -573,8 +618,9 @@ class EditorShellController {
   }
 
   List<FileTreeNode> childrenOf(FileTreeNode node) {
-    if (childrenByPath.containsKey(node.path)) {
-      return childrenByPath[node.path]!;
+    final key = _treeKey(node.path);
+    if (childrenByPath.containsKey(key)) {
+      return childrenByPath[key]!;
     }
     if (node.children.isNotEmpty) return node.children;
     return const [];
@@ -585,8 +631,9 @@ class EditorShellController {
 
     void walk(List<FileTreeNode> nodes, int depth) {
       for (final node in nodes) {
-        final expanded = expandedDirs.contains(node.path);
-        final loading = loadingDirs.contains(node.path);
+        final key = _treeKey(node.path);
+        final expanded = expandedDirs.contains(key);
+        final loading = loadingDirs.contains(key);
         rows.add(
           FlatFileTreeRow(
             node: node,
