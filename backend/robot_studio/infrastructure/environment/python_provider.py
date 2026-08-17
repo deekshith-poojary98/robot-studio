@@ -359,21 +359,75 @@ class PythonEnvironmentProvider:
                 raise EnvironmentValidationError(
                     f"Failed to create virtual environment: {exc}",
                 ) from exc
+        else:
+            result = subprocess.run(
+                [str(python), "-m", "venv", str(target_dir)],
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=stable_subprocess_cwd(target_dir.parent),
+                **_windows_no_window_kwargs()
+            )
+            if result.returncode != 0:
+                detail = (
+                    result.stderr or result.stdout or "venv creation failed"
+                ).strip()
+                raise EnvironmentValidationError(
+                    f"Failed to create virtual environment: {detail}",
+                )
+
+        self._ensure_pip(self._venv_python(target_dir))
+
+    def _venv_python(self, environment_root: Path) -> Path:
+        if sys.platform == "win32":
+            return environment_root / "Scripts" / "python.exe"
+        return environment_root / "bin" / "python"
+
+    def _ensure_pip(self, venv_python: Path) -> None:
+        """Make sure the new venv can run ``python -m pip``.
+
+        Debian/Ubuntu often ship a venv without pip (ensurepip disabled or
+        ``python3-pip`` missing). Try ensurepip once, then fail with an apt hint.
+        """
+        if not venv_python.is_file():
+            raise EnvironmentValidationError(
+                f"Python executable not found in new environment: '{venv_python}'",
+            )
+        if self._pip_module_ok(venv_python):
             return
 
-        result = subprocess.run(
-            [str(python), "-m", "venv", str(target_dir)],
+        bootstrap = subprocess.run(
+            [str(venv_python), "-m", "ensurepip", "--upgrade"],
             capture_output=True,
             text=True,
             check=False,
-            cwd=stable_subprocess_cwd(target_dir.parent),
-            **_windows_no_window_kwargs()
+            cwd=stable_subprocess_cwd(venv_python.parent.parent),
+            **_windows_no_window_kwargs(),
         )
-        if result.returncode != 0:
-            detail = (result.stderr or result.stdout or "venv creation failed").strip()
-            raise EnvironmentValidationError(
-                f"Failed to create virtual environment: {detail}",
-            )
+        if self._pip_module_ok(venv_python):
+            return
+
+        detail = (
+            (bootstrap.stderr or bootstrap.stdout or "").strip()
+            or "No module named pip"
+        )
+        raise EnvironmentValidationError(
+            f"Failed to create virtual environment: {detail}. "
+            "Install pip for this Python "
+            "(e.g. sudo apt install python3-pip python3-venv), "
+            "then create the environment again.",
+        )
+
+    def _pip_module_ok(self, python_executable: Path) -> bool:
+        probe = subprocess.run(
+            [str(python_executable), "-m", "pip", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=stable_subprocess_cwd(python_executable.parent),
+            **_windows_no_window_kwargs(),
+        )
+        return probe.returncode == 0
 
     def resolve_executables(self, environment_root: Path) -> ResolvedExecutables:
         if sys.platform == "win32":

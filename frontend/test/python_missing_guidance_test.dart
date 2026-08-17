@@ -27,19 +27,15 @@ void main() {
     );
   });
 
-  test('venv / ensurepip failures map to installable recovery', () {
-    expect(
-      friendlyErrorSummary(
-        'Failed to create virtual environment: No module named ensurepip',
-      ),
-      'Could not create a Python virtual environment.',
+  test('missing pip when installing RF maps to apt recovery', () {
+    final copy = resolveFriendlyError(
+      'Failed to install Robot Framework: /usr/bin/python3.14: No module named pip',
     );
     expect(
-      friendlyErrorRecovery(
-        'EnvironmentValidationError: ensurepip is not available',
-      ).toLowerCase(),
-      anyOf(contains('python3-venv'), contains('python'), contains('venv')),
+      copy.summary,
+      'Could not install Robot Framework into the new environment.',
     );
+    expect(copy.recovery.toLowerCase(), contains('pip'));
   });
 
   test('missing Robot Framework maps to install recovery', () {

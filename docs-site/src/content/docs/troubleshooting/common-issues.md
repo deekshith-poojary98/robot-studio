@@ -28,6 +28,19 @@ sudo apt install python3.14-venv
 
 Confirm with `python3 -m venv --help`, then in Robot Studio use **Create Environment** again. This is host setup (like installing Python on Windows) — not part of the app zip.
 
+## Linux: Could not install Robot Framework / `No module named pip`
+
+Same class of Ubuntu split: Python is present but **pip** is not. Install once:
+
+```bash
+sudo apt install python3-pip python3-venv
+# or versioned, e.g.:
+sudo apt install python3.14-pip python3.14-venv
+```
+
+Delete the half-created env under the project’s `.robotstudio/environments/` if Create failed mid-way, then **Create Environment** again.
+
+Newer builds also try `ensurepip` inside the new venv and show this apt hint when pip still cannot start.
 ## Problems: can't open `robot_parsing_worker.py` / Missing library `BuiltIn`
 
 The language tools run a small worker script from the packaged backend. Older Linux/Windows/macOS zips omitted that file from the sidecar freeze, so Problems shows a missing path under `backend/_internal/.../robot_parsing_worker.py` and often `Missing library 'BuiltIn'`.

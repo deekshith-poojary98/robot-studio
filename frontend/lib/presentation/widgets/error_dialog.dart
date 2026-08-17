@@ -168,6 +168,16 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
 
   // Pip install during Create Environment — must run before "no such file"
   // path matchers (getcwd failures include Errno 2).
+  // Missing pip when installing Robot Framework into a new env (Ubuntu).
+  if (text.contains('no module named pip') ||
+      (text.contains('failed to install robot framework') &&
+          text.contains('pip'))) {
+    return FriendlyErrorCopy(
+      summary: 'Could not install Robot Framework into the new environment.',
+      recovery: _pipRecoveryHint(),
+    );
+  }
+
   if (text.contains('failed to install robot framework') ||
       (text.contains('failed to install') && text.contains('robotframework'))) {
     final badCwd = _any(text, const [
@@ -215,7 +225,9 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
   if (_any(text, const [
     'ensurepip',
     'python3-venv',
+    'python3-pip',
     'no module named venv',
+    'no module named pip',
     'failed to create virtual environment',
     'unable to create virtual environment',
   ])) {
@@ -539,6 +551,20 @@ String _venvRecoveryHint() {
   }
   return 'Install the venv package for your Python '
       '(e.g. sudo apt install python3-venv), then create the environment again.';
+}
+
+String _pipRecoveryHint() {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) {
+    return 'Install a full Python 3 build with pip (brew install python, or '
+        'python.org), then create the environment again.';
+  }
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    return 'Reinstall Python from python.org with pip enabled, then create '
+        'the environment again.';
+  }
+  return 'Install pip for your Python '
+      '(e.g. sudo apt install python3-pip python3-venv), then create the '
+      'environment again.';
 }
 
 class _FriendlyErrorDialog extends StatefulWidget {
