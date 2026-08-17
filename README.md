@@ -84,7 +84,7 @@ Testers download the zip from [GitHub Releases](https://github.com/deekshith-poo
 |----------|----------|--------|
 | macOS | `Robot Studio.app` (zipped on the release; also `dist/macos/` when you build locally) | Double-click **Robot Studio.app** |
 | Windows | `RobotStudio/RobotStudio.exe` (zipped on the release; also `dist/windows/` when you build locally) | Double-click **RobotStudio.exe** |
-| Linux | `Robot-Studio-*-linux-x64.zip` or `*-linux-arm64.zip` → `RobotStudio/` | Double-click `robot-studio.desktop` (Allow Launching), or `./robot_studio`, or once `./install-desktop-launcher.sh` |
+| Linux | `Robot-Studio-*-linux-x64.zip` or `*-linux-arm64.zip` → `RobotStudio/` | Double-click `robot-studio.desktop` (Allow Launching), or `./robot_studio`, or once `./install-desktop-launcher.sh`. Uninstall: `./uninstall.sh` (`--purge` removes `~/.robot-studio`). |
 
 Build packages from the repo root (each script must run on that OS):
 

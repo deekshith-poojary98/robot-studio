@@ -14,7 +14,7 @@ The zip CPU does not match the machine. Run `uname -m`:
 - `x86_64` → download **`Robot-Studio-*-linux-x64.zip`**
 - `aarch64` / `arm64` → download **`Robot-Studio-*-linux-arm64.zip`** (Apple Silicon / ARM VMs)
 
-Then unzip and either double-click `robot-studio.desktop` (Allow Launching), run `./robot_studio`, or once run `./install-desktop-launcher.sh` for the app menu.
+Then unzip and either double-click `robot-studio.desktop` (Allow Launching), run `./robot_studio`, or once run `./install-desktop-launcher.sh` for the app menu. To remove the menu entry: `./uninstall.sh` (`--purge` also deletes `~/.robot-studio`).
 
 ## Linux: Could not create environment / `python3-venv`
 
