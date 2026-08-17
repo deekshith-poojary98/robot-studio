@@ -271,6 +271,24 @@ def test_stable_subprocess_cwd_skips_missing_preferred(tmp_path: Path) -> None:
     assert resolved.is_dir()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="venv python is a symlink on Unix")
+def test_resolve_executables_keeps_venv_python_wrapper(tmp_path: Path) -> None:
+    """Following the symlink would pip-install into system Python (PEP 668)."""
+    from robot_studio.infrastructure.environment.python_provider import (
+        PythonEnvironmentProvider,
+    )
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    wrapper = bin_dir / "python"
+    wrapper.symlink_to(sys.executable)
+    (tmp_path / "pyvenv.cfg").write_text("home = /\n", encoding="utf-8")
+
+    resolved = PythonEnvironmentProvider().resolve_executables(tmp_path)
+    assert resolved.python == wrapper.absolute()
+    assert resolved.python != Path(sys.executable).resolve()
+
+
 def test_discover_interpreters_finds_host_python() -> None:
     from robot_studio.infrastructure.environment.python_provider import (
         PythonEnvironmentProvider,

@@ -41,6 +41,12 @@ sudo apt install python3.14-pip python3.14-venv
 Delete the half-created env under the project’s `.robotstudio/environments/` if Create failed mid-way, then **Create Environment** again.
 
 Newer builds also try `ensurepip` inside the new venv and show this apt hint when pip still cannot start.
+
+## Linux: `externally-managed-environment` / PEP 668
+
+Pip ran against **system** Python (`/usr/bin/python3`) instead of the project venv. Ubuntu blocks that on purpose.
+
+Current builds keep the venv’s `bin/python` wrapper (they no longer follow the symlink to `/usr/bin/python3`). Update Robot Studio, delete any half-created env under `.robotstudio/environments/`, then Create Environment again.
 ## Problems: can't open `robot_parsing_worker.py` / Missing library `BuiltIn`
 
 The language tools run a small worker script from the packaged backend. Older Linux/Windows/macOS zips omitted that file from the sidecar freeze, so Problems shows a missing path under `backend/_internal/.../robot_parsing_worker.py` and often `Missing library 'BuiltIn'`.

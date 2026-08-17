@@ -64,6 +64,22 @@ def _windows_no_window_kwargs() -> dict:
     return windows_no_window_kwargs()
 
 
+def _absolute_keep_wrapper(path: Path) -> Path:
+    """Absolute path that does **not** follow venv ``python`` / ``pip`` symlinks.
+
+    ``Path.resolve()`` turns ``.venv/bin/python`` into ``/usr/bin/python3``,
+    so later ``python -m pip install`` hits Ubuntu's PEP 668
+    (externally-managed-environment) lock on the system interpreter.
+    Invoking the wrapper keeps ``pyvenv.cfg`` in play.
+    """
+    return path.expanduser().absolute()
+
+
+def _venv_root_from_python(python_executable: Path) -> Path:
+    """``bin/../`` or ``Scripts/../`` without following the interpreter symlink."""
+    return _absolute_keep_wrapper(python_executable).parent.parent
+
+
 def _is_windows_apps_alias(path: Path) -> bool:
     """Microsoft Store execution aliases are 0-byte stubs under WindowsApps."""
     text = str(path).lower()
@@ -419,12 +435,29 @@ class PythonEnvironmentProvider:
         )
 
     def _pip_module_ok(self, python_executable: Path) -> bool:
+        # Must be the venv interpreter (sys.prefix != base_prefix). System
+        # Python can still run ``-m pip --version`` and then refuse installs
+        # with PEP 668 / externally-managed-environment.
+        isolated = subprocess.run(
+            [
+                str(python_executable),
+                "-c",
+                "import sys; raise SystemExit(0 if sys.prefix != sys.base_prefix else 1)",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=stable_subprocess_cwd(_venv_root_from_python(python_executable)),
+            **_windows_no_window_kwargs(),
+        )
+        if isolated.returncode != 0:
+            return False
         probe = subprocess.run(
             [str(python_executable), "-m", "pip", "--version"],
             capture_output=True,
             text=True,
             check=False,
-            cwd=stable_subprocess_cwd(python_executable.parent),
+            cwd=stable_subprocess_cwd(_venv_root_from_python(python_executable)),
             **_windows_no_window_kwargs(),
         )
         return probe.returncode == 0
@@ -450,9 +483,9 @@ class PythonEnvironmentProvider:
             pip = python
 
         return ResolvedExecutables(
-            python=python.resolve(),
-            pip=pip.resolve() if pip.is_file() else python.resolve(),
-            robot=robot.resolve() if robot.is_file() else None,
+            python=_absolute_keep_wrapper(python),
+            pip=_absolute_keep_wrapper(pip) if pip.is_file() else _absolute_keep_wrapper(python),
+            robot=_absolute_keep_wrapper(robot) if robot.is_file() else None,
         )
 
     def get_python_version(self, python_executable: Path) -> str:
@@ -547,7 +580,7 @@ class PythonEnvironmentProvider:
     def install_robot_framework(self, python_executable: Path) -> None:
         # Prefer the venv root (…/bin/../ or …/Scripts/../) so pip has a
         # writable, existing cwd even when the backend's own cwd is gone.
-        preferred = python_executable.resolve().parent.parent
+        preferred = _venv_root_from_python(python_executable)
         result = subprocess.run(
             [str(python_executable), "-m", "pip", "install", "robotframework"],
             capture_output=True,
@@ -558,6 +591,13 @@ class PythonEnvironmentProvider:
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "pip install failed").strip()
+            if "externally-managed-environment" in detail.lower():
+                raise EnvironmentValidationError(
+                    "Failed to install Robot Framework: pip targeted the "
+                    "system Python (externally-managed-environment) instead "
+                    "of the project venv. Delete the half-created environment "
+                    "and create it again.",
+                )
             raise EnvironmentValidationError(
                 f"Failed to install Robot Framework: {detail}",
             )
@@ -600,7 +640,7 @@ class PythonEnvironmentProvider:
             capture_output=True,
             text=True,
             check=False,
-            cwd=stable_subprocess_cwd(python_executable.resolve().parent.parent),
+            cwd=stable_subprocess_cwd(_venv_root_from_python(python_executable)),
             **_windows_no_window_kwargs()
         )
         if result.returncode != 0:

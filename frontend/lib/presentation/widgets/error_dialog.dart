@@ -168,6 +168,17 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
 
   // Pip install during Create Environment — must run before "no such file"
   // path matchers (getcwd failures include Errno 2).
+  if (text.contains('externally-managed-environment') ||
+      text.contains('break-system-packages')) {
+    return const FriendlyErrorCopy(
+      summary: 'Could not install Robot Framework into the new environment.',
+      recovery:
+          'Pip ran against the system Python instead of the project venv. '
+          'Delete the half-created environment under .robotstudio/environments/ '
+          'and create it again (this is fixed in current builds).',
+    );
+  }
+
   // Missing pip when installing Robot Framework into a new env (Ubuntu).
   if (text.contains('no module named pip') ||
       (text.contains('failed to install robot framework') &&

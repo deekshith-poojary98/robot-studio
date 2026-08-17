@@ -38,6 +38,13 @@ void main() {
     expect(copy.recovery.toLowerCase(), contains('pip'));
   });
 
+  test('PEP 668 system pip maps to venv recovery', () {
+    final copy = resolveFriendlyError(
+      'Failed to install Robot Framework: error: externally-managed-environment',
+    );
+    expect(copy.recovery.toLowerCase(), contains('venv'));
+  });
+
   test('missing Robot Framework maps to install recovery', () {
     final copy = resolveFriendlyError(
       'Robot Framework is not installed in the active environment.',
