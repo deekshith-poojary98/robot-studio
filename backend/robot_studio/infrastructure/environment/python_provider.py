@@ -393,6 +393,7 @@ class PythonEnvironmentProvider:
                 )
 
         self._ensure_pip(self._venv_python(target_dir))
+        self._ensure_ssl(python, self._venv_python(target_dir))
 
     def _venv_python(self, environment_root: Path) -> Path:
         if sys.platform == "win32":
@@ -461,6 +462,47 @@ class PythonEnvironmentProvider:
             **_windows_no_window_kwargs(),
         )
         return probe.returncode == 0
+
+    def _ssl_module_ok(self, python_executable: Path) -> bool:
+        probe = subprocess.run(
+            [str(python_executable), "-c", "import ssl"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=stable_subprocess_cwd(_venv_root_from_python(python_executable)),
+            **_windows_no_window_kwargs(),
+        )
+        return probe.returncode == 0
+
+    def _ssl_recovery_hint(self) -> str:
+        if sys.platform == "win32":
+            return (
+                "Reinstall Python from python.org (the installer includes SSL), "
+                "then create the environment again."
+            )
+        if sys.platform == "darwin":
+            return (
+                "Install a full Python 3 build (brew install python, or python.org), "
+                "then create the environment again."
+            )
+        return (
+            "Install SSL support for this Python "
+            "(e.g. sudo apt install python3-full ca-certificates), "
+            "delete the half-created environment, then create it again."
+        )
+
+    def _ensure_ssl(self, base_python: Path, venv_python: Path) -> None:
+        """Pip needs ``import ssl`` to reach PyPI over HTTPS."""
+        for label, interpreter in (
+            ("selected Python", base_python),
+            ("new environment", venv_python),
+        ):
+            if self._ssl_module_ok(interpreter):
+                continue
+            raise EnvironmentValidationError(
+                f"Failed to create virtual environment: the {label} cannot "
+                f"import ssl (HTTPS/pip will fail). {self._ssl_recovery_hint()}",
+            )
 
     def resolve_executables(self, environment_root: Path) -> ResolvedExecutables:
         if sys.platform == "win32":
@@ -591,12 +633,18 @@ class PythonEnvironmentProvider:
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "pip install failed").strip()
-            if "externally-managed-environment" in detail.lower():
+            lower = detail.lower()
+            if "externally-managed-environment" in lower:
                 raise EnvironmentValidationError(
                     "Failed to install Robot Framework: pip targeted the "
                     "system Python (externally-managed-environment) instead "
                     "of the project venv. Delete the half-created environment "
                     "and create it again.",
+                )
+            if "ssl module" in lower or "ssl support is missing" in lower:
+                raise EnvironmentValidationError(
+                    "Failed to install Robot Framework: this Python cannot "
+                    f"use HTTPS (ssl module missing). {self._ssl_recovery_hint()}",
                 )
             raise EnvironmentValidationError(
                 f"Failed to install Robot Framework: {detail}",

@@ -47,6 +47,19 @@ Newer builds also try `ensurepip` inside the new venv and show this apt hint whe
 Pip ran against **system** Python (`/usr/bin/python3`) instead of the project venv. Ubuntu blocks that on purpose.
 
 Current builds keep the venv’s `bin/python` wrapper (they no longer follow the symlink to `/usr/bin/python3`). Update Robot Studio, delete any half-created env under `.robotstudio/environments/`, then Create Environment again.
+
+## Linux: pip SSL / `ssl module is not available`
+
+The selected Python cannot do HTTPS, so PyPI installs fail. Ubuntu’s minimal `python3` often needs the full stdlib:
+
+```bash
+sudo apt install python3-full ca-certificates
+# or versioned:
+sudo apt install python3.14-full ca-certificates
+python3 -c "import ssl; print(ssl.OPENSSL_VERSION)"
+```
+
+Delete the half-created env under `.robotstudio/environments/`, then Create Environment again.
 ## Problems: can't open `robot_parsing_worker.py` / Missing library `BuiltIn`
 
 The language tools run a small worker script from the packaged backend. Older Linux/Windows/macOS zips omitted that file from the sidecar freeze, so Problems shows a missing path under `backend/_internal/.../robot_parsing_worker.py` and often `Missing library 'BuiltIn'`.

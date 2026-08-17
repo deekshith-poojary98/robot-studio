@@ -45,6 +45,13 @@ void main() {
     expect(copy.recovery.toLowerCase(), contains('venv'));
   });
 
+  test('missing Python SSL maps to apt recovery', () {
+    final copy = resolveFriendlyError(
+      'Failed to install Robot Framework: WARNING: the ssl module in Python is not available.',
+    );
+    expect(copy.recovery.toLowerCase(), contains('ssl'));
+  });
+
   test('missing Robot Framework maps to install recovery', () {
     final copy = resolveFriendlyError(
       'Robot Framework is not installed in the active environment.',

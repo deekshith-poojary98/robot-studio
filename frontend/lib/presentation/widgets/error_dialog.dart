@@ -179,6 +179,15 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
     );
   }
 
+  if (text.contains('ssl module') ||
+      text.contains('ssl support is missing') ||
+      text.contains('cannot use https')) {
+    return FriendlyErrorCopy(
+      summary: 'Could not install Robot Framework into the new environment.',
+      recovery: _sslRecoveryHint(),
+    );
+  }
+
   // Missing pip when installing Robot Framework into a new env (Ubuntu).
   if (text.contains('no module named pip') ||
       (text.contains('failed to install robot framework') &&
@@ -576,6 +585,21 @@ String _pipRecoveryHint() {
   return 'Install pip for your Python '
       '(e.g. sudo apt install python3-pip python3-venv), then create the '
       'environment again.';
+}
+
+String _sslRecoveryHint() {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) {
+    return 'Install a full Python 3 build with SSL (brew install python, or '
+        'python.org), then create the environment again.';
+  }
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    return 'Reinstall Python from python.org (SSL is included), then create '
+        'the environment again.';
+  }
+  return 'Install SSL support for Python '
+      '(e.g. sudo apt install python3-full ca-certificates), delete the '
+      'half-created environment under .robotstudio/environments/, then create '
+      'it again.';
 }
 
 class _FriendlyErrorDialog extends StatefulWidget {
