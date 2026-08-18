@@ -242,6 +242,16 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
   }
 
   // Virtualenv / ensurepip (before generic env / Robot Framework matchers)
+  if (text.contains('import ssl') ||
+      text.contains('ssl module') ||
+      text.contains('ssl support is missing') ||
+      text.contains('cannot use https')) {
+    return FriendlyErrorCopy(
+      summary: 'Could not create a Python virtual environment.',
+      recovery: _sslRecoveryHint(),
+    );
+  }
+
   if (_any(text, const [
     'ensurepip',
     'python3-venv',

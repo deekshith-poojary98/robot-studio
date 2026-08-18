@@ -52,6 +52,14 @@ void main() {
     expect(copy.recovery.toLowerCase(), contains('ssl'));
   });
 
+  test('venv create SSL failure maps to python3-full hint', () {
+    final copy = resolveFriendlyError(
+      'Failed to create virtual environment: the selected Python cannot import ssl (HTTPS/pip will fail).',
+    );
+    expect(copy.summary, 'Could not create a Python virtual environment.');
+    expect(copy.recovery.toLowerCase(), contains('python3-full'));
+  });
+
   test('missing Robot Framework maps to install recovery', () {
     final copy = resolveFriendlyError(
       'Robot Framework is not installed in the active environment.',
