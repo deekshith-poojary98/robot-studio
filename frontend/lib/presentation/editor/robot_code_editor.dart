@@ -184,17 +184,14 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       widget.onBindState?.call(this);
     }
     if (oldWidget.path != widget.path) {
-      _controller.removeListener(_onChanged);
-      _controller.text = widget.initialContent;
-      _controller.addListener(_onChanged);
+      _applyParentContent(widget.initialContent, preserveSelection: false);
       _dismissHover();
-    } else if (oldWidget.initialContent != widget.initialContent &&
-        widget.initialContent != _controller.text) {
-      final selection = _controller.selection;
-      _controller.removeListener(_onChanged);
-      _controller.text = widget.initialContent;
-      _controller.selection = selection;
-      _controller.addListener(_onChanged);
+    } else if (shouldApplyParentContent(
+      oldParentContent: oldWidget.initialContent,
+      newParentContent: widget.initialContent,
+      controllerContent: _controller.text,
+    )) {
+      _applyParentContent(widget.initialContent);
     }
     if (widget.completionItems != oldWidget.completionItems ||
         widget.hoverTooltip != oldWidget.hoverTooltip) {
@@ -250,13 +247,38 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     super.dispose();
   }
 
+  /// When to push [initialContent] from the shell into the live controller.
+  ///
+  /// Only when the parent moved forward and the controller still matches the
+  /// previous parent snapshot (disk reload). While the user types ahead of a
+  /// stale [EditorTabInfo.content], skip — that mismatch caused the caret to
+  /// jump to column 1 on fast input.
+  @visibleForTesting
+  static bool shouldApplyParentContent({
+    required String oldParentContent,
+    required String newParentContent,
+    required String controllerContent,
+  }) {
+    if (newParentContent == controllerContent) return false;
+    if (newParentContent == oldParentContent) return false;
+    return controllerContent == oldParentContent;
+  }
+
+  void _applyParentContent(String content, {bool preserveSelection = true}) {
+    final selection = preserveSelection ? _controller.selection : null;
+    _controller.removeListener(_onChanged);
+    _controller.text = content;
+    if (preserveSelection && selection != null) {
+      _controller.selection = selection;
+    }
+    _controller.addListener(_onChanged);
+  }
+
   void _onChanged() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      widget.onContentChanged(_controller.text);
-      final sel = _controller.selection;
-      widget.onCursorChanged?.call(sel.baseIndex + 1, sel.baseOffset + 1);
-    });
+    if (!mounted) return;
+    widget.onContentChanged(_controller.text);
+    final sel = _controller.selection;
+    widget.onCursorChanged?.call(sel.baseIndex + 1, sel.baseOffset + 1);
   }
 
   void _recordCompletionAcceptance(String insertWord) {

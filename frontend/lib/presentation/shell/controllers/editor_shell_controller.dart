@@ -47,8 +47,11 @@ class EditorShellController {
 
   Timer? languageDebounce;
   Timer? hoverDebounce;
+  Timer? cursorUiDebounce;
   Timer? statusTimer;
   int _hoverRequestId = 0;
+
+  static const _cursorUiDebounce = Duration(milliseconds: 80);
 
   static const statusMessageTtl = Duration(seconds: 4);
 
@@ -82,6 +85,7 @@ class EditorShellController {
   void dispose() {
     languageDebounce?.cancel();
     hoverDebounce?.cancel();
+    cursorUiDebounce?.cancel();
     statusTimer?.cancel();
   }
 
@@ -125,8 +129,18 @@ class EditorShellController {
       tab.cursorColumn = column;
     }
     syncActiveSymbol(line);
-    notify();
     scheduleLanguageRefresh();
+    _scheduleCursorUiNotify();
+  }
+
+  /// Status bar / outline chrome — debounced so fast typing does not rebuild
+  /// the whole shell (and re-enter parent→controller content sync) per key.
+  void _scheduleCursorUiNotify() {
+    cursorUiDebounce?.cancel();
+    cursorUiDebounce = Timer(_cursorUiDebounce, () {
+      cursorUiDebounce = null;
+      if (isMounted()) notify();
+    });
   }
 
   void scheduleLanguageRefresh() {
