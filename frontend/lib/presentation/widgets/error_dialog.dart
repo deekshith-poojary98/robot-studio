@@ -155,6 +155,18 @@ FriendlyErrorCopy resolveFriendlyError(String raw) {
     );
   }
 
+  // Git CLI missing — Init used to 500 with a Windows-only hint on Linux.
+  if (text.contains('git is not installed') ||
+      (text.contains('not on path') && text.contains('git'))) {
+    return const FriendlyErrorCopy(
+      summary: 'Git is not installed, so Source Control cannot start.',
+      recovery:
+          'Install Git for this OS (Windows: Git for Windows; macOS: '
+          'xcode-select --install or brew install git; Linux: sudo apt '
+          'install git), then restart Robot Studio.',
+    );
+  }
+
   // Deleted workspace/project root (before generic "not found")
   if (text.contains('no longer on disk')) {
     return const FriendlyErrorCopy(

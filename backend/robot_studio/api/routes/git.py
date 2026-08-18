@@ -29,6 +29,7 @@ from robot_studio.api.schemas.git import (
     to_status_response,
 )
 from robot_studio.application.services.git_service import GitValidationError
+from robot_studio.infrastructure.git.cli_provider import GitCommandError
 
 router = APIRouter(prefix="/git", tags=["git"])
 
@@ -54,7 +55,7 @@ async def git_init(
 ) -> GitRepositoryResponse:
     try:
         repository = await gateway.git_init()
-    except GitValidationError as exc:
+    except (GitValidationError, GitCommandError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return to_repository_response(repository)
 

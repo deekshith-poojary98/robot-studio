@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -209,3 +210,30 @@ async def test_detect_ignores_parent_monorepo(tmp_path: Path) -> None:
     assert detected is not None
     assert detected.root == project.resolve()
     assert detected.root != parent.resolve()
+
+
+def test_git_missing_message_matches_platform() -> None:
+    from robot_studio.infrastructure.git.cli_provider import git_missing_message
+
+    message = git_missing_message()
+    assert "not installed" in message.lower()
+    if sys.platform == "win32":
+        assert "Git for Windows" in message
+    else:
+        assert "Git for Windows" not in message
+    if sys.platform.startswith("linux"):
+        assert "apt install git" in message
+
+
+@pytest.mark.asyncio
+async def test_init_without_git_is_validation_error(
+    git_stack,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, _provider, _path, _bus = git_stack
+    monkeypatch.setattr(
+        "robot_studio.infrastructure.git.cli_provider.shutil.which",
+        lambda _name: None,
+    )
+    with pytest.raises(GitValidationError, match="not installed"):
+        await service.init()

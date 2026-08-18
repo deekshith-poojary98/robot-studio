@@ -60,6 +60,15 @@ void main() {
     expect(copy.recovery.toLowerCase(), contains('python3-full'));
   });
 
+  test('git not installed maps to install-git recovery', () {
+    final copy = resolveFriendlyError(
+      'Git is not installed or not on PATH. '
+      'Install it (e.g. sudo apt install git), then restart Robot Studio.',
+    );
+    expect(copy.summary.toLowerCase(), contains('git is not installed'));
+    expect(copy.recovery.toLowerCase(), contains('sudo apt'));
+  });
+
   test('missing Robot Framework maps to install recovery', () {
     final copy = resolveFriendlyError(
       'Robot Framework is not installed in the active environment.',

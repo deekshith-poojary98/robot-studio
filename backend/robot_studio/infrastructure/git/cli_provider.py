@@ -6,6 +6,7 @@ import asyncio
 import logging
 import shutil
 import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -31,6 +32,25 @@ logger = logging.getLogger(__name__)
 
 class GitCommandError(Exception):
     """Raised when a git command fails."""
+
+
+def git_missing_message() -> str:
+    """How to install Git on this OS — used when ``git`` is not on PATH."""
+    if sys.platform == "win32":
+        return (
+            "Git is not installed or not on PATH. "
+            "Install Git for Windows, then restart Robot Studio."
+        )
+    if sys.platform == "darwin":
+        return (
+            "Git is not installed or not on PATH. "
+            "Install Git (xcode-select --install, or brew install git), "
+            "then restart Robot Studio."
+        )
+    return (
+        "Git is not installed or not on PATH. "
+        "Install it (e.g. sudo apt install git), then restart Robot Studio."
+    )
 
 
 class CliGitProvider(GitProvider):
@@ -481,10 +501,7 @@ class CliGitProvider(GitProvider):
         thread + ``subprocess.run``.
         """
         if shutil.which("git") is None:
-            raise GitCommandError(
-                "Git is not installed or not on PATH. Install Git for Windows "
-                "to use Source Control.",
-            )
+            raise GitCommandError(git_missing_message())
 
         timeout = self._timeout
         if args and args[0] in {
@@ -523,10 +540,7 @@ class CliGitProvider(GitProvider):
                 **windows_no_window_kwargs(),
             )
         except FileNotFoundError as exc:
-            raise GitCommandError(
-                "Git is not installed or not on PATH. Install Git for Windows "
-                "to use Source Control.",
-            ) from exc
+            raise GitCommandError(git_missing_message()) from exc
         except OSError as exc:
             raise GitCommandError(f"Failed to start git: {exc}") from exc
 

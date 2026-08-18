@@ -37,6 +37,7 @@ Git in Robot Studio is always scoped to the **active project**. It will not sile
 
 ## Tips
 
+- If **Initialize Git** fails, install Git on the machine (`sudo apt install git` on Ubuntu, Git for Windows, or `brew install git` / Xcode tools on macOS), then restart Robot Studio.
 - Keep `.robotstudio/` ignored (new projects get this in the seeded `.gitignore`).
 - If Git looks empty or wrong, confirm the project root is the repo you intend — not a parent folder opened by mistake.
 - Explorer and Tests refresh from live workspace events, including Git changes from outside the app.

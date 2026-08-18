@@ -133,7 +133,14 @@ class GitService:
 
     async def init(self) -> GitRepositoryInfo:
         path = self._scope_path()
-        repository = await self.provider.init(path)
+        try:
+            repository = await self.provider.init(path)
+        except Exception as exc:
+            from robot_studio.infrastructure.git.cli_provider import GitCommandError
+
+            if isinstance(exc, GitCommandError):
+                raise GitValidationError(str(exc)) from exc
+            raise
         self._repository = repository
         await self.event_bus.publish(RepositoryInitialized(root=str(repository.root)))
         await self.event_bus.publish(RepositoryUpdated(root=str(repository.root)))

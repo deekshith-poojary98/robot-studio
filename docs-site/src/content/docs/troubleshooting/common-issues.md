@@ -28,6 +28,17 @@ sudo apt install python3.14-venv
 
 Confirm with `python3 -m venv --help`, then in Robot Studio use **Create Environment** again. This is host setup (like installing Python on Windows) — not part of the app zip.
 
+## Linux: Initialize Git → Internal Server Error / Git is not installed
+
+Source Control calls the system `git` binary. Ubuntu VMs often do not have it:
+
+```bash
+sudo apt install git
+git --version
+```
+
+Restart Robot Studio, then **Initialize Git** again. Older zips returned HTTP 500 and said “Install Git for Windows” even on Linux — current builds show the apt hint instead.
+
 ## Linux: Could not install Robot Framework / `No module named pip`
 
 Same class of Ubuntu split: Python is present but **pip** is not. Install once:
