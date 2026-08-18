@@ -607,9 +607,10 @@ String _sslRecoveryHint() {
         'the environment again.';
   }
   return 'Install SSL support for Python '
-      '(e.g. sudo apt install python3-full ca-certificates), delete the '
-      'half-created environment under .robotstudio/environments/, then create '
-      'it again.';
+      '(e.g. sudo apt install python3-full ca-certificates). Verify in a '
+      'terminal: python3 -c "import ssl; print(ssl.OPENSSL_VERSION)". If '
+      'that fails, try python3.14 or python3.14-full. Delete the half-created '
+      'environment under .robotstudio/environments/, then create it again.';
 }
 
 class _FriendlyErrorDialog extends StatefulWidget {

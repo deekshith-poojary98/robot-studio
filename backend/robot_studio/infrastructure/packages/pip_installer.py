@@ -12,6 +12,7 @@ from pathlib import Path
 from robot_studio.domain.interfaces.installer import Installer
 from robot_studio.domain.models import InstalledPackage
 from robot_studio.infrastructure.environment.python_provider import (
+    _host_python_subprocess_env,
     stable_subprocess_cwd,
 )
 from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
@@ -224,6 +225,7 @@ class PipInstaller(Installer):
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python.resolve().parent.parent),
+            env=_host_python_subprocess_env(),
             **windows_no_window_kwargs(),
         )
         logs = self._merge_logs(result.stdout, result.stderr)
@@ -239,6 +241,7 @@ class PipInstaller(Installer):
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python.resolve().parent.parent),
+            env=_host_python_subprocess_env(),
             **windows_no_window_kwargs(),
         )
         if result.returncode != 0:
@@ -263,6 +266,7 @@ class PipInstaller(Installer):
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python.resolve().parent.parent),
+            env=_host_python_subprocess_env(),
             **windows_no_window_kwargs(),
         )
         if result.returncode != 0:

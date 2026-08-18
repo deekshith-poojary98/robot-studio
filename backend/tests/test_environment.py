@@ -304,6 +304,38 @@ def test_discover_interpreters_finds_host_python() -> None:
     assert all("robot-studio-backend" not in item.path.lower() for item in found)
 
 
+def test_host_python_subprocess_env_strips_bundle_vars_when_frozen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from robot_studio.infrastructure.environment.python_provider import (
+        _host_python_subprocess_env,
+    )
+
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/app/backend/_internal")
+    monkeypatch.setenv("LD_PRELOAD", "/tmp/evil.so")
+    monkeypatch.setenv("PYTHONHOME", "/wrong")
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+
+    env = _host_python_subprocess_env()
+    assert "LD_LIBRARY_PATH" not in env
+    assert "LD_PRELOAD" not in env
+    assert "PYTHONHOME" not in env
+
+
+def test_host_python_subprocess_env_keeps_vars_when_not_frozen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from robot_studio.infrastructure.environment.python_provider import (
+        _host_python_subprocess_env,
+    )
+
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/custom/lib")
+    monkeypatch.setattr(sys, "frozen", False, raising=False)
+
+    env = _host_python_subprocess_env()
+    assert env.get("LD_LIBRARY_PATH") == "/custom/lib"
+
+
 @pytest.mark.asyncio
 async def test_missing_venv_marked_unavailable(services) -> None:
     environment = await services["environment_service"].create_environment(

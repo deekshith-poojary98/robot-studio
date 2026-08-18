@@ -11,6 +11,7 @@ from typing import Any
 
 from robot_studio.infrastructure.environment.python_provider import (
     PythonEnvironmentProvider,
+    _host_python_subprocess_env,
 )
 from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
 
@@ -93,6 +94,7 @@ class RobotParsingBridge:
                 text=True,
                 check=False,
                 timeout=30,
+                env=_host_python_subprocess_env(),
                 **windows_no_window_kwargs(),
             )
         except subprocess.TimeoutExpired as exc:

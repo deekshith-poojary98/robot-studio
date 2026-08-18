@@ -52,6 +52,20 @@ def stable_subprocess_cwd(preferred: Path | str | None = None) -> str:
     return tempfile.gettempdir()
 
 
+def _host_python_subprocess_env() -> dict[str, str]:
+    """Environment for spawning the user's Python from the frozen sidecar.
+
+    PyInstaller sets ``LD_LIBRARY_PATH`` to bundled libs. Child processes that
+    run ``/usr/bin/python3`` inherit it and can fail ``import ssl`` even when
+    the same command works in a normal terminal.
+    """
+    env = os.environ.copy()
+    if getattr(sys, "frozen", False):
+        for key in ("LD_LIBRARY_PATH", "LD_PRELOAD", "PYTHONHOME"):
+            env.pop(key, None)
+    return env
+
+
 def _is_bundled_sidecar(path: Path) -> bool:
     name = path.name.lower()
     return name in _SIDECAR_NAMES
@@ -93,7 +107,7 @@ def _is_windows_apps_alias(path: Path) -> bool:
 
 def _discovery_environ() -> dict[str, str]:
     """PATH for discovering host Python (helps Microsoft Store / user installs)."""
-    env = os.environ.copy()
+    env = _host_python_subprocess_env()
     extras: list[str] = []
     if sys.platform == "win32":
         local = os.environ.get("LOCALAPPDATA") or str(
@@ -382,6 +396,7 @@ class PythonEnvironmentProvider:
                 text=True,
                 check=False,
                 cwd=stable_subprocess_cwd(target_dir.parent),
+                env=_host_python_subprocess_env(),
                 **_windows_no_window_kwargs()
             )
             if result.returncode != 0:
@@ -419,6 +434,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(venv_python.parent.parent),
+            env=_host_python_subprocess_env(),
             **_windows_no_window_kwargs(),
         )
         if self._pip_module_ok(venv_python):
@@ -449,6 +465,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(_venv_root_from_python(python_executable)),
+            env=_host_python_subprocess_env(),
             **_windows_no_window_kwargs(),
         )
         if isolated.returncode != 0:
@@ -459,6 +476,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(_venv_root_from_python(python_executable)),
+            env=_host_python_subprocess_env(),
             **_windows_no_window_kwargs(),
         )
         return probe.returncode == 0
@@ -470,6 +488,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(_venv_root_from_python(python_executable)),
+            env=_host_python_subprocess_env(),
             **_windows_no_window_kwargs(),
         )
         return probe.returncode == 0
@@ -488,7 +507,9 @@ class PythonEnvironmentProvider:
         return (
             "Install SSL support for this Python "
             "(e.g. sudo apt install python3-full ca-certificates), "
-            "delete the half-created environment, then create it again."
+            "then verify with: python3 -c \"import ssl; print(ssl.OPENSSL_VERSION)\". "
+            "If that still fails, try python3.14 explicitly or reinstall Python. "
+            "Delete the half-created environment, then create it again."
         )
 
     def _ensure_ssl(self, base_python: Path, venv_python: Path) -> None:
@@ -560,6 +581,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python_executable.parent),
+            env=_host_python_subprocess_env(),
             **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
@@ -574,6 +596,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python_executable.parent),
+            env=_host_python_subprocess_env(),
             **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
@@ -599,6 +622,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python_executable.parent),
+            env=_host_python_subprocess_env(),
             **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
@@ -629,6 +653,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(preferred),
+            env=_host_python_subprocess_env(),
             **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
@@ -657,6 +682,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(python_executable.parent),
+            env=_host_python_subprocess_env(),
             **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
@@ -689,6 +715,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(_venv_root_from_python(python_executable)),
+            env=_host_python_subprocess_env(),
             **_windows_no_window_kwargs()
         )
         if result.returncode != 0:
@@ -790,6 +817,7 @@ class PythonEnvironmentProvider:
             for name in (
                 "python3",
                 "python",
+                "python3.14",
                 "python3.13",
                 "python3.12",
                 "python3.11",
@@ -842,6 +870,12 @@ class PythonEnvironmentProvider:
             probed += 1
             version = self._probe_version(candidate)
             if version is None:
+                continue
+            if not self._ssl_module_ok(candidate):
+                logging.getLogger(__name__).debug(
+                    "Skipping Python without ssl: %s",
+                    candidate,
+                )
                 continue
             display_path = str(candidate)
             display = f"Python {version} — {display_path}"
@@ -903,6 +937,7 @@ class PythonEnvironmentProvider:
             text=True,
             check=False,
             cwd=stable_subprocess_cwd(),
+            env=_host_python_subprocess_env(),
             **_windows_no_window_kwargs()
         )
         if result.returncode != 0:

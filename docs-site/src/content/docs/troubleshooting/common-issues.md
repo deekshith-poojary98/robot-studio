@@ -54,10 +54,15 @@ The selected Python cannot do HTTPS, so PyPI installs fail. Ubuntu’s minimal `
 
 ```bash
 sudo apt install python3-full ca-certificates
-# or versioned:
+# If python3 still fails, install the versioned full package (Ubuntu 26.04):
 sudo apt install python3.14-full ca-certificates
 python3 -c "import ssl; print(ssl.OPENSSL_VERSION)"
+python3.14 -c "import ssl; print(ssl.OPENSSL_VERSION)"
 ```
+
+If `python3-full` is already installed but `import ssl` still fails **in a terminal**, `/usr/bin/python3` may point at a minimal build — use **Browse** in Create Environment and pick `/usr/bin/python3.14` (or whichever path passes the check above).
+
+If SSL works in a terminal but Robot Studio still reports “cannot import ssl”, you are likely on an older Linux zip where the packaged backend inherited PyInstaller's `LD_LIBRARY_PATH` into child Python processes. Update to a build that clears that when spawning host Python, or test on Windows/macOS for beta.
 
 Delete the half-created env under `.robotstudio/environments/`, then Create Environment again.
 ## Problems: can't open `robot_parsing_worker.py` / Missing library `BuiltIn`
