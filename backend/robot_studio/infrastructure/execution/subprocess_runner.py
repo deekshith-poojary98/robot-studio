@@ -15,6 +15,10 @@ from uuid import UUID, uuid4
 
 from robot_studio.domain.interfaces.runner import Runner
 from robot_studio.domain.models import ExecutionStatus
+from robot_studio.infrastructure.environment.python_provider import (
+    _absolute_keep_wrapper,
+    _host_python_subprocess_env,
+)
 from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
 
 
@@ -79,7 +83,9 @@ class SubprocessRunner(Runner):
         self._lock = asyncio.Lock()
 
     async def start(self, request: dict) -> dict:
-        python = Path(str(request["python_executable"])).expanduser().resolve()
+        python = _absolute_keep_wrapper(
+            Path(str(request["python_executable"])).expanduser(),
+        )
         if not python.is_file():
             raise RunnerError(f"Python executable not found: '{python}'")
 
@@ -117,7 +123,7 @@ class SubprocessRunner(Runner):
             suite,
         ]
 
-        env = os.environ.copy()
+        env = _host_python_subprocess_env()
         env["PYTHONUNBUFFERED"] = "1"
 
         try:

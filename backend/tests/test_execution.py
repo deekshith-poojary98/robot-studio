@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from uuid import UUID
 import sys
 
 import pytest
@@ -266,3 +267,59 @@ async def test_requires_active_session(tmp_path: Path) -> None:
     )
     with pytest.raises(ExecutionValidationError, match="workspace"):
         await service.run_project()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="venv python is a symlink on Unix")
+@pytest.mark.asyncio
+async def test_runner_invokes_venv_wrapper_not_system_python(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    wrapper = bin_dir / "python"
+    wrapper.symlink_to(sys.executable)
+    (tmp_path / "pyvenv.cfg").write_text("home = /\n", encoding="utf-8")
+    suite = tmp_path / "suite.robot"
+    suite.write_text("*** Test Cases ***\nX\n    No Operation\n", encoding="utf-8")
+    output_dir = tmp_path / "out"
+
+    captured: dict[str, object] = {}
+
+    class _FakeProcess:
+        def __init__(self) -> None:
+            self.pid = 4242
+            self.stdout = None
+            self.stderr = None
+            self.returncode = 0
+
+        async def wait(self) -> int:
+            return 0
+
+    async def fake_exec(*command: str, **kwargs: object) -> _FakeProcess:
+        captured["command"] = command
+        captured["env"] = kwargs.get("env")
+        return _FakeProcess()
+
+    monkeypatch.setattr(
+        "robot_studio.infrastructure.execution.subprocess_runner.asyncio.create_subprocess_exec",
+        fake_exec,
+    )
+
+    runner = SubprocessRunner()
+    started = await runner.start(
+        {
+            "python_executable": str(wrapper),
+            "suite": str(suite),
+            "output_dir": str(output_dir),
+            "cwd": str(tmp_path),
+        },
+    )
+    command = captured["command"]
+    assert isinstance(command, tuple)
+    assert command[0] == str(wrapper.absolute())
+    assert command[0] != str(Path(sys.executable).resolve())
+    assert started["status"] == ExecutionStatus.RUNNING.value
+    run_id = UUID(str(started["run_id"]))
+    await runner.wait(run_id)
+    runner.release(run_id)

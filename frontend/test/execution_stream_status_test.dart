@@ -107,6 +107,45 @@ void main() {
     expect(notified, 0);
   });
 
+  test('aborted events stop the timer and clear live progress', () {
+    controller.currentExecution = ExecutionInfo(
+      id: 'run-1',
+      workspaceId: 'ws',
+      projectId: 'proj',
+      environmentId: 'env',
+      projectName: 'Amazon',
+      suite: 'suite.robot',
+      status: ExecutionStatus.running,
+      startedAt: DateTime.utc(2026, 1, 1),
+      finishedAt: null,
+      durationMs: null,
+      exitCode: null,
+      command: 'robot',
+      outputDir: null,
+      outputXml: null,
+      logHtml: null,
+      reportHtml: null,
+    );
+    controller.executionStatus = ExecutionStatus.running;
+    controller.liveSuite = 'suite.robot';
+    controller.liveTest = 'Example Test';
+    controller.startElapsedTimer();
+
+    controller.handleStreamEvent(
+      const ExecutionStreamEvent(
+        type: 'aborted',
+        runId: 'run-1',
+        status: 'aborted',
+        message: 'Robot Framework is not installed',
+      ),
+    );
+
+    expect(controller.executionStatus, ExecutionStatus.aborted);
+    expect(controller.liveSuite, isEmpty);
+    expect(controller.liveTest, isEmpty);
+    expect(controller.elapsedTimer, isNull);
+  });
+
   test('batches output lines instead of notifying per line', () async {
     controller.currentExecution = ExecutionInfo(
       id: 'run-1',

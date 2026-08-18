@@ -11,6 +11,7 @@ from typing import Any
 
 from robot_studio.infrastructure.environment.python_provider import (
     PythonEnvironmentProvider,
+    _absolute_keep_wrapper,
     _host_python_subprocess_env,
 )
 from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
@@ -130,4 +131,4 @@ class RobotParsingBridge:
             raise RobotParsingError(
                 f"Environment Python not found at '{candidate}'",
             )
-        return candidate.resolve()
+        return _absolute_keep_wrapper(candidate)

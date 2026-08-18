@@ -162,6 +162,7 @@ class ExecutionShellController {
         );
         notify();
         return;
+      case 'aborted':
       case 'finished':
       case 'failed':
       case 'cancelled':

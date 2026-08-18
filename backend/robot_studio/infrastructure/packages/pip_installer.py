@@ -12,7 +12,9 @@ from pathlib import Path
 from robot_studio.domain.interfaces.installer import Installer
 from robot_studio.domain.models import InstalledPackage
 from robot_studio.infrastructure.environment.python_provider import (
+    _absolute_keep_wrapper,
     _host_python_subprocess_env,
+    _venv_root_from_python,
     stable_subprocess_cwd,
 )
 from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
@@ -215,7 +217,7 @@ class PipInstaller(Installer):
             raise PackageInstallError(
                 f"Active environment Python not found at '{candidate}'",
             )
-        return candidate.resolve()
+        return _absolute_keep_wrapper(candidate)
 
     def _pip(self, python: Path, args: list[str], *, error_prefix: str) -> list[str]:
         command = [str(python), "-m", "pip", *args]
@@ -224,7 +226,7 @@ class PipInstaller(Installer):
             capture_output=True,
             text=True,
             check=False,
-            cwd=stable_subprocess_cwd(python.resolve().parent.parent),
+            cwd=stable_subprocess_cwd(_venv_root_from_python(python)),
             env=_host_python_subprocess_env(),
             **windows_no_window_kwargs(),
         )
@@ -240,7 +242,7 @@ class PipInstaller(Installer):
             capture_output=True,
             text=True,
             check=False,
-            cwd=stable_subprocess_cwd(python.resolve().parent.parent),
+            cwd=stable_subprocess_cwd(_venv_root_from_python(python)),
             env=_host_python_subprocess_env(),
             **windows_no_window_kwargs(),
         )
@@ -265,7 +267,7 @@ class PipInstaller(Installer):
             capture_output=True,
             text=True,
             check=False,
-            cwd=stable_subprocess_cwd(python.resolve().parent.parent),
+            cwd=stable_subprocess_cwd(_venv_root_from_python(python)),
             env=_host_python_subprocess_env(),
             **windows_no_window_kwargs(),
         )

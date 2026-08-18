@@ -65,6 +65,15 @@ If `python3-full` is already installed but `import ssl` still fails **in a termi
 If SSL works in a terminal but Robot Studio still reports “cannot import ssl”, you are likely on an older Linux zip where the packaged backend inherited PyInstaller's `LD_LIBRARY_PATH` into child Python processes. Update to a build that clears that when spawning host Python, or test on Windows/macOS for beta.
 
 Delete the half-created env under `.robotstudio/environments/`, then Create Environment again.
+
+## Linux: Problems says `No module named robot` / Missing `BuiltIn`
+
+The project venv can have Robot Framework (`pip list` inside `.robotstudio/environments/default` shows `robotframework`) while Problems and **Run** still use **system** Python (`/usr/bin/python3.14: No module named robot`). On Linux the venv `bin/python` is a symlink; older zips followed it and ran the OS interpreter.
+
+The run timer can also keep going after that error (the abort was ignored in the UI).
+
+**Fix:** update Robot Studio to a build that keeps the venv wrapper for parse, pip, and run. Your existing environments are fine — just reopen the project and Run again.
+
 ## Problems: can't open `robot_parsing_worker.py` / Missing library `BuiltIn`
 
 The language tools run a small worker script from the packaged backend. Older Linux/Windows/macOS zips omitted that file from the sidecar freeze, so Problems shows a missing path under `backend/_internal/.../robot_parsing_worker.py` and often `Missing library 'BuiltIn'`.

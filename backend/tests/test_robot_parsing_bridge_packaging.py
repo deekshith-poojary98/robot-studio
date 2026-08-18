@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -61,3 +62,20 @@ def test_parsing_worker_source_errors_when_absent(
 
     with pytest.raises(RobotParsingError, match="parsing worker is missing"):
         _robot_parsing_worker_source()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="venv python is a symlink on Unix")
+def test_resolve_python_keeps_venv_wrapper(tmp_path: Path) -> None:
+    from robot_studio.infrastructure.language.robot_parsing_bridge import (
+        RobotParsingBridge,
+    )
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    wrapper = bin_dir / "python"
+    wrapper.symlink_to(sys.executable)
+    (tmp_path / "pyvenv.cfg").write_text("home = /\n", encoding="utf-8")
+
+    resolved = RobotParsingBridge().resolve_python(tmp_path)
+    assert resolved == wrapper.absolute()
+    assert resolved != Path(sys.executable).resolve()
