@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../../core/backend_host.dart';
 import '../../../core/gateway/transport_gateway.dart';
 import '../../../core/logging/app_logger.dart';
 import 'shell_controller.dart';
@@ -138,6 +139,16 @@ class WorkspaceShellController {
             '($_consecutiveFailures/$offlineFailureThreshold) — ignoring',
             tag: 'Shell',
             data: '$error',
+          );
+          return;
+        }
+        if (await BackendHost.restartOwnedSidecar()) {
+          _consecutiveFailures = 0;
+          backendStatus = 'connecting';
+          notify();
+          AppLogger.info(
+            'Bundled backend restarted — waiting for health',
+            tag: 'Shell',
           );
           return;
         }

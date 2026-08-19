@@ -43,6 +43,10 @@ _MAX_INDEX_WORKERS = 8
 
 
 def _index_worker_count() -> int:
+    # Frozen Windows sidecars parse in threads — cap workers so git/env probes
+    # still get thread-pool slots during background indexing.
+    if getattr(sys, "frozen", False) and sys.platform == "win32":
+        return 2
     return min(_MAX_INDEX_WORKERS, max(2, os.cpu_count() or 4))
 
 
@@ -476,6 +480,7 @@ class IndexService:
         loop = asyncio.get_running_loop()
         pool: ProcessPoolExecutor | None = None
         pending: dict[asyncio.Task, Path] = {}
+        frozen_windows = getattr(sys, "frozen", False) and sys.platform == "win32"
         try:
             if use_pool:
                 pool = ProcessPoolExecutor(max_workers=workers)
@@ -497,7 +502,7 @@ class IndexService:
                 )
 
             # Bound in-flight parses so we do not queue 10k futures at once.
-            in_flight = max(workers * 2, workers)
+            in_flight = 2 if frozen_windows else max(workers * 2, workers)
             parse_iter = iter(to_parse)
             done_count = skipped
 

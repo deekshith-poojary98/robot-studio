@@ -1970,6 +1970,41 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
   }
 
+  /// Spread post-open API work so cold start does not hit the sidecar with a
+  /// single parallel burst (REST + WS reconnect was freezing Windows builds).
+  void _scheduleProjectOpenLoads({
+    List<DetectedEnvironmentInfo> detectedEnvironments = const [],
+  }) {
+    Future<void> after(Duration delay, Future<void> Function() work) async {
+      if (delay > Duration.zero) {
+        await Future<void>.delayed(delay);
+      }
+      if (!mounted || _backendStatus != 'connected') return;
+      await work();
+    }
+
+    unawaited(
+      after(Duration.zero, () async {
+        await Future.wait([_editor.loadFileTree(), _loadIndexStatus()]);
+      }),
+    );
+
+    unawaited(
+      after(const Duration(milliseconds: 250), () async {
+        try {
+          await _loadEnvironments().timeout(const Duration(seconds: 15));
+        } catch (_) {
+          // Timeout or load error — decide from whatever state we have.
+        }
+        if (!mounted || _environments.isNotEmpty) return;
+        await _showEnvironmentPrompt(detectedEnvironments);
+      }),
+    );
+
+    unawaited(after(const Duration(milliseconds: 500), _loadExecutionHistory));
+    unawaited(after(const Duration(milliseconds: 800), _loadGitStatus));
+  }
+
   Future<void> _applyOpenedWorkspace(
     WorkspaceInfo workspace, {
     required String successMessage,
@@ -2035,26 +2070,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         setState(() => _selectedProject = match.first);
       }
     }
-    // Fire remaining work without delaying first paint of the shell.
-    unawaited(_live.connect());
-    unawaited(_loadExecutionHistory());
-    unawaited(_loadIndexStatus());
-    unawaited(_editor.loadFileTree());
-    unawaited(_loadGitStatus());
-    // Load envs before deciding on the toast. Do not race the prompt against an
-    // empty in-memory list (cleared above) while /environments is still in
-    // flight — that wrongly showed "Create Environment" when "default" existed.
-    // Keep this off the critical paint path; timeout so a hung list cannot
-    // delay a legitimate first-run prompt forever.
-    unawaited(() async {
-      try {
-        await _loadEnvironments().timeout(const Duration(seconds: 10));
-      } catch (_) {
-        // Timeout or load error — decide from whatever state we have.
-      }
-      if (!mounted || _environments.isNotEmpty) return;
-      await _showEnvironmentPrompt(detectedEnvironments);
-    }());
+    _scheduleProjectOpenLoads(detectedEnvironments: detectedEnvironments);
   }
 
   /// Folder to prefill as the parent for a new project: sibling of whatever is
@@ -2454,11 +2470,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _appendLog('[info] $successMessage "${project.name}"');
       await _loadProjects();
       await _loadRecent();
-      unawaited(_loadExecutionHistory());
-      unawaited(_loadEnvironments());
-      unawaited(_loadIndexStatus());
-      unawaited(_editor.loadFileTree());
-      unawaited(_loadGitStatus());
+      _scheduleProjectOpenLoads();
     } catch (error) {
       if (!mounted) return;
       setState(() => _busy = false);

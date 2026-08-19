@@ -29,6 +29,7 @@ class BackendHost {
   static const _sidecarName = 'robot-studio-backend';
   static const pidFileName = 'backend.pid';
   static BackendHost? _instance;
+  static DateTime? _lastRestartAt;
 
   static BackendHost? get instance => _instance;
 
@@ -113,6 +114,38 @@ class BackendHost {
 
     AppLogger.info('Bundled backend ready', tag: 'BackendHost');
     return _instance = BackendHost._(process: process, startedByApp: true);
+  }
+
+  /// Kill a frozen or dead owned sidecar and spawn a fresh one.
+  ///
+  /// Used when health probes fail while the UI still owns the backend process.
+  /// Cooldown prevents restart loops when the host is genuinely misconfigured.
+  static Future<bool> restartOwnedSidecar({
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
+    final current = _instance;
+    if (current == null || !current.startedByApp) return false;
+    final now = DateTime.now();
+    if (_lastRestartAt != null &&
+        now.difference(_lastRestartAt!) < const Duration(seconds: 60)) {
+      return false;
+    }
+
+    final target = current.ownedPid;
+    AppLogger.warn(
+      'Restarting bundled backend after health failure',
+      tag: 'BackendHost',
+      data: target,
+    );
+    if (target != null) {
+      _killPid(target, force: true);
+    }
+    clearPidFile();
+    _instance = null;
+    _lastRestartAt = now;
+
+    final host = await ensureStarted(timeout: timeout);
+    return host.startedByApp && host.ownedPid != null;
   }
 
   /// Async stop used from Flutter lifecycle. Prefer [stopSync] from native quit.

@@ -29,6 +29,7 @@ from robot_studio.infrastructure.environment.python_provider import (
     DiscoveredInterpreter,
     PythonEnvironmentProvider,
 )
+from robot_studio.infrastructure.process_utils import run_blocking
 
 SortKey = str  # "active" | "name" | "created_at"
 
@@ -324,7 +325,7 @@ class EnvironmentService:
     async def list_python_interpreters(self) -> list[DiscoveredInterpreter]:
         """Discover host Python interpreters (does not require an open workspace)."""
         # Subprocess probes must not block the asyncio loop (Windows Store / PATH).
-        return await asyncio.to_thread(self._python.discover_interpreters)
+        return await run_blocking(self._python.discover_interpreters)
 
     async def detect_candidate_environments(self) -> list[dict[str, str]]:
         """Find unused local venvs under the active project/workspace root."""
@@ -556,6 +557,30 @@ class EnvironmentService:
             # identity itself comes from .robotstudio, not the filesystem path).
             return environments
 
+        hydrated = await asyncio.to_thread(
+            self._hydrate_from_disk_sync,
+            workspace_id,
+            workspace_path,
+        )
+        if not hydrated:
+            return []
+        return await self._persist_hydrated_environments(hydrated)
+
+    async def _persist_hydrated_environments(
+        self,
+        hydrated: list[Environment],
+    ) -> list[Environment]:
+        persisted: list[Environment] = []
+        for environment in hydrated:
+            await self._repository.create(environment)
+            persisted.append(environment)
+        return persisted
+
+    def _hydrate_from_disk_sync(
+        self,
+        workspace_id: UUID,
+        workspace_path: Path,
+    ) -> list[Environment]:
         hydrated: list[Environment] = []
         for env_root in self._fs.discover(workspace_path):
             try:
@@ -581,7 +606,6 @@ class EnvironmentService:
                 self._fs.write_manifest(env_root, manifest)
 
             environment = self._from_manifest(workspace_id, manifest)
-            await self._repository.create(environment)
             hydrated.append(environment)
         return hydrated
 
@@ -606,7 +630,7 @@ class EnvironmentService:
                 python = self._python.resolve_executables(environment.path).python
             except EnvironmentValidationError:
                 return environment.model_copy(update={"available": False})
-        info = await asyncio.to_thread(self._python.inspect, python)
+        info = await run_blocking(self._python.inspect, python)
         robot_exe = environment.robot_executable
         if info.robot_version and (robot_exe is None or not Path(robot_exe).is_file()):
             try:

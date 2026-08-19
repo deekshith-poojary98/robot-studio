@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 import os
 import sys
 from pathlib import Path
@@ -13,6 +14,10 @@ from robot_studio.core.config import settings
 from robot_studio.core.container import container
 from robot_studio.core.database import init_database
 from robot_studio.core.logging_setup import configure_logging, ensure_file_logging
+from robot_studio.infrastructure.process_utils import (
+    init_blocking_pool,
+    shutdown_blocking_pool,
+)
 
 
 def _ensure_process_cwd() -> None:
@@ -37,10 +42,13 @@ async def lifespan(_app: FastAPI):
     _ensure_process_cwd()
     # Uvicorn may reconfigure logging after import-time setup — re-attach file log.
     ensure_file_logging(settings.data_dir)
+    loop = asyncio.get_running_loop()
+    init_blocking_pool(loop=loop)
     await container.initialize_async()
     await init_database()
     yield
     await container.shutdown()
+    shutdown_blocking_pool()
 
 
 def create_app() -> FastAPI:

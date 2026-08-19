@@ -52,6 +52,11 @@ class WorkspaceLiveController {
   bool _indexBusyHint = false;
 
   Future<void> connect() async {
+    // Bootstrap already connects before startup restore; reconnecting here during
+    // project open dropped the socket and flooded the backend with parallel HTTP.
+    if (_client != null && _client!.isConnected && _sub != null) {
+      return;
+    }
     await disconnect();
     final client = WorkspaceEventStreamClient();
     _client = client;

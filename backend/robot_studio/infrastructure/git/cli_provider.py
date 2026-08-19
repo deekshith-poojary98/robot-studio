@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import shutil
 import subprocess
@@ -25,7 +24,7 @@ from robot_studio.domain.models.git import (
     GitRepositoryInfo,
     GitStatus,
 )
-from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
+from robot_studio.infrastructure.process_utils import run_blocking, windows_no_window_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -517,7 +516,7 @@ class CliGitProvider(GitProvider):
             timeout = min(timeout, 15.0)
 
         try:
-            return await asyncio.to_thread(
+            return await run_blocking(
                 self._run_text_sync,
                 list(args),
                 Path(cwd),

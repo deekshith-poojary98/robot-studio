@@ -106,7 +106,9 @@ You only need this once per machine. Many full Windows installs already have it;
 
 ## Windows: env toast takes ~1–2 minutes / APIs time out
 
-Usually the sidecar stalled after open: console subprocesses (`git`, etc.) spawned without `CREATE_NO_WINDOW` from the packaged GUI app can freeze the asyncio loop. Fixed in current builds — re-run **Actions → Package Desktop**.
+Usually the sidecar stalled after open: console subprocesses (`git`, Python probes, etc.) spawned from the packaged GUI app can freeze the asyncio loop when they allocate a console or when indexing + git/env probes compete for the small default thread pool. Current builds use `CREATE_NO_WINDOW`, a larger blocking thread pool, and non-blocking file-watcher setup — re-run **Actions → Package Desktop**.
+
+If the status bar flips to **BACKEND UNAVAILABLE** after ~30s timeouts, also check for a **stale sidecar**: quit Robot Studio, open Task Manager, end any `robot-studio-backend.exe`, delete `%USERPROFILE%\.robot-studio\backend.pid` if present, then relaunch. Current builds also **restart the owned sidecar** automatically after repeated failed health checks (wait up to a minute between attempts).
 
 **Still says “Python is not installed” with Store / aliases:** App execution aliases only enable install-manager stubs. Install a runtime with `py install 3` (or python.org + Add to PATH), add `%LOCALAPPDATA%\Python\bin` to PATH if prompted, confirm `py list`, restart Robot Studio.
 

@@ -47,6 +47,7 @@ class GitService:
     _background_tasks: set[asyncio.Task] = field(default_factory=set, init=False)
     _unsubscribes: list[Subscription] = field(default_factory=list, init=False)
     _stopped: bool = field(default=False, init=False)
+    _refresh_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
 
     def start(self) -> None:
         if self._subscribed:
@@ -109,16 +110,17 @@ class GitService:
         raise GitValidationError("Open a workspace before using Git")
 
     async def refresh(self) -> GitRepositoryInfo | None:
-        try:
-            path = self._scope_path()
-        except GitValidationError:
-            self._repository = None
-            return None
-        repository = await self.provider.detect(path)
-        self._repository = repository
-        if repository is not None and repository.is_repository:
-            await self.event_bus.publish(RepositoryOpened(root=str(repository.root)))
-        return repository
+        async with self._refresh_lock:
+            try:
+                path = self._scope_path()
+            except GitValidationError:
+                self._repository = None
+                return None
+            repository = await self.provider.detect(path)
+            self._repository = repository
+            if repository is not None and repository.is_repository:
+                await self.event_bus.publish(RepositoryOpened(root=str(repository.root)))
+            return repository
 
     async def get_repository(self) -> GitRepositoryInfo | None:
         if self._repository is None:

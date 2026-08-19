@@ -160,8 +160,23 @@ class NativeFileWatcher(FileWatcher):
             return
         self._roots.add(root)
         if self._running and self._observer is not None and self._handler is not None:
-            if root.exists():
+            if root.exists() and self._loop is not None:
+                # recursive schedule walks the tree synchronously — never on the loop.
+                try:
+                    self._loop.create_task(self._attach_root(root))
+                except RuntimeError:
+                    return
+
+    async def _attach_root(self, root: Path) -> None:
+        def _schedule() -> None:
+            if (
+                self._observer is not None
+                and self._handler is not None
+                and root.exists()
+            ):
                 self._observer.schedule(self._handler, str(root), recursive=True)  # type: ignore[union-attr]
+
+        await asyncio.to_thread(_schedule)
 
     def unwatch_path(self, path: Path) -> None:
         self._roots.discard(Path(path))
