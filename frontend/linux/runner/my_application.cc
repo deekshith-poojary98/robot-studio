@@ -5,6 +5,7 @@
 #include <gdk/gdkx.h>
 #endif
 
+#include "backend_lifecycle.h"
 #include "flutter/generated_plugin_registrant.h"
 
 struct _MyApplication {
@@ -69,6 +70,12 @@ static void fonts_method_call(FlMethodChannel* channel,
   fl_method_call_respond_not_implemented(method_call, nullptr);
 }
 
+static void on_main_window_destroy(GtkWidget* widget, gpointer user_data) {
+  (void)widget;
+  (void)user_data;
+  terminate_packaged_backend_if_needed();
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
@@ -101,6 +108,8 @@ static void my_application_activate(GApplication* application) {
   } else {
     gtk_window_set_title(window, "Robot Studio");
   }
+
+  g_signal_connect(window, "destroy", G_CALLBACK(on_main_window_destroy), nullptr);
 
   gtk_window_set_default_size(window, 1360, 800);
 
@@ -174,9 +183,7 @@ static void my_application_startup(GApplication* application) {
 
 // Implements GApplication::shutdown.
 static void my_application_shutdown(GApplication* application) {
-  // MyApplication* self = MY_APPLICATION(object);
-
-  // Perform any actions required at application shutdown.
+  terminate_packaged_backend_if_needed();
 
   G_APPLICATION_CLASS(my_application_parent_class)->shutdown(application);
 }

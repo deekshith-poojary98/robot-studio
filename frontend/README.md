@@ -47,7 +47,7 @@ make package-linux     # → dist/linux/RobotStudio/ (+ linux-x64 or linux-arm64
 ```
 
 CI builds both Linux arches (`ubuntu-latest` + `ubuntu-24.04-arm`). Testers: unzip, then double-click `robot-studio.desktop` or run `./robot_studio` / `./install-desktop-launcher.sh`. Uninstall: `./uninstall.sh` (`--purge` also deletes `~/.robot-studio`).
-Release builds embed a PyInstaller sidecar under `Contents/Resources/backend/` (macOS) or `backend/` next to the binary (Windows / Linux). `BackendHost` (`lib/core/backend_host.dart`) spawns it when `:8765` is not already healthy, waits on `/api/v1/health`, writes `~/.robot-studio/backend.pid`, and the native runner (macOS `applicationWillTerminate` / Windows `OnDestroy`) kills that PID on quit — Flutter `detached` alone is not reliable on desktop. Orphan sidecars from a previous crash are reclaimed via the pid file. App data stays in `~/.robot-studio` (settings, DB, pid file, and daily diagnostic logs under `logs/` — retained for 7 days).
+Release builds embed a PyInstaller sidecar under `Contents/Resources/backend/` (macOS) or `backend/` next to the binary (Windows / Linux). `BackendHost` (`lib/core/backend_host.dart`) spawns it when `:8765` is not already healthy, waits on `/api/v1/health`, writes `~/.robot-studio/backend.pid`, and the native runner (macOS `applicationWillTerminate`, Windows `OnDestroy`, Linux `GApplication::shutdown`) kills that PID on quit — Flutter `detached` alone is not reliable on desktop. Orphan sidecars from a previous crash are reclaimed via the pid file. App data stays in `~/.robot-studio` (settings, DB, pid file, and daily diagnostic logs under `logs/` — retained for 7 days).
 ---
 
 ## Layout

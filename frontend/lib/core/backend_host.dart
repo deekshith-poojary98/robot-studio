@@ -16,15 +16,11 @@ import 'logging/app_logger.dart';
 /// - Else if a sidecar binary sits next to the app, spawn it and wait for health.
 /// - Else leave the UI to show BACKEND UNAVAILABLE (dev without a running API).
 ///
-/// Quit cleanup: Flutter lifecycle `detached` is unreliable on macOS desktop, so
+/// Quit cleanup: Flutter lifecycle `detached` is unreliable on desktop, so
 /// we also write `~/.robot-studio/backend.pid` for the native runner to kill on
-/// `applicationWillTerminate`.
+/// quit (macOS `applicationWillTerminate`, Windows `OnDestroy`, Linux shutdown).
 class BackendHost {
-  BackendHost._({
-    this.process,
-    this.pid,
-    this.startedByApp = false,
-  });
+  BackendHost._({this.process, this.pid, this.startedByApp = false});
 
   final Process? process;
   final int? pid;
@@ -50,18 +46,14 @@ class BackendHost {
 
     if (await waitForHealth(healthUrl, timeout: const Duration(seconds: 1))) {
       // Packaged orphan from a previous Quit that never killed the sidecar.
-      if (sidecar != null &&
-          existingPid != null &&
-          _isPidAlive(existingPid)) {
+      if (sidecar != null && existingPid != null && _isPidAlive(existingPid)) {
         AppLogger.info(
           'Reclaiming leftover packaged backend',
           tag: 'BackendHost',
           data: existingPid,
         );
-        return _instance = BackendHost._(
-          pid: existingPid,
-          startedByApp: true,
-        );
+        writePidFile(existingPid);
+        return _instance = BackendHost._(pid: existingPid, startedByApp: true);
       }
       AppLogger.info(
         'Backend already healthy — not spawning sidecar',
@@ -128,7 +120,11 @@ class BackendHost {
     if (!startedByApp) return;
     final target = ownedPid;
     if (target == null) return;
-    AppLogger.info('Stopping bundled backend', tag: 'BackendHost', data: target);
+    AppLogger.info(
+      'Stopping bundled backend',
+      tag: 'BackendHost',
+      data: target,
+    );
     _killPid(target);
     try {
       if (process != null) {
@@ -164,14 +160,8 @@ class BackendHost {
     final dir = File(exe).parent.path;
     final sep = Platform.pathSeparator;
     final names = Platform.isWindows
-        ? <String>[
-            '$_sidecarName.exe',
-            'backend$sep$_sidecarName.exe',
-          ]
-        : <String>[
-            _sidecarName,
-            'backend$sep$_sidecarName',
-          ];
+        ? <String>['$_sidecarName.exe', 'backend$sep$_sidecarName.exe']
+        : <String>[_sidecarName, 'backend$sep$_sidecarName'];
 
     for (final name in names) {
       final candidate = '$dir$sep$name';
@@ -202,7 +192,10 @@ class BackendHost {
     try {
       pidFile(dataDir: dataDir).writeAsStringSync('$processId\n');
     } catch (error) {
-      AppLogger.debug('Could not write backend pid file: $error', tag: 'BackendHost');
+      AppLogger.debug(
+        'Could not write backend pid file: $error',
+        tag: 'BackendHost',
+      );
     }
   }
 
@@ -228,7 +221,8 @@ class BackendHost {
   }
 
   static Directory _dataDir() {
-    final home = Platform.environment['HOME'] ??
+    final home =
+        Platform.environment['HOME'] ??
         Platform.environment['USERPROFILE'] ??
         Directory.systemTemp.path;
     final dir = Directory('$home${Platform.pathSeparator}.robot-studio');
@@ -240,11 +234,11 @@ class BackendHost {
     if (processId <= 0) return false;
     try {
       if (Platform.isWindows) {
-        final result = Process.runSync(
-          'tasklist',
-          ['/FI', 'PID eq $processId', '/NH'],
-          runInShell: true,
-        );
+        final result = Process.runSync('tasklist', [
+          '/FI',
+          'PID eq $processId',
+          '/NH',
+        ], runInShell: true);
         return result.stdout.toString().contains('$processId');
       }
       // POSIX: signal 0 checks existence without delivering a signal.
@@ -256,6 +250,19 @@ class BackendHost {
   }
 
   static void _killPid(int processId, {bool force = false}) {
+    if (Platform.isWindows) {
+      final args = ['/PID', '$processId', '/T'];
+      if (force) {
+        args.add('/F');
+      }
+      try {
+        Process.runSync('taskkill', args, runInShell: true);
+      } catch (_) {
+        // Already gone.
+      }
+      return;
+    }
+
     final signal = force ? ProcessSignal.sigkill : ProcessSignal.sigterm;
     try {
       Process.killPid(processId, signal);
@@ -291,8 +298,9 @@ class BackendHost {
           final request = await client
               .getUrl(Uri.parse(url))
               .timeout(const Duration(seconds: 2));
-          final response =
-              await request.close().timeout(const Duration(seconds: 2));
+          final response = await request.close().timeout(
+            const Duration(seconds: 2),
+          );
           await response.drain<void>();
           if (response.statusCode == 200) {
             return true;

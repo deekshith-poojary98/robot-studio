@@ -6,6 +6,67 @@
 #include <windows.h>
 
 #include <iostream>
+#include <string>
+
+namespace {
+
+bool RunHiddenCommand(const std::wstring& command) {
+  STARTUPINFOW startup_info{};
+  startup_info.cb = sizeof(startup_info);
+  startup_info.dwFlags = STARTF_USESHOWWINDOW;
+  startup_info.wShowWindow = SW_HIDE;
+  PROCESS_INFORMATION process_info{};
+
+  std::wstring mutable_command = command;
+  if (!CreateProcessW(nullptr, mutable_command.data(), nullptr, nullptr, FALSE,
+                      CREATE_NO_WINDOW, nullptr, nullptr, &startup_info,
+                      &process_info)) {
+    return false;
+  }
+
+  WaitForSingleObject(process_info.hProcess, 5000);
+  CloseHandle(process_info.hThread);
+  CloseHandle(process_info.hProcess);
+  return true;
+}
+
+bool IsProcessAlive(DWORD pid) {
+  if (pid <= 1) {
+    return false;
+  }
+  HANDLE process = OpenProcess(SYNCHRONIZE, FALSE, pid);
+  if (process == nullptr) {
+    return false;
+  }
+  const DWORD wait = WaitForSingleObject(process, 0);
+  CloseHandle(process);
+  return wait == WAIT_TIMEOUT;
+}
+
+void TerminatePidTree(DWORD pid) {
+  if (pid <= 1) {
+    return;
+  }
+
+  // Graceful stop first — uvicorn can exit cleanly on SIGTERM equivalent.
+  HANDLE process =
+      OpenProcess(PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
+  if (process != nullptr) {
+    TerminateProcess(process, 0);
+    CloseHandle(process);
+    Sleep(300);
+  }
+
+  if (!IsProcessAlive(pid)) {
+    return;
+  }
+
+  // Kill the full tree (PyInstaller / worker children on Windows).
+  RunHiddenCommand(L"taskkill.exe /PID " + std::to_wstring(pid) +
+                   L" /T /F");
+}
+
+}  // namespace
 
 void CreateAndAttachConsole() {
   if (::AllocConsole()) {
@@ -62,4 +123,38 @@ std::string Utf8FromUtf16(const wchar_t* utf16_string) {
     return std::string();
   }
   return utf8_string;
+}
+
+void TerminatePackagedBackendIfNeeded() {
+  static bool already_ran = false;
+  if (already_ran) {
+    return;
+  }
+  already_ran = true;
+
+  wchar_t* profile = nullptr;
+  size_t len = 0;
+  if (_wdupenv_s(&profile, &len, L"USERPROFILE") != 0 || profile == nullptr) {
+    return;
+  }
+
+  std::wstring pid_path(profile);
+  free(profile);
+  pid_path += L"\\.robot-studio\\backend.pid";
+
+  FILE* file = nullptr;
+  if (_wfopen_s(&file, pid_path.c_str(), L"r") != 0 || file == nullptr) {
+    return;
+  }
+
+  int pid = 0;
+  const bool parsed = fscanf_s(file, "%d", &pid) == 1;
+  fclose(file);
+  if (!parsed || pid <= 1) {
+    _wremove(pid_path.c_str());
+    return;
+  }
+
+  TerminatePidTree(static_cast<DWORD>(pid));
+  _wremove(pid_path.c_str());
 }

@@ -105,28 +105,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
-  // Mirror macOS AppDelegate: kill packaged sidecar via BackendHost pid file.
-  wchar_t* profile = nullptr;
-  size_t len = 0;
-  if (_wdupenv_s(&profile, &len, L"USERPROFILE") == 0 && profile != nullptr) {
-    std::wstring pid_path(profile);
-    free(profile);
-    pid_path += L"\\.robot-studio\\backend.pid";
-    FILE* file = nullptr;
-    if (_wfopen_s(&file, pid_path.c_str(), L"r") == 0 && file != nullptr) {
-      int pid = 0;
-      if (fscanf_s(file, "%d", &pid) == 1 && pid > 1) {
-        HANDLE process =
-            OpenProcess(PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
-        if (process != nullptr) {
-          TerminateProcess(process, 0);
-          CloseHandle(process);
-        }
-      }
-      fclose(file);
-      _wremove(pid_path.c_str());
-    }
-  }
+  TerminatePackagedBackendIfNeeded();
 
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
@@ -152,6 +131,10 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   switch (message) {
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
+      break;
+    case WM_ENDSESSION:
+      // Logoff / shutdown — detached lifecycle may never fire.
+      TerminatePackagedBackendIfNeeded();
       break;
   }
 

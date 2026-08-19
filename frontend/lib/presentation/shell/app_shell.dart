@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/backend_host.dart';
 import '../../core/gateway/models/workspace_event_info.dart';
 import '../../core/gateway/rest_transport_gateway.dart';
 import '../../core/gateway/transport_gateway.dart';
@@ -4891,6 +4892,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   Future<AppExitResponse> didRequestAppExit() async {
     final allowed = await _confirmQuitIfNeeded();
+    if (allowed) {
+      BackendHost.instance?.stopSync();
+    }
     return allowed ? AppExitResponse.exit : AppExitResponse.cancel;
   }
 
