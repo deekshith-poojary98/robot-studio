@@ -17,6 +17,7 @@ from robot_studio.core.events import (
     EventBus,
     FileIndexed,
     FileRemoved,
+    FilesystemChanged,
     IndexProgress,
     IndexUpdated,
     ProjectCreated,
@@ -87,6 +88,7 @@ class IndexService:
             self.event_bus.subscribe(ProjectOpened, self._on_project_changed),
             self.event_bus.subscribe(ProjectCreated, self._on_project_changed),
             self.event_bus.subscribe(ProjectImported, self._on_project_changed),
+            self.event_bus.subscribe(FilesystemChanged, self._on_filesystem_changed),
         ]
         self.watcher.on_change = self._on_file_change
         self._subscribed = True
@@ -132,13 +134,38 @@ class IndexService:
             return
         await self.schedule_reindex_project(event.project_id)
 
+    async def _on_filesystem_changed(self, event: FilesystemChanged) -> None:
+        if event.kind not in {"FILE_DELETED", "DIRECTORY_DELETED"}:
+            return
+        workspace = self.context.workspace
+        if workspace is None:
+            return
+        if event.kind == "DIRECTORY_DELETED":
+            try:
+                prefix = str(Path(event.path).resolve(strict=False)).replace("\\", "/")
+            except (OSError, ValueError):
+                prefix = event.path.replace("\\", "/")
+            if not prefix.endswith("/"):
+                prefix = f"{prefix}/"
+            for existing in await self.store.list_indexed_files(workspace.id):
+                normalized = existing.replace("\\", "/")
+                if normalized == prefix.rstrip("/") or normalized.startswith(prefix):
+                    await self._on_file_change("deleted", Path(existing))
+            return
+        await self._on_file_change("deleted", Path(event.path))
+
     async def _on_file_change(self, event: str, path: Path) -> None:
         workspace = self.context.workspace
         if workspace is None:
             return
         project_id = await self._resolve_project_id(path)
         if event == "deleted":
-            removed = await self.store.remove_file(path)
+            removed, _ = await self.indexer.index_file(
+                path,
+                workspace_id=workspace.id,
+                project_id=project_id,
+                force=True,
+            )
             if removed:
                 await self.event_bus.publish(
                     FileRemoved(path=str(path), workspace_id=workspace.id),
@@ -298,10 +325,16 @@ class IndexService:
 
             for existing in await self.store.list_indexed_files(workspace_id):
                 if existing not in indexed_paths and not Path(existing).exists():
-                    await self.store.remove_file(Path(existing))
-                    await self.event_bus.publish(
-                        FileRemoved(path=existing, workspace_id=workspace_id),
+                    removed, _ = await self.indexer.index_file(
+                        Path(existing),
+                        workspace_id=workspace_id,
+                        project_id=await self._resolve_project_id(Path(existing)),
+                        force=True,
                     )
+                    if removed:
+                        await self.event_bus.publish(
+                            FileRemoved(path=existing, workspace_id=workspace_id),
+                        )
 
             await self.indexer.finalize_analysis()
 
@@ -335,10 +368,16 @@ class IndexService:
                 project_id=project.id,
             ):
                 if existing not in indexed_paths and not Path(existing).exists():
-                    await self.store.remove_file(Path(existing))
-                    await self.event_bus.publish(
-                        FileRemoved(path=existing, workspace_id=workspace_id),
+                    removed, _ = await self.indexer.index_file(
+                        Path(existing),
+                        workspace_id=workspace_id,
+                        project_id=project.id,
+                        force=True,
                     )
+                    if removed:
+                        await self.event_bus.publish(
+                            FileRemoved(path=existing, workspace_id=workspace_id),
+                        )
 
             await self.indexer.finalize_analysis()
 

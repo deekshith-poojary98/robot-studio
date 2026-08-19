@@ -137,6 +137,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       GlobalKey<VirtualFileTreeState>();
   final GlobalKey<EditorPageState> _editorPageKey =
       GlobalKey<EditorPageState>();
+  final GlobalKey<DoctorPageState> _doctorPageKey =
+      GlobalKey<DoctorPageState>();
   late final LibraryExplorerController _libraryExplorer;
 
   void _notify() {
@@ -3742,6 +3744,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     switch (event.type) {
       case 'FILE_DELETED':
       case 'DIRECTORY_DELETED':
+        _doctorPageKey.currentState?.pruneRemovedPaths(
+          absolute,
+          isDirectory: event.type == 'DIRECTORY_DELETED',
+        );
         _editor.removePathFromTree(absolute);
         if (event.type == 'FILE_DELETED') {
           final open = _editorTabs.any(
@@ -4654,7 +4660,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     var deleted = 0;
     for (final path in targets) {
       try {
-        await _gateway.deletePath(path: path);
+        final result = await _gateway.deletePath(path: path);
+        _doctorPageKey.currentState?.pruneRemovedPaths(
+          result.path,
+          isDirectory: result.isDir,
+        );
         await _closeTabsUnder(path);
         _editor.removePathFromTree(path);
         await _editor.refreshParentOf(path);
@@ -6248,6 +6258,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onDelete: _deleteSelectedReport,
       ),
       _CenterView.doctor => DoctorPage(
+        key: _doctorPageKey,
         gateway: _gateway,
         onJumpToSource: (path, {line, column}) {
           unawaited(_openFile(path, line: line, column: column));

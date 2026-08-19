@@ -162,7 +162,10 @@ class SqliteAnalysisStore(AnalysisStore):
         return await self.get_graph_version(project_id)
 
     async def clear_file(self, file_path: Path) -> None:
-        path = str(file_path.resolve())
+        try:
+            path = str(file_path.resolve(strict=False))
+        except (OSError, ValueError):
+            path = str(file_path)
         async with aiosqlite.connect(self._database_path) as db:
             await db.execute("DELETE FROM analysis_entities WHERE file_path = ?", (path,))
             await db.execute("DELETE FROM analysis_edges WHERE source_file = ?", (path,))

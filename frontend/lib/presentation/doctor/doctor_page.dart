@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/gateway/models/doctor_info.dart';
 import '../../core/gateway/transport_gateway.dart';
 import '../../core/theme/app_theme.dart';
+import '../shell/controllers/workspace_live_controller.dart';
 import '../widgets/empty_state.dart';
 
 typedef DoctorJumpToSource =
@@ -17,12 +19,12 @@ class DoctorPage extends StatefulWidget {
   final DoctorJumpToSource? onJumpToSource;
 
   @override
-  State<DoctorPage> createState() => _DoctorPageState();
+  State<DoctorPage> createState() => DoctorPageState();
 }
 
 enum _SortMode { priority, severity, category, file }
 
-class _DoctorPageState extends State<DoctorPage> {
+class DoctorPageState extends State<DoctorPage> {
   bool _loading = true;
   bool _running = false;
   String? _error;
@@ -54,6 +56,28 @@ class _DoctorPageState extends State<DoctorPage> {
         _error = e.toString();
       });
     }
+  }
+
+  /// Removes cached findings for paths deleted from the workspace.
+  void pruneRemovedPaths(String path, {bool isDirectory = false}) {
+    final report = _report;
+    if (report == null || path.trim().isEmpty) return;
+    final updated = doctorReportWithoutRemovedPaths(
+      report,
+      [path],
+      pathsEqual: WorkspaceLiveController.pathsEqual,
+      isDirectory: isDirectory,
+    );
+    if (updated.findings.length == report.findings.length) return;
+    if (!mounted) return;
+    setState(() {
+      _report = updated;
+      final expanded = _expandedFindingId;
+      if (expanded != null &&
+          !updated.findings.any((finding) => finding.id == expanded)) {
+        _expandedFindingId = null;
+      }
+    });
   }
 
   Future<void> _runDoctor({bool initial = false}) async {

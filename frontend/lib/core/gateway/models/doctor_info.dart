@@ -346,6 +346,113 @@ class DoctorExecutionSnapshot {
   final int executionEdges;
 }
 
+/// Drops findings that reference paths removed from the workspace.
+///
+/// Used when files are deleted without re-running Doctor — the last report
+/// would otherwise keep showing errors for paths that no longer exist.
+DoctorReport doctorReportWithoutRemovedPaths(
+  DoctorReport report,
+  Iterable<String> removedPaths, {
+  bool Function(String, String)? pathsEqual,
+  bool isDirectory = false,
+}) {
+  final removed = removedPaths.where((p) => p.trim().isNotEmpty).toList();
+  if (removed.isEmpty || report.findings.isEmpty) return report;
+
+  bool eq(String a, String b) =>
+      pathsEqual?.call(a, b) ??
+      a.replaceAll('\\', '/') == b.replaceAll('\\', '/');
+
+  bool isUnderDirectory(String path, String dir) {
+    final normPath = path.replaceAll('\\', '/');
+    final normDir = dir.replaceAll('\\', '/').replaceAll(RegExp(r'/+$'), '');
+    if (eq(normPath, normDir)) return true;
+    return normPath.startsWith('$normDir/');
+  }
+
+  bool referencesRemoved(String path) {
+    if (path.isEmpty) return false;
+    for (final target in removed) {
+      if (eq(path, target)) return true;
+      if (isDirectory && isUnderDirectory(path, target)) return true;
+    }
+    return false;
+  }
+
+  bool shouldDrop(DoctorFinding finding) {
+    if (referencesRemoved(finding.filePath)) return true;
+    final entity = finding.entity;
+    if (entity != null && referencesRemoved(entity.filePath)) return true;
+    for (final secondary in finding.secondaryEntities) {
+      if (referencesRemoved(secondary.filePath)) return true;
+    }
+    for (final affected in finding.affectedFiles) {
+      if (referencesRemoved(affected.path)) return true;
+    }
+    return false;
+  }
+
+  final kept = report.findings.where((f) => !shouldDrop(f)).toList();
+  if (kept.length == report.findings.length) return report;
+
+  final bySeverity = <String, int>{};
+  final byCategory = <String, int>{};
+  var critical = 0;
+  for (final finding in kept) {
+    bySeverity[finding.severity] = (bySeverity[finding.severity] ?? 0) + 1;
+    final category = finding.category ?? 'maintainability';
+    byCategory[category] = (byCategory[category] ?? 0) + 1;
+    if (finding.severity == 'error') critical++;
+  }
+
+  final keptIds = kept.map((f) => f.id).toSet();
+  final groupedMap = <String, List<DoctorFinding>>{};
+  for (final finding in kept) {
+    final key = finding.category ?? 'maintainability';
+    groupedMap.putIfAbsent(key, () => []).add(finding);
+  }
+
+  final recommendations = <DoctorRecommendation>[];
+  var rank = 1;
+  for (final rec in report.topRecommendations) {
+    if (!keptIds.contains(rec.findingId)) continue;
+    recommendations.add(
+      DoctorRecommendation(
+        rank: rank,
+        findingId: rec.findingId,
+        reason: rec.reason,
+        finding: rec.finding,
+      ),
+    );
+    rank++;
+    if (rank > 5) break;
+  }
+
+  return DoctorReport(
+    id: report.id,
+    projectId: report.projectId,
+    profile: report.profile,
+    createdAt: report.createdAt,
+    graphVersion: report.graphVersion,
+    incrementalRevision: report.incrementalRevision,
+    providersRun: report.providersRun,
+    summary: DoctorHealthSummary(
+      totalFindings: kept.length,
+      bySeverity: bySeverity,
+      byCategory: byCategory,
+      criticalIssues: critical,
+      improvementTrend: report.summary.improvementTrend,
+    ),
+    findings: kept,
+    grouped: [
+      for (final entry in groupedMap.entries)
+        DoctorCategoryGroup(category: entry.key, findings: entry.value),
+    ],
+    topRecommendations: recommendations,
+    executionSnapshot: report.executionSnapshot,
+  );
+}
+
 class DoctorReport {
   const DoctorReport({
     required this.id,

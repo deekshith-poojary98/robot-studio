@@ -173,3 +173,39 @@ async def test_doctor_report_not_found(api_client) -> None:
     client, _fresh, _tmp = api_client
     res = await client.get(f"/api/v1/doctor/report/{UUID(int=0)}")
     assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_doctor_rescan_drops_findings_for_deleted_file(api_client) -> None:
+    client, fresh, tmp_path = api_client
+    project_id = await _seed_project(client, tmp_path)
+
+    run1 = await client.post("/api/v1/doctor/run", json={"profile": "default"})
+    assert run1.status_code == 200, run1.text
+    before = run1.json()
+    unused = [
+        f
+        for f in before["findings"]
+        if f["inspection_id"] == "unused_keyword"
+        and "Dead Keyword" in f["message"]
+    ]
+    assert unused, before["findings"]
+    deleted_path = unused[0]["file_path"]
+
+    deleted = await client.post("/api/v1/files/delete", json={"path": deleted_path})
+    assert deleted.status_code == 200, deleted.text
+
+    # Wait for watcher debounce + analysis rebind after file removal.
+    import asyncio
+
+    for _ in range(40):
+        run2 = await client.post("/api/v1/doctor/run", json={"profile": "default"})
+        assert run2.status_code == 200, run2.text
+        messages = [f["message"] for f in run2.json()["findings"]]
+        if not any("Dead Keyword" in m for m in messages):
+            break
+        await asyncio.sleep(0.05)
+    else:
+        pytest.fail(f"Doctor still reports deleted file: {run2.json()['findings']}")
+
+    assert run2.json()["summary"]["total_findings"] < before["summary"]["total_findings"]
