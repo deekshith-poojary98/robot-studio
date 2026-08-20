@@ -5,7 +5,7 @@ description: Browse run history, open Robot HTML reports, and jump back to failu
 
 ## Run history
 
-Runs are listed by run number from `.robotstudio/reports/Run-*` (legacy root `Reports/` paths remain readable when stored). The active run in the sidebar is highlighted so you can see which details are open.
+Runs are listed by run number from `.robotstudio/reports/Run-*` (legacy root `Reports/` paths remain readable when stored). Opening **Reports** selects the latest run automatically when any exist, so the details page is ready without waiting on a click. The active run in the sidebar is highlighted so you can see which details are open.
 
 Each run entry shows stats and links to the artifacts Robot Framework produced. The list badge is **PASS** / **FAIL** from test results. A Robot exit with no tests (nothing matching a tag, empty suite, exit 252) is **NO TESTS** — not FAIL — and does not count toward pass rate or Recent Failures. A framework crash is **ERROR**. Failure counts stay emphasized; there is no pass/fail status badge on the details header. Run details also show the **configuration** used for that run (**Default** when none was selected).
 

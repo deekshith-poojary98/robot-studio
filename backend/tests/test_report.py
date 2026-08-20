@@ -121,6 +121,23 @@ def test_parse_output_stats(tmp_path: Path) -> None:
     assert stats["robot_version"] == "7.0.1"
 
 
+def test_parse_output_stats_from_trailing_statistics(tmp_path: Path) -> None:
+    path = tmp_path / "output.xml"
+    head, stats_xml = SAMPLE_OUTPUT_XML.split("<statistics>", 1)
+    # Corrupt the suite body so a full-document parse would fail; stats live
+    # in the trailing <statistics> block that Robot writes at the end.
+    path.write_text(
+        head + "<not-closed " + ("x" * 300_000) + "\n<statistics>" + stats_xml,
+        encoding="utf-8",
+    )
+    stats = parse_output_stats(path)
+    assert stats["passed"] == 1
+    assert stats["failed"] == 1
+    assert stats["skipped"] == 0
+    assert stats["total_tests"] == 2
+    assert stats["robot_version"] == "7.0.1"
+
+
 @pytest.mark.asyncio
 async def test_discover_run_indexes_artifacts(report_stack, tmp_path: Path) -> None:
     service, repository, store, workspace, bus = report_stack

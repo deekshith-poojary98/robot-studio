@@ -317,6 +317,16 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     }
   }
 
+  /// Overwrite the visible buffer (Format Document, disk reload).
+  ///
+  /// Does not use [shouldApplyParentContent] — that guard skips parent updates
+  /// when the controller has diverged, which is correct for typing but would
+  /// swallow an explicit format.
+  void applyExternalContent(String content, {bool preserveSelection = true}) {
+    if (_controller.text == content) return;
+    _applyParentContent(content, preserveSelection: preserveSelection);
+  }
+
   void undo() => _controller.undo();
   void redo() => _controller.redo();
 

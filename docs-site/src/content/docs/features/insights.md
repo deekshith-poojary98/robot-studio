@@ -11,17 +11,30 @@ Run health is computed from the same run history as [Reports](/workflows/reports
 
 ## Run health
 
-Once you have executed suites, the left panel (top on a narrow window) is the primary surface:
+Once you have executed suites, the left panel (top on a narrow window) is the primary surface. Numbers are about **runs** (each time you pressed Run), not individual test cases — so a suite with 4 passes and 2 fails still counts as one **Failed** run.
 
-| Signal | What it does |
-|--------|----------------|
-| Headline **Failed** | Opens the last failed run in [Reports](/workflows/reports/) |
-| Fail / pass streak | Opens that last run in Reports so you can see why the streak exists |
-| Flaky files | Opens triage for files that both passed and failed |
-| Last run | Opens that run in Reports |
-| Failure mix by suite | Opens triage for the hottest failing file |
+### Headline strip
 
-Duration and pass-rate trends stay as context. They do not add extra destinations.
+| Label | What you are seeing |
+|-------|---------------------|
+| **Pass rate** | Share of finished runs that passed overall. Empty suites (**NO TESTS**) and framework crashes (**ERROR**) are left out of this rate. |
+| **Runs** | How many runs Insights is counting from history (same store as [Reports](/workflows/reports/)). |
+| **Failed** | How many of those runs failed. Tap to open the last failed run in Reports. |
+| **Avg duration** | Average wall time of runs that recorded a duration. |
+
+### Health cards and charts
+
+| Signal | What you are seeing |
+|--------|---------------------|
+| **Pass streak** / **Fail streak** | How many newest runs in a row share the same pass or fail outcome. Tap to open that latest run in Reports. |
+| **Flaky files** | Suites that have both passed and failed across history — unstable enough to triage. |
+| **Interrupted** | Runs you stopped, or that never fully started. |
+| **Pass rate trend** | How the recent pass rate has moved over the last few runs. |
+| **Duration trend** | How long recent runs took (peak and average called out under the chart). |
+| **Last run** | The newest run’s outcome and timing. Tap to open it in Reports. |
+| **Failure mix by suite** | Which files account for the most failed runs. Tap a bar to open file triage. |
+
+A short **Last N** note may appear when the newest handful of runs looks much better or worse than the overall pass rate — useful when history is long but recent health changed.
 
 ## File triage
 
@@ -82,7 +95,18 @@ Kind rows with a count of zero stay visible but muted so small projects still sh
 
 ## Files table
 
-The Files table merges index composition with per-file run stats so you can spot hot spots (high fail counts) next to keyword/test density. **Pass** / **Fail** / **Stop** are run counts for that file. **Stop** is a run that did not finish — you pressed **Stop**, or Robot never started (those aborted launches are not kept in Reports). Rows are built lazily as you scroll, so large projects stay responsive. Failing rows open triage; clean rows open source.
+The Files table merges index composition with per-file run stats so you can spot hot spots next to keyword/test density. Rows load as you scroll.
+
+| Column | Meaning |
+|--------|---------|
+| **File** | Suite or source path |
+| **KW** / **TC** / **Var** | Indexed keyword, test-case, and variable definitions in that file |
+| **Runs** | Times that file was part of a run |
+| **Pass** / **Fail** | How many of those runs passed or failed overall |
+| **Stop** | Runs that did not finish — you pressed **Stop**, or Robot never started (aborted launches are not kept in Reports) |
+| **Last** | Outcome of the newest run that touched this file |
+
+Failing rows open triage; clean rows open the file in the editor.
 
 ## Related
 

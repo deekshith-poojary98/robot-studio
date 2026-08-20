@@ -1190,12 +1190,29 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _selectedPackage = null;
       _activePanel = SidebarPanel.reports;
       _clearExecutionPageUnlessTests();
+      _selectLatestReportFromCache();
     });
+    await _hydrateSelectedReport();
+  }
+
+  void _selectLatestReportFromCache() {
+    _execution.selectedReport ??= _reportRuns.isNotEmpty
+        ? _reportRuns.first
+        : (_executionHistory.isNotEmpty ? _executionHistory.first : null);
+  }
+
+  Future<void> _hydrateSelectedReport() async {
+    final cached = _selectedReport;
+    if (cached != null) {
+      unawaited(_loadReportFailedTests(cached));
+      unawaited(_refreshReportDetails(cached));
+    }
     await _loadReports();
     if (!mounted) return;
-    if (_selectedReport == null && _reportRuns.isNotEmpty) {
-      await _selectReport(_reportRuns.first);
-    }
+    final selected = _selectedReport;
+    if (selected == null || selected.id == cached?.id) return;
+    unawaited(_loadReportFailedTests(selected));
+    unawaited(_refreshReportDetails(selected));
   }
 
   Future<void> _openDoctor() async {
@@ -1314,15 +1331,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _activePanel = SidebarPanel.reports;
       _clearExecutionPageUnlessTests();
     });
+    unawaited(_loadReportFailedTests(run));
+    unawaited(_refreshReportDetails(run));
+  }
+
+  Future<void> _refreshReportDetails(ExecutionInfo run) async {
     try {
       final fresh = await _gateway.getReport(run.id);
-      if (!mounted) return;
+      if (!mounted || _selectedReport?.id != run.id) return;
       setState(() => _execution.selectedReport = fresh);
-      await _loadReportFailedTests(fresh);
     } catch (error) {
       _appendLog('[warn] Could not refresh report details: $error');
-      if (!mounted) return;
-      await _loadReportFailedTests(run);
     }
   }
 
@@ -4139,17 +4158,22 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Future<void> _editorFormatDocument() async {
     final tab = _activeEditorTab;
     if (tab == null) return;
+    final source = _editorPageKey.currentState?.currentText ?? tab.content;
     try {
       final formatted = await _gateway.languageFormat(
         filePath: tab.path,
-        content: tab.content,
+        content: source,
       );
       if (!mounted) return;
+      final changed = formatted != source;
       setState(() {
         tab.content = formatted;
-        _editor.setStatusMessage('Formatted document');
+        _editor.setStatusMessage(
+          changed ? 'Formatted document' : 'Already formatted',
+        );
       });
-      _scheduleLanguageRefresh();
+      _editorPageKey.currentState?.applyExternalContent(formatted);
+      if (changed) _scheduleLanguageRefresh();
     } catch (error) {
       await _showError('Format Document', error);
     }
@@ -4158,21 +4182,26 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Future<void> _editorFormatSelection() async {
     final tab = _activeEditorTab;
     if (tab == null) return;
+    final source = _editorPageKey.currentState?.currentText ?? tab.content;
     final start = tab.cursorLine;
     final end = tab.cursorLine;
     try {
       final formatted = await _gateway.languageFormat(
         filePath: tab.path,
-        content: tab.content,
+        content: source,
         startLine: start,
         endLine: end,
       );
       if (!mounted) return;
+      final changed = formatted != source;
       setState(() {
         tab.content = formatted;
-        _editor.setStatusMessage('Formatted selection');
+        _editor.setStatusMessage(
+          changed ? 'Formatted selection' : 'Already formatted',
+        );
       });
-      _scheduleLanguageRefresh();
+      _editorPageKey.currentState?.applyExternalContent(formatted);
+      if (changed) _scheduleLanguageRefresh();
     } catch (error) {
       await _showError('Format Selection', error);
     }
@@ -4336,7 +4365,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       } else if (panel == SidebarPanel.reports) {
         _showReportsPage = true;
         _showDoctorPage = false;
-        unawaited(_loadReports());
+        _selectLatestReportFromCache();
+        unawaited(_hydrateSelectedReport());
       } else if (panel == SidebarPanel.doctor) {
         _showDoctorPage = true;
         _showReportsPage = false;

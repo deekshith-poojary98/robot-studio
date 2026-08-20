@@ -24,6 +24,7 @@ The Robot editor is multi-tab and understands Robot Framework structure:
 - Find references and document symbols (**Go → Go to Symbol in File…**)
 - Live diagnostics while you type (including library imports resolved through the active environment)
 - Document **Outline** under Explorer for jumping within the file
+- **Format Document** (`⇧⌥F` / `Shift+Alt+F`, or **Edit → Format Document**) and **Format Selection** on the current file
 
 ## Save
 

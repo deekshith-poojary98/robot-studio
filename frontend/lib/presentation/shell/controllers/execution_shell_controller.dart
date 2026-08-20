@@ -317,27 +317,28 @@ class ExecutionShellController {
       return;
     }
 
-    loadingReports = true;
-    loadingDashboard = true;
+    final hasCachedRuns = reportRuns.isNotEmpty || selectedReport != null;
+    if (!hasCachedRuns) {
+      loadingReports = true;
+    }
+    loadingDashboard = reportsDashboard == null;
     notify();
+
+    final listFuture = gateway.listReports();
+    final dashFuture = gateway.getReportsDashboard();
+
     try {
-      final results = await Future.wait([
-        gateway.listReports(),
-        gateway.getReportsDashboard(),
-      ]);
+      final runs = await listFuture;
       if (!isMounted()) return;
-      final runs = results[0] as List<ExecutionInfo>;
-      final dashboard = results[1] as DashboardSummary;
       reportRuns = runs;
-      reportsDashboard = dashboard;
-      loadingReports = false;
-      loadingDashboard = false;
       if (selectedReport != null) {
         final match = runs
             .where((item) => item.id == selectedReport!.id)
             .toList();
         selectedReport = match.isEmpty ? null : match.first;
       }
+      selectedReport ??= runs.isEmpty ? null : runs.first;
+      loadingReports = false;
       notify();
     } catch (error) {
       if (!isMounted()) return;
@@ -345,6 +346,26 @@ class ExecutionShellController {
       loadingDashboard = false;
       notify();
       appendLog('[warn] Could not load reports: $error');
+      return;
+    }
+
+    unawaited(_applyReportsDashboard(dashFuture));
+  }
+
+  Future<void> _applyReportsDashboard(
+    Future<DashboardSummary> dashFuture,
+  ) async {
+    try {
+      final dashboard = await dashFuture;
+      if (!isMounted()) return;
+      reportsDashboard = dashboard;
+      loadingDashboard = false;
+      notify();
+    } catch (error) {
+      if (!isMounted()) return;
+      loadingDashboard = false;
+      notify();
+      appendLog('[warn] Could not load reports dashboard: $error');
     }
   }
 

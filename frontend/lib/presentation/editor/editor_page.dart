@@ -99,6 +99,14 @@ class EditorPageState extends State<EditorPage> {
     _editor?.showFind(replace: replace);
   }
 
+  /// Live buffer, including keystrokes that have not yet rebuilt the shell.
+  String? get currentText => _editor?.controller.text;
+
+  /// Push formatted / reloaded text into the visible editor.
+  void applyExternalContent(String content) {
+    _editor?.applyExternalContent(content);
+  }
+
   @override
   Widget build(BuildContext context) {
     final active = _active;
@@ -158,7 +166,7 @@ class EditorPageState extends State<EditorPage> {
                     icon: Icons.description_outlined,
                     title: 'No file open',
                     message:
-                        'Pick a .robot file in the Explorer, or press ⌘P / '
+                        'Pick a file in the Explorer, or press ⌘P / '
                         'Ctrl+P to jump to one.',
                   )
                 : Row(

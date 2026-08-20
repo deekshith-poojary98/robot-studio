@@ -46,5 +46,18 @@ void main() {
         isFalse,
       );
     });
+
+    test('format-style parent update is skipped if the user already typed', () {
+      // Format Document must not rely on this guard — it uses
+      // applyExternalContent so the visible buffer still updates.
+      expect(
+        RobotCodeEditorState.shouldApplyParentContent(
+          oldParentContent: 'messy   ',
+          newParentContent: 'messy',
+          controllerContent: 'messy   x',
+        ),
+        isFalse,
+      );
+    });
   });
 }

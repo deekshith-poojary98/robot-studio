@@ -1173,6 +1173,41 @@ void main() {
     expect(find.text('Pass Rate'), findsOneWidget);
   });
 
+  testWidgets('Reports page shows last run while the list is still loading', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final run = ExecutionInfo(
+      id: 'run-1',
+      workspaceId: 'ws',
+      projectId: 'p1',
+      environmentId: 'e1',
+      projectName: 'Demo',
+      suite: 'tests/demo.robot',
+      status: ExecutionStatus.finished,
+      startedAt: DateTime.utc(2026, 7, 19, 10, 0, 0),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ReportsPage(
+            isLoading: true,
+            dashboard: null,
+            isLoadingDashboard: true,
+            selected: run,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Demo'), findsOneWidget);
+    expect(find.text('No run selected'), findsNothing);
+  });
+
   testWidgets('Run details panel shows statistics and artifacts', (
     WidgetTester tester,
   ) async {

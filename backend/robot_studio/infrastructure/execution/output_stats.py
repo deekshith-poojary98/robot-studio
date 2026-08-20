@@ -1,12 +1,18 @@
 """Lightweight Robot output.xml statistics extraction.
 
-Not a full parser — only reads aggregate totals and generator version.
+Not a full parser — prefers the trailing <statistics> block so large logs
+do not need a complete XML tree.
 """
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+_HEAD_BYTES = 4096
+_TAIL_BYTES = 262144
+_GENERATOR_RE = re.compile(r'\bgenerator="([^"]*)"')
 
 
 def parse_output_stats(output_xml: Path | None) -> dict:
@@ -14,27 +20,77 @@ def parse_output_stats(output_xml: Path | None) -> dict:
     if output_xml is None or not Path(output_xml).is_file():
         return {}
 
+    path = Path(output_xml)
     try:
-        root = ET.parse(Path(output_xml)).getroot()
-    except (ET.ParseError, OSError):
+        size = path.stat().st_size
+        with path.open("rb") as handle:
+            head = handle.read(_HEAD_BYTES)
+            if size <= _TAIL_BYTES:
+                handle.seek(0)
+                return _stats_from_document(handle.read(), head)
+            handle.seek(max(0, size - _TAIL_BYTES))
+            tail = handle.read()
+        stats = _stats_from_statistics_tail(head, tail)
+        if stats:
+            return stats
+        return _parse_output_stats_full(path)
+    except OSError:
         return {}
 
-    robot_version = _generator_version(root.attrib.get("generator", ""))
 
+def _decode(raw: bytes) -> str:
+    return raw.decode("utf-8", errors="ignore")
+
+
+def _version_from_head(head: bytes) -> str | None:
+    match = _GENERATOR_RE.search(_decode(head))
+    if match is None:
+        return None
+    return _generator_version(match.group(1))
+
+
+def _stats_from_statistics_tail(head: bytes, tail: bytes) -> dict:
+    text = _decode(tail)
+    start = text.rfind("<statistics")
+    end = text.rfind("</statistics>")
+    if start < 0 or end < start:
+        return {}
+    fragment = text[start : end + len("</statistics>")]
+    try:
+        root = ET.fromstring(fragment)
+    except ET.ParseError:
+        return {}
+    total_el = root.find("./total/stat")
+    if total_el is None:
+        return {}
+    return _totals_from_stat(total_el, _version_from_head(head))
+
+
+def _stats_from_document(payload: bytes, head: bytes) -> dict:
+    try:
+        root = ET.fromstring(payload)
+    except ET.ParseError:
+        return {}
+    return _stats_from_root(root, fallback_version=_version_from_head(head))
+
+
+def _parse_output_stats_full(path: Path) -> dict:
+    try:
+        root = ET.parse(path).getroot()
+    except (ET.ParseError, OSError):
+        return {}
+    return _stats_from_root(root)
+
+
+def _stats_from_root(
+    root: ET.Element,
+    fallback_version: str | None = None,
+) -> dict:
+    robot_version = _generator_version(root.attrib.get("generator", "")) or fallback_version
     total_el = root.find("./statistics/total/stat")
     if total_el is not None:
-        passed = _int_attr(total_el, "pass")
-        failed = _int_attr(total_el, "fail")
-        skipped = _int_attr(total_el, "skip")
-        return {
-            "total_tests": passed + failed + skipped,
-            "passed": passed,
-            "failed": failed,
-            "skipped": skipped,
-            "robot_version": robot_version,
-        }
+        return _totals_from_stat(total_el, robot_version)
 
-    # Fallback: count test nodes.
     tests = root.findall(".//test")
     passed = failed = skipped = 0
     for test in tests:
@@ -50,6 +106,19 @@ def parse_output_stats(output_xml: Path | None) -> dict:
             skipped += 1
     if not tests:
         return {"robot_version": robot_version} if robot_version else {}
+    return {
+        "total_tests": passed + failed + skipped,
+        "passed": passed,
+        "failed": failed,
+        "skipped": skipped,
+        "robot_version": robot_version,
+    }
+
+
+def _totals_from_stat(total_el: ET.Element, robot_version: str | None) -> dict:
+    passed = _int_attr(total_el, "pass")
+    failed = _int_attr(total_el, "fail")
+    skipped = _int_attr(total_el, "skip")
     return {
         "total_tests": passed + failed + skipped,
         "passed": passed,
