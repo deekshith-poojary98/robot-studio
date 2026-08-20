@@ -190,13 +190,22 @@ class WorkspaceExplorer extends StatelessWidget {
                         ),
                       ),
                     )
-                  else if (projects.isEmpty)
+                  else if (projects.isEmpty && selectedProject == null)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(28, 4, 12, 8),
                       child: Text(
                         'No projects yet. Create or import one.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
+                    )
+                  else if (projects.isEmpty && selectedProject != null)
+                    ExplorerTreeItem(
+                      key: ValueKey(selectedProject!.id),
+                      icon: Icons.folder_outlined,
+                      label: selectedProject!.name,
+                      indent: 1,
+                      selected: true,
+                      onTap: () => onSelectProject(selectedProject!),
                     )
                   else
                     ...projects.map(

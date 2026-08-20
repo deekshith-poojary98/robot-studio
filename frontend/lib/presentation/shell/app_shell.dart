@@ -2058,19 +2058,30 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ? '[info] $successMessage "${workspace.name}"'
           : '[info] $successMessage',
     );
-    await _loadRecent();
-    await _loadProjects();
-    if (selectedProject == null) {
-      await _maybeAutoSelectProject();
-    } else {
+    // Paint explorer/tests immediately — do not block on recent/projects refetch.
+    if (selectedProject != null) {
+      setState(() {
+        _workspace.projects = [selectedProject];
+        _workspace.loadingProjects = true;
+      });
+    }
+    _scheduleProjectOpenLoads(detectedEnvironments: detectedEnvironments);
+    unawaited(() async {
+      await _loadRecent();
+      if (!mounted) return;
+      await _loadProjects();
+      if (!mounted) return;
+      if (selectedProject == null) {
+        await _maybeAutoSelectProject();
+        return;
+      }
       final match = _projects
           .where((item) => item.id == selectedProject.id)
           .toList();
       if (match.isNotEmpty && mounted) {
         setState(() => _selectedProject = match.first);
       }
-    }
-    _scheduleProjectOpenLoads(detectedEnvironments: detectedEnvironments);
+    }());
   }
 
   /// Folder to prefill as the parent for a new project: sibling of whatever is
