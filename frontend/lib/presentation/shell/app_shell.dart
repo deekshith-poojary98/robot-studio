@@ -442,6 +442,20 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  /// Put the editor in the center and drop leftover env/package detail screens
+  /// so they cannot sit underneath and reappear when the last tab closes.
+  void _enterEditor() {
+    _showEditorPage = true;
+    _showSettingsPage = false;
+    _showExecutionPage = false;
+    _clearDetailOverlays();
+  }
+
+  void _clearDetailOverlays() {
+    _selectedEnvironment = null;
+    _selectedPackage = null;
+  }
+
   Future<void> _bootstrap() async {
     AppLogger.debug('Bootstrap start', tag: 'Shell');
     await _settings.load();
@@ -2457,7 +2471,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _showPackageManager = false;
       _showEnvironmentManager = false;
       if (_editorTabs.isNotEmpty && _activeEditorPath != null) {
-        _showEditorPage = true;
+        _enterEditor();
       }
     });
   }
@@ -2837,6 +2851,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _selectedPackage = null;
       _showEnvironmentManager = false;
       _showPackageManager = false;
+      _showEditorPage = false;
       _clearExecutionPageUnlessTests();
     });
     try {
@@ -2976,6 +2991,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       setState(() {
         if (selectResult) {
           _selectedEnvironment = environment;
+          _showEditorPage = false;
           _clearExecutionPageUnlessTests();
         }
         _busy = false;
@@ -3420,9 +3436,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       if (!await _prepareLeaveSettings()) return;
       setState(() {
         _editor.activePath = path;
-        _showEditorPage = true;
-        _showSettingsPage = false;
-        _showExecutionPage = false;
+        _enterEditor();
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
@@ -3455,9 +3469,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ),
         ];
         _editor.activePath = file.path;
-        _showEditorPage = true;
-        _showSettingsPage = false;
-        _showExecutionPage = false;
+        _enterEditor();
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
@@ -3527,7 +3539,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       if (_editor.activePath == path) {
         if (updated.isEmpty) {
           _editor.clearActiveDocument();
-          _showEditorPage = false;
+          _clearDetailOverlays();
         } else {
           nextPath = updated.last.path;
           _editor.activePath = nextPath;
@@ -3616,8 +3628,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (!await _prepareLeaveSettings()) return;
     setState(() {
       _editor.activePath = path;
-      _showEditorPage = true;
-      _showSettingsPage = false;
+      _enterEditor();
       _editor.jumpToLine = null;
       _editor.jumpToColumn = null;
       _editorHover = null;
@@ -3733,7 +3744,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         if (_editor.activePath == path) {
           if (updated.isEmpty) {
             _editor.activePath = null;
-            _showEditorPage = false;
+            _clearDetailOverlays();
           } else {
             nextPath = updated.last.path;
             _editor.activePath = nextPath;
@@ -4341,7 +4352,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _showPluginManager = false;
         _showEnvironmentManager = false;
         if (_editorTabs.isNotEmpty && _activeEditorPath != null) {
-          _showEditorPage = true;
+          _enterEditor();
         }
       }
     });
@@ -4745,7 +4756,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       if (_editor.activePath == path) {
         if (updated.isEmpty) {
           _editor.clearActiveDocument();
-          _showEditorPage = false;
+          _clearDetailOverlays();
         } else {
           nextPath = updated.last.path;
           _editor.activePath = nextPath;
@@ -4856,8 +4867,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       final path = _activeEditorPath ?? _editorTabs.first.path;
       if (!await _prepareLeaveSettings()) return;
       setState(() {
-        _showEditorPage = true;
-        _showSettingsPage = false;
+        _enterEditor();
       });
       _selectTab(path);
       return;
@@ -5498,9 +5508,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (_showExecutionPage) {
       return _CenterView.execution;
     }
-    if (_showEditorPage &&
-        _editorTabs.isNotEmpty &&
-        _activeEditorPath != null) {
+    // Empty tabs still count — otherwise env/project details sitting under
+    // the editor come back when the last file is closed.
+    if (_showEditorPage) {
       return _CenterView.editor;
     }
     if (_activePanel == SidebarPanel.tests) {
@@ -5814,7 +5824,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                       _execution.selectedReport = null;
                                       if (_editorTabs.isNotEmpty &&
                                           _activeEditorPath != null) {
-                                        _showEditorPage = true;
+                                        _enterEditor();
                                       }
                                     } else if (panel == SidebarPanel.explorer) {
                                       _showEnvironmentManager = false;
@@ -5828,7 +5838,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                       _execution.selectedReport = null;
                                       if (_editorTabs.isNotEmpty &&
                                           _activeEditorPath != null) {
-                                        _showEditorPage = true;
+                                        _enterEditor();
                                       }
                                     } else {
                                       if (panel == SidebarPanel.packages ||
@@ -5961,8 +5971,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                   setState(() {
                                     _editor.selectedOutlineSymbol = symbol;
                                     _editor.jumpToLine = symbol.line;
-                                    _showEditorPage = true;
-                                    _showSettingsPage = false;
+                                    _enterEditor();
                                   });
                                 },
                                 onContentSearch: (query) =>
