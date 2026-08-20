@@ -229,6 +229,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     return 'No project';
   }
 
+  /// Recents for the toolbar project menu, with the open project first if it
+  /// is not already on the list.
+  List<ProjectInfo> get _toolbarRecentProjects {
+    final selected = _selectedProject;
+    final recents = _recentProjects;
+    if (selected == null) return recents;
+    if (recents.any((item) => item.id == selected.id)) return recents;
+    return [selected, ...recents];
+  }
+
   List<String> get _executionLines => _execution.executionLines;
   List<ExecutionInfo> get _executionHistory => _execution.executionHistory;
   ExecutionStatus get _executionStatus => _execution.executionStatus;
@@ -5699,6 +5709,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       if (_centerView != _CenterView.welcome)
                         AppToolbar(
                           projectLabel: _chromeContextLabel,
+                          recentProjects: _toolbarRecentProjects,
+                          selectedProjectId: _selectedProject?.id,
+                          onRecentProjectSelected: (project) =>
+                              unawaited(_handleOpenRecentProject(project)),
+                          onRevealProject: _selectedProject == null
+                              ? null
+                              : () {
+                                  final path = _selectedProject?.path;
+                                  if (path == null) return;
+                                  unawaited(_revealPathInOs(path));
+                                },
+                          onNewProject: () =>
+                              unawaited(_handleNewStandaloneProject()),
                           environmentLabel:
                               activeEnvironment?.name ?? 'No environment',
                           environmentNames: _environments
@@ -5731,8 +5754,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                           canRun: _canRunFile,
                           canRunProject: _canRunTests,
                           robotFrameworkReady: _robotFrameworkReady,
-                          onOpenWorkspace: _handleOpenWorkspace,
-                          onOpenProject: _handleOpenProject,
+                          onOpenWorkspace: () =>
+                              unawaited(_handleOpenWorkspace()),
+                          onOpenProject: () => unawaited(_handleOpenProject()),
                           onNewWorkspace: _handleNewWorkspace,
                           onOpenSearch: () => unawaited(_openCommandPalette()),
                           gitBranchLabel: _gitStatus?.repository.branch,

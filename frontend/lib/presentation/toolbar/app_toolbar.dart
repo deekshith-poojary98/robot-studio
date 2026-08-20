@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/git_info.dart';
+import '../../core/gateway/models/project_info.dart';
 import '../../core/gateway/models/run_configuration_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../git/branch_selector.dart';
@@ -11,6 +12,7 @@ import '../run_configuration/run_configuration_selector.dart';
 import '../widgets/app_menu.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/toolbar_button.dart';
+import '../workspace/explorer_file_actions.dart';
 
 class AppToolbar extends StatelessWidget {
   const AppToolbar({
@@ -37,6 +39,11 @@ class AppToolbar extends StatelessWidget {
     this.executionElapsedLabel,
     this.isExecutionRunning = false,
     this.onExecutionStatusTap,
+    this.recentProjects = const [],
+    this.selectedProjectId,
+    this.onRecentProjectSelected,
+    this.onRevealProject,
+    this.onNewProject,
     this.onNewWorkspace,
     this.onOpenWorkspace,
     this.onOpenProject,
@@ -77,6 +84,11 @@ class AppToolbar extends StatelessWidget {
   final String? executionElapsedLabel;
   final bool isExecutionRunning;
   final VoidCallback? onExecutionStatusTap;
+  final List<ProjectInfo> recentProjects;
+  final String? selectedProjectId;
+  final ValueChanged<ProjectInfo>? onRecentProjectSelected;
+  final VoidCallback? onRevealProject;
+  final VoidCallback? onNewProject;
   final VoidCallback? onNewWorkspace;
   final VoidCallback? onOpenWorkspace;
   final VoidCallback? onOpenProject;
@@ -113,11 +125,14 @@ class AppToolbar extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _SelectorChip(
-                      icon: Icons.folder_outlined,
+                    _ProjectSelector(
                       label: projectLabel,
-                      tooltip: 'Open a project folder',
-                      onTap: onOpenProject ?? onOpenWorkspace,
+                      recentProjects: recentProjects,
+                      selectedProjectId: selectedProjectId,
+                      onOpenProject: onOpenProject ?? onOpenWorkspace,
+                      onNewProject: onNewProject,
+                      onRecentProjectSelected: onRecentProjectSelected,
+                      onRevealProject: onRevealProject,
                     ),
                     const SizedBox(width: 8),
                     _EnvironmentSelector(
@@ -477,61 +492,137 @@ class _EnvironmentSelector extends StatelessWidget {
   }
 }
 
-class _SelectorChip extends StatelessWidget {
-  const _SelectorChip({
-    required this.icon,
+class _ProjectSelector extends StatelessWidget {
+  const _ProjectSelector({
     required this.label,
-    this.tooltip,
-    this.onTap,
+    required this.recentProjects,
+    this.selectedProjectId,
+    this.onOpenProject,
+    this.onNewProject,
+    this.onRecentProjectSelected,
+    this.onRevealProject,
   });
 
-  final IconData icon;
   final String label;
-  final String? tooltip;
-  final VoidCallback? onTap;
+  final List<ProjectInfo> recentProjects;
+  final String? selectedProjectId;
+  final VoidCallback? onOpenProject;
+  final VoidCallback? onNewProject;
+  final ValueChanged<ProjectInfo>? onRecentProjectSelected;
+  final VoidCallback? onRevealProject;
+
+  static const _open = '__open__';
+  static const _new = '__new__';
+  static const _reveal = '__reveal__';
 
   @override
   Widget build(BuildContext context) {
-    final chip = InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadii.sm),
-      child: Container(
-        height: AppControlHeight.toolbarChip,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: context.palette.surfaceElevated,
-          borderRadius: BorderRadius.circular(AppRadii.sm),
-          border: Border.all(color: context.palette.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: context.palette.textSecondary),
-            const SizedBox(width: 6),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 160),
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: context.palette.textPrimary,
-                  fontSize: 11.5,
-                ),
+    final revealLabel = ExplorerFileActions.revealLabel();
+    final hasProject = selectedProjectId != null;
+    final tooltip = hasProject
+        ? 'Switch project or $revealLabel'
+        : 'Open a project folder';
+
+    return PopupMenuButton<String>(
+      key: const Key('toolbar.project'),
+      tooltip: tooltip,
+      padding: EdgeInsets.zero,
+      position: PopupMenuPosition.under,
+      onSelected: (value) {
+        if (value == _open) {
+          onOpenProject?.call();
+          return;
+        }
+        if (value == _new) {
+          onNewProject?.call();
+          return;
+        }
+        if (value == _reveal) {
+          onRevealProject?.call();
+          return;
+        }
+        for (final project in recentProjects) {
+          if (project.id == value) {
+            onRecentProjectSelected?.call(project);
+            return;
+          }
+        }
+      },
+      itemBuilder: (context) {
+        return [
+          if (recentProjects.isNotEmpty) ...[
+            ...recentProjects.map(
+              (project) => AppCheckedPopupMenuItem<String>(
+                value: project.id,
+                checked: project.id == selectedProjectId,
+                child: Text(project.name),
               ),
             ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.keyboard_arrow_down,
-              size: 14,
-              color: context.palette.textMuted,
-            ),
+            const AppPopupMenuDivider(),
           ],
-        ),
+          AppPopupMenuItem<String>(
+            value: _open,
+            enabled: onOpenProject != null,
+            child: const Text('Open Project…'),
+          ),
+          AppPopupMenuItem<String>(
+            value: _reveal,
+            enabled: hasProject && onRevealProject != null,
+            child: Text(revealLabel),
+          ),
+          if (onNewProject != null)
+            const AppPopupMenuItem<String>(
+              value: _new,
+              child: Text('New Project…'),
+            ),
+        ];
+      },
+      child: _SelectorChip(icon: Icons.folder_outlined, label: label),
+    );
+  }
+}
+
+class _SelectorChip extends StatelessWidget {
+  const _SelectorChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: AppControlHeight.toolbarChip,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: context.palette.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(color: context.palette.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: context.palette.textSecondary),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 160),
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: context.palette.textPrimary,
+                fontSize: 11.5,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(
+            Icons.keyboard_arrow_down,
+            size: 14,
+            color: context.palette.textMuted,
+          ),
+        ],
       ),
     );
-
-    if (tooltip == null) return chip;
-    return Tooltip(message: tooltip!, child: chip);
   }
 }

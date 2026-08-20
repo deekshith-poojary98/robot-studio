@@ -39,4 +39,4 @@ Use the editor find/replace for the current file (**Edit → Find…** / **Repla
 
 ## Keep the shell out of the way
 
-The native window menu (File / Edit / View / Go / Run / Terminal) and the quiet toolbar keep project, environment, branch, and run actions close without crowding the editor.
+The native window menu (File / Edit / View / Go / Run / Terminal) and the quiet toolbar keep project, environment, branch, and run actions close without crowding the editor. The toolbar project chip (left of **Env**) switches recent projects and can **Reveal in Finder / Explorer**.

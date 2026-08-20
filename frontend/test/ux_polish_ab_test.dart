@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:robot_studio/core/gateway/models/execution_info.dart';
+import 'package:robot_studio/core/gateway/models/project_info.dart';
 import 'package:robot_studio/core/theme/app_theme.dart';
 import 'package:robot_studio/presentation/reports/run_details_panel.dart';
 import 'package:robot_studio/presentation/shell/status_bar.dart';
 import 'package:robot_studio/presentation/sidebar/sidebar_panel.dart';
 import 'package:robot_studio/presentation/toolbar/app_toolbar.dart';
 import 'package:robot_studio/presentation/widgets/toolbar_button.dart';
+import 'package:robot_studio/presentation/workspace/explorer_file_actions.dart';
 
 void main() {
   testWidgets('status bar omits backend connection chrome', (tester) async {
@@ -62,6 +64,51 @@ void main() {
     await tester.pumpAndSettle();
     expect(createTapped, isTrue);
     expect(manageTapped, isFalse);
+  });
+
+  testWidgets('project chip reveals in the OS file manager', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    var revealed = false;
+    var opened = false;
+    final project = ProjectInfo(
+      id: 'p1',
+      workspaceId: 'w1',
+      name: 'OrangeHRM',
+      path: '/tmp/OrangeHRM',
+      createdAt: DateTime.utc(2026, 1, 1),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppToolbar(
+            projectLabel: 'OrangeHRM',
+            environmentLabel: 'default',
+            backendConnected: true,
+            recentProjects: [project],
+            selectedProjectId: project.id,
+            onOpenProject: () => opened = true,
+            onRevealProject: () => revealed = true,
+            onRun: () {},
+            onRunProject: () {},
+            onStop: () {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('toolbar.project')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Project…'), findsOneWidget);
+    expect(find.text(ExplorerFileActions.revealLabel()), findsOneWidget);
+
+    await tester.tap(find.text(ExplorerFileActions.revealLabel()));
+    await tester.pumpAndSettle();
+    expect(revealed, isTrue);
+    expect(opened, isFalse);
   });
 
   testWidgets('project, environment and branch chips share one height', (

@@ -22,7 +22,7 @@ You do not pick a “template type” — every new project is a plain Robot Fra
 
 Empty folders and unrelated trees are rejected. Use **New Project** when you need a seeded layout.
 
-**Recent Projects** on the welcome screen is the fastest way back to work you already opened.
+**Recent Projects** on the welcome screen is the fastest way back to work you already opened. With a project open, the folder chip next to **Env** in the toolbar also lists recents, **Open Project…**, and **Reveal in Finder** (Windows: **Reveal in Explorer**) so you can open the project folder in the OS file manager.
 
 :::tip[Workspaces]
 Workspaces are an advanced multi-project container (Open / New / Recent). Most people can ignore them at first and work with a single project.
