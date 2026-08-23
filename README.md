@@ -8,9 +8,19 @@
 
 <p>A cross-platform desktop IDE for <a href="https://robotframework.org/">Robot Framework</a> development.</p>
 
-</div>
+<p>
+  <a href="./backend/pyproject.toml"><img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white"></a>
+  <a href="./frontend/pubspec.yaml"><img alt="Dart" src="https://img.shields.io/badge/Dart-%5E3.10.1-0175C2?logo=dart&logoColor=white"></a>
+  <a href="https://docs.flutter.dev/release/archive"><img alt="Flutter" src="https://img.shields.io/badge/Flutter-3.38%2B%20(stable)-02569B?logo=flutter&logoColor=white"></a>
+  <a href="https://robotframework.org/"><img alt="Robot Framework" src="https://img.shields.io/badge/Robot%20Framework-7%2B-000000?logo=robotframework&logoColor=white"></a>
+  <img alt="Platform" src="https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey">
+  <a href="./backend/pyproject.toml"><img alt="FastAPI" src="https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi&logoColor=white"></a>
+  <a href="https://github.com/deekshith-poojary98/robot-studio/actions/workflows/unit-tests.yml"><img alt="Unit tests" src="https://github.com/deekshith-poojary98/robot-studio/actions/workflows/unit-tests.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/deekshith-poojary98/robot-studio/actions/workflows/package-desktop.yml"><img alt="Build" src="https://github.com/deekshith-poojary98/robot-studio/actions/workflows/package-desktop.yml/badge.svg"></a>
+  <a href="https://deepwiki.com/deekshith-poojary98/robot-studio"><img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg"></a>
+</p>
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/deekshith-poojary98/robot-studio)
+</div>
 
 Robot Studio pairs a **Flutter desktop** UI with a local **Python FastAPI** backend. Workspaces, projects, environments, packages, indexing, language intelligence, test execution, reports, Git, and plugins are coordinated through clean-architecture services, an in-process event bus, and a transport gateway (REST + WebSocket today).
 
@@ -67,8 +77,8 @@ Frontend-specific docs: [frontend/README.md](./frontend/README.md) · Integratio
 
 ## Prerequisites
 
-- **Flutter** 3.x with desktop enabled (`macos`, `linux`, or `windows`)
-- **Python** 3.11+
+- **Flutter** 3.38+ (stable) with desktop enabled (`macos`, `linux`, or `windows`) — Dart SDK `^3.10.1`
+- **Python** 3.11+ (packaging CI uses 3.12)
 - **Git** (for Source Control features)
 - Optional: [uv](https://github.com/astral-sh/uv) for faster backend installs
 
@@ -286,6 +296,8 @@ robot-studio/
 ---
 
 ## Development
+
+CI runs **backend pytest** and **frontend `flutter test`** on every push to `main` and on pull requests targeting `main` (see [`.github/workflows/unit-tests.yml`](./.github/workflows/unit-tests.yml)). Integration / E2E suites stay local via `make test-integration`.
 
 ### Backend tests
 
