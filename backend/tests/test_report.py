@@ -20,7 +20,11 @@ from robot_studio.domain.models import (
     Workspace,
     WorkspaceSettings,
 )
-from robot_studio.infrastructure.execution.output_stats import parse_output_stats
+from robot_studio.infrastructure.execution.output_stats import (
+    load_or_build_file_outcomes,
+    parse_file_suite_outcomes,
+    parse_output_stats,
+)
 from robot_studio.infrastructure.execution.results_store import FilesystemResultsStore
 from robot_studio.infrastructure.repositories.execution_repository import (
     SqliteExecutionRepository,
@@ -136,6 +140,38 @@ def test_parse_output_stats_from_trailing_statistics(tmp_path: Path) -> None:
     assert stats["skipped"] == 0
     assert stats["total_tests"] == 2
     assert stats["robot_version"] == "7.0.1"
+
+
+def test_parse_file_suite_outcomes_and_sidecar(tmp_path: Path) -> None:
+    run_dir = tmp_path / "Run-1"
+    run_dir.mkdir()
+    xml = run_dir / "output.xml"
+    xml.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<robot generator="Robot 7.0.1 (Python 3.12.0 on darwin)">
+<suite id="s1" name="Root" source="/proj">
+<suite id="s1-s1" name="A" source="/proj/tests/a.robot">
+<test id="s1-s1-t1" name="T1"><status status="PASS"/></test>
+<status status="PASS"/>
+</suite>
+<suite id="s1-s2" name="B" source="/proj/tests/b.robot">
+<test id="s1-s2-t1" name="T2"><status status="FAIL"/></test>
+<status status="FAIL"/>
+</suite>
+<status status="FAIL"/>
+</suite>
+</robot>
+""",
+        encoding="utf-8",
+    )
+    outcomes = parse_file_suite_outcomes(xml)
+    assert outcomes == {
+        "/proj/tests/a.robot": "PASS",
+        "/proj/tests/b.robot": "FAIL",
+    }
+    loaded = load_or_build_file_outcomes(run_dir)
+    assert loaded == outcomes
+    assert (run_dir / "file_outcomes.json").is_file()
 
 
 @pytest.mark.asyncio

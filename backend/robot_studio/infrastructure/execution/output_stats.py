@@ -1,11 +1,14 @@
 """Lightweight Robot output.xml statistics extraction.
 
 Not a full parser — prefers the trailing <statistics> block so large logs
-do not need a complete XML tree.
+do not need a complete XML tree. Per-file suite outcomes use streaming
+``iterparse`` so Insights can attribute Project runs without loading the
+whole document.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -13,6 +16,8 @@ from pathlib import Path
 _HEAD_BYTES = 4096
 _TAIL_BYTES = 262144
 _GENERATOR_RE = re.compile(r'\bgenerator="([^"]*)"')
+_FILE_OUTCOMES_NAME = "file_outcomes.json"
+_ROBOT_SUFFIXES = (".robot",)
 
 
 def parse_output_stats(output_xml: Path | None) -> dict:
@@ -184,3 +189,86 @@ def list_failed_tests(output_xml: Path | None) -> list[dict]:
         for item in parse_test_results(output_xml)
         if item.get("status") == "FAIL"
     ]
+
+
+def parse_file_suite_outcomes(output_xml: Path | None) -> dict[str, str]:
+    """Map leaf ``.robot`` suite ``source`` → PASS|FAIL|SKIP.
+
+    Streams the document so multi-thousand-file project runs stay usable.
+    Nested folder suites (no ``.robot`` suffix) are ignored.
+    """
+    if output_xml is None or not Path(output_xml).is_file():
+        return {}
+
+    outcomes: dict[str, str] = {}
+    try:
+        for _event, elem in ET.iterparse(Path(output_xml), events=("end",)):
+            if elem.tag != "suite":
+                continue
+            source = (elem.attrib.get("source") or "").strip()
+            if not source.lower().endswith(_ROBOT_SUFFIXES):
+                elem.clear()
+                continue
+            status_el = elem.find("status")
+            status = (
+                (status_el.attrib.get("status") if status_el is not None else "") or ""
+            ).upper()
+            if status:
+                outcomes[source.replace("\\", "/")] = status
+            elem.clear()
+    except (ET.ParseError, OSError):
+        return {}
+    return outcomes
+
+
+def file_outcomes_sidecar_path(output_dir: Path | None) -> Path | None:
+    if output_dir is None:
+        return None
+    root = Path(output_dir)
+    if not root.is_dir():
+        return None
+    return root / _FILE_OUTCOMES_NAME
+
+
+def write_file_outcomes_sidecar(
+    output_dir: Path | None,
+    outcomes: dict[str, str],
+) -> Path | None:
+    """Persist per-file suite outcomes next to output.xml for Insights."""
+    path = file_outcomes_sidecar_path(output_dir)
+    if path is None or not outcomes:
+        return None
+    try:
+        path.write_text(
+            json.dumps({"files": outcomes}, indent=0, sort_keys=True),
+            encoding="utf-8",
+        )
+    except OSError:
+        return None
+    return path
+
+
+def load_or_build_file_outcomes(output_dir: Path | None) -> dict[str, str]:
+    """Read ``file_outcomes.json``, or build it once from output.xml."""
+    if output_dir is None:
+        return {}
+    root = Path(output_dir)
+    sidecar = file_outcomes_sidecar_path(root)
+    if sidecar is not None and sidecar.is_file():
+        try:
+            payload = json.loads(sidecar.read_text(encoding="utf-8"))
+            files = payload.get("files") if isinstance(payload, dict) else None
+            if isinstance(files, dict):
+                return {
+                    str(key).replace("\\", "/"): str(value).upper()
+                    for key, value in files.items()
+                    if str(key).strip()
+                }
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            pass
+
+    xml_path = root / "output.xml"
+    outcomes = parse_file_suite_outcomes(xml_path if xml_path.is_file() else None)
+    if outcomes:
+        write_file_outcomes_sidecar(root, outcomes)
+    return outcomes

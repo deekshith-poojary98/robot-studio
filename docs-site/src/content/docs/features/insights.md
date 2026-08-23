@@ -13,6 +13,8 @@ Run health is computed from the same run history as [Reports](/workflows/reports
 
 Once you have executed suites, the left panel (top on a narrow window) is the primary surface. Numbers are about **runs** (each time you pressed Run), not individual test cases — so a suite with 4 passes and 2 fails still counts as one **Failed** run.
 
+**Project** / **Tag** / multi-select runs still count once in the headline strip. In the **Files** table they are broken out per `.robot` file using that run’s `output.xml`, so a full-project pass shows **Pass = 1** on each file that ran (not zero).
+
 ### Headline strip
 
 | Label | What you are seeing |
@@ -95,11 +97,11 @@ Kind rows with a count of zero stay visible but muted so small projects still sh
 
 ## Files table
 
-The Files table merges index composition with per-file run stats so you can spot hot spots next to keyword/test density. Rows load as you scroll.
+The Files table lists **executed `.robot` suites only** — helpers like `.py` / `.resource` and suites that have never run stay out. Indexed KW / TC / Var counts still appear next to run health. Rows load as you scroll.
 
 | Column | Meaning |
 |--------|---------|
-| **File** | Suite or source path |
+| **File** | Suite path |
 | **KW** / **TC** / **Var** | Indexed keyword, test-case, and variable definitions in that file |
 | **Runs** | Times that file was part of a run |
 | **Pass** / **Fail** | How many of those runs passed or failed overall |

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -128,3 +129,70 @@ def test_aggregate_folds_project_label_into_sole_file_without_composition() -> N
     assert files[0].runs == 2
     assert files[0].failed == 1
     assert files[0].passed == 1
+
+
+def test_aggregate_strips_suite_label_prefix() -> None:
+    absolute = "/Users/me/proj/tests/login.robot"
+    runs = [
+        _run(suite="Suite: login.robot", failed=0, minutes_ago=1),
+    ]
+    composition = [FileComposition(file_path=absolute, counts={"test_case": 1})]
+
+    _totals, _recent, files = _aggregate_runs(
+        runs,
+        recent_limit=10,
+        composition_files=composition,
+    )
+
+    assert len(files) == 1
+    assert files[0].file_path == absolute
+    assert files[0].passed == 1
+    assert files[0].runs == 1
+
+
+def test_aggregate_fans_out_project_run_from_file_outcomes(
+    tmp_path,
+) -> None:
+    a = str(tmp_path / "tests" / "a.robot")
+    b = str(tmp_path / "tests" / "b.robot")
+    output_dir = tmp_path / "Run-1"
+    output_dir.mkdir()
+    (output_dir / "file_outcomes.json").write_text(
+        json.dumps({"files": {a: "PASS", b: "FAIL"}}),
+        encoding="utf-8",
+    )
+    runs = [
+        ExecutionRun(
+            id=uuid4(),
+            workspace_id=uuid4(),
+            project_id=uuid4(),
+            environment_id=uuid4(),
+            project_name="Demo",
+            suite="Project: Demo",
+            status=ExecutionStatus.FAILED,
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+            duration_ms=900,
+            exit_code=1,
+            passed=1,
+            failed=1,
+            output_dir=output_dir,
+        ),
+    ]
+    composition = [
+        FileComposition(file_path=a, counts={"test_case": 1}),
+        FileComposition(file_path=b, counts={"test_case": 1}),
+    ]
+
+    totals, _recent, files = _aggregate_runs(
+        runs,
+        recent_limit=10,
+        composition_files=composition,
+    )
+
+    # One project run overall; each leaf file gets its own outcome.
+    assert totals.failed == 1
+    assert totals.passed == 0
+    by_path = {item.file_path: item for item in files}
+    assert by_path[a].runs == 1 and by_path[a].passed == 1 and by_path[a].failed == 0
+    assert by_path[b].runs == 1 and by_path[b].passed == 0 and by_path[b].failed == 1

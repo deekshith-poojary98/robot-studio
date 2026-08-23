@@ -20,6 +20,9 @@ from robot_studio.domain.models.insights import (
 from robot_studio.infrastructure.repositories.execution_repository import (
     SqliteExecutionRepository,
 )
+from robot_studio.infrastructure.execution.output_stats import (
+    load_or_build_file_outcomes,
+)
 
 
 class InsightsValidationError(Exception):
@@ -38,6 +41,8 @@ def _file_suite_key(suite: str) -> str | None:
 
     Project/tag/selection runs store display labels like ``Project: Demo`` in
     ``suite`` — those must not appear as rows in the per-file Insights table.
+    Test Explorer runs use ``Suite: login.robot``; strip that prefix so the
+    path matches composition / absolute suite runs.
     """
     text = (suite or "").strip()
     if not text:
@@ -45,6 +50,11 @@ def _file_suite_key(suite: str) -> str | None:
     lower = text.lower()
     if lower.startswith(("project: ", "tag: ")) or lower.startswith("selected ("):
         return None
+    if lower.startswith("suite: "):
+        text = text[7:].strip()
+        if not text:
+            return None
+        lower = text.lower()
     # "login.robot :: Test Name" → attribute to the file basename/path.
     if " :: " in text:
         text = text.split(" :: ", 1)[0].strip()
@@ -54,6 +64,51 @@ def _file_suite_key(suite: str) -> str | None:
     if path.suffix.lower() not in _FILE_SUFFIXES:
         return None
     return _normalize_path(str(path))
+
+
+def _is_multi_file_label(suite: str) -> bool:
+    label = (suite or "").strip().lower()
+    return label.startswith(("project: ", "tag: ")) or label.startswith("selected (")
+
+
+def _file_status_to_outcome(status: str, *, run_outcome: str) -> str:
+    """Map a leaf suite status onto Insights Pass/Fail/Interrupted buckets."""
+    value = (status or "").upper()
+    if value == "FAIL":
+        return "FAIL"
+    if value == "PASS":
+        return "PASS"
+    if run_outcome in {"CANCELLED", "ABORTED"}:
+        return run_outcome
+    # SKIP / unknown — still a completed file participation, not a failure.
+    return "PASS"
+
+
+def _credit_file_bucket(
+    bucket: dict,
+    *,
+    run: ExecutionRun,
+    outcome: str,
+) -> None:
+    bucket["runs"] += 1
+    if outcome == "PASS":
+        bucket["passed"] += 1
+    elif outcome == "FAIL":
+        bucket["failed"] += 1
+    elif outcome == "CANCELLED":
+        bucket["cancelled"] += 1
+    elif outcome == "ABORTED":
+        bucket["aborted"] += 1
+    last_at: datetime | None = bucket["last_started_at"]
+    if last_at is None or run.started_at > last_at:
+        bucket["last_started_at"] = run.started_at
+        bucket["last_outcome"] = outcome
+        bucket["last_run_id"] = run.id
+    if outcome == "FAIL":
+        failed_at: datetime | None = bucket.get("last_failed_at")
+        if failed_at is None or run.started_at > failed_at:
+            bucket["last_failed_at"] = run.started_at
+            bucket["last_failed_run_id"] = run.id
 
 
 def _normalize_path(path: str) -> str:
@@ -252,36 +307,31 @@ def _aggregate_runs(
             )
 
         path = _file_suite_key(run.suite)
-        if path is None and sole_robot is not None:
-            # Project/tag runs still belong to the only suite file in the project.
-            label = (run.suite or "").strip().lower()
-            if label.startswith(("project: ", "tag: ")) or label.startswith(
-                "selected ("
-            ):
+        if path is None and _is_multi_file_label(run.suite):
+            if sole_robot is not None:
                 path = sole_robot
+            else:
+                # Full-suite Project/Tag/Selected runs: credit each leaf .robot
+                # from output.xml (cached as file_outcomes.json).
+                file_outcomes = load_or_build_file_outcomes(run.output_dir)
+                if not file_outcomes:
+                    continue
+                for source, status in file_outcomes.items():
+                    file_path = _canonicalize_run_file(source, composition_paths)
+                    file_outcome = _file_status_to_outcome(
+                        status,
+                        run_outcome=outcome,
+                    )
+                    _credit_file_bucket(
+                        by_file[file_path],
+                        run=run,
+                        outcome=file_outcome,
+                    )
+                continue
         if not path:
             continue
         path = _canonicalize_run_file(path, composition_paths)
-        bucket = by_file[path]
-        bucket["runs"] += 1
-        if outcome == "PASS":
-            bucket["passed"] += 1
-        elif outcome == "FAIL":
-            bucket["failed"] += 1
-        elif outcome == "CANCELLED":
-            bucket["cancelled"] += 1
-        elif outcome == "ABORTED":
-            bucket["aborted"] += 1
-        last_at: datetime | None = bucket["last_started_at"]
-        if last_at is None or run.started_at > last_at:
-            bucket["last_started_at"] = run.started_at
-            bucket["last_outcome"] = outcome
-            bucket["last_run_id"] = run.id
-        if outcome == "FAIL":
-            failed_at: datetime | None = bucket.get("last_failed_at")
-            if failed_at is None or run.started_at > failed_at:
-                bucket["last_failed_at"] = run.started_at
-                bucket["last_failed_run_id"] = run.id
+        _credit_file_bucket(by_file[path], run=run, outcome=outcome)
 
     by_file = _merge_duplicate_file_buckets(dict(by_file))
 
@@ -293,32 +343,13 @@ def _aggregate_runs(
         for run in runs:
             if _file_suite_key(run.suite) is not None:
                 continue
-            label = (run.suite or "").strip().lower()
-            if not (
-                label.startswith(("project: ", "tag: "))
-                or label.startswith("selected (")
-            ):
+            if not _is_multi_file_label(run.suite):
+                continue
+            # Prefer xml fan-out when available so we do not double-count.
+            if run.output_dir and load_or_build_file_outcomes(run.output_dir):
                 continue
             outcome = _run_outcome(run)
-            only_bucket["runs"] += 1
-            if outcome == "PASS":
-                only_bucket["passed"] += 1
-            elif outcome == "FAIL":
-                only_bucket["failed"] += 1
-            elif outcome == "CANCELLED":
-                only_bucket["cancelled"] += 1
-            elif outcome == "ABORTED":
-                only_bucket["aborted"] += 1
-            last_at = only_bucket["last_started_at"]
-            if last_at is None or run.started_at > last_at:
-                only_bucket["last_started_at"] = run.started_at
-                only_bucket["last_outcome"] = outcome
-                only_bucket["last_run_id"] = run.id
-            if outcome == "FAIL":
-                failed_at = only_bucket.get("last_failed_at")
-                if failed_at is None or run.started_at > failed_at:
-                    only_bucket["last_failed_at"] = run.started_at
-                    only_bucket["last_failed_run_id"] = run.id
+            _credit_file_bucket(only_bucket, run=run, outcome=outcome)
 
     counted = passed + failed + cancelled + aborted
     pass_rate = (passed / counted * 100.0) if counted else None

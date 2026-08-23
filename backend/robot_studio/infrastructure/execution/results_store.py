@@ -8,7 +8,11 @@ from uuid import UUID
 
 from robot_studio.domain.interfaces.runner import ResultsStore
 from robot_studio.domain.models import ExecutionRun, ExecutionStatus
-from robot_studio.infrastructure.execution.output_stats import parse_output_stats
+from robot_studio.infrastructure.execution.output_stats import (
+    parse_file_suite_outcomes,
+    parse_output_stats,
+    write_file_outcomes_sidecar,
+)
 
 
 class FilesystemResultsStore(ResultsStore):
@@ -26,6 +30,13 @@ class FilesystemResultsStore(ResultsStore):
         log_html = root / "log.html" if (root / "log.html").is_file() else None
         report_html = root / "report.html" if (root / "report.html").is_file() else None
         stats = parse_output_stats(output_xml)
+        if output_xml is not None:
+            outcomes = parse_file_suite_outcomes(output_xml)
+            write_file_outcomes_sidecar(root, outcomes)
+        else:
+            sidecar = root / "file_outcomes.json"
+            if sidecar.is_file():
+                sidecar.unlink(missing_ok=True)
         payload = {
             "run_id": str(run_id),
             "output_dir": str(root),

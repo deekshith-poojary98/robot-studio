@@ -304,7 +304,9 @@ List<Widget> _filesSlivers({
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Text(
-                        'Click a failing file to triage.',
+                        rows.isEmpty
+                            ? 'Run a .robot suite to populate this list.'
+                            : 'Executed .robot files — click a failing file to triage.',
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 11,
@@ -2593,14 +2595,19 @@ List<_MergedFileRow> _mergeFileRows(InsightsInfo data) {
     }
   }
 
-  final rows = map.values.toList()
-    ..sort((a, b) {
-      final failCmp = b.failed.compareTo(a.failed);
-      if (failCmp != 0) return failCmp;
-      final runCmp = b.runs.compareTo(a.runs);
-      if (runCmp != 0) return runCmp;
-      return a.filePath.compareTo(b.filePath);
-    });
+  final rows =
+      map.values.where((row) {
+        // Triage surface: executed Robot suites only — not generators,
+        // resources, or indexed files that never ran.
+        final lower = row.filePath.toLowerCase();
+        return lower.endsWith('.robot') && row.runs > 0;
+      }).toList()..sort((a, b) {
+        final failCmp = b.failed.compareTo(a.failed);
+        if (failCmp != 0) return failCmp;
+        final runCmp = b.runs.compareTo(a.runs);
+        if (runCmp != 0) return runCmp;
+        return a.filePath.compareTo(b.filePath);
+      });
   return rows;
 }
 
