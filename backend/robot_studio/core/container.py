@@ -429,17 +429,21 @@ class Container:
         UI then hammers while the "workspace missing" dialog is up.
         """
         removed = 0
-        if self.environment_service is not None:
-            removed += await self.environment_service.purge_workspace_environments(
-                workspace_id,
-            )
-        if self.report_service is not None:
-            removed += await self.report_service.purge_workspace_runs(workspace_id)
-        if (
-            self.workspace_context is not None
-            and self.workspace_context.workspace_id == workspace_id
-        ):
-            await self.workspace_context.close()
+        try:
+            if self.environment_service is not None:
+                removed += await self.environment_service.purge_workspace_environments(
+                    workspace_id,
+                )
+            if self.report_service is not None:
+                removed += await self.report_service.purge_workspace_runs(workspace_id)
+        finally:
+            # Always clear the session — purge can fail if the DB is unavailable
+            # (e.g. tests without a data_dir), but the UI still needs a clean slate.
+            if (
+                self.workspace_context is not None
+                and self.workspace_context.workspace_id == workspace_id
+            ):
+                await self.workspace_context.close()
         return removed
 
     async def shutdown(self) -> None:

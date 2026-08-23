@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -26,18 +27,26 @@ from robot_studio.main import create_app
 
 
 def _robot_bin() -> Path:
-    """Resolve the venv Robot CLI on Unix (bin/) and Windows (Scripts/)."""
+    """Resolve the Robot CLI (venv ``bin/`` / ``Scripts/``, or ``PATH``)."""
     root = Path(__file__).resolve().parents[1] / ".venv"
     if sys.platform == "win32":
         candidates = (
             root / "Scripts" / "robot.exe",
             root / "Scripts" / "robot",
+            Path(sys.executable).parent / "robot.exe",
+            Path(sys.executable).parent / "robot",
         )
     else:
-        candidates = (root / "bin" / "robot",)
+        candidates = (
+            root / "bin" / "robot",
+            Path(sys.executable).parent / "robot",
+        )
     for path in candidates:
         if path.is_file():
             return path
+    which = shutil.which("robot")
+    if which:
+        return Path(which)
     return candidates[0]
 
 

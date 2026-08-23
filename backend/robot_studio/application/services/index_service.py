@@ -348,6 +348,11 @@ class IndexService:
             await self.event_bus.publish(
                 IndexUpdated(scope=IndexScope.WORKSPACE.value, scope_id=str(workspace_id)),
             )
+        except asyncio.CancelledError:
+            if self._state == "indexing":
+                self._state = "ready"
+                self._message = "Indexing cancelled"
+            raise
         except Exception as exc:  # noqa: BLE001
             self._state = "error"
             self._message = str(exc)
@@ -396,6 +401,11 @@ class IndexService:
                     await self.watcher.start()
                 except Exception as exc:  # noqa: BLE001
                     self._errors.append(f"file watcher: {exc}")
+        except asyncio.CancelledError:
+            if self._state == "indexing":
+                self._state = "ready"
+                self._message = "Indexing cancelled"
+            raise
         except Exception as exc:  # noqa: BLE001
             self._state = "error"
             self._message = str(exc)

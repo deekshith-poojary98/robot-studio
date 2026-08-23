@@ -503,6 +503,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pumpAndSettle();
+    // Restoring a project schedules staggered loads (git at 800ms). Advance
+    // past them so dispose does not trip the pending-timer assertion.
+    await tester.pump(const Duration(milliseconds: 900));
+    await tester.pumpAndSettle();
 
     expect(gateway.openProjectByPathCalls, 1);
     expect(gateway.lastOpenedProjectPath, '/tmp/Beta');

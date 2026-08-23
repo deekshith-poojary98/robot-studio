@@ -67,11 +67,15 @@ async def test_health_is_not_logged(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     client, _fresh, _tmp = api_client
+    caplog.clear()
     with caplog.at_level(logging.INFO, logger="robot_studio.request"):
         response = await client.get("/api/v1/health")
 
     assert response.status_code == 200
-    assert not any("/health" in record.getMessage() for record in caplog.records)
+    assert not any(
+        record.name == "robot_studio.request" and "/health" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 async def test_propagates_incoming_request_id(api_client) -> None:

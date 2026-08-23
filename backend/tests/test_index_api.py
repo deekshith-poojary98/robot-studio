@@ -131,6 +131,7 @@ async def test_index_rebuild_returns_immediately_by_default(api_client) -> None:
     Tiny workspaces may finish before the response is serialized, so ``state``
     can already be ``ready`` — that still means the handler did not wait.
     """
+    import asyncio
     import time
 
     client, fresh, tmp_path = api_client
@@ -151,8 +152,16 @@ async def test_index_rebuild_returns_immediately_by_default(api_client) -> None:
     assert elapsed < 2.0
     assert started.json()["state"] in {"indexing", "ready"}
 
-    task = fresh.index_service._rebuild_task  # noqa: SLF001
-    if task is not None and not task.done():
-        await task
-    ready = await client.get("/api/v1/index/status")
-    assert ready.json()["state"] == "ready"
+    # Open + create can queue overlapping rebuilds; drain until ready.
+    deadline = time.perf_counter() + 30.0
+    last_state = started.json()["state"]
+    while time.perf_counter() < deadline:
+        task = fresh.index_service._rebuild_task  # noqa: SLF001
+        if task is not None and not task.done():
+            await task
+        ready = await client.get("/api/v1/index/status")
+        last_state = ready.json()["state"]
+        if last_state == "ready":
+            break
+        await asyncio.sleep(0.05)
+    assert last_state == "ready", last_state

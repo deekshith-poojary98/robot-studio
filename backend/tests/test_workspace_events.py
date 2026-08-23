@@ -119,10 +119,18 @@ async def test_missing_project_emits_project_changed(live_stack) -> None:
 
 
 @pytest.mark.asyncio
-async def test_deleted_workspace_root_detected_without_fs_events(tmp_path: Path) -> None:
+async def test_deleted_workspace_root_detected_without_fs_events(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Deleting the watched root emits no watcher events — the poll must catch it."""
+    from robot_studio.core.config import settings
+
+    monkeypatch.setattr(settings, "data_dir", tmp_path / "data")
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+
     container = Container()
-    container.initialize()
+    await container.initialize_async()
     service = container.workspace_event_service
     assert service is not None
     service.root_poll_seconds = 0.05
@@ -158,7 +166,6 @@ async def test_deleted_workspace_root_detected_without_fs_events(tmp_path: Path)
         await service.unsubscribe(queue)
     finally:
         await container.shutdown()
-
 
 @pytest.mark.asyncio
 async def test_polling_watcher_emits_fs_and_index_channels(tmp_path: Path) -> None:
