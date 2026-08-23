@@ -34,3 +34,15 @@ def test_collect_variables_from_python_import(tmp_path: Path) -> None:
     assert "${post}" in declared
     assert RobotLanguageService._is_known_variable("@{posts}", declared)
     assert RobotLanguageService._is_known_variable("${KNOWN_POST_ID}", declared)
+
+
+def test_extended_variable_access_is_known_when_base_declared() -> None:
+    declared = {"${response}", "@{items}"}
+    assert RobotLanguageService._is_known_variable("${response.json()}", declared)
+    assert RobotLanguageService._is_known_variable("${response.status_code}", declared)
+    assert RobotLanguageService._is_known_variable("${items[0]}", declared)
+    assert RobotLanguageService._is_known_variable("${items[0].name}", declared)
+    # Still unknown when the base was never assigned.
+    assert not RobotLanguageService._is_known_variable("${other.json()}", declared)
+    # Number literals with a decimal must not be treated as attribute access.
+    assert RobotLanguageService._is_known_variable("${3.14}", set())

@@ -1369,12 +1369,32 @@ class RobotLanguageService(LanguageService):
         upper = name.upper()
         if upper.startswith(("TEST_", "SUITE_", "PREV_TEST_", "KEYWORD_")):
             return True
+        # Extended syntax: ${response.json()}, ${obj.attr}, ${list[0]}
+        # — known when the base variable is declared.
+        base = cls._extended_variable_base(name)
+        names_to_match = {name}
+        if base != name:
+            names_to_match.add(base)
+            if base.casefold() in _AUTOMATIC_VARIABLE_NAMES:
+                return True
         # Robot allows ${list} vs @{list} for the same assignment.
         for item in declared:
             other = re.match(r"^([\$@&%])\{(.+)\}$", item)
-            if other and other.group(2) == name:
+            if other and other.group(2) in names_to_match:
                 return True
         return False
+
+    @staticmethod
+    def _extended_variable_base(name: str) -> str:
+        """Body of ``${…}`` with RF extended access (``.`` / ``[]``) stripped."""
+        if RobotLanguageService._is_number_variable_name(name):
+            return name
+        cut = len(name)
+        for marker in (".", "["):
+            idx = name.find(marker)
+            if 0 < idx < cut:
+                cut = idx
+        return name[:cut] if cut < len(name) else name
 
     @staticmethod
     def _is_number_variable_name(name: str) -> bool:
