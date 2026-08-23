@@ -7,6 +7,16 @@ description: Fix common Robot Studio issues — backend offline, empty runs, mis
 
 Private beta: open an issue on [GitHub](https://github.com/deekshith-poojary98/robot-studio/issues). Include OS, what you did, and what you expected. Logs live under `~/.robot-studio/logs/` if you need to attach them.
 
+## macOS: “Robot Studio” Not Opened after unzip
+
+Gatekeeper blocks the beta zip because the app is not notarized. That is expected — not a corrupt download.
+
+1. Open **System Settings → Privacy & Security**.
+2. Under **Security**, find *“Robot Studio” was blocked to protect your Mac.*
+3. Click **Open Anyway**, then confirm **Open**.
+
+If that line is not there yet, double-click the app once more from Finder (dismiss **Done** if needed), then check Privacy & Security again. You only do this once per download. Also covered in [Install](/getting-started/install/#macos-app-blocked-after-unzip).
+
 ## Linux: `Exec format error` when running `./robot_studio`
 
 The zip CPU does not match the machine. Run `uname -m`:

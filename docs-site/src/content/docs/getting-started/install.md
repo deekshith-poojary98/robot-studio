@@ -18,14 +18,29 @@ Download the latest zip from [GitHub Releases](https://github.com/deekshith-pooj
 
 | Platform | Artifact | How to open |
 |----------|----------|-------------|
-| **macOS** | `Robot Studio.app` (inside the zip) | Double-click the app |
+| **macOS** | `Robot Studio.app` (inside the zip) | Double-click the app. First launch after unzip is often blocked by Gatekeeper — see [macOS: app blocked after unzip](#macos-app-blocked-after-unzip) below. |
 | **Windows** | `RobotStudio/RobotStudio.exe` (inside the zip) | Double-click the executable. If Windows reports missing `MSVCP140.dll` / `VCRUNTIME140.dll`, install the [Visual C++ Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) once, then retry. |
 | **Linux x64** | `Robot-Studio-*-linux-x64.zip` → `RobotStudio/` | Double-click `robot-studio.desktop` (first time: right-click → **Allow Launching**), or run `./robot_studio`. Optional once: `./install-desktop-launcher.sh` to add it to the app menu. Uninstall: `./uninstall.sh` (add `--purge` to also delete `~/.robot-studio`). |
 | **Linux arm64** | `Robot-Studio-*-linux-arm64.zip` → `RobotStudio/` | Same as Linux x64. Use this zip on Apple Silicon / ARM VMs (`uname -m` → `aarch64`). An x64 zip shows `Exec format error` on ARM. |
 
+### macOS: app blocked after unzip
+
+Beta builds are not notarized. After you unzip and double-click **Robot Studio**, macOS may show **“Robot Studio” Not Opened** and refuse to launch.
+
+1. Open **System Settings → Privacy & Security**.
+2. Scroll to the **Security** section. You should see *“Robot Studio” was blocked to protect your Mac.*
+3. Click **Open Anyway**, then confirm **Open** on the follow-up prompt.
+
+You only need this once per download. If the blocked message is missing, try opening the app again from Finder first, then return to Privacy & Security.
+
+Same steps are under [Troubleshooting](/troubleshooting/common-issues/#macos-robot-studio-not-opened-after-unzip).
+
+### Linux host packages
+
 On Ubuntu/Debian, creating a project environment also needs the host `venv` package once: `sudo apt install python3-venv` (or `python3.XX-venv` if the error names a version). Source Control needs host Git: `sudo apt install git`. See [Troubleshooting](/troubleshooting/common-issues/).
 
 App data lives under `~/.robot-studio`.
+
 
 Maintainers building packages from this repository:
 
