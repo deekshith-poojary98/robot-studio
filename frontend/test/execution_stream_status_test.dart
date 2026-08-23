@@ -7,6 +7,15 @@ class _FakeGateway implements TransportGateway {
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
+class _StatusGateway extends _FakeGateway {
+  _StatusGateway(this.status);
+
+  final ExecutionStatusInfo status;
+
+  @override
+  Future<ExecutionStatusInfo> getExecutionStatus() async => status;
+}
+
 void main() {
   late ExecutionShellController controller;
   var notified = 0;
@@ -61,6 +70,7 @@ void main() {
       reportHtml: null,
     );
     controller.executionStatus = ExecutionStatus.running;
+    controller.startElapsedTimer();
 
     controller.handleStreamEvent(
       const ExecutionStreamEvent(
@@ -71,7 +81,54 @@ void main() {
     );
 
     expect(controller.executionStatus, ExecutionStatus.failed);
-    expect(notified, 1);
+    expect(controller.elapsedTimer, isNull);
+    expect(notified, greaterThan(0));
+  });
+
+  test('reconcile clears stuck Running when API already finished', () async {
+    var finishedCalls = 0;
+    controller = ExecutionShellController(
+      gateway: _StatusGateway(
+        const ExecutionStatusInfo(
+          status: ExecutionStatus.finished,
+          run: null,
+        ),
+      ),
+      notify: () => notified++,
+      isMounted: () => true,
+      appendLog: (_) {},
+      onRunFinished: () async {
+        finishedCalls++;
+      },
+      workspace: () => null,
+      backendConnected: () => true,
+    );
+    controller.currentExecution = ExecutionInfo(
+      id: 'run-1',
+      workspaceId: 'ws',
+      projectId: 'proj',
+      environmentId: 'env',
+      projectName: 'Amazon',
+      suite: 'suite.robot',
+      status: ExecutionStatus.running,
+      startedAt: DateTime.utc(2026, 1, 1),
+      finishedAt: null,
+      durationMs: null,
+      exitCode: null,
+      command: 'robot',
+      outputDir: null,
+      outputXml: null,
+      logHtml: null,
+      reportHtml: null,
+    );
+    controller.executionStatus = ExecutionStatus.running;
+    controller.startElapsedTimer();
+
+    await controller.reconcileActiveRunStatusForTest();
+
+    expect(controller.executionStatus, ExecutionStatus.finished);
+    expect(controller.elapsedTimer, isNull);
+    expect(finishedCalls, 1);
   });
 
   test('ignores status events for a different run id', () {

@@ -323,3 +323,27 @@ async def test_runner_invokes_venv_wrapper_not_system_python(
     run_id = UUID(str(started["run_id"]))
     await runner.wait(run_id)
     runner.release(run_id)
+
+
+@pytest.mark.asyncio
+async def test_broadcast_preserves_finished_under_output_backpressure() -> None:
+    """Control events must survive a full subscriber queue of output lines."""
+    from robot_studio.application.services.execution_service import (
+        _CONTROL_EVENT_TYPES,
+        _enqueue_preserving_control,
+    )
+
+    queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=8)
+    for index in range(8):
+        queue.put_nowait({"type": "output", "line": f"line-{index}"})
+
+    finished = {"type": "finished", "run_id": "run-1", "status": "finished"}
+    assert "finished" in _CONTROL_EVENT_TYPES
+    _enqueue_preserving_control(queue, finished)
+
+    items: list[dict] = []
+    while not queue.empty():
+        items.append(queue.get_nowait())
+    assert any(item.get("type") == "finished" for item in items)
+    assert items[-1]["type"] == "finished"
+    assert sum(1 for item in items if item.get("type") == "output") < 8

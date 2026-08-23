@@ -58,6 +58,42 @@ _ROBOT_MISSING_MARKERS = (
     "no module named 'robot'",
 )
 
+#: Stream events that must not be discarded under output backpressure.
+_CONTROL_EVENT_TYPES = frozenset(
+    {
+        "status",
+        "started",
+        "finished",
+        "failed",
+        "cancelled",
+        "aborted",
+    },
+)
+
+
+def _enqueue_preserving_control(queue: asyncio.Queue[dict], message: dict) -> None:
+    """Enqueue [message] when full by dropping oldest *output* frames first.
+
+    Large runs flood the subscriber queue with stdout. The previous
+    drop-oldest strategy could discard ``finished`` / ``failed`` while Live
+    Output still showed Robot's summary — leaving the UI stuck on Running.
+    """
+    buffered: list[dict] = []
+    while True:
+        try:
+            buffered.append(queue.get_nowait())
+        except asyncio.QueueEmpty:
+            break
+
+    controls = [item for item in buffered if item.get("type") in _CONTROL_EVENT_TYPES]
+    outputs = [item for item in buffered if item.get("type") not in _CONTROL_EVENT_TYPES]
+    maxsize = queue.maxsize if queue.maxsize > 0 else len(buffered) + 1
+    room_for_outputs = max(0, maxsize - len(controls) - 1)
+    kept = controls + outputs[-room_for_outputs:]
+    kept.append(message)
+    for item in kept[:maxsize]:
+        queue.put_nowait(item)
+
 
 def _probe_robot_version(python: Path) -> subprocess.CompletedProcess[str]:
     """Import-check Robot off the asyncio thread (Windows CreateProcess safety)."""
@@ -691,13 +727,18 @@ class ExecutionService:
 
     async def _broadcast(self, message: dict) -> None:
         stale: list[_Subscriber] = []
+        message_type = message.get("type")
+        is_control = message_type in _CONTROL_EVENT_TYPES
         for subscriber in list(self._subscribers):
             try:
                 subscriber.queue.put_nowait(message)
             except asyncio.QueueFull:
                 try:
-                    _ = subscriber.queue.get_nowait()
-                    subscriber.queue.put_nowait(message)
+                    if is_control:
+                        _enqueue_preserving_control(subscriber.queue, message)
+                    else:
+                        _ = subscriber.queue.get_nowait()
+                        subscriber.queue.put_nowait(message)
                 except Exception:  # noqa: BLE001
                     stale.append(subscriber)
         if stale:

@@ -57,6 +57,8 @@ class ExecutionShellController {
   Duration elapsed = Duration.zero;
   ExecutionStreamClient? streamClient;
   StreamSubscription<ExecutionStreamEvent>? streamSub;
+  Timer? _statusReconcileTimer;
+  bool _reconcilingStatus = false;
 
   /// Cap console memory; 10k-test runs can emit huge stdout.
   static const int maxExecutionLines = 4000;
@@ -78,6 +80,7 @@ class ExecutionShellController {
   void dispose() {
     streamSub?.cancel();
     elapsedTimer?.cancel();
+    _statusReconcileTimer?.cancel();
     _outputFlushTimer?.cancel();
     _reportFailuresSkeletonTimer?.cancel();
     _liveFailuresSkeletonTimer?.cancel();
@@ -141,7 +144,14 @@ class ExecutionShellController {
         if (!_isEventForCurrentRun(event)) return;
         final status = event.status;
         if (status == null) return;
-        executionStatus = ExecutionStatus.fromApi(status);
+        final parsed = ExecutionStatus.fromApi(status);
+        if (!parsed.isActive) {
+          // Reconnect snapshot can arrive as type=status with a terminal
+          // value — treat it like finished/failed so the timer stops.
+          _applyTerminalRun(status: parsed, exitCode: event.exitCode);
+          return;
+        }
+        executionStatus = parsed;
         currentExecution = ExecutionInfo(
           id: currentExecution!.id,
           workspaceId: currentExecution!.workspaceId,
@@ -167,32 +177,47 @@ class ExecutionShellController {
       case 'failed':
       case 'cancelled':
         if (!_isEventForCurrentRun(event)) return;
-        _flushOutputNow();
-        _clearLiveProgress();
-        executionStatus = ExecutionStatus.fromApi(event.type);
-        currentExecution = ExecutionInfo(
-          id: currentExecution!.id,
-          workspaceId: currentExecution!.workspaceId,
-          projectId: currentExecution!.projectId,
-          environmentId: currentExecution!.environmentId,
-          projectName: currentExecution!.projectName,
-          suite: currentExecution!.suite,
-          status: executionStatus,
-          startedAt: currentExecution!.startedAt,
-          finishedAt: currentExecution!.finishedAt,
-          durationMs: currentExecution!.durationMs,
-          exitCode: event.exitCode ?? currentExecution!.exitCode,
-          command: currentExecution!.command,
-          outputDir: currentExecution!.outputDir,
-          outputXml: currentExecution!.outputXml,
-          logHtml: currentExecution!.logHtml,
-          reportHtml: currentExecution!.reportHtml,
+        _applyTerminalRun(
+          status: ExecutionStatus.fromApi(event.type),
+          exitCode: event.exitCode,
         );
-        stopElapsedTimer();
-        notify();
-        unawaited(onRunFinished());
         return;
     }
+  }
+
+  void _applyTerminalRun({
+    required ExecutionStatus status,
+    int? exitCode,
+    ExecutionInfo? run,
+  }) {
+    if (!executionStatus.isActive) return;
+    _flushOutputNow();
+    _clearLiveProgress();
+    executionStatus = status;
+    final base = run ?? currentExecution;
+    if (base != null) {
+      currentExecution = ExecutionInfo(
+        id: base.id,
+        workspaceId: base.workspaceId,
+        projectId: base.projectId,
+        environmentId: base.environmentId,
+        projectName: base.projectName,
+        suite: base.suite,
+        status: status,
+        startedAt: base.startedAt,
+        finishedAt: base.finishedAt ?? run?.finishedAt,
+        durationMs: base.durationMs ?? run?.durationMs,
+        exitCode: exitCode ?? run?.exitCode ?? base.exitCode,
+        command: base.command,
+        outputDir: base.outputDir ?? run?.outputDir,
+        outputXml: base.outputXml ?? run?.outputXml,
+        logHtml: base.logHtml ?? run?.logHtml,
+        reportHtml: base.reportHtml ?? run?.reportHtml,
+      );
+    }
+    stopElapsedTimer();
+    notify();
+    unawaited(onRunFinished());
   }
 
   /// Apply any progress marker and return console text to keep.
@@ -268,12 +293,61 @@ class ExecutionShellController {
       elapsed += const Duration(milliseconds: 250);
       notify();
     });
+    _startStatusReconcile();
   }
 
   void stopElapsedTimer() {
     elapsedTimer?.cancel();
     elapsedTimer = null;
+    _stopStatusReconcile();
   }
+
+  void _startStatusReconcile() {
+    _statusReconcileTimer?.cancel();
+    // Large runs can drop the WebSocket ``finished`` frame under output
+    // backpressure; poll HTTP so Running/Stop cannot stick forever.
+    _statusReconcileTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      unawaited(_reconcileActiveRunStatus());
+    });
+  }
+
+  void _stopStatusReconcile() {
+    _statusReconcileTimer?.cancel();
+    _statusReconcileTimer = null;
+  }
+
+  Future<void> _reconcileActiveRunStatus() async {
+    if (!isMounted() || !executionStatus.isActive || _reconcilingStatus) {
+      return;
+    }
+    final expectedId = currentExecution?.id;
+    _reconcilingStatus = true;
+    try {
+      final info = await gateway.getExecutionStatus();
+      if (!isMounted() || !executionStatus.isActive) return;
+      if (expectedId != null &&
+          info.run != null &&
+          info.run!.id != expectedId) {
+        return;
+      }
+      if (info.status.isActive) return;
+      final terminal = info.status == ExecutionStatus.idle
+          ? ExecutionStatus.finished
+          : info.status;
+      _applyTerminalRun(
+        status: terminal,
+        exitCode: info.run?.exitCode,
+        run: info.run,
+      );
+    } catch (error) {
+      appendLog('[warn] Could not reconcile execution status: $error');
+    } finally {
+      _reconcilingStatus = false;
+    }
+  }
+
+  /// Test seam for [_reconcileActiveRunStatus].
+  Future<void> reconcileActiveRunStatusForTest() => _reconcileActiveRunStatus();
 
   Future<void> loadExecutionHistory() async {
     if (workspace() == null || !backendConnected()) {
