@@ -5,7 +5,7 @@ description: Fix common Robot Studio issues — backend offline, empty runs, mis
 
 ## How to report a bug
 
-Private beta: open an issue on [GitHub](https://github.com/deekshith-poojary98/robot-studio/issues). Include OS, what you did, and what you expected. Logs live under `~/.robot-studio/logs/` if you need to attach them.
+Private beta: open an issue on [GitHub](https://github.com/deekshith-poojary98/robot-studio/issues). Include OS, what you did, and what you expected. Logs live under `~/.robot-studio/logs/` if you need to attach them (`frontend-*.log` and `backend-*.log`). Backend logs include each API call (method, path, status, duration), execution start/stop/finish, and unexpected crashes with a stack trace.
 
 ## macOS: “Robot Studio” Not Opened after unzip
 
@@ -156,7 +156,7 @@ The UI cannot reach the local API.
 
 **From source:** ensure `make backend` is running and `make health` returns OK on port `8765` (or your overridden port).
 
-Health is rechecked automatically; once the backend is back, the shell recovers without restarting the UI.
+Health is rechecked automatically (about every 2 seconds while offline). Once the backend is back, the shell reconnects live streams and **re-opens the project you still had on screen** (backend memory is empty after a restart). If a file open fails with “Open a workspace before accessing files” on an older build, use **Open Project** again or restart the UI.
 
 ## Cannot open a project on Desktop / Documents (macOS)
 
@@ -207,6 +207,10 @@ Long project runs (thousands of tests) rewrite `output.xml` continuously and str
 - Keeps Save from waiting on Git refresh
 
 If the UI still feels sticky, leave the **Tests** / Execution view while the run finishes, or stop the run before heavy editing. Reports still appear when the run completes.
+
+## Insights shows unavailable, then works on the second open
+
+On very large projects the first Insights load can take longer than a short request window (cold index / first per-file stats). Robot Studio now waits longer and shows a clear failure with **Refresh**. Open Insights again or tap **Refresh** — the second load is usually fast once caches are warm.
 
 ## Git shows the wrong repository
 

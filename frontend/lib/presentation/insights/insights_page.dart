@@ -6,6 +6,7 @@ import '../../core/gateway/models/insights_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/status_badge.dart';
+import '../widgets/timed_loading_indicator.dart';
 import 'insights_file_triage_dialog.dart';
 
 /// Shared thickness for horizontal progress / share bars on Insights.
@@ -17,6 +18,7 @@ class InsightsPage extends StatelessWidget {
     super.key,
     required this.insights,
     required this.isLoading,
+    this.loadError,
     this.onRefresh,
     this.onRebuildIndex,
     this.onOpenFile,
@@ -27,6 +29,7 @@ class InsightsPage extends StatelessWidget {
 
   final InsightsInfo? insights;
   final bool isLoading;
+  final String? loadError;
   final VoidCallback? onRefresh;
   final VoidCallback? onRebuildIndex;
   final ValueChanged<String>? onOpenFile;
@@ -75,21 +78,18 @@ class InsightsPage extends StatelessWidget {
 
   Widget _buildBody(BuildContext context) {
     if (isLoading && insights == null) {
-      return const Center(
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      );
+      return const TimedLoadingIndicator();
     }
     final data = insights;
     if (data == null) {
+      final failed = loadError != null && loadError!.trim().isNotEmpty;
       return EmptyState(
         icon: Icons.insights_outlined,
-        title: 'Insights unavailable',
-        message:
-            'Open a project and refresh to load composition and run health.',
+        title: failed ? 'Insights failed to load' : 'Insights unavailable',
+        message: failed
+            ? 'Large projects can take a while on the first open. '
+                  'Tap Refresh to try again.\n\n$loadError'
+            : 'Open a project and refresh to load composition and run health.',
         actionLabel: onRefresh == null ? null : 'Refresh',
         onAction: onRefresh,
       );

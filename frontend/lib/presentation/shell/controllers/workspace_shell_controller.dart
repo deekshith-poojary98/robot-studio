@@ -50,6 +50,10 @@ class WorkspaceShellController {
   bool _monitoring = false;
   int _consecutiveFailures = 0;
 
+  /// Set when WS/HTTP transport drops while the shell still looks connected.
+  /// Cleared after a successful soft reconnect (re-runs [onConnected]).
+  bool _sessionNeedsRefresh = false;
+
   EnvironmentInfo? get activeEnvironment {
     for (final environment in environments) {
       if (environment.active) return environment;
@@ -91,6 +95,16 @@ class WorkspaceShellController {
     stopBackendMonitoring();
   }
 
+  /// Call when a live stream closes (backend killed) so the next healthy
+  /// probe re-runs session restore even if health never flipped to offline.
+  void markTransportInterrupted() {
+    if (!_monitoring || !isMounted()) return;
+    _sessionNeedsRefresh = true;
+    if (_probingHealth) return;
+    _healthPollTimer?.cancel();
+    unawaited(_probeBackend().whenComplete(_scheduleNextHealthProbe));
+  }
+
   void _scheduleNextHealthProbe() {
     _healthPollTimer?.cancel();
     if (!_monitoring || !isMounted()) return;
@@ -103,31 +117,45 @@ class WorkspaceShellController {
     if (!isMounted() || _probingHealth) return;
     _probingHealth = true;
     final wasConnected = backendConnected;
+    final failuresBeforeProbe = _consecutiveFailures;
     try {
       final health = await gateway.health();
       if (!isMounted()) return;
+      final softRecover =
+          wasConnected &&
+          (_sessionNeedsRefresh || failuresBeforeProbe > 0);
       _consecutiveFailures = 0;
       _loggedOffline = false;
-      if (wasConnected) {
+      _sessionNeedsRefresh = false;
+      if (wasConnected && !softRecover) {
         backendVersion = health.version;
         return;
       }
       backendStatus = 'connected';
       backendVersion = health.version;
       notify();
-      AppLogger.info('Connected to backend v${health.version}', tag: 'Shell');
-      AppLogger.info(
-        '${health.modules.length} modules registered',
-        tag: 'Shell',
-      );
-      AppLogger.info(
-        'Backend connected',
-        tag: 'Shell',
-        data: 'v${health.version} modules=${health.modules.join(',')}',
-      );
-      final onConnected = _onBackendConnected;
-      if (onConnected != null) {
-        await onConnected();
+      if (!wasConnected || softRecover) {
+        AppLogger.info(
+          softRecover
+              ? 'Backend session refresh after transport blip'
+              : 'Connected to backend v${health.version}',
+          tag: 'Shell',
+        );
+        if (!softRecover) {
+          AppLogger.info(
+            '${health.modules.length} modules registered',
+            tag: 'Shell',
+          );
+          AppLogger.info(
+            'Backend connected',
+            tag: 'Shell',
+            data: 'v${health.version} modules=${health.modules.join(',')}',
+          );
+        }
+        final onConnected = _onBackendConnected;
+        if (onConnected != null) {
+          await onConnected();
+        }
       }
     } catch (error, stackTrace) {
       if (!isMounted()) return;
@@ -144,6 +172,7 @@ class WorkspaceShellController {
         }
         if (await BackendHost.restartOwnedSidecar()) {
           _consecutiveFailures = 0;
+          _sessionNeedsRefresh = true;
           backendStatus = 'connecting';
           notify();
           AppLogger.info(
@@ -161,6 +190,7 @@ class WorkspaceShellController {
         backendStatus = 'offline';
         backendVersion = null;
         _loggedOffline = true;
+        _sessionNeedsRefresh = true;
         notify();
         final onDisconnected = _onBackendDisconnected;
         if (onDisconnected != null) {

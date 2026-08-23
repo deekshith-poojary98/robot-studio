@@ -130,8 +130,9 @@ def test_parse_output_stats_from_trailing_statistics(tmp_path: Path) -> None:
     head, stats_xml = SAMPLE_OUTPUT_XML.split("<statistics>", 1)
     # Corrupt the suite body so a full-document parse would fail; stats live
     # in the trailing <statistics> block that Robot writes at the end.
+    # Padding must exceed the stats tail window so we exercise the tail path.
     path.write_text(
-        head + "<not-closed " + ("x" * 300_000) + "\n<statistics>" + stats_xml,
+        head + "<not-closed " + ("x" * 2_500_000) + "\n<statistics>" + stats_xml,
         encoding="utf-8",
     )
     stats = parse_output_stats(path)

@@ -70,6 +70,9 @@ class WorkspaceEventStreamClient {
         onDone: () {
           AppLogger.info('Workspace event stream closed', tag: 'LiveWS');
           _socket = null;
+          final controller = _controller;
+          _controller = null;
+          unawaited(controller?.close());
         },
         cancelOnError: false,
       );

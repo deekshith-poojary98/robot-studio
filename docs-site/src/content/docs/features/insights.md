@@ -110,6 +110,10 @@ The Files table lists **executed `.robot` suites only** — helpers like `.py` /
 
 Failing rows open triage; clean rows open the file in the editor.
 
+## First open on a large project
+
+The first Insights open after launching a very large suite can take longer while composition and per-file run stats are computed. The spinner advances short status lines every 30 seconds while you wait. If it fails, use **Refresh** — a second open is usually fast once caches are warm.
+
 ## Related
 
 - [Reports & failed tests](/workflows/reports/) — open logs and output, or [delete a run](/workflows/reports/#delete-a-run) from history

@@ -182,19 +182,27 @@ class CliGitProvider(GitProvider):
 
     async def branches(self, repo_root: Path) -> list[GitBranch]:
         output = await self._run_text(
-            ["branch", "-a", "--format=%(refname:short)|%(HEAD)|%(upstream:short)"],
+            [
+                "branch",
+                "-a",
+                "--format=%(refname)|%(refname:short)|%(HEAD)|%(upstream:short)",
+            ],
             cwd=repo_root,
         )
         branches: list[GitBranch] = []
         for line in output.splitlines():
             if not line.strip():
                 continue
-            name, head, _upstream = (line.split("|") + ["", ""])[:3]
+            refname, name, head, _upstream = (line.split("|") + ["", "", "", ""])[:4]
+            if not name:
+                continue
+            # Only refs under refs/remotes/ are remote-tracking. Local topic
+            # branches like feature/login must stay selectable in the UI.
             branches.append(
                 GitBranch(
                     name=name,
                     current=head == "*",
-                    remote=name.startswith("origin/") or "/" in name,
+                    remote=refname.startswith("refs/remotes/"),
                 ),
             )
         if not branches:
@@ -523,6 +531,7 @@ class CliGitProvider(GitProvider):
                 timeout,
             )
         except subprocess.TimeoutExpired as exc:
+            logger.warning("git %s timed out (cwd=%s)", " ".join(args[:4]), cwd)
             raise GitCommandError("Git command timed out") from exc
 
     @staticmethod
@@ -545,6 +554,12 @@ class CliGitProvider(GitProvider):
 
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "").strip()
+            logger.debug(
+                "git %s failed (code=%s): %s",
+                " ".join(args[:4]),
+                result.returncode,
+                (detail[:200] if detail else "-"),
+            )
             raise GitCommandError(detail or f"git {' '.join(args)} failed")
 
         return result.stdout or ""

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/package_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/detail_property_table.dart';
 import '../widgets/status_badge.dart';
 
 class PackageDetailsPanel extends StatelessWidget {
@@ -28,7 +29,7 @@ class PackageDetailsPanel extends StatelessWidget {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
+          constraints: const BoxConstraints(maxWidth: 720),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -87,20 +88,39 @@ class PackageDetailsPanel extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 24),
-              _DetailRow(label: 'Installed Version', value: pkg.version),
-              _DetailRow(
-                label: 'Latest Version',
-                value: pkg.latestVersion ?? pkg.version,
+              DetailPropertyTable(
+                rows: [
+                  DetailPropertyRow(
+                    label: 'Installed version',
+                    value: pkg.version,
+                  ),
+                  DetailPropertyRow(
+                    label: 'Latest version',
+                    value: pkg.latestVersion ?? pkg.version,
+                  ),
+                  DetailPropertyRow(
+                    label: 'Summary',
+                    value: pkg.summary ?? '—',
+                  ),
+                  DetailPropertyRow(label: 'Author', value: pkg.author ?? '—'),
+                  DetailPropertyRow(
+                    label: 'Homepage',
+                    value: pkg.homepage ?? '—',
+                  ),
+                  DetailPropertyRow(
+                    label: 'License',
+                    value: pkg.license ?? '—',
+                  ),
+                  DetailPropertyRow(
+                    label: 'Dependencies',
+                    value: pkg.requires.isEmpty ? '—' : pkg.requires.join('\n'),
+                  ),
+                  DetailPropertyRow(
+                    label: 'Install location',
+                    value: pkg.location ?? '—',
+                  ),
+                ],
               ),
-              _DetailRow(label: 'Summary', value: pkg.summary ?? '—'),
-              _DetailRow(label: 'Author', value: pkg.author ?? '—'),
-              _DetailRow(label: 'Homepage', value: pkg.homepage ?? '—'),
-              _DetailRow(label: 'License', value: pkg.license ?? '—'),
-              _DetailRow(
-                label: 'Dependencies',
-                value: pkg.requires.isEmpty ? '—' : pkg.requires.join('\n'),
-              ),
-              _DetailRow(label: 'Install Location', value: pkg.location ?? '—'),
             ],
           ),
         ),
@@ -116,33 +136,5 @@ class PackageDetailsPanel extends StatelessWidget {
     } else {
       await Process.run('xdg-open', [homepage]);
     }
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: Theme.of(context).textTheme.labelSmall,
-          ),
-          const SizedBox(height: 4),
-          SelectableText(
-            value,
-            style: TextStyle(color: context.palette.textPrimary, fontSize: 13),
-          ),
-        ],
-      ),
-    );
   }
 }

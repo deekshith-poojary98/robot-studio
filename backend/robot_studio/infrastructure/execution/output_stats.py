@@ -14,7 +14,9 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 _HEAD_BYTES = 4096
-_TAIL_BYTES = 262144
+# Large project runs write a multi-MB <statistics> suite table; 256 KiB was
+# too small and forced a full-document parse after Robot already exited.
+_TAIL_BYTES = 2_097_152
 _GENERATOR_RE = re.compile(r'\bgenerator="([^"]*)"')
 _FILE_OUTCOMES_NAME = "file_outcomes.json"
 _ROBOT_SUFFIXES = (".robot",)
@@ -248,25 +250,35 @@ def write_file_outcomes_sidecar(
     return path
 
 
+def load_cached_file_outcomes(output_dir: Path | None) -> dict[str, str]:
+    """Read ``file_outcomes.json`` only — never parse ``output.xml``."""
+    if output_dir is None:
+        return {}
+    sidecar = file_outcomes_sidecar_path(Path(output_dir))
+    if sidecar is None or not sidecar.is_file():
+        return {}
+    try:
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+        files = payload.get("files") if isinstance(payload, dict) else None
+        if isinstance(files, dict):
+            return {
+                str(key).replace("\\", "/"): str(value).upper()
+                for key, value in files.items()
+                if str(key).strip()
+            }
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        pass
+    return {}
+
+
 def load_or_build_file_outcomes(output_dir: Path | None) -> dict[str, str]:
     """Read ``file_outcomes.json``, or build it once from output.xml."""
+    cached = load_cached_file_outcomes(output_dir)
+    if cached:
+        return cached
     if output_dir is None:
         return {}
     root = Path(output_dir)
-    sidecar = file_outcomes_sidecar_path(root)
-    if sidecar is not None and sidecar.is_file():
-        try:
-            payload = json.loads(sidecar.read_text(encoding="utf-8"))
-            files = payload.get("files") if isinstance(payload, dict) else None
-            if isinstance(files, dict):
-                return {
-                    str(key).replace("\\", "/"): str(value).upper()
-                    for key, value in files.items()
-                    if str(key).strip()
-                }
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
-            pass
-
     xml_path = root / "output.xml"
     outcomes = parse_file_suite_outcomes(xml_path if xml_path.is_file() else None)
     if outcomes:

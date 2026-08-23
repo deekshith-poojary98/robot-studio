@@ -7,6 +7,7 @@ import '../../core/gateway/transport_gateway.dart';
 import '../../core/theme/app_theme.dart';
 import '../shell/controllers/workspace_live_controller.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/timed_loading_indicator.dart';
 
 typedef DoctorJumpToSource =
     void Function(String path, {int? line, int? column});
@@ -231,7 +232,7 @@ class DoctorPageState extends State<DoctorPage> {
           const Divider(height: 1),
           Expanded(
             child: _loading || (_running && _report == null)
-                ? const Center(child: CircularProgressIndicator())
+                ? const TimedLoadingIndicator()
                 : _report == null
                 ? EmptyState(
                     icon: Icons.health_and_safety_outlined,

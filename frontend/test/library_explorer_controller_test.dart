@@ -57,6 +57,35 @@ void main() {
     expect(controller.level, LibraryExplorerLevel.libraries);
   });
 
+  test('filteredKeywords matches name only, not documentation', () async {
+    final controller = LibraryExplorerController(
+      listLibraries: () async => [
+        const LibraryInfo(name: 'BuiltIn', builtin: true, keywordCount: 3),
+      ],
+      getLibrary: (name) async => LibraryInfo(
+        name: name,
+        builtin: true,
+        keywordCount: 3,
+        keywords: const [
+          LibraryKeywordInfo(name: 'Comment', documentation: 'Adds a comment'),
+          LibraryKeywordInfo(
+            name: 'Continue For Loop',
+            documentation: 'See also Comment keyword',
+          ),
+          LibraryKeywordInfo(
+            name: 'Set Variable',
+            documentation: 'No comment needed',
+          ),
+        ],
+      ),
+    );
+
+    await controller.loadLibraries();
+    await controller.openLibrary(controller.libraries.first);
+    controller.setKeywordFilter('commen');
+    expect(controller.filteredKeywords.map((k) => k.name), ['Comment']);
+  });
+
   test(
     'openLibrary explains missing package when resolve returns empty',
     () async {

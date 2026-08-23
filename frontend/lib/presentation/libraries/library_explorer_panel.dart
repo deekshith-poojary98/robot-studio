@@ -243,6 +243,24 @@ class _KeywordList extends StatelessWidget {
   final ValueChanged<String> onFilterChanged;
   final ValueChanged<LibraryKeywordInfo> onOpen;
 
+  int get _totalCount {
+    final loaded = library?.keywords.length ?? 0;
+    if (loaded > 0) return loaded;
+    return library?.keywordCount ?? 0;
+  }
+
+  String get _countLabel {
+    final total = _totalCount;
+    final shown = keywords.length;
+    if (total <= 0) {
+      return shown == 1 ? '1 keyword' : '$shown keywords';
+    }
+    if (shown == total) {
+      return total == 1 ? '1 keyword' : '$total keywords';
+    }
+    return '$shown of $total keywords';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading && (library?.keywords.isEmpty ?? true)) {
@@ -268,6 +286,25 @@ class _KeywordList extends StatelessWidget {
             ),
           ),
         ),
+        if (keywords.isNotEmpty || _totalCount > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              0,
+              AppSpacing.md,
+              AppSpacing.xs,
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _countLabel,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: context.palette.textMuted,
+                ),
+              ),
+            ),
+          ),
         Expanded(
           child: keywords.isEmpty
               ? const EmptyState(
@@ -280,14 +317,32 @@ class _KeywordList extends StatelessWidget {
                   itemCount: keywords.length,
                   itemBuilder: (context, index) {
                     final kw = keywords[index];
+                    final number = '${index + 1}.';
                     return ListTile(
                       dense: true,
-                      title: Text(
-                        kw.name,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: context.palette.textPrimary,
-                        ),
+                      title: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 28,
+                            child: Text(
+                              number,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: context.palette.textMuted,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              kw.name,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: context.palette.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       onTap: () => onOpen(kw),
                     );

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.domain.interfaces.language import LanguageService
+
+logger = logging.getLogger(__name__)
 
 
 class LanguageValidationError(Exception):
@@ -144,9 +148,28 @@ class LanguageFacade:
         self._require_workspace()
         if not file_path:
             raise LanguageValidationError("Provide file path")
-        return await self.language.diagnostics(
-            {"file_path": file_path, "content": content},
-        )
+        started = time.perf_counter()
+        try:
+            result = await self.language.diagnostics(
+                {"file_path": file_path, "content": content},
+            )
+        except Exception:
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            logger.exception(
+                "Diagnostics failed for %s after %dms",
+                file_path,
+                elapsed_ms,
+            )
+            raise
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        if elapsed_ms >= 5_000:
+            logger.warning(
+                "Diagnostics slow for %s: %dms (%d issues)",
+                file_path,
+                elapsed_ms,
+                len(result),
+            )
+        return result
 
     async def format_document(
         self,

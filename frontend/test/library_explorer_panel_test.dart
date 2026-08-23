@@ -66,6 +66,52 @@ void main() {
     expect(_runsWithColor(noneSpan, literalColor), contains('None'));
   });
 
+  testWidgets('keyword list shows numbers and total count', (tester) async {
+    final controller = LibraryExplorerController(
+      listLibraries: () async => [
+        const LibraryInfo(name: 'BuiltIn', builtin: true, keywordCount: 3),
+      ],
+      getLibrary: (name) async => LibraryInfo(
+        name: name,
+        builtin: true,
+        keywordCount: 3,
+        keywords: const [
+          LibraryKeywordInfo(name: 'Call Method'),
+          LibraryKeywordInfo(name: 'Catenate'),
+          LibraryKeywordInfo(name: 'Comment'),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 360,
+            height: 640,
+            child: LibraryExplorerPanel(
+              hasProject: true,
+              controller: controller,
+              onJumpToSource: (path, line) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('BuiltIn'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('3 keywords'), findsOneWidget);
+    expect(find.text('1.'), findsOneWidget);
+    expect(find.text('2.'), findsOneWidget);
+    expect(find.text('3.'), findsOneWidget);
+    expect(find.text('Call Method'), findsOneWidget);
+    expect(find.text('Catenate'), findsOneWidget);
+  });
+
   testWidgets('keyword Arguments use editor syntax colors', (tester) async {
     final controller = LibraryExplorerController(
       listLibraries: () async => [

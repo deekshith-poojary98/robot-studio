@@ -22,6 +22,7 @@ class WorkspaceLiveController {
     required this.onWorkspaceMissing,
     required this.onStatusMessage,
     this.onProgressBusy,
+    this.onStreamLost,
   });
 
   final ShellNotify notify;
@@ -38,6 +39,9 @@ class WorkspaceLiveController {
 
   /// When true, shell may show a non-blocking progress overlay.
   final void Function(bool busy)? onProgressBusy;
+
+  /// Fired when the workspace event socket closes unexpectedly.
+  final void Function()? onStreamLost;
 
   WorkspaceEventStreamClient? _client;
   StreamSubscription<WorkspaceStreamEvent>? _sub;
@@ -66,6 +70,11 @@ class WorkspaceLiveController {
         handleEvent,
         onError: (Object error) {
           appendLog('[warn] Workspace event stream error: $error');
+        },
+        onDone: () {
+          _sub = null;
+          _client = null;
+          onStreamLost?.call();
         },
       );
     } catch (error) {

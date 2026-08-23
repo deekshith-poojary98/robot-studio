@@ -82,6 +82,7 @@ void main() {
   test('ignores a single transient health failure while connected', () {
     fakeAsync((async) {
       final gateway = _ControllableHealthGateway()..healthy = true;
+      var connectedCalls = 0;
       var disconnectedCalls = 0;
       final controller = WorkspaceShellController(
         gateway: gateway,
@@ -94,13 +95,16 @@ void main() {
       );
 
       controller.startBackendMonitoring(
-        onConnected: () async {},
+        onConnected: () async {
+          connectedCalls++;
+        },
         onDisconnected: () async {
           disconnectedCalls++;
         },
       );
       async.flushMicrotasks();
       expect(controller.backendStatus, 'connected');
+      expect(connectedCalls, 1);
 
       gateway.healthy = false;
       async.elapse(const Duration(seconds: 5));
@@ -113,6 +117,38 @@ void main() {
       async.flushMicrotasks();
       expect(controller.backendStatus, 'connected');
       expect(disconnectedCalls, 0);
+      // Soft reconnect so open projects are rehydrated after a blip.
+      expect(connectedCalls, 2);
+
+      controller.dispose();
+    });
+  });
+
+  test('transport interrupt triggers soft reconnect without going offline', () {
+    fakeAsync((async) {
+      final gateway = _ControllableHealthGateway()..healthy = true;
+      var connectedCalls = 0;
+      final controller = WorkspaceShellController(
+        gateway: gateway,
+        notify: () {},
+        isMounted: () => true,
+        appendLog: (_) {},
+        healthOfflineInterval: const Duration(seconds: 2),
+        healthConnectedInterval: const Duration(seconds: 5),
+      );
+
+      controller.startBackendMonitoring(
+        onConnected: () async {
+          connectedCalls++;
+        },
+      );
+      async.flushMicrotasks();
+      expect(connectedCalls, 1);
+
+      controller.markTransportInterrupted();
+      async.flushMicrotasks();
+      expect(controller.backendStatus, 'connected');
+      expect(connectedCalls, 2);
 
       controller.dispose();
     });

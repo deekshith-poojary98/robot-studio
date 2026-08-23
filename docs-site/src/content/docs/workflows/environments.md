@@ -16,7 +16,7 @@ From **Manage Environments…** you can:
 | **Clone** | You want a copy of an existing environment |
 | **Activate** | You want runs and language features to use that env |
 
-Studio-managed environments live under `.robotstudio/environments/`. Legacy `Environments/` folders and common local names (`.venv`, `venv`, `env`) are still discovered.
+Studio-managed environments live under `.robotstudio/environments/`. Legacy `Environments/` folders and common local names (`.venv`, `venv`, `env`) are still discovered. Choosing **Use** on a detected `.venv` registers it as `venv` (leading dots are stripped from the display name).
 
 The status bar shows **ROBOT** and **PYTHON** versions from the active environment so you can confirm you are on the stack you expect. Creating or importing an environment also shows a short confirmation in the status bar.
 

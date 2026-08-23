@@ -25,11 +25,11 @@ class LibraryExplorerController {
     final all = selectedLibrary?.keywords ?? const <LibraryKeywordInfo>[];
     final needle = keywordFilter.trim().toLowerCase();
     if (needle.isEmpty) return all;
+    // Name only — matching documentation made "commen" return dozens of
+    // unrelated keywords whose docs happen to mention "comment".
     return [
       for (final kw in all)
-        if (kw.name.toLowerCase().contains(needle) ||
-            kw.documentation.toLowerCase().contains(needle))
-          kw,
+        if (kw.name.toLowerCase().contains(needle)) kw,
     ];
   }
 

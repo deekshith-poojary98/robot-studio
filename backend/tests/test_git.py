@@ -112,6 +112,8 @@ async def test_init_status_commit_checkout_branch(git_stack) -> None:
     assert diff.file_path is not None
 
     all_branches = await service.branches()
+    feature = next(b for b in all_branches if b.name == "feature/login")
+    assert feature.remote is False
     default_branch = next(b.name for b in all_branches if b.name != "feature/login")
     await service.checkout(default_branch)
     await service.delete_branch("feature/login")

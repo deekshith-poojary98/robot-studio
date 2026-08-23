@@ -120,6 +120,17 @@ class FilesystemEnvironmentProvider:
             )
         return cleaned
 
+    def suggested_name(self, environment_root: Path) -> str:
+        """Registry display name for an on-disk venv folder.
+
+        Common project folders like ``.venv`` start with a dot, which is
+        invalid as a Studio environment name. Strip leading dots so import
+        and detection agree (``.venv`` → ``venv``).
+        """
+        raw = environment_root.name.strip()
+        cleaned = raw.lstrip(".") or raw
+        return self.validate_name(cleaned)
+
     def manifest_path(self, environment_root: Path) -> Path:
         return environment_root / ENVIRONMENT_MANIFEST
 

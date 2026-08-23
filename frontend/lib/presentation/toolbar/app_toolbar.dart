@@ -108,6 +108,92 @@ class AppToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final rightCluster = <Widget>[
+      if (executionStatusLabel != null &&
+          (isExecutionRunning || executionStatusLabel != 'Idle')) ...[
+        Tooltip(
+          message: isExecutionRunning
+              ? 'Open Tests (run output)'
+              : 'Last run: $executionStatusLabel — open Tests',
+          child: InkWell(
+            onTap: onExecutionStatusTap,
+            borderRadius: BorderRadius.circular(AppRadii.sm),
+            child: StatusBadge(
+              label: isExecutionRunning
+                  ? '${executionStatusLabel!} · ${executionElapsedLabel ?? '0s'}'
+                  : 'Last: $executionStatusLabel',
+              filled: isExecutionRunning,
+              dotColor: isExecutionRunning
+                  ? context.palette.accent
+                  : executionStatusLabel == 'Failed'
+                  ? context.palette.error
+                  : context.palette.textMuted,
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+      ],
+      RunConfigurationSelector(
+        configurations: runConfigurations,
+        activeId: activeRunConfigurationId,
+        enabled: runConfigurationsEnabled,
+        onSelected: onRunConfigurationSelected ?? (_) {},
+        onNew: onNewRunConfiguration ?? () {},
+        onManage: onManageRunConfigurations ?? () {},
+      ),
+      const SizedBox(width: AppSpacing.sm),
+      ToolbarButtonGroup(
+        buttons: [
+          ToolbarButton(
+            key: const Key('toolbar.run'),
+            icon: Icons.play_arrow_rounded,
+            label: 'Run',
+            primary: true,
+            showLabel: true,
+            tooltip: environmentBroken
+                ? 'Active environment is missing on disk — recreate or select another'
+                : !canRun && !robotFrameworkReady
+                ? "Robot Framework isn't installed in the selected environment.\nInstall Robot Framework…"
+                : !canRun && !canRunProject
+                ? 'Open a project to run the current file'
+                : !canRun
+                ? 'Open a .robot suite file to run'
+                : isExecutionRunning
+                ? 'Stop the current run first'
+                : 'Run current file',
+            onTap: isExecutionRunning || !canRun ? null : onRun,
+          ),
+          ToolbarButton(
+            key: const Key('toolbar.run-project'),
+            icon: Icons.playlist_play_rounded,
+            label: 'Project',
+            showLabel: true,
+            tooltip: environmentBroken
+                ? 'Active environment is missing on disk — recreate or select another'
+                : !canRunProject && !robotFrameworkReady
+                ? "Robot Framework isn't installed in the selected environment.\nInstall Robot Framework…"
+                : !canRunProject
+                ? 'Open a project to run'
+                : isExecutionRunning
+                ? 'Stop the current run first'
+                : 'Run the whole project',
+            onTap: isExecutionRunning || !canRunProject ? null : onRunProject,
+          ),
+          ToolbarButton(
+            key: const Key('toolbar.stop'),
+            icon: Icons.stop_rounded,
+            label: 'Stop',
+            showLabel: true,
+            danger: isExecutionRunning,
+            tooltip: isExecutionRunning
+                ? 'Stop the current run'
+                : 'Nothing to stop',
+            onTap: isExecutionRunning ? onStop : null,
+          ),
+        ],
+      ),
+    ];
+
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -177,109 +263,24 @@ class AppToolbar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 160, maxWidth: 360),
-            child: _SearchField(onTap: onOpenSearch),
-          ),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpacing.sm),
+          SizedBox(width: 280, child: _SearchField(onTap: onOpenSearch)),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (executionStatusLabel != null &&
-                        (isExecutionRunning ||
-                            executionStatusLabel != 'Idle')) ...[
-                      Tooltip(
-                        message: isExecutionRunning
-                            ? 'Open Tests (run output)'
-                            : 'Last run: $executionStatusLabel — open Tests',
-                        child: InkWell(
-                          onTap: onExecutionStatusTap,
-                          borderRadius: BorderRadius.circular(AppRadii.sm),
-                          child: StatusBadge(
-                            label: isExecutionRunning
-                                ? '${executionStatusLabel!} · ${executionElapsedLabel ?? '0s'}'
-                                : 'Last: $executionStatusLabel',
-                            filled: isExecutionRunning,
-                            dotColor: isExecutionRunning
-                                ? context.palette.accent
-                                : executionStatusLabel == 'Failed'
-                                ? context.palette.error
-                                : context.palette.textMuted,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                    ],
-                    RunConfigurationSelector(
-                      configurations: runConfigurations,
-                      activeId: activeRunConfigurationId,
-                      enabled: runConfigurationsEnabled,
-                      onSelected: onRunConfigurationSelected ?? (_) {},
-                      onNew: onNewRunConfiguration ?? () {},
-                      onManage: onManageRunConfigurations ?? () {},
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  reverse: true,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: rightCluster,
                     ),
-                    const SizedBox(width: AppSpacing.sm),
-                    ToolbarButtonGroup(
-                      buttons: [
-                        ToolbarButton(
-                          key: const Key('toolbar.run'),
-                          icon: Icons.play_arrow_rounded,
-                          label: 'Run',
-                          primary: true,
-                          showLabel: true,
-                          tooltip: environmentBroken
-                              ? 'Active environment is missing on disk — recreate or select another'
-                              : !canRun && !robotFrameworkReady
-                              ? "Robot Framework isn't installed in the selected environment.\nInstall Robot Framework…"
-                              : !canRun && !canRunProject
-                              ? 'Open a project to run the current file'
-                              : !canRun
-                              ? 'Open a .robot suite file to run'
-                              : isExecutionRunning
-                              ? 'Stop the current run first'
-                              : 'Run current file',
-                          onTap: isExecutionRunning || !canRun ? null : onRun,
-                        ),
-                        ToolbarButton(
-                          key: const Key('toolbar.run-project'),
-                          icon: Icons.playlist_play_rounded,
-                          label: 'Project',
-                          showLabel: true,
-                          tooltip: environmentBroken
-                              ? 'Active environment is missing on disk — recreate or select another'
-                              : !canRunProject && !robotFrameworkReady
-                              ? "Robot Framework isn't installed in the selected environment.\nInstall Robot Framework…"
-                              : !canRunProject
-                              ? 'Open a project to run'
-                              : isExecutionRunning
-                              ? 'Stop the current run first'
-                              : 'Run the whole project',
-                          onTap: isExecutionRunning || !canRunProject
-                              ? null
-                              : onRunProject,
-                        ),
-                        ToolbarButton(
-                          key: const Key('toolbar.stop'),
-                          icon: Icons.stop_rounded,
-                          label: 'Stop',
-                          showLabel: true,
-                          danger: isExecutionRunning,
-                          tooltip: isExecutionRunning
-                              ? 'Stop the current run'
-                              : 'Nothing to stop',
-                          onTap: isExecutionRunning ? onStop : null,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -356,6 +357,7 @@ class _SearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
+      key: const Key('toolbar.search'),
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadii.sm),
       child: Container(
@@ -487,6 +489,7 @@ class _EnvironmentSelector extends StatelessWidget {
         active: selectedName != null,
         broken: broken,
         height: AppControlHeight.toolbarChip,
+        showChevron: true,
       ),
     );
   }

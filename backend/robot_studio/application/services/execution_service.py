@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import shutil
 import subprocess
 from collections import deque
@@ -10,6 +11,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
+
+logger = logging.getLogger(__name__)
 
 from robot_studio.application.services.execution_plan import (
     ExecutionPlan,
@@ -35,6 +38,9 @@ from robot_studio.domain.models import Environment, ExecutionRun, ExecutionStatu
 from robot_studio.infrastructure.execution.subprocess_runner import (
     RunnerError,
     SubprocessRunner,
+)
+from robot_studio.infrastructure.execution.output_stats import (
+    load_or_build_file_outcomes,
 )
 from robot_studio.infrastructure.repositories.environment_repository import (
     SqliteEnvironmentRepository,
@@ -406,9 +412,15 @@ class ExecutionService:
             {"type": "status", "run_id": str(updated.id), "status": updated.status.value},
         )
 
+        logger.info("Stopping run %s", updated.id)
         try:
             await self.runner.stop(updated.id)
         except RunnerError as exc:
+            logger.warning(
+                "Stop failed for run %s: %s",
+                updated.id,
+                exc,
+            )
             raise ExecutionValidationError(str(exc)) from exc
 
         await self.event_bus.publish(ExecutionCancelled(run_id=updated.id))
@@ -456,6 +468,7 @@ class ExecutionService:
         async with self._lock:
             if self._current is not None and self._current.id == run.id:
                 self._current = None
+        logger.warning("Aborted run %s: %s", run.id, message)
         await self._broadcast(
             {
                 "type": "aborted",
@@ -558,6 +571,14 @@ class ExecutionService:
         async with self._lock:
             self._current = running
 
+        logger.info(
+            "Started run %s suite=%s env=%s config=%s",
+            run_id,
+            display_suite,
+            environment_name,
+            configuration_name or "-",
+        )
+
         await self._broadcast(
             {
                 "type": "status",
@@ -653,8 +674,17 @@ class ExecutionService:
             async with self._lock:
                 self._current = final
 
+            # Tell the UI the run is done *before* domain handlers (report
+            # indexing, Test Explorer XML parse, execution linking). Those can
+            # take tens of seconds on million-test output.xml and previously
+            # held the Running timer / Stop button hostage.
             if status == ExecutionStatus.CANCELLED:
-                await self.event_bus.publish(ExecutionCancelled(run_id=run.id))
+                logger.info(
+                    "Run %s cancelled after %dms exit=%s",
+                    run.id,
+                    duration_ms,
+                    exit_code,
+                )
                 await self._broadcast(
                     {
                         "type": "cancelled",
@@ -663,7 +693,24 @@ class ExecutionService:
                         "exit_code": exit_code,
                     },
                 )
+                await self.event_bus.publish(ExecutionCancelled(run_id=run.id))
             elif status == ExecutionStatus.FAILED:
+                logger.warning(
+                    "Run %s failed after %dms exit=%s message=%s",
+                    run.id,
+                    duration_ms,
+                    exit_code,
+                    failure_message or "-",
+                )
+                await self._broadcast(
+                    {
+                        "type": "failed",
+                        "run_id": str(run.id),
+                        "status": status.value,
+                        "exit_code": exit_code,
+                        "message": failure_message,
+                    },
+                )
                 await self.event_bus.publish(
                     ExecutionFailed(
                         run_id=run.id,
@@ -677,22 +724,14 @@ class ExecutionService:
                         exit_code=exit_code,
                     ),
                 )
-                await self._broadcast(
-                    {
-                        "type": "failed",
-                        "run_id": str(run.id),
-                        "status": status.value,
-                        "exit_code": exit_code,
-                        "message": failure_message,
-                    },
-                )
             else:
-                await self.event_bus.publish(
-                    ExecutionFinished(
-                        run_id=run.id,
-                        status=status.value,
-                        exit_code=exit_code,
-                    ),
+                logger.info(
+                    "Run %s finished after %dms exit=%s passed=%s failed=%s",
+                    run.id,
+                    duration_ms,
+                    exit_code,
+                    final.passed,
+                    final.failed,
                 )
                 await self._broadcast(
                     {
@@ -702,7 +741,22 @@ class ExecutionService:
                         "exit_code": exit_code,
                     },
                 )
+                await self.event_bus.publish(
+                    ExecutionFinished(
+                        run_id=run.id,
+                        status=status.value,
+                        exit_code=exit_code,
+                    ),
+                )
+
+            # Insights file fan-out — never block the finish path.
+            if final.output_dir is not None:
+                asyncio.create_task(
+                    self._warm_file_outcomes(final.output_dir),
+                    name=f"file-outcomes-{run.id}",
+                )
         except Exception as exc:  # noqa: BLE001
+            logger.exception("Run %s monitor crashed: %s", run.id, exc)
             failed = run.model_copy(
                 update={
                     "status": ExecutionStatus.FAILED,
@@ -713,9 +767,6 @@ class ExecutionService:
             await self.repository.update(failed)
             async with self._lock:
                 self._current = failed
-            await self.event_bus.publish(
-                ExecutionFailed(run_id=run.id, message=str(exc)),
-            )
             await self._broadcast(
                 {
                     "type": "failed",
@@ -724,6 +775,21 @@ class ExecutionService:
                     "message": str(exc),
                 },
             )
+            await self.event_bus.publish(
+                ExecutionFailed(run_id=run.id, message=str(exc)),
+            )
+
+    async def _warm_file_outcomes(self, output_dir: Path) -> None:
+        """Build Insights ``file_outcomes.json`` off the finish critical path."""
+        try:
+            await asyncio.to_thread(load_or_build_file_outcomes, output_dir)
+        except Exception:  # noqa: BLE001
+            logger.debug(
+                "file_outcomes warm failed for %s",
+                output_dir,
+                exc_info=True,
+            )
+            return
 
     async def _broadcast(self, message: dict) -> None:
         stale: list[_Subscriber] = []

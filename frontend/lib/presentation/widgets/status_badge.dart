@@ -9,6 +9,7 @@ class StatusBadge extends StatelessWidget {
     this.dotColor,
     this.filled = false,
     this.height,
+    this.showChevron = false,
   });
 
   final String label;
@@ -18,6 +19,9 @@ class StatusBadge extends StatelessWidget {
   /// Opt-in fixed height, for rows that must line up with taller neighbours
   /// (the toolbar strip). Left null, the badge hugs its label as before.
   final double? height;
+
+  /// Trailing dropdown arrow — used for interactive toolbar selectors.
+  final bool showChevron;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +62,14 @@ class StatusBadge extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
+          if (showChevron) ...[
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down,
+              size: 14,
+              color: context.palette.textMuted,
+            ),
+          ],
         ],
       ),
     );
@@ -71,12 +83,14 @@ class EnvironmentBadge extends StatelessWidget {
     this.active = false,
     this.broken = false,
     this.height,
+    this.showChevron = false,
   });
 
   final String label;
   final bool active;
   final bool broken;
   final double? height;
+  final bool showChevron;
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +107,7 @@ class EnvironmentBadge extends StatelessWidget {
       dotColor: dot,
       filled: active && !broken,
       height: height,
+      showChevron: showChevron,
     );
   }
 }

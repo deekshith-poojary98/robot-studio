@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/models/package_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/timed_loading_indicator.dart';
 
 class PackageManagerPage extends StatelessWidget {
   const PackageManagerPage({
@@ -156,7 +157,7 @@ class PackageManagerPage extends StatelessWidget {
                         'Create or activate a virtual environment, then open Package Manager.',
                   )
                 : isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const TimedLoadingIndicator()
                 : packages.isEmpty
                 ? EmptyState(
                     icon: Icons.inventory_2_outlined,

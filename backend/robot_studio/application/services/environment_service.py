@@ -195,7 +195,9 @@ class EnvironmentService:
                 created_at=manifest.created_at,
             )
         else:
-            name = env_root.name
+            # Folder names like ``.venv`` are valid on disk but not as Studio
+            # registry names — sanitize the same way detection prompts do.
+            name = self._fs.suggested_name(env_root)
             # Avoid clashing with another registered name in the same workspace.
             taken = {
                 item.name for item in await self._repository.list_by_workspace(workspace.id)
@@ -340,7 +342,7 @@ class EnvironmentService:
                 continue
             candidates.append(
                 {
-                    "name": path.name.lstrip(".") or path.name,
+                    "name": self._fs.suggested_name(path),
                     "path": str(path.resolve()),
                 },
             )

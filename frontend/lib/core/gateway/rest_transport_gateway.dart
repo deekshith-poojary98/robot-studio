@@ -556,7 +556,12 @@ class RestTransportGateway implements TransportGateway {
 
   @override
   Future<InsightsInfo> getInsights() async {
-    final response = await _get('/insights');
+    // Large suites: composition_by_file + optional output.xml fan-out can exceed
+    // the default 30s GET budget on a cold disk (first open after restore).
+    final response = await _get(
+      '/insights',
+      timeout: const Duration(minutes: 5),
+    );
     return InsightsInfo.fromJson(response);
   }
 
@@ -1311,13 +1316,15 @@ class RestTransportGateway implements TransportGateway {
     };
   }
 
-  Future<Map<String, dynamic>> _get(String path, {bool quiet = false}) {
+  Future<Map<String, dynamic>> _get(
+    String path, {
+    bool quiet = false,
+    Duration timeout = const Duration(seconds: 30),
+  }) {
     return _send(
       'GET',
       path,
-      () => _client
-          .get(Uri.parse('$baseUrl$path'))
-          .timeout(const Duration(seconds: 30)),
+      () => _client.get(Uri.parse('$baseUrl$path')).timeout(timeout),
       quiet: quiet,
     );
   }

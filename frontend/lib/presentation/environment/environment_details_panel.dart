@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/environment_info.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/detail_property_table.dart';
 import '../widgets/status_badge.dart';
 
 class EnvironmentDetailsPanel extends StatelessWidget {
@@ -29,7 +30,7 @@ class EnvironmentDetailsPanel extends StatelessWidget {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
+          constraints: const BoxConstraints(maxWidth: 720),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -83,34 +84,50 @@ class EnvironmentDetailsPanel extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 24),
-              _DetailRow(label: 'Python Version', value: env.pythonVersion),
-              _DetailRow(
-                label: 'Robot Version',
-                value: env.robotVersion ?? 'Not installed',
-              ),
-              _DetailRow(
-                label: 'Interpreter Path',
-                value: env.pythonExecutable,
-              ),
-              _DetailRow(label: 'Pip Path', value: env.pipExecutable),
-              _DetailRow(
-                label: 'Robot Path',
-                value: env.robotExecutable ?? '—',
-              ),
-              _DetailRow(label: 'Platform', value: env.platform ?? '—'),
-              _DetailRow(label: 'Architecture', value: env.architecture ?? '—'),
-              _DetailRow(
-                label: 'Package Count',
-                value: env.packageCount.toString(),
-              ),
-              _DetailRow(label: 'Location', value: env.path),
-              _DetailRow(
-                label: 'Created Date',
-                value: _formatDate(env.createdAt),
-              ),
-              _DetailRow(
-                label: 'Status',
-                value: env.active ? 'Active' : 'Inactive',
+              DetailPropertyTable(
+                rows: [
+                  DetailPropertyRow(
+                    label: 'Python version',
+                    value: env.pythonVersion,
+                  ),
+                  DetailPropertyRow(
+                    label: 'Robot version',
+                    value: env.robotVersion ?? 'Not installed',
+                  ),
+                  DetailPropertyRow(
+                    label: 'Interpreter path',
+                    value: env.pythonExecutable,
+                  ),
+                  DetailPropertyRow(
+                    label: 'Pip path',
+                    value: env.pipExecutable,
+                  ),
+                  DetailPropertyRow(
+                    label: 'Robot path',
+                    value: env.robotExecutable ?? '—',
+                  ),
+                  DetailPropertyRow(
+                    label: 'Platform',
+                    value: env.platform ?? '—',
+                  ),
+                  DetailPropertyRow(
+                    label: 'Architecture',
+                    value: env.architecture ?? '—',
+                  ),
+                  DetailPropertyRow(
+                    label: 'Package count',
+                    value: env.packageCount.toString(),
+                  ),
+                  DetailPropertyRow(label: 'Location', value: env.path),
+                  DetailPropertyRow(
+                    label: 'Created date',
+                    value: _formatDate(env.createdAt),
+                  ),
+                  DetailPropertyRow(
+                    label: 'Status',
+                    value: env.active ? 'Active' : 'Inactive',
+                  ),
+                ],
               ),
             ],
           ),
@@ -125,33 +142,5 @@ class EnvironmentDetailsPanel extends StatelessWidget {
     final m = local.month.toString().padLeft(2, '0');
     final d = local.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: Theme.of(context).textTheme.labelSmall,
-          ),
-          const SizedBox(height: 4),
-          SelectableText(
-            value,
-            style: TextStyle(color: context.palette.textPrimary, fontSize: 13),
-          ),
-        ],
-      ),
-    );
   }
 }

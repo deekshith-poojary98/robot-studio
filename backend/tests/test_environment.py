@@ -154,6 +154,21 @@ async def test_import_existing_venv(services) -> None:
 
 
 @pytest.mark.asyncio
+async def test_import_dot_venv_uses_sanitized_name(services) -> None:
+    """Project-local ``.venv`` is offered as ``venv`` and must import cleanly."""
+    project_venv = services["workspace"].path / ".venv"
+    PythonEnvironmentProvider().create_venv(Path(sys.executable), project_venv)
+
+    detected = await services["environment_service"].detect_candidate_environments()
+    by_path = {item["path"]: item["name"] for item in detected}
+    assert by_path[str(project_venv.resolve())] == "venv"
+
+    imported = await services["environment_service"].import_environment(project_venv)
+    assert imported.name == "venv"
+    assert imported.path.resolve() == project_venv.resolve()
+
+
+@pytest.mark.asyncio
 async def test_activation(services) -> None:
     first = await services["environment_service"].create_environment(
         "first",

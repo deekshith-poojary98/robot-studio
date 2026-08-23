@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import UUID
@@ -26,6 +27,7 @@ from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.domain.models import ExecutionRun
 from robot_studio.infrastructure.execution.output_stats import (
     list_failed_tests,
+    load_or_build_file_outcomes,
     parse_test_results,
 )
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
@@ -77,6 +79,11 @@ class TestNode:
         }
 
 
+#: Full per-test parse of output.xml above this size blocks the UI for too long
+#: on million-test project runs — use file-level outcomes instead.
+_LARGE_OUTPUT_XML_BYTES = 32 * 1024 * 1024
+
+
 @dataclass
 class TestExplorerService:
     context: WorkspaceContext
@@ -120,21 +127,45 @@ class TestExplorerService:
     async def _on_execution_started(self, event: ExecutionStarted) -> None:
         _ = event
         self._running_keys = {"*"}
+        self._tree = None
 
     async def _on_execution_finished(self, event: ExecutionFinished) -> None:
-        await self._apply_run_results(event.run_id)
+        # Drop spinners immediately — per-test XML apply can take a long time
+        # on huge project runs and must not keep the tree in "running".
+        self._running_keys.clear()
+        self._tree = None
+        asyncio.create_task(
+            self._apply_run_results(event.run_id),
+            name=f"test-explorer-apply-{event.run_id}",
+        )
 
     async def _on_execution_failed(self, event: ExecutionFailed) -> None:
         self._running_keys.clear()
+        self._tree = None
         _ = event
 
     async def _apply_run_results(self, run_id: UUID) -> None:
-        self._running_keys.clear()
         run = await self.execution_service.repository.get(run_id)
         if run is None or run.output_xml is None:
             self._tree = None
             return
-        for item in parse_test_results(run.output_xml):
+
+        try:
+            xml_size = run.output_xml.stat().st_size
+        except OSError:
+            xml_size = 0
+
+        if xml_size >= _LARGE_OUTPUT_XML_BYTES:
+            await self._apply_large_run_file_outcomes(run)
+            return
+
+        try:
+            items = await asyncio.to_thread(parse_test_results, run.output_xml)
+        except Exception:  # noqa: BLE001
+            self._tree = None
+            return
+
+        for item in items:
             name = str(item.get("name") or "")
             source = str(item.get("source") or "")
             status = str(item.get("status") or "NOT RUN").lower()
@@ -150,6 +181,33 @@ class TestExplorerService:
                 self._statuses[self._case_key(source, name)] = mapped
             if name:
                 self._statuses[f"name:{name}"] = mapped
+        self._tree = None
+
+    async def _apply_large_run_file_outcomes(self, run: ExecutionRun) -> None:
+        """Attribute suite files without materializing a million test rows."""
+        try:
+            outcomes = await asyncio.to_thread(
+                load_or_build_file_outcomes,
+                run.output_dir,
+            )
+        except Exception:  # noqa: BLE001
+            outcomes = {}
+        for source, status in outcomes.items():
+            value = str(status or "").upper()
+            if value == "FAIL":
+                mapped = "fail"
+            elif value == "PASS":
+                mapped = "pass"
+            elif value == "SKIP":
+                mapped = "skip"
+            else:
+                mapped = "not_run"
+            try:
+                resolved = str(Path(source).resolve())
+            except OSError:
+                resolved = source.replace("\\", "/")
+            self._statuses[f"file:{resolved}"] = mapped
+            self._statuses[f"file:{Path(source).name}"] = mapped
         self._tree = None
 
     @staticmethod
@@ -675,7 +733,7 @@ class TestExplorerService:
                 )
             tags = list(dict.fromkeys(tags + suite_tags))
             key = self._case_key(path_str, name)
-            status = self._status_for(key, name)
+            status = self._status_for(key, name, path_str)
             cases.append(
                 TestNode(
                     id=f"{'task' if is_task else 'test'}:{path_str}:{name}",
@@ -692,10 +750,24 @@ class TestExplorerService:
 
         return [*setups, *cases]
 
-    def _status_for(self, key: str, name: str) -> str:
+    def _status_for(self, key: str, name: str, path: str | None = None) -> str:
         if "*" in self._running_keys or key in self._running_keys:
             return "running"
-        return self._statuses.get(key) or self._statuses.get(f"name:{name}") or "not_run"
+        if key in self._statuses:
+            return self._statuses[key]
+        named = self._statuses.get(f"name:{name}")
+        if named is not None:
+            return named
+        if path:
+            try:
+                resolved = str(Path(path).resolve())
+            except OSError:
+                resolved = path.replace("\\", "/")
+            for candidate in (f"file:{resolved}", f"file:{Path(path).name}"):
+                file_status = self._statuses.get(candidate)
+                if file_status is not None:
+                    return file_status
+        return "not_run"
 
     @staticmethod
     def _rollup_status(nodes: list[TestNode]) -> str:

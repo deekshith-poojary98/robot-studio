@@ -1,12 +1,20 @@
 from contextlib import asynccontextmanager
 import asyncio
+import logging
 import os
 import sys
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import (
+    http_exception_handler,
+    request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from robot_studio import __version__
 from robot_studio.api.router import api_router
@@ -14,10 +22,13 @@ from robot_studio.core.config import settings
 from robot_studio.core.container import container
 from robot_studio.core.database import init_database
 from robot_studio.core.logging_setup import configure_logging, ensure_file_logging
+from robot_studio.core.request_logging import RequestLoggingMiddleware
 from robot_studio.infrastructure.process_utils import (
     init_blocking_pool,
     shutdown_blocking_pool,
 )
+
+_log = logging.getLogger("robot_studio")
 
 
 def _ensure_process_cwd() -> None:
@@ -58,6 +69,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # CORS outermost so preflight still works; request logging inside CORS.
+    app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -65,6 +78,27 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception(request: Request, exc: Exception) -> Response:
+        # Delegate known HTTP/validation errors so status codes stay correct.
+        if isinstance(exc, StarletteHTTPException):
+            return await http_exception_handler(request, exc)
+        if isinstance(exc, RequestValidationError):
+            return await request_validation_exception_handler(request, exc)
+
+        request_id = getattr(request.state, "request_id", None)
+        _log.exception(
+            "Unhandled error on %s %s req=%s: %s",
+            request.method,
+            request.url.path,
+            request_id or "-",
+            exc,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
 
     app.include_router(api_router, prefix=settings.api_prefix)
     return app

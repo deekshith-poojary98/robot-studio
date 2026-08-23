@@ -289,6 +289,84 @@ void main() {
     );
   });
 
+  testWidgets('Stop stays fully visible at minimum window width', (
+    tester,
+  ) async {
+    // Matches desktop min size (1360×800).
+    await tester.binding.setSurfaceSize(const Size(1360, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppToolbar(
+            projectLabel: 'my-robot-test-project',
+            environmentLabel: 'venv',
+            backendConnected: true,
+            environmentNames: const ['venv'],
+            selectedEnvironmentName: 'venv',
+            gitBranchLabel: 'main',
+            gitBranches: const ['main'],
+            showGitRemoteActions: true,
+            executionStatusLabel: 'Finished',
+            isExecutionRunning: false,
+            runConfigurationsEnabled: true,
+            onRun: () {},
+            onRunProject: () {},
+            onStop: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final stop = tester.getRect(find.byKey(const Key('toolbar.stop')));
+    expect(stop.right, lessThanOrEqualTo(1360));
+    expect(stop.left, greaterThan(0));
+    expect(find.byKey(const Key('toolbar.stop')).hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('search is centered and run cluster sits on the right', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppToolbar(
+            projectLabel: 'WS',
+            environmentLabel: 'Default',
+            backendConnected: true,
+            environmentNames: const ['Default'],
+            selectedEnvironmentName: 'Default',
+            onRun: () {},
+            onRunProject: () {},
+            onStop: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final search = tester.getRect(find.byKey(const Key('toolbar.search')));
+    final stop = tester.getRect(find.byKey(const Key('toolbar.stop')));
+    final env = tester.getRect(find.byKey(const Key('toolbar.environment')));
+    final project = tester.getRect(find.byKey(const Key('toolbar.project')));
+
+    // Search roughly window-centered.
+    final searchCenter = (search.left + search.right) / 2;
+    expect(searchCenter, closeTo(800, 160));
+
+    // Project + env on the left; run cluster flush to the trailing side.
+    expect(project.left, lessThan(search.left));
+    expect(env.left, lessThan(search.left));
+    expect(stop.right, greaterThan(1500));
+    expect(stop.right, lessThanOrEqualTo(1600));
+    expect(stop.left, greaterThan(search.right));
+  });
+
   testWidgets('failed status shows Last: prefix', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1600, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));

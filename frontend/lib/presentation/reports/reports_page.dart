@@ -4,6 +4,7 @@ import '../../core/gateway/models/report_info.dart';
 import '../../core/gateway/models/run_failure_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/timed_loading_indicator.dart';
 import 'run_details_panel.dart';
 
 class ReportsPage extends StatelessWidget {
@@ -96,7 +97,7 @@ class ReportsPage extends StatelessWidget {
           const Divider(height: 1),
           Expanded(
             child: isLoading && selected == null
-                ? const Center(child: CircularProgressIndicator())
+                ? const TimedLoadingIndicator()
                 : selected == null
                 ? const EmptyState(
                     icon: Icons.assessment_outlined,
@@ -136,7 +137,7 @@ class _DashboardStrip extends StatelessWidget {
     if (isLoading && dashboard == null) {
       return const SizedBox(
         height: 72,
-        child: Center(child: CircularProgressIndicator()),
+        child: TimedLoadingIndicator(compact: true, spinnerSize: 18),
       );
     }
     final data = dashboard;

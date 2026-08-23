@@ -60,6 +60,7 @@ import 'shell_shortcuts.dart';
 import '../widgets/side_panel_resize_handle.dart';
 import '../widgets/environment_prompt_toast.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/timed_loading_indicator.dart';
 import '../widgets/error_dialog.dart';
 import '../widgets/guidance_dialog.dart';
 import '../widgets/virtual_file_tree.dart';
@@ -205,6 +206,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   bool _loadingIndexStatus = false;
   InsightsInfo? _insights;
   bool _loadingInsights = false;
+  String? _insightsError;
   bool _showEditorPage = false;
   HoverInfo? _editorHover;
   List<SymbolReferenceInfo> _editorReferences = [];
@@ -327,6 +329,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       onEnvironmentChanged: _loadEnvironments,
       onProjectMissing: _handleLiveProjectMissing,
       onWorkspaceMissing: _handleLiveWorkspaceMissing,
+      onStreamLost: _workspace.markTransportInterrupted,
       onStatusMessage: (message) {
         if (!mounted) return;
         setState(() {
@@ -465,6 +468,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _connectExecutionStream();
         unawaited(_live.connect());
         await _loadRecent();
+        await _rehydrateOpenSessionAfterReconnect();
         await _maybeRestoreLastSession();
       },
       onDisconnected: () async {
@@ -480,6 +484,60 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       tag: 'Shell',
       data: 'backend=$_backendStatus',
     );
+  }
+
+  /// Reopen the project/workspace the UI still shows after a backend restart.
+  ///
+  /// Backend process memory is empty on restart; health can come back while the
+  /// shell still thinks a project is open. Without this, file APIs return
+  /// "Open a workspace before accessing files".
+  Future<void> _rehydrateOpenSessionAfterReconnect() async {
+    if (!mounted || _backendStatus != 'connected') return;
+    final project = _workspace.selectedProject;
+    final workspace = _workspace.activeWorkspace;
+    if (project == null && workspace == null) return;
+    if (_busy) return;
+
+    setState(() => _busy = true);
+    try {
+      if (project != null) {
+        AppLogger.info(
+          'Rehydrating open project after backend reconnect',
+          tag: 'Shell',
+          data: project.path,
+        );
+        final result = await _gateway.openProjectByPath(project.path);
+        if (!mounted) return;
+        await _applyOpenedWorkspace(
+          result.workspace,
+          successMessage: 'Reconnected — project "${project.name}"',
+          selectedProject: result.project,
+          detectedEnvironments: result.detectedEnvironments,
+        );
+        return;
+      }
+
+      AppLogger.info(
+        'Rehydrating open workspace after backend reconnect',
+        tag: 'Shell',
+        data: workspace!.path,
+      );
+      final opened = await _gateway.openWorkspace(workspace.path);
+      if (!mounted) return;
+      await _applyOpenedWorkspace(
+        opened,
+        successMessage: 'Reconnected — workspace "${workspace.name}"',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _appendLog('[warn] Could not rehydrate session after reconnect: $error');
+      AppLogger.warn(
+        'Session rehydrate failed after backend reconnect',
+        tag: 'Shell',
+        error: error,
+      );
+    }
   }
 
   /// Reopen the most recent project (or workspace) once after cold start.
@@ -2071,6 +2129,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       // including when the Tests tab stays open across the switch.
       _execution.resetForWorkspaceChange();
       _insights = null;
+      _insightsError = null;
       _activePanel = SidebarPanel.explorer;
       _editor.tabs = [];
       _editor.activePath = null;
@@ -4045,6 +4104,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _testTree = null;
       _indexStatus = null;
       _insights = null;
+      _insightsError = null;
       _liveNotification = null;
       _runConfigurations = [];
       _activeRunConfigurationId = null;
@@ -5509,17 +5569,24 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (_workspace.activeWorkspace == null || _backendStatus != 'connected') {
       return;
     }
-    setState(() => _loadingInsights = true);
+    setState(() {
+      _loadingInsights = true;
+      _insightsError = null;
+    });
     try {
       final insights = await _gateway.getInsights();
       if (!mounted) return;
       setState(() {
         _insights = insights;
         _loadingInsights = false;
+        _insightsError = null;
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() => _loadingInsights = false);
+      setState(() {
+        _loadingInsights = false;
+        _insightsError = error.toString();
+      });
       _appendLog('[warn] Insights load failed: $error');
     }
   }
@@ -6080,7 +6147,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   if (_busy)
                     Container(
                       color: Colors.black38,
-                      child: const Center(child: CircularProgressIndicator()),
+                      child: const TimedLoadingIndicator(),
                     ),
                   if (_progressOverlay != null)
                     Positioned(
@@ -6353,6 +6420,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _CenterView.insights => InsightsPage(
         insights: _insights,
         isLoading: _loadingInsights,
+        loadError: _insightsError,
         onRefresh: () => unawaited(_loadInsights()),
         onRebuildIndex: () => unawaited(_rebuildIndex()),
         onOpenFile: (path) => unawaited(_openFile(path)),
