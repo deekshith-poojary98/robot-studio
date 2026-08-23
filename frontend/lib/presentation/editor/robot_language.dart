@@ -118,11 +118,13 @@ final Mode langRobot = Mode(
       relevance: 0,
     ),
 
-    // Keyword call after `${result}    ` on an indented line.
+    // Keyword after one or more assignment cells, e.g.
+    //   ${x}=    Keyword
+    //   ${a}    ${b}=    Get All Posts
     Mode(
       className: 'built_in',
       begin:
-          r'(?<=^[ \t]{2,}[\$@&%]\{[^{}\n]+\}[ \t]{2,})'
+          r'(?<=^[ \t]{2,}(?:[\$@&%]\{[^{}\n]+\}=?[ \t]{2,})+)'
           r'(?!\[|#)'
           r'(?!IF\b|ELSE IF\b|ELSE\b|END\b|FOR\b|WHILE\b|BREAK\b|CONTINUE\b|'
           r'RETURN\b|TRY\b|EXCEPT\b|FINALLY\b|GROUP\b|VAR\b)'

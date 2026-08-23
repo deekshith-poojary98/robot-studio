@@ -313,7 +313,7 @@ class RobotLanguageService(LanguageService):
                 VariableCompletionProvider(search_symbols=search_symbols),
                 KeywordCompletionProvider(
                     catalog=catalog,
-                    imported_library_entries=self._imported_library_entries,
+                    imported_library_entries=self._imported_library_entries_transitive,
                     search_symbols=search_symbols,
                 ),
                 IndexSymbolCompletionProvider(search_symbols=search_symbols),
@@ -456,7 +456,7 @@ class RobotLanguageService(LanguageService):
                 "id": "",
             }
 
-        for library_name in self._imported_libraries(content):
+        for library_name in self._imported_libraries(content, file_path):
             if library_name.casefold() != name.casefold():
                 continue
             resolved = await self.library_catalog().get_library(library_name)
@@ -713,8 +713,84 @@ class RobotLanguageService(LanguageService):
         return entries
 
     @staticmethod
-    def _imported_libraries(content: str) -> list[str]:
-        return [name for name, _alias in RobotLanguageService._imported_library_entries(content)]
+    def _imported_resource_paths(content: str) -> list[str]:
+        """Parse ``Resource`` settings → import path tokens."""
+        paths: list[str] = []
+        for raw in content.splitlines():
+            line = raw.strip()
+            if not line.lower().startswith("resource "):
+                continue
+            rest = line.split(None, 1)[1].strip()
+            cells = [cell for cell in re.split(r"[ \t]{2,}|\t+", rest) if cell]
+            token = (cells[0] if cells else rest.split()[0] if rest.split() else "").strip(
+                "'\"",
+            )
+            if token and "${" not in token:
+                paths.append(token)
+        return paths
+
+    @classmethod
+    def _imported_library_entries_transitive(
+        cls,
+        content: str,
+        file_path: str = "",
+        *,
+        max_depth: int = 8,
+    ) -> list[tuple[str, str | None]]:
+        """Libraries from this file plus resources it imports (RF transitive rule).
+
+        Robot makes libraries imported by a resource available to every file
+        that imports that resource. Diagnostics / completion must follow the
+        same chain or ``Dictionary Should Contain Key`` looks "unknown" in
+        endpoint resources that only ``Resource`` an api_client with Collections.
+        """
+        ordered: list[tuple[str, str | None]] = []
+        seen_libs: set[str] = set()
+        visited_files: set[str] = set()
+
+        def _add_entries(entries: list[tuple[str, str | None]]) -> None:
+            for name, alias in entries:
+                key = f"{name.casefold()}::{(alias or '').casefold()}"
+                if key in seen_libs:
+                    continue
+                seen_libs.add(key)
+                ordered.append((name, alias))
+
+        def _walk(text: str, path: str, depth: int) -> None:
+            _add_entries(cls._imported_library_entries(text))
+            if depth >= max_depth or not path:
+                return
+            try:
+                resolved_here = str(Path(path).expanduser().resolve())
+            except OSError:
+                resolved_here = path
+            if resolved_here in visited_files:
+                return
+            visited_files.add(resolved_here)
+            for token in cls._imported_resource_paths(text):
+                candidate = Path(token).expanduser()
+                if not candidate.is_file():
+                    candidate = cls._path_beside_file(path, token)
+                if not candidate.is_file():
+                    continue
+                try:
+                    child = candidate.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                _walk(child, str(candidate), depth + 1)
+
+        _walk(content, file_path, 0)
+        return ordered
+
+    @classmethod
+    def _imported_libraries(cls, content: str, file_path: str = "") -> list[str]:
+        return [
+            name
+            for name, _alias in cls._imported_library_entries_transitive(
+                content,
+                file_path,
+            )
+        ]
 
     async def _resolve(self, request: dict) -> dict | None:
         symbols = await self._resolve_all(request)
@@ -965,7 +1041,7 @@ class RobotLanguageService(LanguageService):
         # "known" libraries from the workspace index — the indexer records
         # Library *import* names as LIBRARY symbols even when unresolved, which
         # made Missing library warnings disappear right after save/reindex.
-        imported_libraries = self._imported_libraries(content)
+        imported_libraries = self._imported_libraries(content, file_path)
         resolved_libraries: set[str] = set()
 
         for library_name in imported_libraries:

@@ -22,7 +22,7 @@ from robot_studio.infrastructure.language.keyword_helpers import (
 from robot_studio.infrastructure.language.library_catalog import LibraryCatalogService
 
 FindDefinition = Callable[..., Awaitable[dict | None]]
-ImportedLibraries = Callable[[str], list[str]]
+ImportedLibraries = Callable[..., list[str]]
 
 
 @dataclass
@@ -41,7 +41,7 @@ class LibdocSignatureHelpProvider(SignatureHelpProvider):
         return 80
 
     async def resolve(self, ctx: SignatureHelpRequestContext) -> KeywordMetadata | None:
-        libraries = list(self.imported_libraries(ctx.content))
+        libraries = list(self.imported_libraries(ctx.content, ctx.file_path))
         found = await self.catalog.find_keyword(ctx.keyword, libraries=libraries)
         if found is not None:
             return found

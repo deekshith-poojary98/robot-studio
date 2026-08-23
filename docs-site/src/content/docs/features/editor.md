@@ -16,7 +16,7 @@ The editor is tuned for Robot Framework files rather than generic plain text.
 | Go to Definition | F12 or Ctrl/Cmd+Click; multi-match picker when needed |
 | References | Find usages across the project (**Go → Find References**) |
 | Document symbols | Navigate within the current file (**Go → Go to Symbol in File…**) |
-| Diagnostics | Live while editing; library imports resolve via the active environment |
+| Diagnostics | Live while editing; library imports resolve via the active environment. Keywords from libraries imported by a `Resource` you import are treated as available (same as Robot Framework) |
 | Outline | **Outline** pane under Explorer |
 
 ## Problems panel

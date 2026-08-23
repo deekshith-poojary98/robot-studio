@@ -905,6 +905,100 @@ Library    Collections    WITH NAME    Col
     assert ("Collections", "Col") in entries
 
 
+def test_imported_libraries_follow_resource_chain(tmp_path: Path) -> None:
+    """Libraries imported by a Resource are visible to importers (RF rule)."""
+    resources = tmp_path / "resources"
+    endpoints = resources / "endpoints"
+    endpoints.mkdir(parents=True)
+    (resources / "api_client.resource").write_text(
+        "*** Settings ***\nLibrary    Collections\nLibrary    RequestsLibrary\n",
+        encoding="utf-8",
+    )
+    leaf = endpoints / "comments.resource"
+    leaf_content = (
+        "*** Settings ***\n"
+        "Resource    ../api_client.resource\n\n"
+        "*** Keywords ***\n"
+        "Check\n"
+        "    Dictionary Should Contain Key    ${d}    id\n"
+    )
+    leaf.write_text(leaf_content, encoding="utf-8")
+
+    names = RobotLanguageService._imported_libraries(leaf_content, str(leaf))
+    assert "Collections" in names
+    assert "RequestsLibrary" in names
+
+
+@pytest.mark.asyncio
+async def test_semantic_diagnostics_accept_transitive_resource_libraries(
+    tmp_path: Path,
+) -> None:
+    resources = tmp_path / "resources"
+    endpoints = resources / "endpoints"
+    endpoints.mkdir(parents=True)
+    (resources / "api_client.resource").write_text(
+        "*** Settings ***\nLibrary    Collections\n",
+        encoding="utf-8",
+    )
+    leaf = endpoints / "comments.resource"
+    content = """*** Settings ***
+Resource    ../api_client.resource
+
+*** Keywords ***
+Comment Should Match Schema Keys
+    [Arguments]    ${comment}
+    Dictionary Should Contain Key    ${comment}    id
+"""
+    leaf.write_text(content, encoding="utf-8")
+
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").UTC,
+        ),
+    )
+    await context.open(workspace)
+    env_path = tmp_path / "env"
+    (env_path / "bin").mkdir(parents=True)
+    (env_path / "bin" / "python").write_text("", encoding="utf-8")
+    await context.set_active_environment(
+        Environment(
+            id=uuid4(),
+            workspace_id=workspace.id,
+            name="env",
+            path=env_path,
+            python_version="3.13",
+            python_executable=env_path / "bin" / "python",
+            pip_executable=env_path / "bin" / "pip",
+            created_at=workspace.created_at,
+            is_active=True,
+        ),
+    )
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge(  # type: ignore[arg-type]
+            {
+                "Collections": {
+                    "available": True,
+                    "name": "Collections",
+                    "keywords": ["Dictionary Should Contain Key"],
+                },
+            },
+        ),
+    )
+    diagnostics: list[dict] = []
+    await service._append_semantic_diagnostics(content, str(leaf), diagnostics)
+    messages = [item["message"] for item in diagnostics]
+    assert not any("Unknown keyword 'Dictionary Should Contain Key'" in msg for msg in messages)
+
+
 @pytest.mark.asyncio
 async def test_completion_suggests_as_alias_qualified_keywords(
     tmp_path: Path,

@@ -35,7 +35,7 @@ _POPULAR_BUILTIN = [
 ]
 
 
-ImportedLibraries = Callable[[str], list[tuple[str, str | None]]]
+ImportedLibraries = Callable[..., list[tuple[str, str | None]]]
 SearchSymbols = Callable[..., Awaitable[list[dict]]]
 
 
@@ -114,7 +114,10 @@ class KeywordCompletionProvider(CompletionProvider):
 
             if ctx.content:
                 try:
-                    for lib_name, alias in self.imported_library_entries(ctx.content):
+                    for lib_name, alias in self.imported_library_entries(
+                        ctx.content,
+                        ctx.file_path,
+                    ):
                         if lib_name.casefold() == "builtin":
                             continue
                         lib = await self.catalog.get_library(lib_name)

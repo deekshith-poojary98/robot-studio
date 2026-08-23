@@ -384,5 +384,23 @@ void main() {
       expect(html, contains('hljs-built_in">    Click Element'));
       expect(html, contains('<span class="hljs-title">Click</span>'));
     });
+
+    test('keyword after single assignment is built_in', () {
+      final html = render('    \${data}=    Fetch Sheet Data    Sheet1\n');
+      expect(html, contains('hljs-built_in'));
+      expect(html.toLowerCase(), contains('fetch sheet data'));
+    });
+
+    test('keyword after multi-assignment is built_in', () {
+      final html = render('    \${posts}    \${response}=    Get All Posts\n');
+      expect(
+        html.toLowerCase(),
+        contains('hljs-built_in">get all posts'),
+        reason: html,
+      );
+      // Assignments stay variables, not swallowed into the keyword span.
+      expect(html, contains('hljs-variable'));
+      expect(html, contains('\${posts}'));
+    });
   });
 }
