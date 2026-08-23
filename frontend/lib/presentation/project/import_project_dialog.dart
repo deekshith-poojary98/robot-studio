@@ -1,6 +1,6 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/platform/studio_file_picker.dart';
 import '../../core/theme/app_theme.dart';
 
 Future<String?> showImportProjectDialog(BuildContext context) {
@@ -29,7 +29,7 @@ class _ImportProjectDialogState extends State<ImportProjectDialog> {
 
   Future<void> _browse() async {
     try {
-      final selected = await FilePicker.platform.getDirectoryPath(
+      final selected = await StudioFilePicker.getDirectoryPath(
         dialogTitle: 'Select Robot Framework project',
       );
       if (!mounted) return;
@@ -67,8 +67,9 @@ class _ImportProjectDialogState extends State<ImportProjectDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Choose an existing Robot Framework project. Files stay in place; '
-              'Robot Studio stores a reference only.',
+              'Add an existing Robot Framework folder to this multi-project '
+              'workspace. Files stay in place; Studio only stores a reference. '
+              'To open a folder as its own project instead, use Open Project.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 16),

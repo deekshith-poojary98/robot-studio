@@ -1,6 +1,6 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/platform/studio_file_picker.dart';
 import '../../core/theme/app_theme.dart';
 
 Future<String?> showImportEnvironmentDialog(BuildContext context) {
@@ -30,7 +30,7 @@ class _ImportEnvironmentDialogState extends State<ImportEnvironmentDialog> {
 
   Future<void> _browse() async {
     try {
-      final selected = await FilePicker.platform.getDirectoryPath(
+      final selected = await StudioFilePicker.getDirectoryPath(
         dialogTitle: 'Select Python virtual environment',
       );
       if (!mounted) return;

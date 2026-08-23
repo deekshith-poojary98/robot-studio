@@ -142,6 +142,12 @@ Folder picker used an older `file_picker` build that could kill the process on s
 
 **Fix:** update to a build with `file_picker` ≥ 9.2.3 (isolate-safe Windows directory picker), then `flutter pub get` and rebuild.
 
+## macOS: Browse shows ENTITLEMENT_NOT_FOUND
+
+Robot Studio runs **outside** the App Sandbox (so Terminal and Robot runs can reach your projects). Older builds used a plugin that refused to open the folder picker without sandbox entitlements.
+
+**Fix:** use a current build — Browse / Open Project use Studio’s own macOS panels. Until you update, type or paste the path into the dialog field.
+
 ## Status bar says BACKEND UNAVAILABLE
 
 The UI cannot reach the local API.

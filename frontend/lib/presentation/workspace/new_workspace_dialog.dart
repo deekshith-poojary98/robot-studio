@@ -1,6 +1,6 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/platform/studio_file_picker.dart';
 import '../../core/theme/app_theme.dart';
 
 Future<({String name, String location})?> showNewWorkspaceDialog(
@@ -33,7 +33,7 @@ class _NewWorkspaceDialogState extends State<NewWorkspaceDialog> {
 
   Future<void> _browse() async {
     try {
-      final selected = await FilePicker.platform.getDirectoryPath(
+      final selected = await StudioFilePicker.getDirectoryPath(
         dialogTitle: 'Select workspace location',
       );
       if (!mounted) return;

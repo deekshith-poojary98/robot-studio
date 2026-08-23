@@ -1,7 +1,7 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/environment_info.dart';
+import '../../core/platform/studio_file_picker.dart';
 import '../../core/theme/app_theme.dart';
 import 'python_install_guidance.dart';
 
@@ -110,13 +110,10 @@ class _CreateEnvironmentDialogState extends State<CreateEnvironmentDialog> {
 
   Future<void> _browsePython() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final path = await StudioFilePicker.pickFile(
         dialogTitle: 'Select Python interpreter',
-        type: FileType.any,
-        allowMultiple: false,
       );
       if (!mounted) return;
-      final path = result?.files.single.path;
       if (path != null) {
         _pythonController.text = path;
         _syncDropdownToPath(path);

@@ -1,6 +1,6 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/platform/studio_file_picker.dart';
 import '../../core/theme/app_theme.dart';
 
 /// Asks only for a project name (project location comes from the open workspace).
@@ -61,7 +61,7 @@ class _NewProjectDialogState extends State<NewProjectDialog> {
 
   Future<void> _browse() async {
     try {
-      final selected = await FilePicker.platform.getDirectoryPath(
+      final selected = await StudioFilePicker.getDirectoryPath(
         dialogTitle: 'Choose parent folder for the new project',
       );
       if (!mounted) return;

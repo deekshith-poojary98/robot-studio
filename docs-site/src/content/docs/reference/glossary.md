@@ -6,6 +6,8 @@ description: Short definitions for Robot Studio and Robot Framework terms used i
 | Term | Meaning |
 |------|---------|
 | **Project** | A Robot Framework folder you open or create; the primary unit of work |
+| **Open Project** | Opens a folder as its own Studio session (the usual path) |
+| **Import Project** | Adds an existing folder into an already-open **multi-project workspace** — not the same as Open Project |
 | **Workspace** | Optional multi-project container; advanced |
 | **Environment** | A Python virtualenv used for analysis, packages, and runs |
 | **Active environment** | The environment currently selected for the project |

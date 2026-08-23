@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' show AppExitResponse;
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -11,6 +10,7 @@ import '../../core/gateway/models/workspace_event_info.dart';
 import '../../core/gateway/rest_transport_gateway.dart';
 import '../../core/gateway/transport_gateway.dart';
 import '../../core/logging/app_logger.dart';
+import '../../core/platform/studio_file_picker.dart';
 import '../../core/settings/app_settings_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../preferences/preferences_leave_binding.dart';
@@ -1927,7 +1927,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleOpenWorkspace() async {
-    final selected = await FilePicker.platform.getDirectoryPath(
+    final selected = await StudioFilePicker.getDirectoryPath(
       dialogTitle: 'Open Workspace',
     );
     if (selected == null) return;
@@ -1938,7 +1938,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleOpenProject() async {
-    final selected = await FilePicker.platform.getDirectoryPath(
+    final selected = await StudioFilePicker.getDirectoryPath(
       dialogTitle: 'Open Project',
     );
     if (selected == null) return;
@@ -2371,7 +2371,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _selectExistingEnvironment() async {
-    final selected = await FilePicker.platform.getDirectoryPath(
+    final selected = await StudioFilePicker.getDirectoryPath(
       dialogTitle: 'Select an existing Python environment',
     );
     if (selected == null) return;
@@ -2711,15 +2711,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleImportRequirements() async {
-    final result = await FilePicker.platform.pickFiles(
+    final path = await StudioFilePicker.pickFile(
       dialogTitle: 'Choose a requirements file',
-      type: FileType.custom,
       allowedExtensions: const ['txt', 'in'],
-      allowMultiple: false,
     );
-    if (!mounted || result == null || result.files.isEmpty) return;
-    final path = result.files.single.path;
-    if (path == null || path.trim().isEmpty) {
+    if (!mounted || path == null) return;
+    if (path.trim().isEmpty) {
       await _showError(
         'Import Requirements',
         'The selected file does not have a local path.',
@@ -2772,10 +2769,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<void> _handleExportRequirements() async {
     final projectPath = _selectedProject?.path ?? _activeWorkspace?.path;
-    final path = await FilePicker.platform.saveFile(
+    final path = await StudioFilePicker.saveFile(
       dialogTitle: 'Export requirements',
       fileName: 'requirements.txt',
-      type: FileType.custom,
       allowedExtensions: const ['txt', 'in'],
       initialDirectory: projectPath,
     );
