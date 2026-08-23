@@ -1050,11 +1050,86 @@ def _keyword_call_at(
     }
 
 
+def _robot_cell_spans(row: str) -> list[tuple[str, int, int]]:
+    """Return ``(cell, start_col, end_col)`` with 1-based inclusive columns."""
+    spans: list[tuple[str, int, int]] = []
+    i = 0
+    n = len(row)
+    while i < n and row[i] in " \t":
+        i += 1
+    while i < n:
+        start = i
+        while i < n:
+            if row[i] == "\t":
+                break
+            if row[i] == " " and i + 1 < n and row[i + 1] in " \t":
+                break
+            i += 1
+        cell = row[start:i]
+        if cell:
+            # Inclusive end column: last character is at index i-1 → col i.
+            spans.append((cell, start + 1, i))
+        sep = re.match(r"[ \t]{2,}|\t+", row[i:])
+        if sep:
+            i += len(sep.group(0))
+            continue
+        break
+    return spans
+
+
+def _looks_like_keyword_token(text: str) -> bool:
+    """True for a cell that can name a keyword (not variables / settings / sep)."""
+    token = text.strip()
+    if not token or token == "...":
+        return False
+    if token.startswith(("$", "@", "&", "%", "#", "[")):
+        return False
+    if token.endswith("="):
+        return False
+    return True
+
+
+def _hover_keyword_at(
+    lines: list[str],
+    line: int,
+    column: int,
+) -> dict[str, Any] | None:
+    """Keyword under the pointer only — ignores argument / variable cells.
+
+    Supports multiple keyword-like cells on one row (e.g. ``Run Keyword If``
+    taking another keyword as an argument): whichever cell the column hits
+    is the hover target.
+    """
+    if line < 1 or line > len(lines):
+        return None
+    row = lines[line - 1]
+    if not (row.startswith(" ") or row.startswith("\t")):
+        return None
+    if row.strip().startswith("#") or row.strip().startswith("["):
+        return None
+    for text, start, end in _robot_cell_spans(row):
+        if start <= column <= end:
+            if not _looks_like_keyword_token(text):
+                return None
+            return {
+                "keyword": text,
+                "arguments": [],
+                "active_parameter": 0,
+                "in_arguments": False,
+                "arguments_through_caret": [],
+                "arguments_completed": [],
+                "current_argument": "",
+            }
+    return None
+
+
 def signature_help(
     content: str,
     file_path: str,
     line: int,
     column: int,
+    *,
+    hover: bool = False,
 ) -> dict[str, Any] | None:
     _ = file_path
     lines = content.splitlines()
@@ -1065,6 +1140,8 @@ def signature_help(
         return None
     if row.strip().startswith("#") or row.strip().startswith("["):
         return None
+    if hover:
+        return _hover_keyword_at(lines, line, column)
     call = _keyword_call_at(lines, line, column)
     if call is None or not call.get("keyword"):
         return None
@@ -1284,7 +1361,13 @@ def main() -> None:
         elif op == "completion_context":
             result = completion_context(content, file_path, line, column)
         elif op == "signature_help":
-            result = signature_help(content, file_path, line, column)
+            result = signature_help(
+                content,
+                file_path,
+                line,
+                column,
+                hover=bool(request.get("hover")),
+            )
         elif op == "resolve_library":
             result = resolve_library(library, file_path)
         else:

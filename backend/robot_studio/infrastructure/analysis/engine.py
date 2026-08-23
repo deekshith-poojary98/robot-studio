@@ -23,7 +23,10 @@ from robot_studio.domain.models.analysis import (
     SemanticEntity,
     UsageStat,
 )
-from robot_studio.infrastructure.analysis.binder import SemanticBinder
+from robot_studio.infrastructure.analysis.binder import (
+    SemanticBinder,
+    import_path_exists_on_disk,
+)
 from robot_studio.infrastructure.analysis.normalize import (
     normalize_keyword_name,
     normalize_variable_name,
@@ -321,6 +324,10 @@ class RobotAnalysisEngine(AnalysisEngine):
                     continue
                 if "${" in edge.target_name:
                     continue
+                # Variables *.py / *.yaml (and any path import) may exist on disk
+                # without an analysis entity — do not flag those as missing.
+                if import_path_exists_on_disk(edge.target_name, edge.source_file):
+                    continue
                 source = await self.store.get_entity(edge.source_id)
                 missing.append(
                     EdgeRef(
@@ -337,7 +344,14 @@ class RobotAnalysisEngine(AnalysisEngine):
                 )
             return missing
 
-        return await self._cached_models(project_id, "missing_imports", build, EdgeRef)
+        results = await self._cached_models(project_id, "missing_imports", build, EdgeRef)
+        # Epoch-scoped SQLite cache can outlive logic fixes (and newly created
+        # variable files). Always re-check the filesystem before surfacing.
+        return [
+            edge
+            for edge in results
+            if not import_path_exists_on_disk(edge.target_name, edge.source_file or "")
+        ]
 
     async def find_keyword_callers(self, project_id: UUID, keyword: str) -> list[EdgeRef]:
         norm = normalize_keyword_name(keyword)

@@ -167,6 +167,46 @@ Demo
     assert result["arguments"] == ["${EXCEL_PATH}"]
 
 
+def test_hover_signature_only_on_keyword_cell() -> None:
+    content = """*** Test Cases ***
+Demo
+    Open Workbook    ${EXCEL_PATH}
+"""
+    row = content.splitlines()[2]
+    # Column on the keyword
+    kw_col = row.index("Open Workbook") + 1
+    on_kw = signature_help(content, "demo.robot", line=3, column=kw_col, hover=True)
+    assert on_kw is not None
+    assert on_kw["keyword"] == "Open Workbook"
+
+    # Column on the argument — no hover card
+    arg_col = row.index("${EXCEL_PATH}") + 1
+    on_arg = signature_help(content, "demo.robot", line=3, column=arg_col, hover=True)
+    assert on_arg is None
+
+    # Caret mode still resolves the call from the argument slot
+    typing = signature_help(content, "demo.robot", line=3, column=arg_col, hover=False)
+    assert typing is not None
+    assert typing["keyword"] == "Open Workbook"
+
+
+def test_hover_picks_nested_keyword_on_same_line() -> None:
+    content = """*** Test Cases ***
+Demo
+    Run Keyword If    ${ok}    Log    hello
+"""
+    row = content.splitlines()[2]
+    log_col = row.index("Log") + 1
+    result = signature_help(content, "demo.robot", line=3, column=log_col, hover=True)
+    assert result is not None
+    assert result["keyword"] == "Log"
+
+    outer_col = row.index("Run Keyword If") + 1
+    outer = signature_help(content, "demo.robot", line=3, column=outer_col, hover=True)
+    assert outer is not None
+    assert outer["keyword"] == "Run Keyword If"
+
+
 def test_signature_help_assignment_cell() -> None:
     content = """*** Test Cases ***
 Demo

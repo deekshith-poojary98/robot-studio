@@ -235,6 +235,7 @@ async def language_signature_help(
             line=body.line,
             column=body.column,
             content=body.content,
+            hover=body.hover,
         )
     except LanguageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

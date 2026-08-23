@@ -2680,6 +2680,7 @@ class _FakeTransportGateway implements TransportGateway {
     required int line,
     required int column,
     required String content,
+    bool hover = false,
   }) async {
     return null;
   }

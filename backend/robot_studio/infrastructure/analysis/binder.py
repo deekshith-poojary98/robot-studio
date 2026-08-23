@@ -15,6 +15,24 @@ from robot_studio.infrastructure.analysis.normalize import (
 )
 
 
+def import_path_exists_on_disk(import_name: str, source_file: Path | str) -> bool:
+    """True when a Resource/Variables import resolves to a real file.
+
+    Analysis only extracts entities from ``.robot`` / ``.resource`` files, so
+    ``Variables    ../vars.py`` never gets a bound ``target_id``. Callers must
+    still treat existing on-disk imports as resolved.
+    """
+    if not import_name or "${" in import_name or "@{" in import_name:
+        return False
+    try:
+        candidate = Path(import_name).expanduser()
+        if not candidate.is_absolute():
+            candidate = (Path(source_file).expanduser().resolve().parent / candidate)
+        return candidate.resolve().is_file()
+    except OSError:
+        return False
+
+
 class SemanticBinder:
     """Resolves CALLS / IMPORTS_* / REFERENCES_VARIABLE edges within a project."""
 
@@ -53,9 +71,9 @@ class SemanticBinder:
             resource_by_name[normalize_keyword_name(res.file_path.name)] = res
             resource_by_name[normalize_keyword_name(res.name)] = res
         for f in files:
-            if f.file_path.suffix.lower() == ".resource":
-                resource_by_path[str(f.file_path.resolve())] = f
-                resource_by_name[normalize_keyword_name(f.file_path.name)] = f
+            # Suites, resources, and (when present) variable/library files.
+            resource_by_path[str(f.file_path.resolve())] = f
+            resource_by_name[normalize_keyword_name(f.file_path.name)] = f
 
         edges = await self._store.list_edges(project_id=project_id)
         updated = 0

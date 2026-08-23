@@ -198,6 +198,7 @@ class LanguageFacade:
         line: int,
         column: int,
         content: str,
+        hover: bool = False,
     ) -> dict | None:
         self._require_workspace()
         if not file_path:
@@ -208,6 +209,7 @@ class LanguageFacade:
                 "line": line,
                 "column": column,
                 "content": content,
+                "hover": hover,
             },
         )
 

@@ -63,6 +63,7 @@ class RobotParsingBridge:
         line: int = 1,
         column: int = 1,
         library: str = "",
+        hover: bool = False,
     ) -> Any:
         if not python_executable.is_file():
             raise RobotParsingError(
@@ -75,6 +76,7 @@ class RobotParsingBridge:
             "line": line,
             "column": column,
             "library": library,
+            "hover": hover,
         }
         return await asyncio.to_thread(
             self._run_sync,

@@ -407,11 +407,13 @@ class ApiClient implements TransportGateway {
     required int line,
     required int column,
     required String content,
+    bool hover = false,
   }) => _gateway.languageSignatureHelp(
     filePath: filePath,
     line: line,
     column: column,
     content: content,
+    hover: hover,
   );
 
   @override

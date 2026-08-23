@@ -592,6 +592,7 @@ class RobotLanguageService(LanguageService):
                 file_path=file_path,
                 line=line,
                 column=column,
+                hover=bool(request.get("hover")),
             )
         except RobotParsingError:
             return None
@@ -958,7 +959,7 @@ class RobotLanguageService(LanguageService):
         known_keywords.update(name.casefold() for name in _CONTROL_MARKERS)
         known_keywords.update(name.casefold() for name in _LOCAL_SETTINGS)
         known_keywords.update(name.casefold() for name in self._collect_local_keyword_names(lines))
-        declared_variables = self._collect_declared_variables(lines)
+        declared_variables = self._collect_declared_variables(lines, file_path=file_path)
 
         # Resolve Library imports against the active env only. Do not seed
         # "known" libraries from the workspace index — the indexer records
@@ -1139,12 +1140,22 @@ class RobotLanguageService(LanguageService):
         return names
 
     @classmethod
-    def _collect_declared_variables(cls, lines: list[str]) -> set[str]:
+    def _collect_declared_variables(
+        cls,
+        lines: list[str],
+        *,
+        file_path: str = "",
+    ) -> set[str]:
         declared: set[str] = set()
         for raw in lines:
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
+
+            if line.lower().startswith("variables ") and file_path:
+                token = line.split(None, 1)[1].strip().split("    ")[0].strip().strip("'\"")
+                declared.update(cls._variables_from_import_file(file_path, token))
+
             cells = cls._robot_cells(line)
             if not cells:
                 continue
@@ -1179,14 +1190,77 @@ class RobotLanguageService(LanguageService):
                 continue
 
             # ${x}=    Keyword   /   ${x}    value   /   ${x}=value-in-one-cell
-            assign = re.match(r"^([\$@&%]\{[^}]+\})\s*=?\s*$", head)
-            if assign:
-                declared.add(assign.group(1))
+            # Multi-assign: ${a}    ${b}=    Keyword
+            consumed_assign = False
+            for cell in cells:
+                bare = cell[:-1].rstrip() if cell.endswith("=") else cell
+                match = re.match(r"^([\$@&%]\{[^}]+\})$", bare)
+                if match:
+                    declared.add(match.group(1))
+                    consumed_assign = True
+                    if cell.endswith("="):
+                        break
+                    continue
+                break
+            if consumed_assign:
                 continue
-            assign_inline = re.match(r"^([\$@&%]\{[^}]+\})=", head)
-            if assign_inline:
-                declared.add(assign_inline.group(1))
         return declared
+
+    @classmethod
+    def _variables_from_import_file(cls, file_path: str, token: str) -> set[str]:
+        """Names exported by a Robot ``Variables`` import (``.py`` / YAML)."""
+        if not token or "${" in token:
+            return set()
+        candidate = Path(token).expanduser()
+        if not candidate.is_file():
+            candidate = cls._path_beside_file(file_path, token)
+        if not candidate.is_file():
+            return set()
+        suffix = candidate.suffix.lower()
+        if suffix == ".py":
+            return cls._variables_from_python_file(candidate)
+        if suffix in {".yaml", ".yml"}:
+            return cls._variables_from_yaml_file(candidate)
+        return set()
+
+    @staticmethod
+    def _variables_from_python_file(path: Path) -> set[str]:
+        """Module-level assigns become ``${NAME}`` in Robot (Variables import)."""
+        import ast
+
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, SyntaxError):
+            return set()
+        names: set[str] = set()
+        for node in tree.body:
+            targets: list = []
+            if isinstance(node, ast.Assign):
+                targets.extend(node.targets)
+            elif isinstance(node, ast.AnnAssign) and node.target is not None:
+                targets.append(node.target)
+            for target in targets:
+                if isinstance(target, ast.Name) and not target.id.startswith("_"):
+                    names.add(f"${{{target.id}}}")
+        return names
+
+    @staticmethod
+    def _variables_from_yaml_file(path: Path) -> set[str]:
+        names: set[str] = set()
+        try:
+            for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#") or ":" not in line:
+                    continue
+                key = line.split(":", 1)[0].strip()
+                if key and not key.startswith("-") and re.match(
+                    r"^[A-Za-z_][A-Za-z0-9_]*$",
+                    key,
+                ):
+                    names.add(f"${{{key}}}")
+        except OSError:
+            return set()
+        return names
 
     @staticmethod
     def _robot_cells(line: str) -> list[str]:
@@ -1219,6 +1293,11 @@ class RobotLanguageService(LanguageService):
         upper = name.upper()
         if upper.startswith(("TEST_", "SUITE_", "PREV_TEST_", "KEYWORD_")):
             return True
+        # Robot allows ${list} vs @{list} for the same assignment.
+        for item in declared:
+            other = re.match(r"^([\$@&%])\{(.+)\}$", item)
+            if other and other.group(2) == name:
+                return True
         return False
 
     @staticmethod

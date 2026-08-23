@@ -83,6 +83,9 @@ class SignatureHelpRequest(BaseModel):
     line: int = 1
     column: int = 1
     content: str = ""
+    # When true, only resolve the keyword cell under the pointer (mouse hover).
+    # Caret-driven signature help while typing arguments leaves this false.
+    hover: bool = False
 
 
 class LibraryKeywordResponse(BaseModel):

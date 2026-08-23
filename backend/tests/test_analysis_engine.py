@@ -92,6 +92,94 @@ async def _seed_project(client: AsyncClient, tmp_path: Path) -> Path:
 
 
 @pytest.mark.asyncio
+async def test_variables_py_import_not_flagged_missing(api_client) -> None:
+    """Variables *.py files are valid Robot imports but are not analysis entities."""
+    client, _fresh, tmp_path = api_client
+    project_path = await _seed_project(client, tmp_path)
+
+    variables = project_path / "variables" / "env.py"
+    variables.parent.mkdir(parents=True, exist_ok=True)
+    variables.write_text("BASE_URL = 'https://example.test'\n", encoding="utf-8")
+
+    suite = project_path / "tests" / "posts" / "posts_api.robot"
+    suite.parent.mkdir(parents=True, exist_ok=True)
+    suite.write_text(
+        "*** Settings ***\n"
+        "Variables    ../../variables/env.py\n"
+        "*** Test Cases ***\n"
+        "Smoke\n"
+        "    No Operation\n",
+        encoding="utf-8",
+    )
+
+    rebuilt = await client.post("/api/v1/index/rebuild?wait=true")
+    assert rebuilt.status_code == 200, rebuilt.text
+
+    report = await client.post("/api/v1/analysis/inspect", json={})
+    assert report.status_code == 200, report.text
+    missing = [
+        f
+        for f in report.json()["findings"]
+        if f["inspection_id"] == "missing_import"
+        and "env.py" in f["message"]
+    ]
+    assert missing == [], missing
+
+    diag = await client.post(
+        "/api/v1/language/diagnostics",
+        json={"file_path": str(suite), "content": suite.read_text(encoding="utf-8")},
+    )
+    assert diag.status_code == 200, diag.text
+    unresolved = [
+        d
+        for d in diag.json()["diagnostics"]
+        if "env.py" in str(d.get("message", ""))
+    ]
+    assert unresolved == [], diag.json()
+
+
+@pytest.mark.asyncio
+async def test_stale_missing_import_cache_filtered_by_disk(api_client) -> None:
+    """Epoch cache must not keep Variables *.py flagged after the file exists."""
+    client, fresh, tmp_path = api_client
+    project_path = await _seed_project(client, tmp_path)
+
+    suite = project_path / "tests" / "api.robot"
+    suite.parent.mkdir(parents=True, exist_ok=True)
+    suite.write_text(
+        "*** Settings ***\n"
+        "Variables    ../variables/env.py\n"
+        "*** Test Cases ***\n"
+        "Smoke\n"
+        "    No Operation\n",
+        encoding="utf-8",
+    )
+
+    rebuilt = await client.post("/api/v1/index/rebuild?wait=true")
+    assert rebuilt.status_code == 200, rebuilt.text
+
+    # Before the file exists, missing_import should fire and populate cache.
+    report = await client.post("/api/v1/analysis/inspect", json={})
+    assert report.status_code == 200, report.text
+    assert any(
+        f["inspection_id"] == "missing_import" and "env.py" in f["message"]
+        for f in report.json()["findings"]
+    ), report.json()["findings"]
+
+    variables = project_path / "variables" / "env.py"
+    variables.parent.mkdir(parents=True, exist_ok=True)
+    variables.write_text("BASE_URL = 'https://example.test'\n", encoding="utf-8")
+
+    # No rebuild / epoch bump — post-filter must drop the stale cache hit.
+    report2 = await client.post("/api/v1/analysis/inspect", json={})
+    assert report2.status_code == 200, report2.text
+    assert not any(
+        f["inspection_id"] == "missing_import" and "env.py" in f["message"]
+        for f in report2.json()["findings"]
+    ), report2.json()["findings"]
+
+
+@pytest.mark.asyncio
 async def test_analysis_inspection_and_graph_apis(api_client) -> None:
     client, _fresh, tmp_path = api_client
     project_path = await _seed_project(client, tmp_path)

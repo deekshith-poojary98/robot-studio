@@ -826,6 +826,7 @@ class RestTransportGateway implements TransportGateway {
     required int line,
     required int column,
     required String content,
+    bool hover = false,
   }) async {
     final response = await _client
         .post(
@@ -836,6 +837,7 @@ class RestTransportGateway implements TransportGateway {
             'line': line,
             'column': column,
             'content': content,
+            'hover': hover,
           }),
         )
         .timeout(const Duration(seconds: 30));

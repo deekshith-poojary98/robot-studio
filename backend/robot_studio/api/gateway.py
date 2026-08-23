@@ -767,12 +767,14 @@ class RestGateway:
         line: int,
         column: int,
         content: str,
+        hover: bool = False,
     ) -> dict | None:
         return await self._language_service.signature_help(
             file_path=file_path,
             line=line,
             column=column,
             content=content,
+            hover=hover,
         )
 
     async def language_libraries(self) -> list[dict]:

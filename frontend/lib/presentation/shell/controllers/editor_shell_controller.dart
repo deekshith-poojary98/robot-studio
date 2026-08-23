@@ -261,6 +261,7 @@ class EditorShellController {
         line: line,
         column: column,
         content: tab.content,
+        hover: true,
       );
       if (!isMounted() || requestId != _hoverRequestId) return;
       if (signature != null) {

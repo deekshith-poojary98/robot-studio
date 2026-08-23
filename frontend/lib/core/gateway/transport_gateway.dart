@@ -277,6 +277,7 @@ abstract class TransportGateway {
     required int line,
     required int column,
     required String content,
+    bool hover = false,
   });
 
   Future<List<LibraryInfo>> languageLibraries();
