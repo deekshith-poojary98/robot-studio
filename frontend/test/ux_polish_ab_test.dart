@@ -102,13 +102,62 @@ void main() {
     await tester.tap(find.byKey(const Key('toolbar.project')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Open Project…'), findsOneWidget);
+    expect(find.text('Open Project'), findsOneWidget);
+    expect(find.text('New Project'), findsNothing);
     expect(find.text(ExplorerFileActions.revealLabel()), findsOneWidget);
 
     await tester.tap(find.text(ExplorerFileActions.revealLabel()));
     await tester.pumpAndSettle();
     expect(revealed, isTrue);
     expect(opened, isFalse);
+  });
+
+  testWidgets('project chip Open Project runs after the menu closes', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    var opened = false;
+    final project = ProjectInfo(
+      id: 'p1',
+      workspaceId: 'w1',
+      name: 'OrangeHRM',
+      path: '/tmp/OrangeHRM',
+      createdAt: DateTime.utc(2026, 1, 1),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppToolbar(
+            projectLabel: 'OrangeHRM',
+            environmentLabel: 'default',
+            backendConnected: true,
+            recentProjects: [project],
+            selectedProjectId: project.id,
+            onOpenProject: () => opened = true,
+            onNewProject: () {},
+            onRevealProject: () {},
+            onRun: () {},
+            onRunProject: () {},
+            onStop: () {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('toolbar.project')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Project'), findsOneWidget);
+    expect(find.text('New Project'), findsOneWidget);
+
+    await tester.tap(find.text('Open Project'));
+    await tester.pump();
+    expect(opened, isFalse);
+    await tester.pumpAndSettle();
+    expect(opened, isTrue);
   });
 
   testWidgets('project, environment and branch chips share one height', (

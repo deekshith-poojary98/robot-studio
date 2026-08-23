@@ -530,11 +530,13 @@ class _ProjectSelector extends StatelessWidget {
       position: PopupMenuPosition.under,
       onSelected: (value) {
         if (value == _open) {
-          onOpenProject?.call();
+          // Native folder picker must wait until the popup route is gone;
+          // otherwise macOS often shows nothing (NSOpenPanel during teardown).
+          _runAfterMenuCloses(onOpenProject);
           return;
         }
         if (value == _new) {
-          onNewProject?.call();
+          _runAfterMenuCloses(onNewProject);
           return;
         }
         if (value == _reveal) {
@@ -563,7 +565,7 @@ class _ProjectSelector extends StatelessWidget {
           AppPopupMenuItem<String>(
             value: _open,
             enabled: onOpenProject != null,
-            child: const Text('Open Project…'),
+            child: const Text('Open Project'),
           ),
           AppPopupMenuItem<String>(
             value: _reveal,
@@ -573,12 +575,21 @@ class _ProjectSelector extends StatelessWidget {
           if (onNewProject != null)
             const AppPopupMenuItem<String>(
               value: _new,
-              child: Text('New Project…'),
+              child: Text('New Project'),
             ),
         ];
       },
       child: _SelectorChip(icon: Icons.folder_outlined, label: label),
     );
+  }
+
+  /// Runs [action] after the popup menu route has finished tearing down.
+  static void _runAfterMenuCloses(VoidCallback? action) {
+    if (action == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // One more event-loop turn so macOS can present NSOpenPanel reliably.
+      Future<void>.delayed(Duration.zero, action);
+    });
   }
 }
 
