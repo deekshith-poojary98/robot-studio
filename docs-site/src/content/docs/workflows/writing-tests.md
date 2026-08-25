@@ -24,7 +24,7 @@ The Robot editor is multi-tab and understands Robot Framework structure:
 - Find references and document symbols (**Go → Go to Symbol in File…**)
 - Live diagnostics while you type (including library imports resolved through the active environment)
 - Document **Outline** under Explorer for jumping within the file (Robot suites and Python modules). Click a symbol to move the caret and scroll it into view.
-- In `.py` library files, completions cover buffer symbols (`self.` members, defs, imports) and other project Python symbols from the index.
+- In `.py` library files, completions cover buffer symbols (`self.` members, defs, imports), other project Python symbols from the index, and Jedi stdlib / installed-package symbols when a Python environment is active.
 - **Format Document** (`⇧⌥F` / `Shift+Alt+F`, or **Edit → Format Document**) and **Format Selection** on the current file
 
 ## Save

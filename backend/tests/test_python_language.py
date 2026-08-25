@@ -1,9 +1,12 @@
-"""Python buffer + index language intelligence (tiers 1–2)."""
+"""Python buffer + index + Jedi language intelligence (tiers 1–3)."""
 
 from __future__ import annotations
 
+import sys
 import tempfile
 from pathlib import Path
+
+import pytest
 
 from robot_studio.domain.interfaces.completion import CompletionRequestContext
 from robot_studio.domain.interfaces.indexing import SymbolKind
@@ -11,6 +14,13 @@ from robot_studio.infrastructure.indexing.python_indexer import PythonLibraryInd
 from robot_studio.infrastructure.language.completion.python_provider import (
     PythonBufferCompletionProvider,
     PythonIndexCompletionProvider,
+    PythonJediCompletionProvider,
+)
+from robot_studio.infrastructure.language.python_jedi import (
+    jedi_available,
+    jedi_completions,
+    jedi_definitions,
+    jedi_signature_help,
 )
 from robot_studio.infrastructure.language.python_language import (
     python_buffer_completions,
@@ -175,3 +185,77 @@ async def test_python_index_provider_filters_py_paths() -> None:
     labels = [i.label for i in items]
     assert "shared_helper" in labels
     assert not any("Robot" in label for label in labels)
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_jedi_completions_stdlib_json() -> None:
+    content = "import json\njson."
+    line = 2
+    column = len("json.") + 1  # 1-based, after dot
+    items = jedi_completions(
+        content,
+        "module.py",
+        line,
+        column,
+        Path(sys.executable),
+        None,
+    )
+    labels = {item["label"] for item in items}
+    assert "dumps" in labels
+    assert "loads" in labels
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_jedi_signature_help_stdlib_json() -> None:
+    content = "import json\njson.dumps(1, "
+    line = 2
+    column = len("json.dumps(1, ")  # 1-based at trailing space
+    help_ = jedi_signature_help(
+        content,
+        "module.py",
+        line,
+        column,
+        Path(sys.executable),
+        None,
+    )
+    assert help_ is not None
+    assert help_["keyword"] == "dumps"
+    assert any(p["name"] == "obj" for p in help_["parameters"])
+    assert help_["active_parameter"] >= 1
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_jedi_definitions_stdlib_json() -> None:
+    content = "import json\njson.dumps"
+    line = 2
+    column = len("json.dumps")  # 1-based end of symbol
+    defs = jedi_definitions(
+        content,
+        "module.py",
+        line,
+        column,
+        Path(sys.executable),
+        None,
+    )
+    assert defs
+    assert defs[0]["name"] == "dumps"
+    assert defs[0]["file_path"].endswith("json/__init__.py") or "json" in defs[0]["file_path"]
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+async def test_python_jedi_provider_completes() -> None:
+    provider = PythonJediCompletionProvider(
+        resolve_python=lambda: Path(sys.executable),
+        resolve_project_root=lambda: None,
+    )
+    ctx = CompletionRequestContext(
+        file_path="/proj/module.py",
+        content="import json\njson.",
+        line=2,
+        column=len("json.") + 1,
+        prefix="",
+        context="python_attr",
+        attribute_base="json",
+    )
+    items = await provider.complete(ctx)
+    assert any(item.label == "dumps" for item in items)

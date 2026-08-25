@@ -1,4 +1,4 @@
-"""Python completion providers (buffer AST + project index)."""
+"""Python completion providers (buffer AST + project index + Jedi)."""
 
 from __future__ import annotations
 
@@ -13,11 +13,15 @@ from robot_studio.domain.interfaces.completion import (
     match_score,
 )
 from robot_studio.domain.interfaces.indexing import SymbolKind
+from robot_studio.infrastructure.language.python_jedi import jedi_available, jedi_completions
 from robot_studio.infrastructure.language.python_language import (
     python_buffer_completions,
 )
+from robot_studio.infrastructure.process_utils import run_blocking
 
 SearchSymbols = Callable[..., Awaitable[list[dict]]]
+ResolvePython = Callable[[], Path]
+ResolveProjectRoot = Callable[[], Path | None]
 
 
 @dataclass
@@ -150,6 +154,67 @@ class PythonIndexCompletionProvider(CompletionProvider):
                     ),
                 )
         return out
+
+
+@dataclass
+class PythonJediCompletionProvider(CompletionProvider):
+    """Tier 3 — stdlib + venv packages via Jedi (active environment interpreter)."""
+
+    resolve_python: ResolvePython
+    resolve_project_root: ResolveProjectRoot
+
+    @property
+    def provider_id(self) -> str:
+        return "python_jedi"
+
+    @property
+    def label(self) -> str:
+        return "Python (Jedi)"
+
+    @property
+    def supported_contexts(self) -> frozenset[str]:
+        return frozenset({"python", "python_attr"})
+
+    @property
+    def base_priority(self) -> int:
+        return 92
+
+    def accepts(self, ctx: CompletionRequestContext) -> bool:
+        if not jedi_available():
+            return False
+        if not str(ctx.file_path).lower().endswith(".py"):
+            return False
+        return super().accepts(ctx)
+
+    async def complete(self, ctx: CompletionRequestContext) -> list[CompletionCandidate]:
+        try:
+            python_executable = self.resolve_python()
+        except Exception:  # noqa: BLE001 — no active environment
+            return []
+
+        raw = await run_blocking(
+            jedi_completions,
+            ctx.content,
+            ctx.file_path,
+            ctx.line,
+            ctx.column,
+            python_executable,
+            self.resolve_project_root(),
+            prefix=ctx.prefix,
+        )
+        return [
+            CompletionCandidate(
+                label=str(item["label"]),
+                kind=str(item.get("kind") or "variable"),
+                detail=str(item.get("detail") or ""),
+                documentation=str(item.get("documentation") or ""),
+                insert_text=str(item.get("insert_text") or item["label"]),
+                provider_id=self.provider_id,
+                match_score=match_score(str(item["label"]), ctx.prefix),
+                base_priority=self.base_priority,
+            )
+            for item in raw
+        ]
 
 
 def _python_ident(name: str, *, kind: str) -> str:

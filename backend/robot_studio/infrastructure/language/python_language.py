@@ -1,8 +1,8 @@
 """Python buffer intelligence — completion context, AST completions, signatures.
 
 Tier 1: symbols + keywords from the open buffer (including ``self.`` members).
-Tier 2 consumers use the workspace index separately; this module only parses
-the live buffer.
+Tier 2 consumers use the workspace index separately; tier 3 (Jedi) lives in
+``python_jedi.py``.
 """
 
 from __future__ import annotations

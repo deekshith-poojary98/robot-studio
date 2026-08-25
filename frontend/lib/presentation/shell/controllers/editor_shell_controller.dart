@@ -295,7 +295,8 @@ class EditorShellController {
     if (tab == null || workspace() == null) return;
     final isRobot =
         tab.path.endsWith('.robot') || tab.path.endsWith('.resource');
-    if (!isRobot) {
+    final isPython = tab.path.endsWith('.py');
+    if (!isRobot && !isPython) {
       clearHoverTooltip();
       return;
     }
@@ -312,6 +313,31 @@ class EditorShellController {
       if (!isMounted() || requestId != _hoverRequestId) return;
       if (signature != null) {
         hoverTooltip = signature;
+        notify();
+        return;
+      }
+
+      if (isPython) {
+        final hover = await gateway.languageHover(
+          filePath: tab.path,
+          line: line,
+          column: column,
+          content: tab.content,
+        );
+        if (!isMounted() || requestId != _hoverRequestId) return;
+        if (hover == null) {
+          hoverTooltip = null;
+          notify();
+          return;
+        }
+        hoverTooltip = SignatureHelpInfo(
+          keyword: hover.name,
+          documentation: hover.documentation,
+          detail: hover.detail.isNotEmpty ? hover.detail : hover.kind.label,
+          parameters: [
+            SignatureParameterInfo(label: hover.kind.label),
+          ],
+        );
         notify();
         return;
       }

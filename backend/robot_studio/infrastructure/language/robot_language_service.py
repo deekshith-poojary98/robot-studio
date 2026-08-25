@@ -53,11 +53,18 @@ from robot_studio.infrastructure.language.completion import (
 from robot_studio.infrastructure.language.completion.python_provider import (
     PythonBufferCompletionProvider,
     PythonIndexCompletionProvider,
+    PythonJediCompletionProvider,
 )
 from robot_studio.infrastructure.language.python_language import (
     python_completion_context,
     python_signature_help,
 )
+from robot_studio.infrastructure.language.python_jedi import (
+    jedi_definitions,
+    jedi_hover,
+    jedi_signature_help,
+)
+from robot_studio.infrastructure.process_utils import run_blocking
 from robot_studio.infrastructure.language.keyword_helpers import (
     active_parameter_index,
     parameters_from_detail_string,
@@ -132,6 +139,12 @@ class RobotLanguageService(LanguageService):
                 "Activate a Python environment before using language features",
             )
         return self.parsing.resolve_python(environment.path)
+
+    def _project_root(self) -> Path | None:
+        project = self.context.project
+        if project is None:
+            return None
+        return Path(project.path)
 
     def library_catalog(self) -> LibraryCatalogService:
         """Canonical semantic cache — sole resolve_library owner."""
@@ -311,6 +324,10 @@ class RobotLanguageService(LanguageService):
         catalog = self.library_catalog()
         self._completion_pipeline = CompletionPipeline(
             providers=[
+                PythonJediCompletionProvider(
+                    resolve_python=self._python_executable,
+                    resolve_project_root=self._project_root,
+                ),
                 PythonBufferCompletionProvider(),
                 PythonIndexCompletionProvider(search_symbols=search_symbols),
                 NamedArgumentCompletionProvider(
@@ -407,9 +424,16 @@ class RobotLanguageService(LanguageService):
         return [item.to_api() for item in ranked]
 
     async def hover(self, request: dict) -> dict | None:
-        symbol = await self._resolve(request)
         content = str(request.get("content") or "")
         file_path = str(request.get("file_path") or "")
+        line = int(request.get("line") or 1)
+        column = int(request.get("column") or 1)
+        if file_path.lower().endswith(".py") and content.strip():
+            jedi_result = await self._jedi_hover(content, file_path, line, column)
+            if jedi_result is not None:
+                return jedi_result
+
+        symbol = await self._resolve(request)
         if symbol is not None:
             detail = str(symbol.get("detail") or "")
             documentation = str(symbol.get("documentation") or "")
@@ -599,6 +623,9 @@ class RobotLanguageService(LanguageService):
             return None
 
         if file_path.lower().endswith(".py"):
+            jedi_result = await self._jedi_signature_help(content, file_path, line, column)
+            if jedi_result is not None:
+                return jedi_result
             return python_signature_help(content, line, column)
 
         parsed: dict[str, Any] | None = None
@@ -820,11 +847,22 @@ class RobotLanguageService(LanguageService):
             symbol = await self.store.get_symbol(str(symbol_id))
             return [symbol] if symbol else []
 
-        name = request.get("name") or request.get("symbol") or request.get("query")
-        file_path = request.get("file_path")
+        file_path = str(request.get("file_path") or "")
+        content = str(request.get("content") or "")
         line = request.get("line")
         column = request.get("column")
-        content = request.get("content")
+
+        if file_path.lower().endswith(".py") and content.strip() and line is not None:
+            jedi_hits = await self._jedi_definitions(
+                content,
+                file_path,
+                int(line),
+                int(column or 1),
+            )
+            if jedi_hits:
+                return jedi_hits
+
+        name = request.get("name") or request.get("symbol") or request.get("query")
 
         # Prefer RF cell under cursor when content is available.
         if content and line:
@@ -863,6 +901,72 @@ class RobotLanguageService(LanguageService):
         # Analysis Engine fallback — semantic graph keyword entities.
         analysis_hits = await self._definitions_from_analysis(str(name))
         return analysis_hits
+
+    async def _jedi_hover(
+        self,
+        content: str,
+        file_path: str,
+        line: int,
+        column: int,
+    ) -> dict | None:
+        try:
+            return await run_blocking(
+                jedi_hover,
+                content,
+                file_path,
+                line,
+                column,
+                self._python_executable(),
+                self._project_root(),
+            )
+        except RobotParsingError:
+            return None
+        except Exception:  # noqa: BLE001
+            return None
+
+    async def _jedi_signature_help(
+        self,
+        content: str,
+        file_path: str,
+        line: int,
+        column: int,
+    ) -> dict | None:
+        try:
+            return await run_blocking(
+                jedi_signature_help,
+                content,
+                file_path,
+                line,
+                column,
+                self._python_executable(),
+                self._project_root(),
+            )
+        except RobotParsingError:
+            return None
+        except Exception:  # noqa: BLE001
+            return None
+
+    async def _jedi_definitions(
+        self,
+        content: str,
+        file_path: str,
+        line: int,
+        column: int,
+    ) -> list[dict]:
+        try:
+            return await run_blocking(
+                jedi_definitions,
+                content,
+                file_path,
+                line,
+                column,
+                self._python_executable(),
+                self._project_root(),
+            )
+        except RobotParsingError:
+            return []
+        except Exception:  # noqa: BLE001
+            return []
 
     async def _live_keyword_fields(
         self,
