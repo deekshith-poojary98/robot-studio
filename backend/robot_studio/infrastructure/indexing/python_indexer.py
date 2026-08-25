@@ -68,11 +68,48 @@ class PythonLibraryIndexer:
         for node in tree.body:
             if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
                 if self._looks_like_keyword(node):
-                    symbols.append(self._keyword_symbol(path, node, workspace_id, project_id, mtime))
+                    symbols.append(
+                        self._keyword_symbol(path, node, workspace_id, project_id, mtime),
+                    )
+                    symbols.append(
+                        self._python_def_symbol(
+                            path,
+                            node,
+                            workspace_id,
+                            project_id,
+                            mtime,
+                        ),
+                    )
+            elif isinstance(node, ast.AsyncFunctionDef) and not node.name.startswith("_"):
+                symbols.append(
+                    self._python_def_symbol(
+                        path,
+                        node,
+                        workspace_id,
+                        project_id,
+                        mtime,
+                    ),
+                )
             elif isinstance(node, ast.ClassDef):
+                symbols.append(
+                    IndexedSymbol(
+                        id=_sid(SymbolKind.LIBRARY.value, path, node.name, node.lineno),
+                        name=node.name,
+                        kind=SymbolKind.LIBRARY.value,
+                        file_path=path,
+                        line=node.lineno,
+                        project_id=project_id,
+                        workspace_id=workspace_id,
+                        documentation=ast.get_docstring(node) or "",
+                        detail="class",
+                        last_modified=mtime,
+                    ),
+                )
                 for item in node.body:
-                    if isinstance(item, ast.FunctionDef) and not item.name.startswith("_"):
-                        if self._looks_like_keyword(item):
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and not item.name.startswith(
+                        "_",
+                    ):
+                        if isinstance(item, ast.FunctionDef) and self._looks_like_keyword(item):
                             symbols.append(
                                 self._keyword_symbol(
                                     path,
@@ -83,6 +120,33 @@ class PythonLibraryIndexer:
                                     library=node.name,
                                 ),
                             )
+                        symbols.append(
+                            self._python_def_symbol(
+                                path,
+                                item,
+                                workspace_id,
+                                project_id,
+                                mtime,
+                                library=node.name,
+                            ),
+                        )
+            elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+                for name in self._assignment_names(node):
+                    if name.startswith("_"):
+                        continue
+                    symbols.append(
+                        IndexedSymbol(
+                            id=_sid(SymbolKind.VARIABLE.value, path, name, getattr(node, "lineno", 1)),
+                            name=name,
+                            kind=SymbolKind.VARIABLE.value,
+                            file_path=path,
+                            line=int(getattr(node, "lineno", 1) or 1),
+                            project_id=project_id,
+                            workspace_id=workspace_id,
+                            detail="python",
+                            last_modified=mtime,
+                        ),
+                    )
         return symbols
 
     def _keyword_symbol(
@@ -109,6 +173,56 @@ class PythonLibraryIndexer:
             detail=", ".join(args) if args else (library or "python"),
             last_modified=mtime,
         )
+
+    def _python_def_symbol(
+        self,
+        path: Path,
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+        workspace_id: UUID | None,
+        project_id: UUID | None,
+        mtime: float,
+        *,
+        library: str | None = None,
+    ) -> IndexedSymbol:
+        """Snake_case name for Python editor completions (RF uses spaced form)."""
+        args = [arg.arg for arg in node.args.args if arg.arg not in {"self", "cls"}]
+        doc = ast.get_docstring(node) or ""
+        detail = ", ".join(args) if args else "python"
+        if library:
+            detail = f"{library}.{node.name}"
+        return IndexedSymbol(
+            id=_sid(SymbolKind.KEYWORD.value, path, f"py:{node.name}", node.lineno),
+            name=node.name,
+            kind=SymbolKind.KEYWORD.value,
+            file_path=path,
+            line=node.lineno,
+            project_id=project_id,
+            workspace_id=workspace_id,
+            documentation=doc,
+            detail=detail,
+            last_modified=mtime,
+        )
+
+    @staticmethod
+    def _assignment_names(stmt: ast.stmt) -> list[str]:
+        names: list[str] = []
+        if isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                names.extend(PythonLibraryIndexer._names_from_target(target))
+        elif isinstance(stmt, ast.AnnAssign) and stmt.target is not None:
+            names.extend(PythonLibraryIndexer._names_from_target(stmt.target))
+        return names
+
+    @staticmethod
+    def _names_from_target(target: ast.expr) -> list[str]:
+        if isinstance(target, ast.Name):
+            return [target.id]
+        if isinstance(target, (ast.Tuple, ast.List)):
+            out: list[str] = []
+            for elt in target.elts:
+                out.extend(PythonLibraryIndexer._names_from_target(elt))
+            return out
+        return []
 
     @staticmethod
     def _looks_like_keyword(node: ast.FunctionDef) -> bool:

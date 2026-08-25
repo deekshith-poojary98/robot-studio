@@ -167,16 +167,34 @@ class EditorShellController {
 
     if (isPython) {
       try {
-        documentAnalysis = await gateway.analyzeDocument(
-          filePath: tab.path,
-          content: tab.content,
-        );
+        final token =
+            extractWordAtCursor(tab.content, cursorLine, cursorColumn) ?? '';
+        final results = await Future.wait([
+          gateway.languageCompletion(
+            filePath: tab.path,
+            line: cursorLine,
+            column: cursorColumn,
+            content: tab.content,
+            query: token,
+          ),
+          gateway.languageSignatureHelp(
+            filePath: tab.path,
+            line: cursorLine,
+            column: cursorColumn,
+            content: tab.content,
+          ),
+          gateway.analyzeDocument(
+            filePath: tab.path,
+            content: tab.content,
+          ),
+        ]);
+        if (!isMounted()) return;
+        completionItems = results[0] as List<CompletionItemInfo>;
+        hoverTooltip = results[1] as SignatureHelpInfo?;
+        documentAnalysis = results[2] as DocumentAnalysisInfo;
         documentOutline = documentAnalysis!.flattenIndexed();
         syncActiveSymbol(cursorLine);
-        if (!isMounted()) return;
-        completionItems = [];
         diagnostics = [];
-        hoverTooltip = null;
         loadingLanguageFeatures = false;
         notify();
       } catch (error) {
@@ -184,7 +202,7 @@ class EditorShellController {
         loadingLanguageFeatures = false;
         notify();
         AppLogger.debug(
-          'Python outline refresh failed',
+          'Python language refresh failed',
           tag: 'Shell',
           data: '$error',
         );

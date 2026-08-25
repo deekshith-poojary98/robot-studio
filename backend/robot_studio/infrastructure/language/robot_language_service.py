@@ -50,6 +50,14 @@ from robot_studio.infrastructure.language.completion import (
     VariableCompletionProvider,
     resolve_keyword_via_pipeline,
 )
+from robot_studio.infrastructure.language.completion.python_provider import (
+    PythonBufferCompletionProvider,
+    PythonIndexCompletionProvider,
+)
+from robot_studio.infrastructure.language.python_language import (
+    python_completion_context,
+    python_signature_help,
+)
 from robot_studio.infrastructure.language.keyword_helpers import (
     active_parameter_index,
     parameters_from_detail_string,
@@ -303,6 +311,8 @@ class RobotLanguageService(LanguageService):
         catalog = self.library_catalog()
         self._completion_pipeline = CompletionPipeline(
             providers=[
+                PythonBufferCompletionProvider(),
+                PythonIndexCompletionProvider(search_symbols=search_symbols),
                 NamedArgumentCompletionProvider(
                     resolve_keyword=resolve_keyword_via_pipeline(signature_pipeline),
                 ),
@@ -346,8 +356,11 @@ class RobotLanguageService(LanguageService):
         content = str(request.get("content") or "")
         query = str(request.get("query") or request.get("prefix") or "")
 
+        is_python = file_path.lower().endswith(".py")
         ctx_raw: dict[str, Any] = {"prefix": query, "context": "keyword", "section": ""}
-        if content and file_path:
+        if is_python and content:
+            ctx_raw = python_completion_context(content, line, column)
+        elif content and file_path:
             try:
                 ctx_raw = await self.parsing.run(
                     self._python_executable(),
@@ -361,12 +374,13 @@ class RobotLanguageService(LanguageService):
                 pass
 
         prefix = str(ctx_raw.get("prefix") or query).strip()
-        context = str(ctx_raw.get("context") or "keyword")
+        context = str(ctx_raw.get("context") or ("python" if is_python else "keyword"))
         section = str(ctx_raw.get("section") or "")
         keyword = str(ctx_raw.get("keyword") or "")
         arguments = tuple(str(a) for a in (ctx_raw.get("arguments") or []))
         active_parameter = int(ctx_raw.get("active_parameter") or 0)
         current_argument = str(ctx_raw.get("current_argument") or "")
+        attribute_base = str(ctx_raw.get("attribute_base") or "")
         project_id = None
         if self.context.project is not None:
             project_id = str(self.context.project.id)
@@ -384,6 +398,7 @@ class RobotLanguageService(LanguageService):
             arguments=arguments,
             active_parameter=active_parameter,
             current_argument=current_argument,
+            attribute_base=attribute_base,
         )
         ranked = await self._ensure_completion_pipeline().complete(
             request_ctx,
@@ -582,6 +597,9 @@ class RobotLanguageService(LanguageService):
         content = str(request.get("content") or "")
         if not content:
             return None
+
+        if file_path.lower().endswith(".py"):
+            return python_signature_help(content, line, column)
 
         parsed: dict[str, Any] | None = None
         try:

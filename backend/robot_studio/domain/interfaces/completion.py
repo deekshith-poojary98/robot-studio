@@ -23,6 +23,8 @@ class CompletionRequestContext:
     arguments: tuple[str, ...] = ()
     active_parameter: int = 0
     current_argument: str = ""
+    # Python attribute completion: base name before ``.`` (e.g. ``self``).
+    attribute_base: str = ""
 
 
 @dataclass
