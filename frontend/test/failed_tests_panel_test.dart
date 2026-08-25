@@ -57,6 +57,23 @@ void main() {
       'NO TESTS',
     );
     expect(
+      ExecutionInfo(
+        id: 'run',
+        workspaceId: 'ws',
+        projectId: 'p1',
+        environmentId: 'e1',
+        projectName: 'Demo',
+        suite: 'suite.robot',
+        status: ExecutionStatus.failed,
+        startedAt: DateTime.utc(2026, 7, 19),
+        exitCode: 1,
+        totalTests: 0,
+        passed: 0,
+        failed: null,
+      ).resultBadge,
+      'NO TESTS',
+    );
+    expect(
       run(status: ExecutionStatus.failed, exitCode: 255, failed: 0).resultBadge,
       'ERROR',
       reason: 'Robot framework crash is ERROR, not a test FAIL',

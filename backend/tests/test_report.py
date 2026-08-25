@@ -277,6 +277,28 @@ async def test_dashboard_does_not_treat_empty_selection_as_failure(report_stack)
     assert summary.recent_failures == []
     assert summary.pass_rate is None
 
+
+@pytest.mark.asyncio
+async def test_dashboard_empty_with_missing_failed_stats_is_not_fail(report_stack) -> None:
+    """Exit 1..250 with zero tests must not be treated as FAIL (Insights/Reports)."""
+    service, repository, _store, workspace, _bus = report_stack
+    empty = _run(
+        workspace,
+        status=ExecutionStatus.FAILED,
+        exit_code=1,
+        failed=None,
+        passed=None,
+        duration_ms=200,
+    )
+    # total_tests defaults via _run — ensure zero-exec path
+    empty = empty.model_copy(update={"total_tests": 0, "passed": 0, "failed": None})
+    await repository.create(empty)
+
+    summary = await service.dashboard()
+    assert empty.result_badge() == "NO TESTS"
+    assert summary.pass_rate is None
+    assert summary.recent_failures == []
+
     crash = _run(
         workspace,
         status=ExecutionStatus.FAILED,

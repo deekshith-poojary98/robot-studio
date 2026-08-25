@@ -150,8 +150,8 @@ class ExecutionInfo {
     if (status == ExecutionStatus.aborted) return 'ABORTED';
     if ((failed ?? 0) > 0) return 'FAIL';
     final code = exitCode ?? 0;
-    if (failed == null && code >= 1 && code <= 250) return 'FAIL';
     if (code == 252) return 'NO TESTS';
+    // Empty suites before the exit-code FAIL heuristic (see backend result_badge).
     final emptySelection =
         (status == ExecutionStatus.finished ||
             status == ExecutionStatus.failed) &&
@@ -160,6 +160,7 @@ class ExecutionInfo {
         (failed ?? 0) == 0 &&
         code != 255;
     if (emptySelection) return 'NO TESTS';
+    if (failed == null && code >= 1 && code <= 250) return 'FAIL';
     if (code == 0) {
       if (status == ExecutionStatus.finished) return 'PASS';
       return status.label.toUpperCase();

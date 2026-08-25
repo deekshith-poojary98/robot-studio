@@ -19,7 +19,7 @@ Once you have executed suites, the left panel (top on a narrow window) is the pr
 
 | Label | What you are seeing |
 |-------|---------------------|
-| **Pass rate** | Share of finished runs that passed overall. Empty suites (**NO TESTS**) and framework crashes (**ERROR**) are left out of this rate. |
+| **Pass rate** | Share of **PASS** vs **FAIL** runs. Empty suites (**NO TESTS**), framework crashes (**ERROR**), cancelled, and aborted runs are left out of this rate. |
 | **Runs** | How many runs Insights is counting from history (same store as [Reports](/workflows/reports/)). |
 | **Failed** | How many of those runs failed. Tap to open the last failed run in Reports. |
 | **Avg duration** | Average wall time of runs that recorded a duration. |

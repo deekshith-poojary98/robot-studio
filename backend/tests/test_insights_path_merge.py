@@ -196,3 +196,38 @@ def test_aggregate_fans_out_project_run_from_file_outcomes(
     by_path = {item.file_path: item for item in files}
     assert by_path[a].runs == 1 and by_path[a].passed == 1 and by_path[a].failed == 0
     assert by_path[b].runs == 1 and by_path[b].passed == 0 and by_path[b].failed == 1
+
+
+def test_aggregate_excludes_empty_runs_from_pass_rate() -> None:
+    suite = "/proj/tests/demo.robot"
+    runs = [
+        _run(suite=suite, failed=0, minutes_ago=2),
+        ExecutionRun(
+            id=uuid4(),
+            workspace_id=uuid4(),
+            project_id=uuid4(),
+            environment_id=uuid4(),
+            project_name="Demo",
+            suite=suite,
+            status=ExecutionStatus.FAILED,
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+            duration_ms=100,
+            exit_code=1,
+            passed=0,
+            failed=None,
+            total_tests=0,
+            skipped=0,
+        ),
+    ]
+    totals, recent, files = _aggregate_runs(
+        runs,
+        recent_limit=10,
+        composition_files=[FileComposition(file_path=suite, counts={"test_case": 1})],
+    )
+    assert totals.passed == 1
+    assert totals.failed == 0
+    assert totals.pass_rate == 100.0
+    assert recent[1].outcome == "NO TESTS"
+    assert files[0].runs == 1
+    assert files[0].passed == 1

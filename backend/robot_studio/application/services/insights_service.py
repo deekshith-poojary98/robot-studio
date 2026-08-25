@@ -96,6 +96,9 @@ def _credit_file_bucket(
     run: ExecutionRun,
     outcome: str,
 ) -> None:
+    # NO TESTS / ERROR are history noise for per-file health — skip them.
+    if outcome not in {"PASS", "FAIL", "CANCELLED", "ABORTED"}:
+        return
     bucket["runs"] += 1
     if outcome == "PASS":
         bucket["passed"] += 1
@@ -317,9 +320,15 @@ def _aggregate_runs(
             cancelled += 1
         elif outcome == "ABORTED":
             aborted += 1
+        # NO TESTS / ERROR: keep in recent history, but do not score pass rate.
 
         skipped_tests += int(run.skipped or 0)
-        if run.duration_ms is not None:
+        if run.duration_ms is not None and outcome in {
+            "PASS",
+            "FAIL",
+            "CANCELLED",
+            "ABORTED",
+        }:
             durations.append(int(run.duration_ms))
 
         if len(recent) < recent_limit:
@@ -383,10 +392,12 @@ def _aggregate_runs(
             outcome = _run_outcome(run)
             _credit_file_bucket(only_bucket, run=run, outcome=outcome)
 
-    counted = passed + failed + cancelled + aborted
-    pass_rate = (passed / counted * 100.0) if counted else None
+    # Pass rate matches Reports: only PASS vs FAIL. Empty (NO TESTS), ERROR,
+    # cancelled, and aborted runs are excluded from the rate.
+    scored = passed + failed
+    counted = scored + cancelled + aborted
+    pass_rate = (passed / scored * 100.0) if scored else None
     avg_duration = (sum(durations) / len(durations)) if durations else None
-
     file_stats = [
         FileRunStats(
             file_path=path,

@@ -146,7 +146,7 @@ async def test_insights_composition_and_run_aggregates(api_client) -> None:
     assert runs["cancelled"] == 1
     assert runs["aborted"] == 1
     assert runs["skipped_tests"] == 1
-    assert runs["pass_rate"] == 25.0
+    assert runs["pass_rate"] == 50.0
 
     assert len(body["recent_runs"]) == 4
     assert body["run_files"][0]["runs"] == 4

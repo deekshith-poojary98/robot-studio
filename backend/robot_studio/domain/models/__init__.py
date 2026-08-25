@@ -186,10 +186,11 @@ class ExecutionRun(BaseModel):
         if (self.failed or 0) > 0:
             return "FAIL"
         code = self.exit_code or 0
-        if self.failed is None and 1 <= code <= 250:
-            return "FAIL"
         if code == 252:
             return "NO TESTS"
+        # Empty selection / suite with nothing executed — before the
+        # ``failed is None`` exit-code heuristic, which would otherwise mark
+        # exit 1..250 with missing stats as FAIL and tank Insights pass rate.
         empty = (
             self.status in {ExecutionStatus.FINISHED, ExecutionStatus.FAILED}
             and (self.total_tests or 0) == 0
@@ -199,6 +200,8 @@ class ExecutionRun(BaseModel):
         )
         if empty:
             return "NO TESTS"
+        if self.failed is None and 1 <= code <= 250:
+            return "FAIL"
         if code == 0:
             if self.status == ExecutionStatus.FINISHED:
                 return "PASS"
