@@ -598,9 +598,7 @@ class _TreeNode extends StatelessWidget {
                 Icon(
                   _iconForKind(node.kind),
                   size: 13,
-                  color: selected
-                      ? context.palette.accent
-                      : context.palette.textSecondary,
+                  color: _colorForKind(context, node.kind),
                 ),
                 const SizedBox(width: 5),
                 Expanded(
@@ -637,23 +635,48 @@ class _TreeNode extends StatelessWidget {
       ],
     );
   }
+}
 
-  IconData _iconForKind(SymbolKind kind) {
-    return switch (kind) {
-      SymbolKind.keyword => Icons.vpn_key_outlined,
-      SymbolKind.variable => Icons.data_object,
-      SymbolKind.testCase => Icons.science_outlined,
-      SymbolKind.testSuite => Icons.description_outlined,
-      SymbolKind.library => Icons.library_books_outlined,
-      SymbolKind.resource => Icons.link,
-      SymbolKind.setting => Icons.settings_outlined,
-      SymbolKind.tag => Icons.sell_outlined,
-      SymbolKind.section => Icons.folder_outlined,
-      SymbolKind.keywordCall => Icons.play_arrow_outlined,
-      SymbolKind.control => Icons.code,
-      _ => Icons.circle_outlined,
-    };
-  }
+IconData _iconForKind(SymbolKind kind) {
+  return switch (kind) {
+    SymbolKind.keyword => Icons.vpn_key_outlined,
+    SymbolKind.variable => Icons.data_object,
+    SymbolKind.testCase => Icons.science_outlined,
+    SymbolKind.testSuite => Icons.description_outlined,
+    SymbolKind.library => Icons.library_books_outlined,
+    SymbolKind.resource => Icons.link,
+    SymbolKind.setting => Icons.settings_outlined,
+    SymbolKind.tag => Icons.sell_outlined,
+    SymbolKind.section => Icons.folder_outlined,
+    SymbolKind.keywordCall => Icons.play_arrow_outlined,
+    SymbolKind.control => Icons.code,
+    SymbolKind.classKind => Icons.account_tree_outlined,
+    SymbolKind.function => Icons.functions,
+    SymbolKind.method => Icons.polyline_outlined,
+    SymbolKind.file => Icons.insert_drive_file_outlined,
+    SymbolKind.documentation => Icons.notes_outlined,
+  };
+}
+
+/// Kind tint from theme tokens (aligned with editor syntax hues).
+Color _colorForKind(BuildContext context, SymbolKind kind) {
+  final p = context.palette;
+  return switch (kind) {
+    SymbolKind.keyword ||
+    SymbolKind.keywordCall ||
+    SymbolKind.function ||
+    SymbolKind.method ||
+    SymbolKind.library => p.info,
+    SymbolKind.testCase => p.success,
+    SymbolKind.variable || SymbolKind.tag || SymbolKind.classKind => p.warning,
+    SymbolKind.testSuite ||
+    SymbolKind.resource ||
+    SymbolKind.section => p.accent,
+    SymbolKind.setting ||
+    SymbolKind.documentation ||
+    SymbolKind.file => p.textSecondary,
+    SymbolKind.control => p.accentMuted,
+  };
 }
 
 class _FlatRow extends StatelessWidget {
@@ -684,11 +707,9 @@ class _FlatRow extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              Icons.circle_outlined,
+              _iconForKind(symbol.kind),
               size: 14,
-              color: selected
-                  ? context.palette.accent
-                  : context.palette.textSecondary,
+              color: _colorForKind(context, symbol.kind),
             ),
             const SizedBox(width: 6),
             Expanded(

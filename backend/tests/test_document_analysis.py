@@ -123,3 +123,43 @@ def test_document_symbol_filter() -> None:
     names = [n.name for n in filtered.flatten()]
     assert "Login" in names
     assert "Login Works" in names
+
+
+def test_python_document_symbol_tree_classes_and_functions() -> None:
+    source = '''\
+"""Module doc."""
+VERSION = "1"
+_HIDDEN = 1
+
+def helper(x):
+    def nested():
+        return x
+    return nested
+
+class Client:
+    def __init__(self):
+        self.ready = True
+
+    async def fetch(self):
+        return 1
+'''
+    tree = document_symbol_tree(source, "lib/client.py")
+    root = tree["root"]
+    assert root["kind"] == "file"
+    by_name = {child["name"]: child for child in root["children"]}
+    assert "VERSION" in by_name and by_name["VERSION"]["kind"] == "variable"
+    assert "_HIDDEN" not in by_name
+    assert by_name["helper"]["kind"] == "function"
+    nested = {c["name"]: c for c in by_name["helper"]["children"]}
+    assert "nested" in nested and nested["nested"]["kind"] == "function"
+    assert by_name["Client"]["kind"] == "class"
+    methods = {c["name"]: c for c in by_name["Client"]["children"]}
+    assert methods["__init__"]["kind"] == "method"
+    assert methods["fetch"]["kind"] == "method"
+    assert "async" in methods["fetch"]["detail"]
+
+
+def test_python_document_symbol_tree_syntax_error_still_has_root() -> None:
+    tree = document_symbol_tree("def broken(\n", "broken.py")
+    assert tree["root"]["kind"] == "file"
+    assert tree["root"]["children"] == []

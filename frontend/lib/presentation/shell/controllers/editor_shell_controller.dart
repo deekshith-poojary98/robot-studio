@@ -155,12 +155,40 @@ class EditorShellController {
     if (tab == null || workspace() == null) return;
     final isRobot =
         tab.path.endsWith('.robot') || tab.path.endsWith('.resource');
-    if (!isRobot) {
+    final isPython = tab.path.endsWith('.py');
+    if (!isRobot && !isPython) {
       if (!isMounted()) return;
       completionItems = [];
       diagnostics = [];
       hoverTooltip = null;
       notify();
+      return;
+    }
+
+    if (isPython) {
+      try {
+        documentAnalysis = await gateway.analyzeDocument(
+          filePath: tab.path,
+          content: tab.content,
+        );
+        documentOutline = documentAnalysis!.flattenIndexed();
+        syncActiveSymbol(cursorLine);
+        if (!isMounted()) return;
+        completionItems = [];
+        diagnostics = [];
+        hoverTooltip = null;
+        loadingLanguageFeatures = false;
+        notify();
+      } catch (error) {
+        if (!isMounted()) return;
+        loadingLanguageFeatures = false;
+        notify();
+        AppLogger.debug(
+          'Python outline refresh failed',
+          tag: 'Shell',
+          data: '$error',
+        );
+      }
       return;
     }
 

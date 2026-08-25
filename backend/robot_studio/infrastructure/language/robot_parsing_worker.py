@@ -525,8 +525,15 @@ def _settings_child(item: Any) -> dict[str, Any] | None:
 def document_symbol_tree(content: str, file_path: str) -> dict[str, Any]:
     """Build a nested DocumentSymbolTree payload for document intelligence."""
     path = file_path or "file.robot"
-    model = _get_model(content)
     suffix = Path(path).suffix.lower()
+    if suffix == ".py":
+        from robot_studio.infrastructure.language.python_document_symbols import (
+            python_document_symbol_tree,
+        )
+
+        return python_document_symbol_tree(content, path)
+
+    model = _get_model(content)
     stem = Path(path).stem
     root_kind = "resource" if suffix == ".resource" else "test_suite"
     root_name = stem or Path(path).name
