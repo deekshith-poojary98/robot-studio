@@ -15,10 +15,10 @@ enum DiagnosticSeverity {
   }
 
   String get apiValue => switch (this) {
-        DiagnosticSeverity.error => 'error',
-        DiagnosticSeverity.warning => 'warning',
-        DiagnosticSeverity.information => 'information',
-      };
+    DiagnosticSeverity.error => 'error',
+    DiagnosticSeverity.warning => 'warning',
+    DiagnosticSeverity.information => 'information',
+  };
 }
 
 class CompletionItemInfo {
@@ -64,7 +64,9 @@ class DiagnosticInfo {
 
   factory DiagnosticInfo.fromJson(Map<String, dynamic> json) {
     return DiagnosticInfo(
-      severity: DiagnosticSeverity.fromApi(json['severity'] as String? ?? 'error'),
+      severity: DiagnosticSeverity.fromApi(
+        json['severity'] as String? ?? 'error',
+      ),
       filePath: json['file_path'] as String? ?? '',
       line: (json['line'] as num?)?.toInt() ?? 1,
       column: (json['column'] as num?)?.toInt() ?? 1,
@@ -154,7 +156,10 @@ class SignatureHelpInfo {
       detail: json['detail'] as String? ?? '',
       activeParameter: (json['active_parameter'] as num?)?.toInt() ?? 0,
       parameters: (json['parameters'] as List<dynamic>? ?? [])
-          .map((item) => SignatureParameterInfo.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) =>
+                SignatureParameterInfo.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       sourceType: json['source_type'] as String? ?? '',
       libraryName: json['library_name'] as String? ?? '',
@@ -193,11 +198,7 @@ class EditorBreadcrumbInfo {
 }
 
 class BreadcrumbSegment {
-  const BreadcrumbSegment({
-    required this.label,
-    this.path,
-    this.line,
-  });
+  const BreadcrumbSegment({required this.label, this.path, this.line});
 
   final String label;
   final String? path;
@@ -205,10 +206,7 @@ class BreadcrumbSegment {
 }
 
 class FoldingRangeInfo {
-  const FoldingRangeInfo({
-    required this.startLine,
-    required this.endLine,
-  });
+  const FoldingRangeInfo({required this.startLine, required this.endLine});
 
   factory FoldingRangeInfo.fromJson(Map<String, dynamic> json) {
     return FoldingRangeInfo(
@@ -299,6 +297,7 @@ class DocumentSymbolNode {
       kind: kind,
       filePath: filePath,
       line: line,
+      column: column,
       documentation: documentation,
       detail: detail,
     );

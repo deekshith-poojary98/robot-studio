@@ -37,6 +37,7 @@ class EditorPage extends StatefulWidget {
     required this.onCursorChanged,
     this.jumpToLine,
     this.jumpToColumn,
+    this.onJumpApplied,
     this.onCompletionAccepted,
     this.foldingRanges = const [],
     this.fontSize = 13,
@@ -72,6 +73,7 @@ class EditorPage extends StatefulWidget {
   final void Function(int line, int column) onCursorChanged;
   final int? jumpToLine;
   final int? jumpToColumn;
+  final VoidCallback? onJumpApplied;
   final ValueChanged<CompletionItemInfo>? onCompletionAccepted;
   final List<FoldingRangeInfo> foldingRanges;
   final double fontSize;
@@ -178,6 +180,7 @@ class EditorPageState extends State<EditorPage> {
                           wordWrap: widget.wordWrap,
                           jumpToLine: widget.jumpToLine,
                           jumpToColumn: widget.jumpToColumn,
+                          onJumpApplied: widget.onJumpApplied,
                           completionItems: widget.completionItems,
                           diagnostics: widget.diagnostics,
                           hoverTooltip: widget.hoverTooltip,

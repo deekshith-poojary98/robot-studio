@@ -17,7 +17,7 @@ The editor is tuned for Robot Framework files rather than generic plain text.
 | References | Find usages across the project (**Go → Find References**) |
 | Document symbols | Navigate within the current file (**Go → Go to Symbol in File…**) |
 | Diagnostics | Live while editing; library imports resolve via the active environment. Keywords from libraries imported by a `Resource` you import are treated as available (same as Robot Framework). Extended variable access like `${response.json()}` is accepted when `${response}` is known |
-| Outline | **Outline** pane under Explorer — Robot sections/keywords/tests, and Python classes/functions/methods |
+| Outline | **Outline** pane under Explorer — Robot sections/keywords/tests, and Python classes/functions/methods. Click an item to jump the caret and scroll it into view |
 
 ## Problems panel
 

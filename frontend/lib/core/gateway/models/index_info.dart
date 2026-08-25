@@ -39,42 +39,42 @@ enum SymbolKind {
   }
 
   String get apiValue => switch (this) {
-        SymbolKind.keyword => 'keyword',
-        SymbolKind.variable => 'variable',
-        SymbolKind.library => 'library',
-        SymbolKind.resource => 'resource',
-        SymbolKind.testSuite => 'test_suite',
-        SymbolKind.testCase => 'test_case',
-        SymbolKind.setting => 'setting',
-        SymbolKind.tag => 'tag',
-        SymbolKind.documentation => 'documentation',
-        SymbolKind.file => 'file',
-        SymbolKind.section => 'section',
-        SymbolKind.keywordCall => 'keyword_call',
-        SymbolKind.control => 'control',
-        SymbolKind.classKind => 'class',
-        SymbolKind.function => 'function',
-        SymbolKind.method => 'method',
-      };
+    SymbolKind.keyword => 'keyword',
+    SymbolKind.variable => 'variable',
+    SymbolKind.library => 'library',
+    SymbolKind.resource => 'resource',
+    SymbolKind.testSuite => 'test_suite',
+    SymbolKind.testCase => 'test_case',
+    SymbolKind.setting => 'setting',
+    SymbolKind.tag => 'tag',
+    SymbolKind.documentation => 'documentation',
+    SymbolKind.file => 'file',
+    SymbolKind.section => 'section',
+    SymbolKind.keywordCall => 'keyword_call',
+    SymbolKind.control => 'control',
+    SymbolKind.classKind => 'class',
+    SymbolKind.function => 'function',
+    SymbolKind.method => 'method',
+  };
 
   String get label => switch (this) {
-        SymbolKind.keyword => 'Keyword',
-        SymbolKind.variable => 'Variable',
-        SymbolKind.library => 'Library',
-        SymbolKind.resource => 'Resource',
-        SymbolKind.testSuite => 'Test Suite',
-        SymbolKind.testCase => 'Test Case',
-        SymbolKind.setting => 'Setting',
-        SymbolKind.tag => 'Tag',
-        SymbolKind.documentation => 'Documentation',
-        SymbolKind.file => 'File',
-        SymbolKind.section => 'Section',
-        SymbolKind.keywordCall => 'Call',
-        SymbolKind.control => 'Control',
-        SymbolKind.classKind => 'Class',
-        SymbolKind.function => 'Function',
-        SymbolKind.method => 'Method',
-      };
+    SymbolKind.keyword => 'Keyword',
+    SymbolKind.variable => 'Variable',
+    SymbolKind.library => 'Library',
+    SymbolKind.resource => 'Resource',
+    SymbolKind.testSuite => 'Test Suite',
+    SymbolKind.testCase => 'Test Case',
+    SymbolKind.setting => 'Setting',
+    SymbolKind.tag => 'Tag',
+    SymbolKind.documentation => 'Documentation',
+    SymbolKind.file => 'File',
+    SymbolKind.section => 'Section',
+    SymbolKind.keywordCall => 'Call',
+    SymbolKind.control => 'Control',
+    SymbolKind.classKind => 'Class',
+    SymbolKind.function => 'Function',
+    SymbolKind.method => 'Method',
+  };
 }
 
 class IndexedSymbolInfo {
@@ -84,6 +84,7 @@ class IndexedSymbolInfo {
     required this.kind,
     required this.filePath,
     required this.line,
+    this.column = 1,
     this.projectId,
     this.workspaceId,
     this.documentation = '',
@@ -114,6 +115,7 @@ class IndexedSymbolInfo {
       kind: SymbolKind.fromApi(json['kind'] as String),
       filePath: json['file_path'] as String,
       line: (json['line'] as num?)?.toInt() ?? 1,
+      column: (json['column'] as num?)?.toInt() ?? 1,
       projectId: json['project_id'] as String?,
       workspaceId: json['workspace_id'] as String?,
       documentation: json['documentation'] as String? ?? '',
@@ -128,6 +130,7 @@ class IndexedSymbolInfo {
   final SymbolKind kind;
   final String filePath;
   final int line;
+  final int column;
   final String? projectId;
   final String? workspaceId;
   final String documentation;

@@ -6064,6 +6064,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                   setState(() {
                                     _editor.selectedOutlineSymbol = symbol;
                                     _editor.jumpToLine = symbol.line;
+                                    _editor.jumpToColumn = symbol.column;
                                     _enterEditor();
                                   });
                                 },
@@ -6446,6 +6447,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         peekDefinition: _peekDefinition,
         jumpToLine: _jumpToLine,
         jumpToColumn: _jumpToColumn,
+        onJumpApplied: () {
+          if (_editor.jumpToLine == null && _editor.jumpToColumn == null) {
+            return;
+          }
+          setState(() {
+            _editor.jumpToLine = null;
+            _editor.jumpToColumn = null;
+          });
+        },
         foldingRanges: _editor.documentAnalysis?.foldingRanges ?? const [],
         fontSize: _settings.editor.fontSize.toDouble(),
         fontFamily: _settings.editor.fontFamily,

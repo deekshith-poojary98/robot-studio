@@ -23,7 +23,7 @@ The Robot editor is multi-tab and understands Robot Framework structure:
 - **Go to Definition** (F12 or Ctrl/Cmd+Click), with a picker when multiple matches exist
 - Find references and document symbols (**Go → Go to Symbol in File…**)
 - Live diagnostics while you type (including library imports resolved through the active environment)
-- Document **Outline** under Explorer for jumping within the file (Robot suites and Python modules)
+- Document **Outline** under Explorer for jumping within the file (Robot suites and Python modules). Click a symbol to move the caret and scroll it into view.
 - **Format Document** (`⇧⌥F` / `Shift+Alt+F`, or **Edit → Format Document**) and **Format Selection** on the current file
 
 ## Save

@@ -30,6 +30,7 @@ class RobotCodeEditor extends StatefulWidget {
     this.wordWrap = true,
     this.jumpToLine,
     this.jumpToColumn,
+    this.onJumpApplied,
     this.completionItems = const [],
     this.diagnostics = const [],
     this.hoverTooltip,
@@ -58,6 +59,10 @@ class RobotCodeEditor extends StatefulWidget {
   final bool wordWrap;
   final int? jumpToLine;
   final int? jumpToColumn;
+
+  /// Called after a jump has been applied so the parent can clear [jumpToLine]
+  /// (allows re-clicking the same Outline / Problems row).
+  final VoidCallback? onJumpApplied;
   final List<CompletionItemInfo> completionItems;
   final List<DiagnosticInfo> diagnostics;
   final SignatureHelpInfo? hoverTooltip;
@@ -303,10 +308,14 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     final row = _controller.codeLines[index];
     final maxOffset = row.length;
     final offset = ((column ?? 1) - 1).clamp(0, maxOffset);
+    final position = CodeLinePosition(index: index, offset: offset);
     _controller.selection = CodeLineSelection.collapsed(
       index: index,
       offset: offset,
     );
+    // Selection alone does not scroll — Outline / Go to Definition need this.
+    _scrollController.makeCenterIfInvisible(position);
+    widget.onJumpApplied?.call();
   }
 
   void showFind({bool replace = false}) {
