@@ -24,6 +24,7 @@ The Robot editor is multi-tab and understands Robot Framework structure:
 - Find references and document symbols (**Go → Go to Symbol in File…**)
 - Live diagnostics while you type (including library imports resolved through the active environment)
 - Document **Outline** under Explorer for jumping within the file (Robot suites and Python modules, including Python variables and class fields). Click a symbol to move the caret and scroll it into view.
+- Play control in the gutter of a `.robot` suite — click it (or **Run → Run Test at Cursor**) to run only that test instead of the whole file. See [Run, stop & re-run](/workflows/running-tests/).
 - **Format Document** (`⇧⌥F` / `Shift+Alt+F`, or **Edit → Format Document**) and **Format Selection** on the current file
 
 Python library files (`.py`, `.pyi`, `.pyw`) get the same treatment, resolved against the active environment: completions from the buffer, other project modules, the stdlib, and installed packages; **Tab** or **Enter** to accept; syntax errors plus undefined names and unused imports in **Problems**; and **Rename Symbol** in the command palette to rename across the project. See [Editor & language intelligence](/features/editor/) for the full list.

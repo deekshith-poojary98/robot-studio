@@ -6,6 +6,7 @@ import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/empty_state.dart';
 import 'editor_navigation_widgets.dart';
+import 'editor_run_gutter.dart';
 import 'editor_tabs_bar.dart';
 import 'robot_code_editor.dart';
 
@@ -40,6 +41,9 @@ class EditorPage extends StatefulWidget {
     this.onJumpApplied,
     this.onCompletionAccepted,
     this.foldingRanges = const [],
+    this.runnableTests = const [],
+    this.onRunTest,
+    this.runTestsEnabled = true,
     this.fontSize = 13,
     this.fontFamily = 'Menlo',
     this.tabWidth = 4,
@@ -76,6 +80,9 @@ class EditorPage extends StatefulWidget {
   final VoidCallback? onJumpApplied;
   final ValueChanged<CompletionItemInfo>? onCompletionAccepted;
   final List<FoldingRangeInfo> foldingRanges;
+  final List<EditorRunnableTest> runnableTests;
+  final ValueChanged<EditorRunnableTest>? onRunTest;
+  final bool runTestsEnabled;
   final double fontSize;
   final String fontFamily;
   final int tabWidth;
@@ -195,6 +202,9 @@ class EditorPageState extends State<EditorPage> {
                           onCursorChanged: widget.onCursorChanged,
                           onCompletionAccepted: widget.onCompletionAccepted,
                           foldingRanges: widget.foldingRanges,
+                          runnableTests: widget.runnableTests,
+                          onRunTest: widget.onRunTest,
+                          runTestsEnabled: widget.runTestsEnabled,
                           fontSize: widget.fontSize,
                           fontFamily: widget.fontFamily,
                           tabWidth: widget.tabWidth,

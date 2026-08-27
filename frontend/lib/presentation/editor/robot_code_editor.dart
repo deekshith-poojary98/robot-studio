@@ -13,6 +13,7 @@ import '../preferences/editor_font_families.dart';
 import 'editor_find_panel.dart';
 import 'editor_language_widgets.dart';
 import 'editor_navigation_widgets.dart';
+import 'editor_run_gutter.dart';
 import 'editor_syntax.dart';
 import 'robot_code_shortcuts.dart';
 
@@ -38,6 +39,9 @@ class RobotCodeEditor extends StatefulWidget {
     this.onClosePeek,
     this.onCompletionAccepted,
     this.foldingRanges = const [],
+    this.runnableTests = const [],
+    this.onRunTest,
+    this.runTestsEnabled = true,
     this.fontSize = 13,
     this.fontFamily = 'Menlo',
     this.tabWidth = 4,
@@ -72,6 +76,11 @@ class RobotCodeEditor extends StatefulWidget {
   /// Fired when the user accepts an autocomplete item (usage ranking).
   final ValueChanged<CompletionItemInfo>? onCompletionAccepted;
   final List<FoldingRangeInfo> foldingRanges;
+
+  /// Test Cases / Tasks in the open `.robot` file — play controls in the gutter.
+  final List<EditorRunnableTest> runnableTests;
+  final ValueChanged<EditorRunnableTest>? onRunTest;
+  final bool runTestsEnabled;
   final double fontSize;
   final String fontFamily;
   final int tabWidth;
@@ -97,11 +106,7 @@ class _AutocompletePopup {
 /// card must not cover. [lineTop] comes from the editor's laid-out glyphs so
 /// word wrap and folded chunks do not shift the card off the caret.
 class _RowAnchor {
-  const _RowAnchor({
-    required this.offset,
-    this.lineTop,
-    this.lineHeight,
-  });
+  const _RowAnchor({required this.offset, this.lineTop, this.lineHeight});
 
   final Offset offset;
   final double? lineTop;
@@ -170,7 +175,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
   double get _gutterWidth {
     final digits = math.max(3, _controller.lineCount.toString().length);
-    return digits * _charWidth + 16 + _chunkWidth;
+    final run = widget.runnableTests.isEmpty ? 0.0 : editorRunGutterWidth;
+    return digits * _charWidth + 16 + _chunkWidth + run;
   }
 
   @override
@@ -701,6 +707,13 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
             _indicator = notifier;
             return Row(
               children: [
+                if (widget.runnableTests.isNotEmpty)
+                  RobotTestRunGutter(
+                    notifier: notifier,
+                    tests: widget.runnableTests,
+                    onRun: widget.onRunTest,
+                    enabled: widget.runTestsEnabled,
+                  ),
                 DefaultCodeLineNumber(
                   controller: editingController,
                   notifier: notifier,

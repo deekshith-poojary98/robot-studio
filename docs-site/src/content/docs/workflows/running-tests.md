@@ -7,10 +7,13 @@ description: How test execution works — toolbar runs, Tests tree, confirmation
 
 | Action | Typical use |
 |--------|-------------|
+| **Play** (gutter left of a test name) / **Run → Run Test at Cursor** | Only the test (or task) that owns that line — no extra run configuration |
 | **Run** (toolbar) / **Run → Run File** (`F5`) | Current open `.robot` suite in the editor — not a text selection |
 | **Project** (toolbar) / **Run → Run Project** | Entire project |
 | **Tests** (activity bar) | One test, one suite, all, current file, or failed |
 | **Re-run Test** | A single failure from the last run (**Failed Tests**) |
+
+Play controls appear on `.robot` suites after the outline is ready. They use the same run configuration as toolbar **Run**. While a run is in progress the buttons stay disabled. `.resource` files and Python modules do not get play controls — use the Tests tree for those workflows.
 
 ## Run configurations
 
@@ -21,7 +24,7 @@ The toolbar selector immediately before **Run / Project / Stop** chooses a **run
 | **Default** | No extra tags, variables, or environment pin. Uses the active toolbar environment. |
 | **Smoke - Staging** (example) | Applies that configuration’s include/exclude tags, variables, variable files, and optional environment pin |
 
-**Run** and **Project** keep their usual meaning (current file vs whole project). The selector only supplies execution context. Tests-tree **Run**, **Run Failed**, and **Re-run Test** use the same selected configuration.
+**Run** and **Project** keep their usual meaning (current file vs whole project). The selector only supplies execution context. Tests-tree **Run**, **Run Failed**, **Re-run Test**, and the editor gutter play control use the same selected configuration.
 
 Selecting a configuration does **not** change the toolbar environment. Packages, Libraries, and language intelligence stay on the active environment. A configuration may pin an environment for **that run only**; the environment actually used is recorded on the run in Reports.
 

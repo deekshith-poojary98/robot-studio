@@ -52,13 +52,25 @@ class IndexStore(ABC):
     ) -> list[dict]: ...
 
     @abstractmethod
-    async def find_references(self, symbol_id: str) -> list[dict]: ...
+    async def find_references(
+        self,
+        symbol_id: str,
+        *,
+        workspace_id: UUID | None = None,
+    ) -> list[dict]: ...
 
     @abstractmethod
     async def get_symbol(self, symbol_id: str) -> dict | None: ...
 
     @abstractmethod
-    async def find_definition(self, name: str, *, kind: SymbolKind | None = None) -> dict | None: ...
+    async def find_definition(
+        self,
+        name: str,
+        *,
+        kind: SymbolKind | None = None,
+        workspace_id: UUID | None = None,
+        project_id: UUID | None = None,
+    ) -> dict | None: ...
 
     @abstractmethod
     async def symbols_for_file(self, file_path: Path) -> list[dict]: ...

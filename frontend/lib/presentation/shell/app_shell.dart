@@ -24,6 +24,7 @@ import '../environment/environment_manager_page.dart';
 import '../environment/import_environment_dialog.dart';
 import '../environment/python_install_guidance.dart';
 import '../editor/editor_page.dart';
+import '../editor/editor_run_gutter.dart';
 import '../editor/editor_tabs_bar.dart';
 import '../execution/execution_page.dart';
 import '../execution/run_target.dart';
@@ -3296,7 +3297,77 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _handleRunSingleTest({
+    required String file,
+    required String name,
+  }) async {
+    if (!await _ensureProject(
+      message: 'Open a project before running tests.',
+    )) {
+      return;
+    }
+    if (!await _ensureRobotReady()) {
+      return;
+    }
+    await _maybeSaveBeforeRun();
+    if (!mounted) return;
+    setState(() {
+      _revealExecutionCenter();
+    });
+    await _connectExecutionStream();
+    try {
+      final run = await _gateway.runTest(
+        file: file,
+        name: name,
+        configurationId: _activeRunConfigurationId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _execution.executionStatus = run.status;
+        _execution.currentExecution = run;
+      });
+      _startElapsedTimer();
+    } catch (error) {
+      if (!mounted) return;
+      _appendLog('[error] Test run failed: $error');
+      await _handleExecutionError(error);
+    }
+  }
+
+  Future<void> _handleRunTestAtCursor() async {
+    final path = _activeEditorPath;
+    if (path == null || !path.toLowerCase().endsWith('.robot')) {
+      if (!mounted) return;
+      setState(() {
+        _editor.setStatusMessage(
+          'Open a .robot suite and place the caret in a test case.',
+        );
+      });
+      return;
+    }
+    final tests = runnableTestsFromOutline(
+      _editor.documentAnalysis?.root,
+      filePath: path,
+    );
+    final hit = enclosingRunnableTest(tests, _cursorLine);
+    if (hit == null) {
+      if (!mounted) return;
+      setState(() {
+        _editor.setStatusMessage(
+          'Place the caret in a test case to run only that test.',
+        );
+      });
+      return;
+    }
+    await _handleRunSingleTest(file: path, name: hit.name);
+  }
+
   Future<void> _handleRunTestNode(TestNodeInfo node) async {
+    if (node.kind == 'test' || node.kind == 'task') {
+      if (node.path == null || node.path!.isEmpty) return;
+      await _handleRunSingleTest(file: node.path!, name: node.name);
+      return;
+    }
     if (!await _ensureProject(
       message: 'Open a project before running tests.',
     )) {
@@ -3311,13 +3382,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     await _connectExecutionStream();
     try {
       final ExecutionInfo? run;
-      if (node.kind == 'test' || node.kind == 'task') {
-        run = await _gateway.runTest(
-          file: node.path!,
-          name: node.name,
-          configurationId: _activeRunConfigurationId,
-        );
-      } else if (node.kind == 'suite') {
+      if (node.kind == 'suite') {
         run = await _gateway.runTestSuite(
           file: node.path,
           configurationId: _activeRunConfigurationId,
@@ -4310,8 +4375,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () =>
-                Navigator.of(context).pop(controller.text.trim()),
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
             child: const Text('Rename'),
           ),
         ],
@@ -5439,6 +5503,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           onSelect: () => unawaited(_handleRunFile()),
         ),
         PaletteItem(
+          id: 'run.testAtCursor',
+          title: 'Run Test at Cursor',
+          icon: Icons.play_arrow,
+          kind: PaletteItemKind.command,
+          keywords: const ['execute', 'single', 'one test', 'gutter'],
+          onSelect: () => unawaited(_handleRunTestAtCursor()),
+        ),
+        PaletteItem(
           id: 'run.project',
           title: 'Run Project',
           icon: Icons.playlist_play_rounded,
@@ -5882,6 +5954,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onFindSymbolInProject: () => unawaited(_editorWorkspaceSymbol()),
         onShowHover: () => unawaited(_editorHoverLookup()),
         onRunFile: () => unawaited(_handleRunFile()),
+        onRunTestAtCursor: () => unawaited(_handleRunTestAtCursor()),
         onRunProject: () => unawaited(_handleRunProject()),
         onStop: () => unawaited(_handleStopExecution()),
       ),
@@ -6654,6 +6727,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           });
         },
         foldingRanges: _editor.documentAnalysis?.foldingRanges ?? const [],
+        runnableTests: runnableTestsFromOutline(
+          _editor.documentAnalysis?.root,
+          filePath: _activeEditorPath,
+        ),
+        onRunTest: (test) {
+          final path = _activeEditorPath;
+          if (path == null) return;
+          unawaited(_handleRunSingleTest(file: path, name: test.name));
+        },
+        runTestsEnabled: _canRunTests && !_executionStatus.isActive,
         fontSize: _settings.editor.fontSize.toDouble(),
         fontFamily: _settings.editor.fontFamily,
         tabWidth: _settings.editor.tabWidth,

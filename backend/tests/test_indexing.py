@@ -434,6 +434,89 @@ async def test_index_service_search_stays_in_active_workspace(index_stack) -> No
 
 
 @pytest.mark.asyncio
+async def test_definition_stays_in_active_workspace(index_stack) -> None:
+    """Go to Definition must not list symbols from a previously opened project."""
+    _service, store, facade, _suite, _lib, _bus, workspace, project = index_stack
+    from robot_studio.domain.models import IndexedSymbol
+
+    other_ws = uuid4()
+    local_file = workspace.path / "Projects" / "Demo" / "tests" / "posts_api.robot"
+    await store.upsert_symbols(
+        [
+            IndexedSymbol(
+                id="foreign-tag",
+                name="api",
+                kind=SymbolKind.TAG.value,
+                file_path=Path("/tmp/OrangeHRM/tests/smoke_test.robot"),
+                line=6,
+                workspace_id=other_ws,
+                project_id=uuid4(),
+            ),
+            IndexedSymbol(
+                id="local-tag",
+                name="api",
+                kind=SymbolKind.TAG.value,
+                file_path=local_file,
+                line=5,
+                workspace_id=workspace.id,
+                project_id=project.id,
+            ),
+        ]
+    )
+
+    result = await facade.definition(name="api")
+    assert result is not None
+    candidates = result.get("definitions") or [result]
+    paths = {str(item["file_path"]) for item in candidates}
+    assert str(local_file) in paths
+    assert not any("OrangeHRM" in path for path in paths)
+
+
+@pytest.mark.asyncio
+async def test_find_definitions_prefers_active_project(tmp_path: Path) -> None:
+    db = tmp_path / "index.db"
+    store = SqliteIndexStore(db)
+    await store.initialize()
+    from robot_studio.domain.models import IndexedSymbol
+
+    ws = uuid4()
+    project_a = uuid4()
+    project_b = uuid4()
+    await store.upsert_symbols(
+        [
+            IndexedSymbol(
+                id="tag-other",
+                name="api",
+                kind=SymbolKind.TAG.value,
+                file_path=tmp_path / "aaa" / "suite.robot",
+                line=2,
+                workspace_id=ws,
+                project_id=project_b,
+            ),
+            IndexedSymbol(
+                id="tag-current",
+                name="api",
+                kind=SymbolKind.TAG.value,
+                file_path=tmp_path / "zzz" / "suite.robot",
+                line=5,
+                workspace_id=ws,
+                project_id=project_a,
+            ),
+        ]
+    )
+
+    hits = await store.find_definitions(
+        "api",
+        workspace_id=ws,
+        project_id=project_a,
+    )
+    assert [item["id"] for item in hits] == ["tag-current", "tag-other"]
+
+    foreign = await store.find_definitions("api", workspace_id=uuid4())
+    assert foreign == []
+
+
+@pytest.mark.asyncio
 async def test_watcher_detects_new_file(index_stack, tmp_path: Path) -> None:
     service, store, _facade, suite, _lib, _bus, workspace, project = index_stack
     root = suite.parent

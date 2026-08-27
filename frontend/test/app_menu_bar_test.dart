@@ -7,6 +7,7 @@ void main() {
   AppMenuBarActions actions({
     bool hasActiveFile = true,
     bool hasWorkspace = true,
+    VoidCallback? onRunTestAtCursor,
   }) {
     return AppMenuBarActions(
       hasActiveFile: hasActiveFile,
@@ -50,6 +51,7 @@ void main() {
       onFindSymbolInProject: () {},
       onShowHover: () {},
       onRunFile: () {},
+      onRunTestAtCursor: onRunTestAtCursor ?? () {},
       onRunProject: () {},
       onStop: () {},
     );
@@ -221,6 +223,7 @@ void main() {
                 onFindSymbolInProject: () {},
                 onShowHover: () {},
                 onRunFile: () {},
+                onRunTestAtCursor: () {},
                 onRunProject: () {},
                 onStop: () {},
               ),
@@ -235,6 +238,30 @@ void main() {
       await tester.tap(find.widgetWithText(MenuItemButton, 'Close Project'));
       await tester.pumpAndSettle();
       expect(closed, isTrue);
+    });
+  });
+
+  testWidgets('Windows Run menu includes Run Test at Cursor', (tester) async {
+    await withPlatform(TargetPlatform.windows, tester, () async {
+      var ranAtCursor = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RobotStudioMenuBar(
+              actions: actions(onRunTestAtCursor: () => ranAtCursor = true),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Run'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(MenuItemButton, 'Run Test at Cursor'),
+      );
+      await tester.pumpAndSettle();
+      expect(ranAtCursor, isTrue);
     });
   });
 }

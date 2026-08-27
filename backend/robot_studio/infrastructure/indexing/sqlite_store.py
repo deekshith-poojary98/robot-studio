@@ -565,19 +565,31 @@ class SqliteIndexStore(IndexStore):
             item.pop("_count", None)
         return out
 
-    async def find_references(self, symbol_id: str) -> list[dict]:
+    async def find_references(
+        self,
+        symbol_id: str,
+        *,
+        workspace_id: UUID | None = None,
+    ) -> list[dict]:
         async with aiosqlite.connect(self._database_path) as db:
             db.row_factory = aiosqlite.Row
             symbol = await self.get_symbol(symbol_id)
             if symbol is None:
                 return []
+            clauses = ["(symbol_id = ? OR name_lower = ?)"]
+            params: list[object] = [symbol_id, symbol["name"].lower()]
+            if workspace_id is not None:
+                clauses.append(
+                    "file_path IN (SELECT file_path FROM index_files WHERE workspace_id = ?)",
+                )
+                params.append(str(workspace_id))
             cursor = await db.execute(
-                """
+                f"""
                 SELECT * FROM index_references
-                WHERE symbol_id = ? OR name_lower = ?
+                WHERE {' AND '.join(clauses)}
                 ORDER BY file_path, line
                 """,
-                (symbol_id, symbol["name"].lower()),
+                params,
             )
             rows = await cursor.fetchall()
         return [
@@ -607,8 +619,16 @@ class SqliteIndexStore(IndexStore):
         name: str,
         *,
         kind: SymbolKind | None = None,
+        workspace_id: UUID | None = None,
+        project_id: UUID | None = None,
     ) -> dict | None:
-        hits = await self.find_definitions(name, kind=kind, limit=1)
+        hits = await self.find_definitions(
+            name,
+            kind=kind,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            limit=1,
+        )
         return hits[0] if hits else None
 
     async def find_definitions(
@@ -616,6 +636,8 @@ class SqliteIndexStore(IndexStore):
         name: str,
         *,
         kind: SymbolKind | None = None,
+        workspace_id: UUID | None = None,
+        project_id: UUID | None = None,
         limit: int = 20,
     ) -> list[dict]:
         clauses = ["name_lower = ?"]
@@ -623,7 +645,13 @@ class SqliteIndexStore(IndexStore):
         if kind:
             clauses.append("kind = ?")
             params.append(kind.value)
-        params.append(limit)
+        if workspace_id is not None:
+            clauses.append("workspace_id = ?")
+            params.append(str(workspace_id))
+        elif project_id is not None:
+            clauses.append("project_id = ?")
+            params.append(str(project_id))
+        rank_project = str(project_id) if project_id is not None else ""
         async with aiosqlite.connect(self._database_path) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
@@ -631,6 +659,7 @@ class SqliteIndexStore(IndexStore):
                 SELECT * FROM index_symbols
                 WHERE {' AND '.join(clauses)}
                 ORDER BY
+                    CASE WHEN project_id = ? THEN 0 ELSE 1 END,
                     CASE kind
                         WHEN 'keyword' THEN 0
                         WHEN 'variable' THEN 1
@@ -643,7 +672,7 @@ class SqliteIndexStore(IndexStore):
                     line
                 LIMIT ?
                 """,
-                params,
+                [*params, rank_project, limit],
             )
             rows = await cursor.fetchall()
         return [self._row_to_dict(row) for row in rows]

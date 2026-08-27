@@ -308,7 +308,12 @@ class RobotLanguageService(LanguageService):
             *,
             kind: SymbolKind | None = None,
         ) -> dict | None:
-            return await self.store.find_definition(name, kind=kind)
+            return await self.store.find_definition(
+                name,
+                kind=kind,
+                workspace_id=self.context.workspace_id,
+                project_id=self.context.project_id,
+            )
 
         catalog = self.library_catalog()
         self._signature_pipeline = SignatureHelpPipeline(
@@ -619,9 +624,15 @@ class RobotLanguageService(LanguageService):
         symbol = await self._resolve(request)
         if symbol is None:
             return []
-        refs = await self.store.find_references(symbol["id"])
+        refs = await self.store.find_references(
+            symbol["id"],
+            workspace_id=self.context.workspace_id,
+        )
         if not refs:
-            refs = await self.store.find_references(symbol["name"])
+            refs = await self.store.find_references(
+                symbol["name"],
+                workspace_id=self.context.workspace_id,
+            )
         return refs
 
     async def rename(self, request: dict) -> dict:
@@ -990,7 +1001,13 @@ class RobotLanguageService(LanguageService):
             except ValueError:
                 kind = None
 
-        symbols = await self.store.find_definitions(str(name), kind=kind, limit=20)
+        symbols = await self.store.find_definitions(
+            str(name),
+            kind=kind,
+            workspace_id=self.context.workspace_id,
+            project_id=self.context.project_id,
+            limit=20,
+        )
         if symbols:
             return symbols
 
@@ -1392,6 +1409,8 @@ class RobotLanguageService(LanguageService):
                     definition = await self.store.find_definition(
                         normalized,
                         kind=SymbolKind.VARIABLE,
+                        workspace_id=self.context.workspace_id,
+                        project_id=self.context.project_id,
                     )
                     if definition is None:
                         diagnostics.append(

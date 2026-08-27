@@ -50,6 +50,7 @@ class AppMenuBarActions {
     required this.onFindSymbolInProject,
     required this.onShowHover,
     required this.onRunFile,
+    required this.onRunTestAtCursor,
     required this.onRunProject,
     required this.onStop,
   });
@@ -97,6 +98,7 @@ class AppMenuBarActions {
   final VoidCallback onFindSymbolInProject;
   final VoidCallback onShowHover;
   final VoidCallback onRunFile;
+  final VoidCallback onRunTestAtCursor;
   final VoidCallback onRunProject;
   final VoidCallback onStop;
 }
@@ -418,6 +420,12 @@ class RobotStudioMenuBar extends StatelessWidget {
                 : null,
           ),
           PlatformMenuItem(
+            label: 'Run Test at Cursor',
+            onSelected: a.hasActiveFile && a.hasWorkspace && a.canRun
+                ? a.onRunTestAtCursor
+                : null,
+          ),
+          PlatformMenuItem(
             label: 'Run Project',
             onSelected: a.hasWorkspace && a.canRun ? a.onRunProject : null,
           ),
@@ -648,6 +656,12 @@ class _InWindowMenuBar extends StatelessWidget {
                   shortcut: const SingleActivator(LogicalKeyboardKey.f5),
                   onPressed: a.hasActiveFile && a.hasWorkspace && a.canRun
                       ? a.onRunFile
+                      : null,
+                ),
+                _item(
+                  'Run Test at Cursor',
+                  onPressed: a.hasActiveFile && a.hasWorkspace && a.canRun
+                      ? a.onRunTestAtCursor
                       : null,
                 ),
                 _item(
