@@ -230,6 +230,53 @@ void main() {
     expect(paneHeight(), closeTo(220, 1));
   });
 
+  testWidgets('python outline drops the file row and opens classes', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: const Scaffold(
+          body: DocumentOutlinePanel(
+            isLoading: false,
+            root: DocumentSymbolNode(
+              id: 'file:bank.py',
+              name: 'bank',
+              kind: SymbolKind.file,
+              line: 1,
+              children: [
+                DocumentSymbolNode(
+                  id: 'class:Bank',
+                  name: 'Bank',
+                  kind: SymbolKind.classKind,
+                  line: 3,
+                  children: [
+                    DocumentSymbolNode(
+                      id: 'method:deposit',
+                      name: 'deposit',
+                      kind: SymbolKind.method,
+                      line: 7,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            filePath: '/ws/bank.py',
+            initiallyExpanded: true,
+            embedded: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('bank'), findsNothing);
+    expect(find.text('Bank'), findsOneWidget);
+    expect(find.text('deposit'), findsOneWidget);
+  });
+
   testWidgets('collapse-all stays hidden for a flat symbol list', (
     tester,
   ) async {

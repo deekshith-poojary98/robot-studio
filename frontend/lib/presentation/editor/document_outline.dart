@@ -462,22 +462,25 @@ class _TreeOutlineState extends State<_TreeOutline> {
     }
   }
 
-  /// Sections start open (matches previous per-node default); everything else
-  /// stays collapsed until the user expands it.
+  /// Robot sections and Python classes start open; everything else stays
+  /// collapsed until the user expands it. Without the class, a module whose
+  /// only symbol is one class would open as a single collapsed row.
   void _seedExpanded() {
     _expanded
       ..clear()
-      ..addAll(_sectionIds(widget.root));
+      ..addAll(_seedIds(widget.root));
     final selected = widget.selectedId;
     if (selected != null) {
       _expandAncestorsOf(selected);
     }
   }
 
-  Iterable<String> _sectionIds(DocumentSymbolNode node) sync* {
-    if (node.kind == SymbolKind.section) yield node.id;
+  Iterable<String> _seedIds(DocumentSymbolNode node) sync* {
+    if (node.kind == SymbolKind.section || node.kind == SymbolKind.classKind) {
+      yield node.id;
+    }
     for (final child in node.children) {
-      yield* _sectionIds(child);
+      yield* _seedIds(child);
     }
   }
 
@@ -508,11 +511,18 @@ class _TreeOutlineState extends State<_TreeOutline> {
     });
   }
 
+  /// Kinds that only stand for the file itself. The panel already sits under
+  /// the file's own tab, so showing the name again just costs a level of
+  /// indentation for every real symbol.
+  static const _documentRootKinds = {
+    SymbolKind.testSuite,
+    SymbolKind.resource,
+    SymbolKind.file,
+  };
+
   List<DocumentSymbolNode> get _topLevel {
     final root = widget.root;
-    if (root.kind == SymbolKind.testSuite || root.kind == SymbolKind.resource) {
-      return root.children;
-    }
+    if (_documentRootKinds.contains(root.kind)) return root.children;
     return [root];
   }
 
