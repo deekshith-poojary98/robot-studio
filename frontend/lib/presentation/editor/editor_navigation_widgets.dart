@@ -127,7 +127,7 @@ class SignatureHelpOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EditorHoverTooltip(signature: signature);
+    return EditorHoverTooltip(signature: signature, compact: true);
   }
 }
 
@@ -146,6 +146,11 @@ class HoverTooltipPlacement {
 /// the arguments. Vertical overflow is allowed (the editor stack does not
 /// clip) instead of sliding the card onto the line to stay in-viewport.
 ///
+/// Pass [lineTop] when the caller knows the row's exact top from the editor's
+/// own layout. Snapping `anchor.dy` to a `lineHeight` grid assumes every line
+/// occupies one row of uniform height, which word wrap and collapsed chunks
+/// both break.
+///
 /// Set [preferAbove] for caret-driven signature help: the completion popup
 /// owns the space below the caret line, so the card goes above it.
 HoverTooltipPlacement computeHoverTooltipPlacement({
@@ -157,22 +162,23 @@ HoverTooltipPlacement computeHoverTooltipPlacement({
   double margin = 8,
   double offsetX = 12,
   bool preferAbove = false,
+  double? lineTop,
+  double maxHeight = EditorHoverTooltip.maxHeight,
 }) {
   final width = tooltipSize.width
       .clamp(EditorHoverTooltip.minWidth, EditorHoverTooltip.maxWidth)
       .toDouble();
-  final height = tooltipSize.height
-      .clamp(48.0, EditorHoverTooltip.maxHeight)
-      .toDouble();
+  final height = tooltipSize.height.clamp(48.0, maxHeight).toDouble();
 
   final safeLineHeight = lineHeight <= 0 ? 20.0 : lineHeight;
-  final lineTop = (anchor.dy / safeLineHeight).floor() * safeLineHeight;
-  final lineBottom = lineTop + safeLineHeight;
+  final rowTop =
+      lineTop ?? (anchor.dy / safeLineHeight).floor() * safeLineHeight;
+  final lineBottom = rowTop + safeLineHeight;
 
   final belowTop = lineBottom + gap;
-  final aboveTop = lineTop - gap - height;
+  final aboveTop = rowTop - gap - height;
   final spaceBelow = viewport.height - belowTop - margin;
-  final spaceAbove = lineTop - gap - margin;
+  final spaceAbove = rowTop - gap - margin;
   final flipAbove = preferAbove
       ? spaceAbove >= height
       : spaceBelow < height && spaceAbove > spaceBelow;
@@ -191,25 +197,48 @@ HoverTooltipPlacement computeHoverTooltipPlacement({
 
 /// VS Code-style hover / signature card shown near the pointer.
 class EditorHoverTooltip extends StatelessWidget {
-  const EditorHoverTooltip({super.key, required this.signature});
+  const EditorHoverTooltip({
+    super.key,
+    required this.signature,
+    this.compact = false,
+  });
 
   final SignatureHelpInfo signature;
+
+  /// Caret-driven signature help. The card hangs above the line being typed,
+  /// so its height is how far the parameters end up from the caret — a long
+  /// docstring would push them off the top of the screen. Compact keeps the
+  /// summary only; the full docs are one hover away.
+  final bool compact;
 
   static const double maxWidth = 620;
   static const double minWidth = 200;
   static const double maxHeight = 280;
+  static const double compactMaxHeight = 168;
+  static const int compactDocLines = 2;
+
+  /// Leading summary of [SignatureHelpInfo.documentation] as a single flowing
+  /// paragraph, so [compactDocLines] is a predictable height.
+  String get _summary {
+    final text = signature.documentation.trim();
+    if (text.isEmpty) return '';
+    final breakAt = text.indexOf('\n\n');
+    final paragraph = breakAt == -1 ? text : text.substring(0, breakAt);
+    return paragraph.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final documentation = compact ? _summary : signature.documentation;
     return Material(
       elevation: 8,
       color: context.palette.surface,
       borderRadius: BorderRadius.circular(6),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(
+        constraints: BoxConstraints(
           maxWidth: maxWidth,
           minWidth: minWidth,
-          maxHeight: maxHeight,
+          maxHeight: compact ? compactMaxHeight : maxHeight,
         ),
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -263,10 +292,12 @@ class EditorHoverTooltip extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (signature.documentation.isNotEmpty) ...[
+                if (documentation.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
-                    signature.documentation,
+                    documentation,
+                    maxLines: compact ? compactDocLines : null,
+                    overflow: compact ? TextOverflow.ellipsis : null,
                     style: TextStyle(
                       fontSize: 12,
                       height: 1.35,

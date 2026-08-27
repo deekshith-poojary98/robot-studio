@@ -93,6 +93,21 @@ class _AutocompletePopup {
   final ValueChanged<CodeAutocompleteResult> onSelected;
 }
 
+/// Caret or pointer, in this widget's coordinates, plus the visual row the
+/// card must not cover. [lineTop] comes from the editor's laid-out glyphs so
+/// word wrap and folded chunks do not shift the card off the caret.
+class _RowAnchor {
+  const _RowAnchor({
+    required this.offset,
+    this.lineTop,
+    this.lineHeight,
+  });
+
+  final Offset offset;
+  final double? lineTop;
+  final double? lineHeight;
+}
+
 class RobotCodeEditorState extends State<RobotCodeEditor> {
   static const _fontHeight = 1.45;
   static const _chunkWidth = 14.0;
@@ -117,6 +132,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   Size _hoverTooltipSize = const Size(360, 88);
   _AutocompletePopup? _popup;
   int _popupToken = 0;
+  CodeIndicatorValueNotifier? _indicator;
 
   CodeLineEditingController get controller => _controller;
 
@@ -483,22 +499,86 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     return hit.contains(tooltipLocal);
   }
 
-  Offset _caretTooltipOffset() {
-    final sel = _controller.selection;
-    final vertical = _scrollController.verticalScroller.hasClients
-        ? _scrollController.verticalScroller.offset
-        : 0.0;
-    final y = sel.baseIndex * _lineHeight - vertical;
-    final x = _gutterWidth + sel.baseOffset * _charWidth + 8;
-    return Offset(x.clamp(8.0, 480.0), y);
+  /// Laid-out rows currently on screen, in this widget's coordinates.
+  ///
+  /// The editor publishes these for its own gutter, already offset by the
+  /// scroll position. Everything that has to line up with a glyph reads them
+  /// instead of multiplying a line index by [_lineHeight]: that arithmetic
+  /// assumes one row per line of uniform height, which word wrap (on by
+  /// default) and collapsed chunks both break, and the error grows with every
+  /// wrapped row above the caret.
+  List<CodeLineRenderParagraph> get _rows =>
+      _indicator?.value?.paragraphs ?? const [];
+
+  CodeLineRenderParagraph? _rowForLine(int lineIndex) {
+    for (final row in _rows) {
+      if (row.index == lineIndex) return row;
+    }
+    return null;
   }
 
-  Offset _lineTopAnchor(Offset local) {
-    final lineTop = (local.dy / _lineHeight).floor() * _lineHeight;
-    return Offset(local.dx, lineTop);
+  CodeLineRenderParagraph? _rowAtY(double dy) {
+    for (final row in _rows) {
+      if (dy >= row.top && dy < row.bottom) return row;
+    }
+    return null;
+  }
+
+  _RowAnchor _caretAnchor() {
+    final sel = _controller.selection;
+    final row = _rowForLine(sel.extentIndex);
+    final caret = row?.getOffset(sel.extent);
+    if (row == null || caret == null) {
+      final vertical = _scrollController.verticalScroller.hasClients
+          ? _scrollController.verticalScroller.offset
+          : 0.0;
+      final fallbackY = sel.extentIndex * _lineHeight - vertical;
+      return _RowAnchor(
+        offset: Offset(
+          (_gutterWidth + sel.extentOffset * _charWidth + 8).clamp(8.0, 480.0),
+          fallbackY,
+        ),
+      );
+    }
+    // A wrapped line is one row object several rows tall, so the caret's own
+    // dy — not the row's top — is the line the card must not cover.
+    final top = row.top + caret.dy;
+    final x = _gutterWidth + row.offset.dx + caret.dx + 8;
+    return _RowAnchor(
+      offset: Offset(x.clamp(8.0, 480.0), top),
+      lineTop: top,
+      lineHeight: row.preferredLineHeight,
+    );
+  }
+
+  _RowAnchor _pointerAnchor(Offset local) {
+    final row = _rowAtY(local.dy);
+    if (row == null) {
+      final lineTop = (local.dy / _lineHeight).floor() * _lineHeight;
+      return _RowAnchor(offset: Offset(local.dx, lineTop), lineTop: lineTop);
+    }
+    final rowHeight = row.preferredLineHeight;
+    final top =
+        row.top + ((local.dy - row.top) / rowHeight).floor() * rowHeight;
+    return _RowAnchor(
+      offset: Offset(local.dx, top),
+      lineTop: top,
+      lineHeight: rowHeight,
+    );
   }
 
   (int, int)? _lineColumnAt(Offset local) {
+    final row = _rowAtY(local.dy);
+    if (row != null) {
+      final inRow = Offset(
+        local.dx - _gutterWidth - row.offset.dx,
+        local.dy - row.top,
+      );
+      if (inRow.dx < -2) return null;
+      final position = row.getPosition(inRow);
+      return (row.index + 1, position.offset + 1);
+    }
+
     final vertical = _scrollController.verticalScroller.hasClients
         ? _scrollController.verticalScroller.offset
         : 0.0;
@@ -616,6 +696,9 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       ),
       indicatorBuilder:
           (context, editingController, chunkController, notifier) {
+            // Same notifier the gutter paints from — it carries the real row
+            // geometry, which is the only way to anchor a card on a glyph.
+            _indicator = notifier;
             return Row(
               children: [
                 DefaultCodeLineNumber(
@@ -658,12 +741,16 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
         : editor;
 
     final tooltip = widget.hoverTooltip;
-    final tooltipPos = _hoverLocal != null
-        ? _lineTopAnchor(_hoverLocal!)
-        : (tooltip != null ? _caretTooltipOffset() : null);
+    final fromCaret = _hoverLocal == null;
+    final anchor = _hoverLocal != null
+        ? _pointerAnchor(_hoverLocal!)
+        : (tooltip != null ? _caretAnchor() : null);
     // Caret-driven signature help shares the caret line with the completion
     // popup, which always opens below it.
-    final tooltipAbove = _hoverLocal == null;
+    final tooltipAbove = fromCaret;
+    final tooltipMaxHeight = fromCaret
+        ? EditorHoverTooltip.compactMaxHeight
+        : EditorHoverTooltip.maxHeight;
 
     return Shortcuts(
       shortcuts: {
@@ -772,29 +859,31 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
                 );
                 final placement =
                     tooltip != null &&
-                        tooltipPos != null &&
+                        anchor != null &&
                         viewport.width.isFinite &&
                         viewport.height.isFinite
                     ? computeHoverTooltipPlacement(
-                        anchor: tooltipPos,
+                        anchor: anchor.offset,
                         viewport: viewport,
                         tooltipSize: _hoverTooltipSize,
-                        lineHeight: _lineHeight,
+                        lineHeight: anchor.lineHeight ?? _lineHeight,
                         gap: AppSpacing.sm,
                         preferAbove: tooltipAbove,
+                        lineTop: anchor.lineTop,
+                        maxHeight: tooltipMaxHeight,
                       )
                     : null;
 
-                if (tooltip != null &&
-                    tooltipPos != null &&
-                    placement != null) {
-                  final anchor = tooltipPos;
+                if (tooltip != null && anchor != null && placement != null) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     _refineHoverTooltipPlacement(
-                      anchor: anchor,
+                      anchor: anchor.offset,
                       viewport: viewport,
                       current: placement,
                       preferAbove: tooltipAbove,
+                      lineTop: anchor.lineTop,
+                      lineHeight: anchor.lineHeight ?? _lineHeight,
+                      maxHeight: tooltipMaxHeight,
                     );
                   });
                 }
@@ -819,6 +908,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
                           child: EditorHoverTooltip(
                             key: _hoverTooltipKey,
                             signature: tooltip,
+                            compact: fromCaret,
                           ),
                         ),
                       ),
@@ -848,6 +938,9 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     required Size viewport,
     required HoverTooltipPlacement current,
     bool preferAbove = false,
+    double? lineTop,
+    double? lineHeight,
+    double maxHeight = EditorHoverTooltip.maxHeight,
   }) {
     if (!mounted || widget.hoverTooltip == null) return;
     final box =
@@ -863,9 +956,11 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       anchor: anchor,
       viewport: viewport,
       tooltipSize: box.size,
-      lineHeight: _lineHeight,
+      lineHeight: lineHeight ?? _lineHeight,
       gap: AppSpacing.sm,
       preferAbove: preferAbove,
+      lineTop: lineTop,
+      maxHeight: maxHeight,
     );
     if ((refined.left - current.left).abs() > 0.5 ||
         (refined.top - current.top).abs() > 0.5) {

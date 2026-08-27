@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../core/gateway/models/doctor_info.dart';
 import '../../core/gateway/transport_gateway.dart';
 import '../../core/theme/app_theme.dart';
 import '../shell/controllers/workspace_live_controller.dart';

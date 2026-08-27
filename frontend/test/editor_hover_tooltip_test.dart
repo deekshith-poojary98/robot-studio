@@ -76,6 +76,42 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('compact caret card keeps a short summary, not the full docs', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: EditorHoverTooltip(
+            compact: true,
+            signature: SignatureHelpInfo(
+              keyword: 'remove_empty_rows',
+              documentation:
+                  'Remove empty rows from the sheet.\n\n'
+                  'column_names_or_letters accepts headers or Excel letters. '
+                  'This second paragraph must not appear while typing.',
+              parameters: [
+                SignatureParameterInfo(
+                  label: 'output_filename',
+                  name: 'output_filename',
+                  required: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('remove_empty_rows'), findsOneWidget);
+    expect(find.text('output_filename'), findsOneWidget);
+    expect(
+      find.textContaining('Remove empty rows from the sheet.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('second paragraph'), findsNothing);
+  });
+
   group('computeHoverTooltipPlacement', () {
     const tooltip = Size(200, 120);
     const viewport = Size(400, 300);
@@ -156,6 +192,31 @@ void main() {
       const lineTop = 160.0;
       expect(placement.top + tooltip.height, lessThanOrEqualTo(lineTop - gap));
       expect(overlapsLine(placement, 160), isFalse);
+    });
+
+    test('uses the laid-out lineTop instead of snapping a stale Y', () {
+      // Word wrap makes the true glyph row (200) sit above lineIndex ×
+      // lineHeight (240). Without lineTop the card would hover over the
+      // wrong block of code.
+      final placement = computeHoverTooltipPlacement(
+        anchor: const Offset(40, 250),
+        viewport: const Size(400, 400),
+        tooltipSize: const Size(200, 80),
+        lineHeight: lineHeight,
+        gap: gap,
+        preferAbove: true,
+        lineTop: 200,
+      );
+      expect(placement.top + 80, 200 - gap);
+      final snapped = computeHoverTooltipPlacement(
+        anchor: const Offset(40, 250),
+        viewport: const Size(400, 400),
+        tooltipSize: const Size(200, 80),
+        lineHeight: lineHeight,
+        gap: gap,
+        preferAbove: true,
+      );
+      expect(snapped.top, isNot(placement.top));
     });
 
     test('preferAbove falls back below when there is no room above', () {
