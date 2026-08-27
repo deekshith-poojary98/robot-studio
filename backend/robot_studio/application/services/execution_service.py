@@ -35,6 +35,9 @@ from robot_studio.core.events import (
 )
 from robot_studio.domain.interfaces.runner import ResultsStore, Runner
 from robot_studio.domain.models import Environment, ExecutionRun, ExecutionStatus
+from robot_studio.infrastructure.execution.parent_suite_target import (
+    expand_parent_suite_target,
+)
 from robot_studio.infrastructure.execution.subprocess_runner import (
     RunnerError,
     SubprocessRunner,
@@ -305,8 +308,10 @@ class ExecutionService:
     ) -> ExecutionRun:
         workspace, project = self._require_workspace_project()
         suite = self._resolve_suite(project.path, file_path)
+        expanded = expand_parent_suite_target(Path(suite), project.path)
         plan = await self._plan_for_run(
-            suite=suite,
+            suite=str(expanded.data_source),
+            target_robot_args=list(expanded.filter_args),
             configuration_id=configuration_id,
         )
         await self._assert_robot_ready(plan.environment)
@@ -318,9 +323,10 @@ class ExecutionService:
             environment_id=plan.environment.id,
             environment_name=plan.environment.name,
             python_executable=plan.environment.python_executable,
-            suite=suite,
+            suite=str(expanded.data_source),
             workspace_path=workspace.path,
             robot_args=plan_to_robot_args(plan),
+            run_label=suite,
             configuration_id=plan.configuration_id,
             configuration_name=plan.configuration_name,
         )
@@ -371,9 +377,10 @@ class ExecutionService:
             candidate = (project.path / suite).resolve()
             if candidate.exists():
                 resolved_suite = str(candidate)
+        expanded = expand_parent_suite_target(Path(resolved_suite), project.path)
         plan = await self._plan_for_run(
-            suite=resolved_suite,
-            target_robot_args=robot_args or [],
+            suite=str(expanded.data_source),
+            target_robot_args=[*expanded.filter_args, *(robot_args or [])],
             run_label=run_label,
             configuration_id=configuration_id,
         )
@@ -386,7 +393,7 @@ class ExecutionService:
             environment_id=plan.environment.id,
             environment_name=plan.environment.name,
             python_executable=plan.environment.python_executable,
-            suite=resolved_suite,
+            suite=str(expanded.data_source),
             workspace_path=workspace.path,
             robot_args=plan_to_robot_args(plan),
             run_label=run_label,

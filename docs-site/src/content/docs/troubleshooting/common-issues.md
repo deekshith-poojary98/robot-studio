@@ -239,6 +239,14 @@ Git is scoped to the active project folder. Open the project that actually conta
 
 Add the suffix under **Settings → Search → Content Search Extensions** — see [Settings](/reference/settings/).
 
+## Single file fails, whole project passes
+
+If every test in one file dies with something like **Non-existing index or alias 'api'**, a parent `__init__.robot` Suite Setup (often `Create Session`) is not running.
+
+That happens when Robot is started on the leaf file instead of the folder that owns `__init__.robot`. Robot Studio now starts at that parent and filters with `--suite`, so **Run File** / a single test should match **Run Project** for those setups. Update to a build with that behavior, then run the file again.
+
+If it still fails, open `tests/__init__.robot` (or the nearest parent init) and confirm Suite Setup creates the session or resource the tests use.
+
 ## Still stuck?
 
 Open the failure dialog’s **Show details** only when you need the raw exception for a bug report. The primary message should already say what happened and how to fix it.

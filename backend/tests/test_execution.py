@@ -176,6 +176,37 @@ async def test_run_project(services) -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_file_includes_parent_init_suite_setup(services) -> None:
+    """A nested file run must still execute tests/__init__.robot Suite Setup."""
+    project = services["project"]
+    tests = project.path / "tests"
+    nested = tests / "posts"
+    nested.mkdir()
+    (tests / "__init__.robot").write_text(
+        "*** Settings ***\n"
+        "Suite Setup       Set Global Variable    ${SESSION}    api\n",
+        encoding="utf-8",
+    )
+    suite = nested / "posts_api.robot"
+    suite.write_text(
+        "*** Test Cases ***\n"
+        "Uses Parent Session\n"
+        "    Should Be Equal    ${SESSION}    api\n",
+        encoding="utf-8",
+    )
+
+    run = await services["execution_service"].run_file(str(suite))
+    assert run.status == ExecutionStatus.RUNNING
+    assert "--suite" in (run.command or "")
+    assert "Tests.Posts.Posts Api" in (run.command or "")
+    await _wait_until_done(services["execution_service"])
+    final = await services["execution_service"].get_status()
+    assert final is not None
+    assert final.status == ExecutionStatus.FINISHED
+    assert final.exit_code == 0
+
+
+@pytest.mark.asyncio
 async def test_cancellation(services) -> None:
     events: list[object] = []
 

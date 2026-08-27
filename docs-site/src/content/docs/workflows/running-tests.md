@@ -8,12 +8,14 @@ description: How test execution works — toolbar runs, Tests tree, confirmation
 | Action | Typical use |
 |--------|-------------|
 | **Play** (gutter left of a test name) / **Run → Run Test at Cursor** | Only the test (or task) that owns that line — no extra run configuration |
-| **Run** (toolbar) / **Run → Run File** (`F5`) | Current open `.robot` suite in the editor — not a text selection |
+| **Run** (toolbar) / **Run → Run File** (`F5`) | Tests in the current open `.robot` file — not a text selection |
 | **Project** (toolbar) / **Run → Run Project** | Entire project |
 | **Tests** (activity bar) | One test, one suite, all, current file, or failed |
 | **Re-run Test** | A single failure from the last run (**Failed Tests**) |
 
 Play controls appear on `.robot` suites after the outline is ready. They use the same run configuration as toolbar **Run**. While a run is in progress the buttons stay disabled. `.resource` files and Python modules do not get play controls — use the Tests tree for those workflows.
+
+A file or single-test run still executes parent `*** Settings ***` in `__init__.robot` (Suite Setup / Teardown). Robot Studio starts Robot at that parent folder and filters with `--suite`, so a session created in `tests/__init__.robot` is available when you run `tests/posts/posts_api.robot` or one test inside it. **Run Project** is unchanged.
 
 ## Run configurations
 
