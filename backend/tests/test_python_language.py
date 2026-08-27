@@ -25,6 +25,7 @@ from robot_studio.infrastructure.language.python_jedi import (
     jedi_available,
     jedi_completions,
     jedi_definitions,
+    jedi_hover,
     jedi_references,
     jedi_rename,
     jedi_signature_help,
@@ -255,6 +256,23 @@ def test_jedi_signature_help_stdlib_json() -> None:
     assert help_["keyword"] == "dumps"
     assert any(p["name"] == "obj" for p in help_["parameters"])
     assert help_["active_parameter"] >= 1
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_jedi_hover_builtins() -> None:
+    content = 'x = "hello"\nx.split()\nlen(x)\nitems = []\nitems.append(1)\n'
+    exe = Path(sys.executable)
+    cases = (
+        (2, "split", "split"),
+        (3, "len", "len"),
+        (5, "append", "append"),
+    )
+    for line, token, name in cases:
+        column = content.splitlines()[line - 1].index(token) + 2
+        hover = jedi_hover(content, "module.py", line, column, exe, None)
+        assert hover is not None, token
+        assert hover["name"] == name
+        assert hover["documentation"] or hover["detail"]
 
 
 @pytest.mark.skipif(not jedi_available(), reason="jedi not installed")

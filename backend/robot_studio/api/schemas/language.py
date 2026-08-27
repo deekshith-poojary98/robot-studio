@@ -108,6 +108,18 @@ class SignatureHelpRequest(BaseModel):
     hover: bool = False
 
 
+class HoverRequest(BaseModel):
+    """Buffer-backed hover. GET /hover is name-only and cannot carry a file."""
+
+    file_path: str = ""
+    line: int = 1
+    column: int = 1
+    content: str = ""
+    name: str | None = None
+    symbol_id: str | None = None
+    kind: str | None = None
+
+
 class LibraryKeywordResponse(BaseModel):
     name: str
     qualified_name: str = ""

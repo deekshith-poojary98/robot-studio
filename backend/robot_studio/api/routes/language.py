@@ -20,6 +20,7 @@ from robot_studio.api.schemas.language import (
     DocumentAnalysisResponse,
     FormatRequest,
     FormatResponse,
+    HoverRequest,
     LibraryDetailResponse,
     LibraryListResponse,
     RenameFileEdit,
@@ -126,6 +127,33 @@ async def language_hover(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:
         return None
+    return _hover_response(result)
+
+
+@router.post("/hover", response_model=HoverResponse | None)
+async def language_hover_at(
+    body: HoverRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> HoverResponse | None:
+    """Hover with the live buffer in the body — GET cannot carry a Python file."""
+    try:
+        result = await gateway.language_hover(
+            name=body.name,
+            symbol_id=body.symbol_id,
+            kind=body.kind,
+            file_path=body.file_path or None,
+            line=body.line,
+            column=body.column,
+            content=body.content or None,
+        )
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if result is None:
+        return None
+    return _hover_response(result)
+
+
+def _hover_response(result: dict) -> HoverResponse:
     return HoverResponse(
         name=result["name"],
         kind=result["kind"],

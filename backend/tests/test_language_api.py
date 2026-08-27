@@ -272,6 +272,29 @@ async def test_language_signature_help_api(api_client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_language_hover_python_builtin_posts_buffer(api_client) -> None:
+    client, _fresh, tmp_path = api_client
+    await _open_workspace_with_suite(client, tmp_path)
+    content = 'x = "hello"\nx.split()\n'
+    split_col = content.splitlines()[1].index("split") + 2
+
+    response = await client.post(
+        "/api/v1/language/hover",
+        json={
+            "file_path": str(tmp_path / "lib.py"),
+            "line": 2,
+            "column": split_col,
+            "content": content,
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body is not None
+    assert body["name"] == "split"
+    assert body["documentation"] or body["detail"]
+
+
+@pytest.mark.asyncio
 async def test_language_requires_workspace(api_client) -> None:
     client, _fresh, _tmp = api_client
 

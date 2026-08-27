@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -349,18 +350,39 @@ def jedi_hover(
     python_executable: Path,
     project_root: Path | None,
 ) -> dict[str, Any] | None:
-    """Docs for the symbol under the caret."""
+    """Docs for the symbol under the caret.
+
+    ``help`` is Jedi's hover API (keywords, builtins, methods). ``infer`` fills
+    in the type when ``help`` returns a name with no docstring — an assignment
+    like ``x = "hello"`` otherwise looks empty.
+    """
     script = _script(content, file_path, python_executable, project_root)
     if script is None:
         return None
-    try:
-        names = script.infer(line, _jedi_column(column))
-    except Exception:  # noqa: BLE001
-        logger.debug("Jedi infer failed", exc_info=True)
-        return None
+    col = _jedi_column(column)
+    help_names = _jedi_names(lambda: script.help(line, col), "help")
+    infer_names = _jedi_names(lambda: script.infer(line, col), "infer")
+    names = help_names or infer_names
     if not names:
         return None
-    return _name_to_hover(names[0], fallback_path=file_path)
+    payload = _name_to_hover(names[0], fallback_path=file_path)
+    if payload.get("documentation"):
+        return payload
+    if infer_names:
+        extra = _name_to_hover(infer_names[0], fallback_path=file_path)
+        if extra.get("documentation"):
+            payload["documentation"] = extra["documentation"]
+            if extra.get("detail"):
+                payload["detail"] = extra["detail"]
+    return payload
+
+
+def _jedi_names(fetch: Callable[[], Any], what: str) -> list[Any]:
+    try:
+        return list(fetch() or [])
+    except Exception:  # noqa: BLE001
+        logger.debug("Jedi %s failed", what, exc_info=True)
+        return []
 
 
 def jedi_definitions(

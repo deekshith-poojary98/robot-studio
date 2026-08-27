@@ -690,6 +690,32 @@ class RestTransportGateway implements TransportGateway {
     int? column,
     String? content,
   }) async {
+    // Buffer-backed hover (Python builtins, locals) must POST — a GET query
+    // cannot carry the file. Name-only lookups still use GET.
+    if (content != null && content.isNotEmpty) {
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/language/hover'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'file_path': filePath ?? '',
+              'line': line ?? 1,
+              'column': column ?? 1,
+              'content': content,
+              'name': ?name,
+              'symbol_id': ?symbolId,
+              'kind': ?kind?.apiValue,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode == 200 &&
+          (response.body.isEmpty || response.body == 'null')) {
+        return null;
+      }
+      final decoded = _decode(response);
+      return HoverInfo.fromJson(decoded);
+    }
+
     final params = <String>[];
     if (name != null) params.add('name=${Uri.encodeQueryComponent(name)}');
     if (symbolId != null) {
@@ -703,9 +729,6 @@ class RestTransportGateway implements TransportGateway {
     }
     if (line != null) params.add('line=$line');
     if (column != null) params.add('column=$column');
-    if (content != null) {
-      params.add('content=${Uri.encodeQueryComponent(content)}');
-    }
     final response = await _client
         .get(Uri.parse('$baseUrl/language/hover?${params.join('&')}'))
         .timeout(const Duration(seconds: 30));
