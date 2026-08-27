@@ -685,6 +685,23 @@ class RestGateway:
             content=content,
         )
 
+    async def language_rename(
+        self,
+        *,
+        file_path: str,
+        line: int,
+        column: int,
+        content: str,
+        new_name: str,
+    ) -> dict:
+        return await self._language_service.rename(
+            file_path=file_path,
+            line=line,
+            column=column,
+            content=content,
+            new_name=new_name,
+        )
+
     async def language_hover(
         self,
         *,

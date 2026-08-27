@@ -13,6 +13,7 @@ from robot_studio.infrastructure.language.completion.ranking import merge_and_ra
 from robot_studio.infrastructure.language.completion.usage_store import (
     SqliteCompletionUsageStore,
 )
+from robot_studio.infrastructure.language.python_language import is_python_path
 
 
 @dataclass
@@ -34,7 +35,14 @@ class CompletionPipeline:
                 usage = {}
 
         batches: list[list[CompletionCandidate]] = []
+        is_python = is_python_path(ctx.file_path)
+        is_robot = str(ctx.file_path).lower().endswith((".robot", ".resource"))
         for provider in self.providers:
+            pid = provider.provider_id
+            if is_python and not pid.startswith("python_"):
+                continue
+            if is_robot and pid.startswith("python_"):
+                continue
             if not provider.accepts(ctx):
                 continue
             try:

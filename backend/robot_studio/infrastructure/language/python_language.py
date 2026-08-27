@@ -13,6 +13,15 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+# Stub and script variants are the same language: every gate that enables Python
+# intelligence should accept them, so highlighting and features never disagree.
+PYTHON_SUFFIXES = (".py", ".pyi", ".pyw")
+
+
+def is_python_path(file_path: str) -> bool:
+    return str(file_path).lower().endswith(PYTHON_SUFFIXES)
+
+
 _IDENT_TAIL = re.compile(r"[A-Za-z_][\w]*$")
 # ``self.`` / ``Class.`` with optional incomplete attribute after the dot.
 _ATTR_TAIL = re.compile(r"([A-Za-z_][\w]*)\.([A-Za-z_][\w]*)?$")
@@ -202,7 +211,7 @@ def python_signature_help(
     line: int,
     column: int,
 ) -> dict[str, Any] | None:
-    """Signature card for a call under the caret, or the enclosing def."""
+    """Signature card for a call under the caret, or the ``def`` being written."""
     tree = _parse_python(content)
     if tree is None:
         return None
@@ -215,10 +224,24 @@ def python_signature_help(
             if target is not None:
                 return _signature_payload(target, active=_active_arg_index(content, line, column))
 
+    # Only the ``def`` header itself, never the whole body: a card pinned to the
+    # enclosing function would cover every line the caret visits.
     enclosing = _enclosing_function(tree, line)
-    if enclosing is not None:
+    if enclosing is not None and _in_function_header(enclosing, line):
         return _signature_payload(enclosing, active=0)
     return None
+
+
+def _in_function_header(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    line: int,
+) -> bool:
+    start = getattr(node, "lineno", 1) or 1
+    body_start = min(
+        (getattr(stmt, "lineno", start) or start for stmt in node.body),
+        default=start + 1,
+    )
+    return start <= line < body_start
 
 
 def _prefix_match(label: str, prefix: str) -> bool:

@@ -402,6 +402,21 @@ class ApiClient implements TransportGateway {
   );
 
   @override
+  Future<RenameResultInfo> languageRename({
+    required String filePath,
+    required int line,
+    required int column,
+    required String content,
+    required String newName,
+  }) => _gateway.languageRename(
+    filePath: filePath,
+    line: line,
+    column: column,
+    content: content,
+    newName: newName,
+  );
+
+  @override
   Future<SignatureHelpInfo?> languageSignatureHelp({
     required String filePath,
     required int line,

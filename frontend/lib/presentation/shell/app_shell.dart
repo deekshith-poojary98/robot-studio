@@ -3553,7 +3553,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       });
       _trackRecentFile(file.path);
       await _loadOutline(file.path);
-      unawaited(_refreshLanguageFeatures());
+      _editor.onActiveTabChanged();
     } catch (error) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -3709,6 +3709,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _editorReferences = [];
       _editor.setStatusMessage(null);
     });
+    _editor.onActiveTabChanged();
     await _checkExternalChanges(path);
     await _loadOutline(path);
   }
@@ -3931,14 +3932,24 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  /// Enclosing scopes worth naming in the breadcrumb. Python classes, functions
+  /// and methods belong here so a `.py` breadcrumb is not just the file path.
+  static const _breadcrumbSymbolKinds = {
+    SymbolKind.keyword,
+    SymbolKind.testCase,
+    SymbolKind.keywordCall,
+    SymbolKind.classKind,
+    SymbolKind.function,
+    SymbolKind.method,
+  };
+
   Future<void> _handleLiveIndexUpdated(WorkspaceStreamEvent event) async {
     await _loadIndexStatus();
     if (_showInsightsPage || _activePanel == SidebarPanel.insights) {
       await _loadInsights();
     }
     final active = _activeEditorPath;
-    if (active != null &&
-        (active.endsWith('.robot') || active.endsWith('.resource'))) {
+    if (active != null && EditorShellController.isSourcePath(active)) {
       await _loadOutline(active);
       _scheduleLanguageRefresh();
     }
@@ -4155,16 +4166,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
     IndexedSymbolInfo? symbol;
     final active = _editor.activeDocumentSymbol;
-    if (active != null &&
-        (active.kind == SymbolKind.keyword ||
-            active.kind == SymbolKind.testCase ||
-            active.kind == SymbolKind.keywordCall)) {
+    if (active != null && _breadcrumbSymbolKinds.contains(active.kind)) {
       symbol = active.toIndexed(tab.path);
     } else {
       for (final item in _documentOutline.reversed) {
         if (item.line <= _cursorLine &&
-            (item.kind == SymbolKind.keyword ||
-                item.kind == SymbolKind.testCase)) {
+            _breadcrumbSymbolKinds.contains(item.kind)) {
           symbol = item;
           break;
         }
@@ -4235,6 +4242,124 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _editorRenameSymbol() async {
+    final tab = _activeEditorTab;
+    if (tab == null) return;
+    if (!EditorShellController.isPythonPath(tab.path)) {
+      setState(() {
+        _editor.setStatusMessage('Rename Symbol works in Python files.');
+      });
+      return;
+    }
+    final token = _editorCursorToken();
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _editor.setStatusMessage('Place the cursor on a symbol to rename it.');
+      });
+      return;
+    }
+
+    final newName = await _promptForRename(token);
+    if (newName == null || newName == token) return;
+
+    final source = _editorPageKey.currentState?.currentText ?? tab.content;
+    try {
+      final result = await _gateway.languageRename(
+        filePath: tab.path,
+        line: _cursorLine,
+        column: _cursorColumn,
+        content: source,
+        newName: newName,
+      );
+      if (!mounted) return;
+      if (result.error.isNotEmpty) {
+        setState(() => _editor.setStatusMessage(result.error));
+        return;
+      }
+      if (result.files.isEmpty) {
+        setState(
+          () => _editor.setStatusMessage('Nothing to rename for "$token".'),
+        );
+        return;
+      }
+      await _applyRenameEdits(result.files, token, newName);
+    } catch (error) {
+      await _showError('Rename Symbol', error);
+    }
+  }
+
+  Future<String?> _promptForRename(String current) async {
+    final controller = TextEditingController(text: current);
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: current.length,
+    );
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename Symbol'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'New name'),
+          onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null || result.isEmpty) return null;
+    return result;
+  }
+
+  /// Writes every file the rename touched, keeping open tabs in sync.
+  ///
+  /// The active buffer is applied through the editor so undo still works; other
+  /// files are written to disk because they have no live controller to edit.
+  Future<void> _applyRenameEdits(
+    List<RenameFileEditInfo> edits,
+    String from,
+    String to,
+  ) async {
+    final activePath = _activeEditorTab?.path;
+    var written = 0;
+    for (final edit in edits) {
+      if (edit.filePath == activePath) {
+        setState(() => _activeEditorTab!.content = edit.content);
+        _editorPageKey.currentState?.applyExternalContent(edit.content);
+        written++;
+        continue;
+      }
+      try {
+        await _gateway.writeFile(path: edit.filePath, content: edit.content);
+        for (final open in _editor.tabs) {
+          if (open.path == edit.filePath) {
+            setState(() => open.content = edit.content);
+          }
+        }
+        written++;
+      } catch (error) {
+        _appendLog('[warn] Rename could not write ${edit.filePath}: $error');
+      }
+    }
+    if (!mounted) return;
+    final suffix = written == 1 ? 'file' : 'files';
+    setState(() {
+      _editor.setStatusMessage('Renamed "$from" to "$to" in $written $suffix');
+    });
+    _scheduleLanguageRefresh();
+  }
+
   Future<void> _editorFormatSelection() async {
     final tab = _activeEditorTab;
     if (tab == null) return;
@@ -4264,10 +4389,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _editorPeekDefinition() async {
-    final token = _editorTokenName();
+    final token = _editorCursorToken() ?? _editorTokenName();
     if (token == null) return;
+    final tab = _activeEditorTab;
     try {
-      final definition = await _gateway.languageDefinition(name: token);
+      // Position matters: a bare name cannot tell an imported `dumps` from a
+      // local one, and Jedi needs the caret to resolve either.
+      final definition = await _gateway.languageDefinition(
+        name: token,
+        filePath: tab?.path,
+        line: tab == null ? null : _cursorLine,
+        column: tab == null ? null : _cursorColumn,
+        content: tab?.content,
+      );
       if (!mounted) return;
       setState(() => _editor.peekDefinition = definition);
     } catch (error) {
@@ -4278,13 +4412,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Future<void> _editorCtrlClickDefinition() async {
     final tab = _activeEditorTab;
     if (tab == null) return;
-    final token =
-        EditorShellController.extractRobotTokenAt(
-          tab.content,
-          _cursorLine,
-          _cursorColumn,
-        ) ??
-        _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn);
+    final token = _editorCursorToken();
     if (token == null) return;
     try {
       final definition = await _gateway.languageDefinition(
@@ -4516,17 +4644,28 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     return _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn);
   }
 
+  /// Token under the caret, using the rules of the file's own language.
+  ///
+  /// `extractRobotTokenAt` reads indented lines as Robot argument cells split on
+  /// two spaces, which is the wrong model for Python — on `    return  x` it
+  /// would hand back a cell instead of the identifier being pointed at.
+  String? _editorCursorToken() {
+    final tab = _activeEditorTab;
+    if (tab == null) return null;
+    if (EditorShellController.isPythonPath(tab.path)) {
+      return _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn);
+    }
+    return EditorShellController.extractRobotTokenAt(
+          tab.content,
+          _cursorLine,
+          _cursorColumn,
+        ) ??
+        _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn);
+  }
+
   Future<void> _editorGoToDefinition() async {
     final tab = _activeEditorTab;
-    final cursorToken = tab == null
-        ? null
-        : (EditorShellController.extractRobotTokenAt(
-                tab.content,
-                _cursorLine,
-                _cursorColumn,
-              ) ??
-              _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn));
-    final token = cursorToken ?? _editorTokenName();
+    final token = _editorCursorToken() ?? _editorTokenName();
     if (token == null) {
       setState(() {
         _editor.setStatusMessage(
@@ -4571,9 +4710,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final candidates = definition.definitions.isNotEmpty
         ? definition.definitions
         : <IndexedSymbolInfo>[definition];
-    IndexedSymbolInfo? chosen = candidates.first;
+    final IndexedSymbolInfo target;
     if (candidates.length > 1) {
-      chosen = await showDialog<IndexedSymbolInfo>(
+      final picked = await showDialog<IndexedSymbolInfo>(
         context: context,
         builder: (dialogContext) => SimpleDialog(
           title: Text('Go to Definition — $token'),
@@ -4589,13 +4728,49 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ],
         ),
       );
-      if (chosen == null) return;
+      if (picked == null) return;
+      target = picked;
+    } else {
+      target = candidates.first;
     }
-    await _openFile(chosen.filePath, line: chosen.line);
+    if (!_isPathInEditableScope(target.filePath)) {
+      setState(() {
+        _editor.peekDefinition = target;
+        _editor.setStatusMessage(
+          'Definition is outside this project (${target.filePath}). '
+          'Showing peek — stdlib and site-packages are not opened in the editor.',
+        );
+      });
+      return;
+    }
+    await _openFile(target.filePath, line: target.line);
+  }
+
+  /// True when [path] lies under the open workspace or project (editable tree).
+  bool _isPathInEditableScope(String path) {
+    if (path.trim().isEmpty) return false;
+    final normalized = path.replaceAll('\\', '/');
+    final roots = <String>[];
+    final workspacePath = _activeWorkspace?.path;
+    if (workspacePath != null && workspacePath.isNotEmpty) {
+      roots.add(workspacePath.replaceAll('\\', '/'));
+    }
+    final projectPath = _selectedProject?.path;
+    if (projectPath != null && projectPath.isNotEmpty) {
+      roots.add(projectPath.replaceAll('\\', '/'));
+    }
+    for (final root in roots) {
+      final trimmed = root.endsWith('/')
+          ? root.substring(0, root.length - 1)
+          : root;
+      if (normalized == trimmed) return true;
+      if (normalized.startsWith('$trimmed/')) return true;
+    }
+    return false;
   }
 
   Future<void> _editorFindReferences() async {
-    final token = _editorTokenName();
+    final token = _editorCursorToken() ?? _editorTokenName();
     if (token == null) {
       setState(() {
         _editor.setStatusMessage(
@@ -4604,6 +4779,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       });
       return;
     }
+    final tab = _activeEditorTab;
 
     setState(() {
       _editor.setStatusMessage(null);
@@ -4612,7 +4788,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     });
 
     try {
-      final refs = await _gateway.languageReferences(name: token);
+      final refs = await _gateway.languageReferences(
+        name: token,
+        filePath: tab?.path,
+        line: tab == null ? null : _cursorLine,
+        column: tab == null ? null : _cursorColumn,
+        content: tab?.content,
+      );
       if (!mounted) return;
       setState(() {
         _editorReferences = refs;
@@ -4627,7 +4809,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _editorHoverLookup() async {
-    final token = _editorTokenName();
+    final token = _editorCursorToken() ?? _editorTokenName();
     if (token == null) {
       setState(() {
         _editor.setStatusMessage(
@@ -4636,6 +4818,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       });
       return;
     }
+    final tab = _activeEditorTab;
 
     setState(() {
       _editor.setStatusMessage(null);
@@ -4644,7 +4827,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     });
 
     try {
-      final hover = await _gateway.languageHover(name: token);
+      final hover = await _gateway.languageHover(
+        name: token,
+        filePath: tab?.path,
+        line: tab == null ? null : _cursorLine,
+        column: tab == null ? null : _cursorColumn,
+        content: tab?.content,
+      );
       if (!mounted) return;
       setState(() {
         _editorHover = hover;
@@ -5359,6 +5548,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           icon: Icons.link,
           kind: PaletteItemKind.command,
           onSelect: () => unawaited(_editorFindReferences()),
+        ),
+        PaletteItem(
+          id: 'editor.rename',
+          title: 'Rename Symbol',
+          subtitle: 'Python files',
+          icon: Icons.drive_file_rename_outline,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_editorRenameSymbol()),
         ),
         PaletteItem(
           id: 'editor.hover',

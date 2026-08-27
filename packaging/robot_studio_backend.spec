@@ -39,7 +39,21 @@ hiddenimports: list[str] = [
     "email_validator",
 ]
 
-for pkg in ("uvicorn", "fastapi", "starlette", "pydantic", "anyio", "robot"):
+# jedi/parso back Python intelligence and carry non-importable payloads that a
+# bare module scan misses: parso's grammar*.txt and jedi's typeshed .pyi stubs.
+# Jedi is used with InterpreterEnvironment (in-process) precisely so it never
+# needs its own .py sources on disk, which the archive does not provide.
+for pkg in (
+    "uvicorn",
+    "fastapi",
+    "starlette",
+    "pydantic",
+    "anyio",
+    "robot",
+    "jedi",
+    "parso",
+    "pyflakes",
+):
     try:
         pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)
         datas += pkg_datas

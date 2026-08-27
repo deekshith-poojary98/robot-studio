@@ -83,6 +83,16 @@ class RobotCodeEditor extends StatefulWidget {
   State<RobotCodeEditor> createState() => RobotCodeEditorState();
 }
 
+/// The suggestion popup currently in the overlay. [token] discards a stale
+/// dismissal that arrives after a newer popup has already opened.
+class _AutocompletePopup {
+  const _AutocompletePopup(this.token, this.notifier, this.onSelected);
+
+  final int token;
+  final ValueNotifier<CodeAutocompleteEditingValue> notifier;
+  final ValueChanged<CodeAutocompleteResult> onSelected;
+}
+
 class RobotCodeEditorState extends State<RobotCodeEditor> {
   static const _fontHeight = 1.45;
   static const _chunkWidth = 14.0;
@@ -105,6 +115,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   bool _pointerOverTooltip = false;
   final GlobalKey _hoverTooltipKey = GlobalKey();
   Size _hoverTooltipSize = const Size(360, 88);
+  _AutocompletePopup? _popup;
+  int _popupToken = 0;
 
   CodeLineEditingController get controller => _controller;
 
@@ -156,6 +168,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _promptsBuilder = RobotAutocompletePromptsBuilder(
       widget.completionItems,
       signature: widget.hoverTooltip,
+      filePath: widget.path,
     );
     _controller.addListener(_onChanged);
     _listening = true;
@@ -199,11 +212,16 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       _applyParentContent(widget.initialContent);
     }
     if (widget.completionItems != oldWidget.completionItems ||
-        widget.hoverTooltip != oldWidget.hoverTooltip) {
+        widget.hoverTooltip != oldWidget.hoverTooltip ||
+        widget.path != oldWidget.path) {
       _promptsBuilder.update(
         widget.completionItems,
         signature: widget.hoverTooltip,
+        filePath: widget.path,
       );
+      // Re-run autocomplete so async completion results pop open without
+      // another keystroke (Python Jedi / language refresh is debounced).
+      setState(() {});
     }
     if (widget.diagnostics != oldWidget.diagnostics) {
       _diagnostics = widget.diagnostics;
@@ -284,6 +302,19 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     widget.onContentChanged(_controller.text);
     final sel = _controller.selection;
     widget.onCursorChanged?.call(sel.baseIndex + 1, sel.baseOffset + 1);
+  }
+
+  /// Accept the highlighted completion, mirroring what Enter does inside
+  /// `CodeAutocomplete`. Returns false when no popup is open.
+  bool _acceptOpenCompletion() {
+    final popup = _popup;
+    if (popup == null) return false;
+    final value = popup.notifier.value;
+    if (value.prompts.isEmpty) return false;
+    final result = value.autocomplete;
+    _recordCompletionAcceptance(result.word);
+    popup.onSelected(result);
+    return true;
   }
 
   void _recordCompletionAcceptance(String insertWord) {
@@ -523,8 +554,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final isRobot =
-        widget.path.endsWith('.robot') || widget.path.endsWith('.resource');
+    final isPython = isPythonPath(widget.path);
+    final autocompleteEnabled = isSourcePath(widget.path);
     final codeTheme = codeThemeForPath(widget.path, context.palette);
 
     final editor = CodeEditor(
@@ -539,6 +570,34 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
         CodeShortcutSaveIntent: CallbackAction<CodeShortcutSaveIntent>(
           onInvoke: (_) {
             widget.onSave?.call();
+            return null;
+          },
+        ),
+        // Tab accepts the completion like every other editor; it only indents
+        // when no popup is open.
+        CodeShortcutIndentIntent: CallbackAction<CodeShortcutIndentIntent>(
+          onInvoke: (_) {
+            if (_acceptOpenCompletion()) return null;
+            _controller.applyIndent();
+            return null;
+          },
+        ),
+        // Overriding newline takes over the popup's Enter handling too, so
+        // accepting has to be re-applied here before the suite indent.
+        CodeShortcutNewLineIntent: CallbackAction<CodeShortcutNewLineIntent>(
+          onInvoke: (_) {
+            if (_acceptOpenCompletion()) return null;
+            final selection = _controller.selection;
+            final opensSuite =
+                isPython &&
+                selection.isCollapsed &&
+                selection.extentIndex < _controller.lineCount &&
+                opensPythonSuite(
+                  _controller.codeLines[selection.extentIndex].text,
+                  selection.extentOffset,
+                );
+            _controller.applyNewLine();
+            if (opensSuite) _controller.applyIndent();
             return null;
           },
         ),
@@ -575,14 +634,21 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
           EditorFindPanel(controller: controller, readOnly: readOnly),
     );
 
-    final wrappedEditor = isRobot
+    final wrappedEditor = autocompleteEnabled
         ? CodeAutocomplete(
             viewBuilder: (context, notifier, onSelected) {
+              // The popup lives in an overlay we do not own, so the list view
+              // reports its own lifetime — that is how Tab knows one is open.
+              final token = ++_popupToken;
+              _popup = _AutocompletePopup(token, notifier, onSelected);
               return RobotAutocompleteListView(
                 notifier: notifier,
                 onSelected: (result) {
                   _recordCompletionAcceptance(result.word);
                   onSelected(result);
+                },
+                onDismissed: () {
+                  if (_popup?.token == token) _popup = null;
                 },
               );
             },
@@ -595,6 +661,9 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     final tooltipPos = _hoverLocal != null
         ? _lineTopAnchor(_hoverLocal!)
         : (tooltip != null ? _caretTooltipOffset() : null);
+    // Caret-driven signature help shares the caret line with the completion
+    // popup, which always opens below it.
+    final tooltipAbove = _hoverLocal == null;
 
     return Shortcuts(
       shortcuts: {
@@ -712,6 +781,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
                         tooltipSize: _hoverTooltipSize,
                         lineHeight: _lineHeight,
                         gap: AppSpacing.sm,
+                        preferAbove: tooltipAbove,
                       )
                     : null;
 
@@ -724,6 +794,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
                       anchor: anchor,
                       viewport: viewport,
                       current: placement,
+                      preferAbove: tooltipAbove,
                     );
                   });
                 }
@@ -776,6 +847,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     required Offset anchor,
     required Size viewport,
     required HoverTooltipPlacement current,
+    bool preferAbove = false,
   }) {
     if (!mounted || widget.hoverTooltip == null) return;
     final box =
@@ -793,6 +865,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       tooltipSize: box.size,
       lineHeight: _lineHeight,
       gap: AppSpacing.sm,
+      preferAbove: preferAbove,
     );
     if ((refined.left - current.left).abs() > 0.5 ||
         (refined.top - current.top).abs() > 0.5) {

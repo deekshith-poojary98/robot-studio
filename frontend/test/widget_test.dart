@@ -2679,6 +2679,17 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<RenameResultInfo> languageRename({
+    required String filePath,
+    required int line,
+    required int column,
+    required String content,
+    required String newName,
+  }) async {
+    return const RenameResultInfo();
+  }
+
+  @override
   Future<SignatureHelpInfo?> languageSignatureHelp({
     required String filePath,
     required int line,

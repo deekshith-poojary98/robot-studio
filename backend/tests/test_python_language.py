@@ -16,13 +16,22 @@ from robot_studio.infrastructure.language.completion.python_provider import (
     PythonIndexCompletionProvider,
     PythonJediCompletionProvider,
 )
+from robot_studio.infrastructure.language.python_diagnostics import (
+    pyflakes_available,
+    python_diagnostics,
+)
 from robot_studio.infrastructure.language.python_jedi import (
+    environment_sys_path,
     jedi_available,
     jedi_completions,
     jedi_definitions,
+    jedi_references,
+    jedi_rename,
     jedi_signature_help,
+    jedi_syntax_errors,
 )
 from robot_studio.infrastructure.language.python_language import (
+    is_python_path,
     python_buffer_completions,
     python_completion_context,
     python_signature_help,
@@ -114,6 +123,16 @@ def test_python_signature_help_from_call() -> None:
     assert help_["active_parameter"] == 1
 
 
+def test_python_signature_help_only_on_def_header() -> None:
+    content = "class Bank:\n    def __init__(self, name):\n        self.name = name\n"
+    header = python_signature_help(content, 2, len("    def __init__(self, name)"))
+    assert header is not None
+    assert header["keyword"] == "__init__"
+    # Inside the body the card would follow the caret over the code the user is
+    # writing, so no signature is offered there.
+    assert python_signature_help(content, 3, len("        self.name = name") + 1) is None
+
+
 def test_python_indexer_emits_snake_case_and_class() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "client_lib.py"
@@ -188,7 +207,21 @@ async def test_python_index_provider_filters_py_paths() -> None:
 
 
 @pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
-def test_jedi_completions_stdlib_json() -> None:
+def test_jedi_completions_insert_text_is_full_name() -> None:
+    content = "impo"
+    items = jedi_completions(
+        content,
+        "module.py",
+        1,
+        5,
+        Path(sys.executable),
+        None,
+        prefix="impo",
+    )
+    import_item = next((i for i in items if i["label"] == "import"), None)
+    assert import_item is not None
+    assert import_item["insert_text"] == "import"
+    assert import_item["insert_text"] != "importrt"
     content = "import json\njson."
     line = 2
     column = len("json.") + 1  # 1-based, after dot
@@ -259,3 +292,149 @@ async def test_python_jedi_provider_completes() -> None:
     )
     items = await provider.complete(ctx)
     assert any(item.label == "dumps" for item in items)
+
+
+def test_python_path_covers_stub_and_script_suffixes() -> None:
+    assert is_python_path("lib/client.py")
+    assert is_python_path("lib/client.pyi")
+    assert is_python_path("lib/tool.PyW")
+    assert not is_python_path("suite.robot")
+    assert not is_python_path("notes.txt")
+
+
+def test_environment_sys_path_stays_inside_the_venv() -> None:
+    """A venv's bin/python is a symlink; resolving it must not leak the base env."""
+    venv = Path(sys.executable).parent.parent
+    site_packages = sorted((venv / "lib").glob("python3*/site-packages"))
+    if not site_packages:
+        pytest.skip("tests are not running from a venv layout")
+    paths = environment_sys_path(Path(sys.executable))
+    assert str(site_packages[0]) in paths
+    assert paths[0] == str(site_packages[0]), "venv site-packages must win over the base interpreter"
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_jedi_completions_defer_docstrings_beyond_the_visible_rows() -> None:
+    """Eager per-item docstrings cost ~350ms for ~190 candidates; cap them."""
+    items = jedi_completions(
+        "import os\nos.",
+        "module.py",
+        2,
+        len("os.") + 1,
+        Path(sys.executable),
+        None,
+    )
+    assert len(items) > 20
+    documented = [item for item in items if item["documentation"]]
+    assert len(documented) <= 15
+    assert all("_jedi_item" not in item for item in items)
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_jedi_completions_expose_privates_only_when_asked() -> None:
+    hidden = jedi_completions(
+        "import os\nos.",
+        "module.py",
+        2,
+        len("os.") + 1,
+        Path(sys.executable),
+        None,
+    )
+    assert not [i for i in hidden if i["label"].startswith("_") and not i["label"].startswith("__")]
+
+    asked = jedi_completions(
+        "import os\nos._",
+        "module.py",
+        2,
+        len("os._") + 1,
+        Path(sys.executable),
+        None,
+        prefix="_",
+    )
+    assert [i for i in asked if i["label"].startswith("_")]
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_jedi_definitions_follow_imports_to_the_definition() -> None:
+    """``goto`` lands on the definition; ``infer`` would land on its type."""
+    content = "from json import dumps\nvalue = dumps\n"
+    defs = jedi_definitions(content, "module.py", 2, len("value = dumps"), Path(sys.executable), None)
+    assert defs
+    assert defs[0]["name"] == "dumps"
+    assert "json" in defs[0]["file_path"]
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_jedi_references_finds_every_usage() -> None:
+    content = "def helper():\n    pass\n\nhelper()\nalias = helper\n"
+    refs = jedi_references(content, "module.py", 1, 5, Path(sys.executable), None)
+    lines = sorted(ref["line"] for ref in refs)
+    assert lines == [1, 4, 5]
+    assert all(ref["column"] >= 1 for ref in refs)
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_jedi_rename_rewrites_definition_and_usages() -> None:
+    content = "def helper():\n    pass\n\nhelper()\n"
+    result = jedi_rename(content, "module.py", 1, 5, Path(sys.executable), None, new_name="renamed")
+    assert result is not None
+    assert result["error"] == ""
+    assert len(result["files"]) == 1
+    new_code = result["files"][0]["content"]
+    assert "def renamed()" in new_code
+    assert "renamed()" in new_code
+    assert "helper" not in new_code
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_jedi_syntax_errors_report_every_failure() -> None:
+    """``ast.parse`` stops at the first error and would hide the second."""
+    errors = jedi_syntax_errors("def f(:\n  pass\n\nclass ++X:\n  pass\n", "m.py", Path(sys.executable), None)
+    assert len(errors) >= 2
+    assert all(item["severity"] == "error" for item in errors)
+    assert all(item["column"] >= 1 for item in errors)
+
+
+def test_python_diagnostics_report_syntax_errors() -> None:
+    items = python_diagnostics("def f(:\n    pass\n", "m.py", python_executable=Path(sys.executable))
+    assert items
+    assert items[0]["severity"] == "error"
+    assert items[0]["file_path"] == "m.py"
+    assert "Syntax" in items[0]["message"] or "syntax" in items[0]["message"]
+
+
+@pytest.mark.skipif(not pyflakes_available(), reason="pyflakes not installed")
+def test_python_diagnostics_report_undefined_names_and_unused_imports() -> None:
+    content = "import os\nimport sys\n\ndef f(a):\n    return missing_name + a\n"
+    items = python_diagnostics(content, "m.py", python_executable=Path(sys.executable))
+    codes = {item["code"] for item in items}
+    assert "undefined_name" in codes
+    assert "unused_import" in codes
+
+    undefined = next(item for item in items if item["code"] == "undefined_name")
+    assert undefined["severity"] == "error"
+    assert undefined["line"] == 5
+    unused = next(item for item in items if item["code"] == "unused_import")
+    assert unused["severity"] == "warning"
+
+    # Ordered by position so the Problems panel reads top-to-bottom.
+    positions = [(item["line"], item["column"]) for item in items]
+    assert positions == sorted(positions)
+
+
+@pytest.mark.skipif(not pyflakes_available(), reason="pyflakes not installed")
+def test_python_diagnostics_skip_semantics_while_unparseable() -> None:
+    """Half-typed code makes every name look undefined; only syntax is reported."""
+    items = python_diagnostics(
+        "import os\n\ndef f(:\n    return missing\n",
+        "m.py",
+        python_executable=Path(sys.executable),
+    )
+    assert items
+    assert {item["code"] for item in items} == {"syntax"}
+
+
+def test_python_diagnostics_are_silent_on_clean_code() -> None:
+    content = "import os\n\n\ndef f(a):\n    return os.path.join(a, 'b')\n"
+    assert python_diagnostics(content, "m.py", python_executable=Path(sys.executable)) == []
+    assert python_diagnostics("", "m.py", python_executable=Path(sys.executable)) == []

@@ -6,14 +6,35 @@ import '../../core/theme/app_theme.dart';
 
 class RobotAutocompletePromptsBuilder
     implements CodeAutocompletePromptsBuilder {
-  RobotAutocompletePromptsBuilder(this.items, {this.signature});
+  RobotAutocompletePromptsBuilder(
+    this.items, {
+    this.signature,
+    this.filePath = '',
+  });
 
   List<CompletionItemInfo> items;
   SignatureHelpInfo? signature;
+  String filePath;
 
-  void update(List<CompletionItemInfo> next, {SignatureHelpInfo? signature}) {
+  void update(
+    List<CompletionItemInfo> next, {
+    SignatureHelpInfo? signature,
+    String? filePath,
+  }) {
     items = next;
     this.signature = signature;
+    if (filePath != null) {
+      this.filePath = filePath;
+    }
+  }
+
+  bool get _isPython => filePath.endsWith('.py');
+
+  List<CompletionItemInfo> get _effectiveItems {
+    if (!_isPython) return items;
+    return items
+        .where((item) => item.provider.startsWith('python_'))
+        .toList();
   }
 
   @override
@@ -25,13 +46,17 @@ class RobotAutocompletePromptsBuilder
     final lineText = codeLine.text;
     final offset = selection.baseOffset;
     final prefix = _prefixAt(lineText, offset);
-    final inArgs = isArgumentSlot(lineText, offset, signature);
-    final typingValue = isTypingNamedArgValue(lineText, offset);
+    final inArgs = !_isPython && isArgumentSlot(lineText, offset, signature);
+    // Cell/named-arg rules are Robot syntax. In Python ``self.name = name`` is
+    // an assignment, not a ``name=`` argument cell, so the local ``name`` must
+    // stay in the list.
+    final typingValue = !_isPython && isTypingNamedArgValue(lineText, offset);
+    final attributeContext = isPythonAttributeContext(lineText, offset);
 
     var candidates = <CompletionItemInfo>[
       if (inArgs && !typingValue)
         ...namedArgsFromSignature(lineText, offset, signature),
-      ...items,
+      ..._effectiveItems,
     ];
     candidates = _dedupeByInsert(candidates);
 
@@ -52,7 +77,7 @@ class RobotAutocompletePromptsBuilder
           (prefix.isEmpty || _looksLikeParamPrefix(prefix))) {
         candidates = params;
       }
-    } else if (prefix.isEmpty && candidates.length > 20) {
+    } else if (prefix.isEmpty && candidates.length > 20 && !attributeContext) {
       return null;
     }
     if (candidates.isEmpty) return null;
@@ -129,6 +154,17 @@ class RobotAutocompletePromptsBuilder
     if (cells.length > 1) {
       return cells.last.trim();
     }
+    // Python attribute access: json.dumps → replace only the part after the dot.
+    final dotted = RegExp(
+      r'([A-Za-z_][\w]*)\.([A-Za-z_][\w]*)$',
+    ).firstMatch(before);
+    if (dotted != null) {
+      return dotted.group(2) ?? '';
+    }
+    // Caret immediately after a dot (json.|) — empty prefix, show members.
+    if (RegExp(r'[\w.]+\.$').hasMatch(before)) {
+      return '';
+    }
     final match = RegExp(r'[\w${}@&][\w\s${}@&.-]*$').firstMatch(before);
     return match?.group(0)?.trim() ?? '';
   }
@@ -156,6 +192,17 @@ class RobotAutocompletePromptsBuilder
   }
 
   String _prefixAt(String line, int offset) => prefixAt(line, offset);
+
+  /// True when the caret is in ``expr.member`` (Python Jedi / buffer attrs).
+  @visibleForTesting
+  static bool isPythonAttributeContext(String line, int offset) {
+    if (offset <= 0 || offset > line.length) {
+      offset = line.length;
+    }
+    final before = line.substring(0, offset);
+    return RegExp(r'[\w.]+\.$').hasMatch(before) ||
+        RegExp(r'[\w.]+\.[\w]*$').hasMatch(before);
+  }
 
   static List<CompletionItemInfo> _dedupeByInsert(
     List<CompletionItemInfo> items,
@@ -311,18 +358,53 @@ class RobotAutocompletePromptsBuilder
   }
 }
 
+/// Whether Enter on [lineText] should open an indented Python suite.
+///
+/// `re_editor` only adds depth inside brackets, so `def f():` used to leave the
+/// caret at column 0 of the body. A trailing `:` (ignoring a line comment) is
+/// what opens a suite in Python — `if`, `for`, `def`, `class`, `match`, `try`.
+bool opensPythonSuite(String lineText, int offset) {
+  final upto = offset.clamp(0, lineText.length);
+  var head = lineText.substring(0, upto);
+  final hash = head.indexOf('#');
+  if (hash >= 0) head = head.substring(0, hash);
+  return head.trimRight().endsWith(':');
+}
+
+/// Short right-aligned tag for a completion row, so same-prefix items are
+/// distinguishable (``name`` param vs ``NameError`` class).
+@visibleForTesting
+String kindLabel(String kind) => switch (kind) {
+  'keyword' => 'keyword',
+  'class' => 'class',
+  'function' || 'method' => 'def',
+  'module' => 'module',
+  'parameter' => 'param',
+  'variable' || 'statement' => 'var',
+  'property' || 'field' || 'instance' => 'attr',
+  'library' => 'library',
+  'resource' => 'resource',
+  'snippet' => 'snippet',
+  _ => '',
+};
+
 class RobotAutocompleteListView extends StatefulWidget
     implements PreferredSizeWidget {
   const RobotAutocompleteListView({
     super.key,
     required this.notifier,
     required this.onSelected,
+    this.onDismissed,
   });
 
   static const itemHeight = 26.0;
 
   final ValueNotifier<CodeAutocompleteEditingValue> notifier;
   final ValueChanged<CodeAutocompleteResult> onSelected;
+
+  /// Fired when the popup leaves the overlay, so keyboard handlers outside it
+  /// can tell whether a suggestion list is on screen.
+  final VoidCallback? onDismissed;
 
   @override
   Size get preferredSize =>
@@ -343,6 +425,7 @@ class _RobotAutocompleteListViewState extends State<RobotAutocompleteListView> {
   @override
   void dispose() {
     widget.notifier.removeListener(_refresh);
+    widget.onDismissed?.call();
     super.dispose();
   }
 
@@ -363,6 +446,9 @@ class _RobotAutocompleteListViewState extends State<RobotAutocompleteListView> {
           itemBuilder: (context, index) {
             final prompt = value.prompts[index];
             final selected = index == value.index;
+            final kind = kindLabel(
+              prompt is CodeFieldPrompt ? prompt.type : '',
+            );
             return InkWell(
               onTap: () =>
                   widget.onSelected(value.copyWith(index: index).autocomplete),
@@ -371,17 +457,35 @@ class _RobotAutocompleteListViewState extends State<RobotAutocompleteListView> {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 color: selected ? context.palette.accentSoft : null,
                 alignment: Alignment.centerLeft,
-                child: Text(
-                  prompt.word.replaceAll('\n', ' '),
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.2,
-                    color: selected
-                        ? context.palette.textPrimary
-                        : context.palette.textSecondary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        prompt.word.replaceAll('\n', ' '),
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.2,
+                          color: selected
+                              ? context.palette.textPrimary
+                              : context.palette.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (kind.isNotEmpty) ...[
+                      const SizedBox(width: AppSpacing.sm),
+                      Text(
+                        kind,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 10,
+                          height: 1.2,
+                          color: context.palette.textMuted,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             );

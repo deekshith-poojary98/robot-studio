@@ -18,6 +18,9 @@ class LanguageService(ABC):
     async def references(self, request: dict) -> list[dict]: ...
 
     @abstractmethod
+    async def rename(self, request: dict) -> dict: ...
+
+    @abstractmethod
     async def format_document(self, request: dict) -> str: ...
 
     @abstractmethod

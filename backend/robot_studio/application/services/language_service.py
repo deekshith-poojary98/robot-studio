@@ -82,6 +82,31 @@ class LanguageFacade:
             },
         )
 
+    async def rename(
+        self,
+        *,
+        file_path: str,
+        line: int,
+        column: int,
+        content: str,
+        new_name: str,
+    ) -> dict:
+        """Compute a project-wide rename. Returns new content per affected file."""
+        self._require_workspace()
+        if not file_path or not content:
+            raise LanguageValidationError("Provide file path and content")
+        if not new_name.strip():
+            raise LanguageValidationError("Provide a new name")
+        return await self.language.rename(
+            {
+                "file_path": file_path,
+                "line": line,
+                "column": column,
+                "content": content,
+                "new_name": new_name,
+            },
+        )
+
     async def hover(
         self,
         *,

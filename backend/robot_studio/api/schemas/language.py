@@ -58,6 +58,26 @@ class FormatResponse(BaseModel):
     content: str
 
 
+class RenameRequest(BaseModel):
+    file_path: str
+    line: int = 1
+    column: int = 1
+    content: str = ""
+    new_name: str
+
+
+class RenameFileEdit(BaseModel):
+    file_path: str
+    content: str
+
+
+class RenameResponse(BaseModel):
+    """Edits are returned, not applied — the client owns dirty buffers."""
+
+    error: str = ""
+    files: list[RenameFileEdit] = Field(default_factory=list)
+
+
 class SignatureParameterResponse(BaseModel):
     label: str
     name: str = ""

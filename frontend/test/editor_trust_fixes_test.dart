@@ -41,6 +41,23 @@ void main() {
       );
     });
 
+    test('python attribute uses suffix after dot', () {
+      const line = 'json.d';
+      expect(RobotAutocompletePromptsBuilder.prefixAt(line, line.length), 'd');
+    });
+
+    test('python attribute after dot uses empty prefix', () {
+      const line = 'json.';
+      expect(RobotAutocompletePromptsBuilder.prefixAt(line, line.length), '');
+      expect(
+        RobotAutocompletePromptsBuilder.isPythonAttributeContext(
+          line,
+          line.length,
+        ),
+        isTrue,
+      );
+    });
+
     test('Keywords header replaces *** Key without doubling stars', () {
       const prefix = '*** Key';
       const insert = '*** Keywords ***';
@@ -50,6 +67,106 @@ void main() {
       );
       expect(prefix.replaceFirst(prefix, insert), insert);
     });
+  });
+
+  testWidgets('python json.d shows Jedi-style member completions', (
+    tester,
+  ) async {
+    final builder = RobotAutocompletePromptsBuilder([
+      const CompletionItemInfo(
+        label: 'FOR … IN RANGE',
+        kind: 'dsl',
+        provider: 'dsl',
+      ),
+      const CompletionItemInfo(
+        label: 'dump',
+        kind: 'function',
+        provider: 'python_jedi',
+      ),
+      const CompletionItemInfo(
+        label: 'dumps',
+        kind: 'function',
+        provider: 'python_jedi',
+      ),
+      const CompletionItemInfo(
+        label: 'loads',
+        kind: 'function',
+        provider: 'python_jedi',
+      ),
+    ], filePath: '/proj/test.py');
+
+    late CodeAutocompleteEditingValue? value;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            value = builder.build(
+              context,
+              const CodeLine('json.d'),
+              const CodeLineSelection.collapsed(index: 0, offset: 6),
+            );
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(value, isNotNull);
+    expect(value!.input, 'd');
+    expect(value!.prompts.map((p) => p.word), contains('dumps'));
+    expect(
+      value!.prompts.map((p) => p.word),
+      isNot(contains('FOR … IN RANGE')),
+    );
+  });
+
+  testWidgets('python assignment keeps local names (no robot cell rules)', (
+    tester,
+  ) async {
+    final builder = RobotAutocompletePromptsBuilder(const [
+      CompletionItemInfo(
+        label: 'name',
+        kind: 'parameter',
+        provider: 'python_jedi',
+        insertText: 'name',
+      ),
+      CompletionItemInfo(
+        label: 'NameError',
+        kind: 'class',
+        provider: 'python_jedi',
+        insertText: 'NameError',
+      ),
+    ], filePath: '/proj/bank.py');
+
+    const line = '        self.name = name';
+    late CodeAutocompleteEditingValue? value;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            value = builder.build(
+              context,
+              const CodeLine(line),
+              const CodeLineSelection.collapsed(index: 0, offset: line.length),
+            );
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(value, isNotNull);
+    expect(value!.input, 'name');
+    // ``self.name = na|`` is an assignment, not a Robot ``name=`` cell: the
+    // local parameter must stay, and rank above the builtin exception.
+    expect(value!.prompts.map((p) => p.word).toList(), ['name', 'NameError']);
+  });
+
+  test('kind label distinguishes same-prefix rows', () {
+    expect(kindLabel('parameter'), 'param');
+    expect(kindLabel('class'), 'class');
+    expect(kindLabel('function'), 'def');
+    expect(kindLabel('dsl'), '');
   });
 
   testWidgets('autocomplete popup shows label, inserts multi-line snippet', (

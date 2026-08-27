@@ -145,6 +145,9 @@ class HoverTooltipPlacement {
 /// The occupied line is snapped from that point so the card never covers
 /// the arguments. Vertical overflow is allowed (the editor stack does not
 /// clip) instead of sliding the card onto the line to stay in-viewport.
+///
+/// Set [preferAbove] for caret-driven signature help: the completion popup
+/// owns the space below the caret line, so the card goes above it.
 HoverTooltipPlacement computeHoverTooltipPlacement({
   required Offset anchor,
   required Size viewport,
@@ -153,6 +156,7 @@ HoverTooltipPlacement computeHoverTooltipPlacement({
   double gap = 8,
   double margin = 8,
   double offsetX = 12,
+  bool preferAbove = false,
 }) {
   final width = tooltipSize.width
       .clamp(EditorHoverTooltip.minWidth, EditorHoverTooltip.maxWidth)
@@ -169,9 +173,11 @@ HoverTooltipPlacement computeHoverTooltipPlacement({
   final aboveTop = lineTop - gap - height;
   final spaceBelow = viewport.height - belowTop - margin;
   final spaceAbove = lineTop - gap - margin;
-  final preferAbove = spaceBelow < height && spaceAbove > spaceBelow;
+  final flipAbove = preferAbove
+      ? spaceAbove >= height
+      : spaceBelow < height && spaceAbove > spaceBelow;
 
-  final top = preferAbove ? aboveTop : belowTop;
+  final top = flipAbove ? aboveTop : belowTop;
 
   var left = anchor.dx + offsetX;
   final maxLeft = math.max(margin, viewport.width - width - margin);

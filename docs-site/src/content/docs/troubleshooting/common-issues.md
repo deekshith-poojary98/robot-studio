@@ -196,6 +196,25 @@ per-file cleanup stays fast as the store fills.
 
 Relaunch only runs an **incremental** pass (mtime skip). If the footer shows **Indexing workspace…** for a long time with no `N/M` progress after a recent open, hot-restart once — a late open event used to leave that label stuck after indexing had already finished.
 
+## Python: no completions, hover, or Problems in a `.py` file
+
+Python intelligence resolves against the **active environment**, so it needs one selected.
+
+- Activate an environment (**Manage Environments…**), then reopen the file.
+- If completions cover the stdlib but miss a package you installed, the package landed in a different environment than the active one — check with **Packages**.
+- Symbols starting with `_` are hidden until you type the leading underscore.
+- While a file has a syntax error, only parse errors are listed. Undefined names and unused imports come back once the file parses.
+
+## Python: Format Document does nothing
+
+Robot Studio does not bundle a Python formatter — it uses the one in your environment so the result matches your project config and CI.
+
+**Fix:** install `ruff` or `black` into the active environment (**Packages → Install**). With neither present, Format Document only trims trailing whitespace.
+
+## Python: Rename Symbol is unavailable
+
+Rename works on Python files with the caret on a symbol. If it reports that the name is invalid, the new text is not a valid Python identifier. Renaming rewrites every usage across the project, including files that are not open, so review the changes before committing.
+
 ## Live Output only appears when the run finishes
 
 Robot Framework was previously started with buffered stdout when piped, so console lines flushed at process exit. Robot Studio now starts Robot with unbuffered Python (`-u` / `PYTHONUNBUFFERED`). Hot-restart the app and run again — lines should appear during the run in **Live Output**.

@@ -137,6 +137,43 @@ class SignatureParameterInfo {
   }
 }
 
+/// One file's full new contents after a rename.
+class RenameFileEditInfo {
+  const RenameFileEditInfo({required this.filePath, required this.content});
+
+  factory RenameFileEditInfo.fromJson(Map<String, dynamic> json) {
+    return RenameFileEditInfo(
+      filePath: json['file_path'] as String? ?? '',
+      content: json['content'] as String? ?? '',
+    );
+  }
+
+  final String filePath;
+  final String content;
+}
+
+/// Result of a rename request. [error] is non-empty when the symbol could not
+/// be renamed (invalid name, unresolved reference), and [files] is then empty.
+class RenameResultInfo {
+  const RenameResultInfo({this.error = '', this.files = const []});
+
+  factory RenameResultInfo.fromJson(Map<String, dynamic> json) {
+    return RenameResultInfo(
+      error: json['error'] as String? ?? '',
+      files: (json['files'] as List<dynamic>? ?? [])
+          .map(
+            (item) => RenameFileEditInfo.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(),
+    );
+  }
+
+  final String error;
+  final List<RenameFileEditInfo> files;
+
+  bool get isEmpty => error.isEmpty && files.isEmpty;
+}
+
 class SignatureHelpInfo {
   const SignatureHelpInfo({
     required this.keyword,

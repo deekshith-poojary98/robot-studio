@@ -144,6 +144,32 @@ void main() {
       expect(overlapsLine(placement, 100, height: 80), isFalse);
     });
 
+    test('caret-driven card goes above, leaving room for the popup', () {
+      final placement = computeHoverTooltipPlacement(
+        anchor: const Offset(40, 160),
+        viewport: viewport,
+        tooltipSize: tooltip,
+        lineHeight: lineHeight,
+        gap: gap,
+        preferAbove: true,
+      );
+      const lineTop = 160.0;
+      expect(placement.top + tooltip.height, lessThanOrEqualTo(lineTop - gap));
+      expect(overlapsLine(placement, 160), isFalse);
+    });
+
+    test('preferAbove falls back below when there is no room above', () {
+      final placement = computeHoverTooltipPlacement(
+        anchor: const Offset(40, 20),
+        viewport: viewport,
+        tooltipSize: tooltip,
+        lineHeight: lineHeight,
+        gap: gap,
+        preferAbove: true,
+      );
+      expect(placement.top, 20 + lineHeight + gap);
+    });
+
     test('shifts left near the right edge', () {
       final placement = computeHoverTooltipPlacement(
         anchor: const Offset(350, 40),

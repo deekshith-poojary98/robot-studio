@@ -22,6 +22,9 @@ from robot_studio.api.schemas.language import (
     FormatResponse,
     LibraryDetailResponse,
     LibraryListResponse,
+    RenameFileEdit,
+    RenameRequest,
+    RenameResponse,
     SignatureHelpRequest,
     SignatureHelpResponse,
     to_document_analysis_response,
@@ -89,6 +92,7 @@ async def language_references(
                 name=item["name"],
                 file_path=item["file_path"],
                 line=int(item.get("line") or 1),
+                column=int(item.get("column") or 1),
                 project_id=item.get("project_id"),
                 context=item.get("context") or "",
             )
@@ -130,6 +134,33 @@ async def language_hover(
         documentation=result.get("documentation") or "",
         detail=result.get("detail") or "",
         id=result.get("id") or "",
+    )
+
+
+@router.post("/rename", response_model=RenameResponse)
+async def language_rename(
+    body: RenameRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> RenameResponse:
+    try:
+        result = await gateway.language_rename(
+            file_path=body.file_path,
+            line=body.line,
+            column=body.column,
+            content=body.content,
+            new_name=body.new_name,
+        )
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RenameResponse(
+        error=str(result.get("error") or ""),
+        files=[
+            RenameFileEdit(
+                file_path=str(item.get("file_path") or ""),
+                content=str(item.get("content") or ""),
+            )
+            for item in (result.get("files") or [])
+        ],
     )
 
 

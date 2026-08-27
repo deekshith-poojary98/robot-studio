@@ -25,6 +25,16 @@ Use ⌘ on macOS and Ctrl on Windows/Linux unless noted. When in doubt, the comm
 | Problems | `⌘⇧M` / `Ctrl+Shift+M` |
 | Format Document | `⇧⌥F` / `Shift+Alt+F` |
 
+## While the completion popup is open
+
+| Action | Shortcut |
+|--------|----------|
+| Accept suggestion | `Tab` or `Enter` |
+| Next / previous suggestion | `↓` / `↑` |
+| Dismiss | `Esc` |
+
+With no popup open, `Tab` indents and `Shift+Tab` outdents as usual.
+
 ## Navigation chrome
 
 | Action | Shortcut / control |

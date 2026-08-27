@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -56,13 +58,19 @@ from robot_studio.infrastructure.language.completion.python_provider import (
     PythonJediCompletionProvider,
 )
 from robot_studio.infrastructure.language.python_language import (
+    PYTHON_SUFFIXES as _PYTHON_SUFFIXES,
     python_completion_context,
     python_signature_help,
 )
+from robot_studio.infrastructure.language.python_diagnostics import python_diagnostics
+from robot_studio.infrastructure.language.python_format import format_python_source
 from robot_studio.infrastructure.language.python_jedi import (
     jedi_definitions,
     jedi_hover,
+    jedi_references,
+    jedi_rename,
     jedi_signature_help,
+    reset_caches as reset_jedi_caches,
 )
 from robot_studio.infrastructure.process_utils import run_blocking
 from robot_studio.infrastructure.language.keyword_helpers import (
@@ -78,6 +86,8 @@ from robot_studio.infrastructure.language.signature import (
     LibdocSignatureHelpProvider,
     SignatureHelpPipeline,
 )
+
+logger = logging.getLogger(__name__)
 
 _BUILTIN_KEYWORDS = BUILTIN_KEYWORDS
 _SETTING_NAMES = SETTING_NAMES
@@ -131,6 +141,9 @@ class RobotLanguageService(LanguageService):
             self._document_analysis.invalidate()
         self._signature_pipeline = None
         self._completion_pipeline = None
+        # A new interpreter means different site-packages: Jedi's derived
+        # sys.path and parsed modules for the old one are now wrong.
+        reset_jedi_caches()
 
     def _python_executable(self) -> Path:
         environment = self.context.environment
@@ -145,6 +158,13 @@ class RobotLanguageService(LanguageService):
         if project is None:
             return None
         return Path(project.path)
+
+    def _python_for_jedi(self) -> Path:
+        """Prefer the active Robot env; fall back to the backend interpreter."""
+        try:
+            return self._python_executable()
+        except RobotParsingError:
+            return Path(sys.executable)
 
     def library_catalog(self) -> LibraryCatalogService:
         """Canonical semantic cache — sole resolve_library owner."""
@@ -325,7 +345,7 @@ class RobotLanguageService(LanguageService):
         self._completion_pipeline = CompletionPipeline(
             providers=[
                 PythonJediCompletionProvider(
-                    resolve_python=self._python_executable,
+                    resolve_python=self._python_for_jedi,
                     resolve_project_root=self._project_root,
                 ),
                 PythonBufferCompletionProvider(),
@@ -373,7 +393,7 @@ class RobotLanguageService(LanguageService):
         content = str(request.get("content") or "")
         query = str(request.get("query") or request.get("prefix") or "")
 
-        is_python = file_path.lower().endswith(".py")
+        is_python = file_path.lower().endswith(_PYTHON_SUFFIXES)
         ctx_raw: dict[str, Any] = {"prefix": query, "context": "keyword", "section": ""}
         if is_python and content:
             ctx_raw = python_completion_context(content, line, column)
@@ -428,7 +448,7 @@ class RobotLanguageService(LanguageService):
         file_path = str(request.get("file_path") or "")
         line = int(request.get("line") or 1)
         column = int(request.get("column") or 1)
-        if file_path.lower().endswith(".py") and content.strip():
+        if file_path.lower().endswith(_PYTHON_SUFFIXES) and content.strip():
             jedi_result = await self._jedi_hover(content, file_path, line, column)
             if jedi_result is not None:
                 return jedi_result
@@ -522,6 +542,11 @@ class RobotLanguageService(LanguageService):
         if not content:
             return []
 
+        if file_path.lower().endswith(_PYTHON_SUFFIXES):
+            # The Robot parser has nothing useful to say about a Python module,
+            # and its semantic/analysis passes are Robot-only below.
+            return await self._python_diagnostics(content, file_path)
+
         diagnostics: list[dict] = []
         try:
             parsed = await self.parsing.run(
@@ -579,6 +604,18 @@ class RobotLanguageService(LanguageService):
         }
 
     async def references(self, request: dict) -> list[dict]:
+        file_path = str(request.get("file_path") or "")
+        content = str(request.get("content") or "")
+        line = int(request.get("line") or 0)
+        column = int(request.get("column") or 0)
+
+        # Python usages are a static-analysis question, not an index lookup: the
+        # index only records Robot references, and Jedi hits carry no symbol id.
+        if file_path.lower().endswith(_PYTHON_SUFFIXES) and content and line and column:
+            refs = await self._jedi_references(content, file_path, line, column)
+            if refs:
+                return refs
+
         symbol = await self._resolve(request)
         if symbol is None:
             return []
@@ -586,6 +623,41 @@ class RobotLanguageService(LanguageService):
         if not refs:
             refs = await self.store.find_references(symbol["name"])
         return refs
+
+    async def rename(self, request: dict) -> dict:
+        """Project-wide rename. Returns the new content per file; caller writes."""
+        file_path = str(request.get("file_path") or "")
+        content = str(request.get("content") or "")
+        line = int(request.get("line") or 0)
+        column = int(request.get("column") or 0)
+        new_name = str(request.get("new_name") or "").strip()
+
+        if not new_name.isidentifier():
+            return {"error": f"'{new_name}' is not a valid Python name", "files": []}
+        if not file_path.lower().endswith(_PYTHON_SUFFIXES):
+            return {"error": "Rename is available for Python files only", "files": []}
+        if not content or not line or not column:
+            return {"error": "Place the caret on a symbol to rename it", "files": []}
+
+        try:
+            result = await run_blocking(
+                jedi_rename,
+                content,
+                file_path,
+                line,
+                column,
+                self._python_for_jedi(),
+                self._project_root(),
+                new_name=new_name,
+            )
+        except RobotParsingError as exc:
+            return {"error": str(exc), "files": []}
+        except Exception:  # noqa: BLE001
+            logger.debug("Rename failed for %s", file_path, exc_info=True)
+            return {"error": "Rename failed", "files": []}
+        if result is None:
+            return {"error": "No symbol to rename at the caret", "files": []}
+        return result
 
     async def format_document(self, request: dict) -> str:
         content = str(request.get("content") or "")
@@ -602,6 +674,8 @@ class RobotLanguageService(LanguageService):
                 file_path,
             )
         suffix = Path(file_path).suffix.lower()
+        if suffix in _PYTHON_SUFFIXES:
+            return await self._format_python(content, file_path)
         if suffix not in {".robot", ".resource"}:
             return self._basic_format(content)
         try:
@@ -614,6 +688,28 @@ class RobotLanguageService(LanguageService):
         except RobotParsingError:
             return self._basic_format(content)
 
+    async def _format_python(self, content: str, file_path: str) -> str:
+        """Format via the active environment's own formatter.
+
+        Deliberately not bundled: whichever of ruff/black the project already
+        depends on is the one that agrees with its CI, and shipping a second
+        formatter would silently reformat against the project's own config.
+        """
+        try:
+            python = self._python_for_jedi()
+        except RobotParsingError:
+            return self._basic_format(content)
+
+        formatted = await run_blocking(
+            format_python_source,
+            content,
+            file_path,
+            python,
+        )
+        if formatted is None:
+            return self._basic_format(content)
+        return formatted
+
     async def signature_help(self, request: dict) -> dict | None:
         file_path = str(request.get("file_path") or "")
         line = int(request.get("line") or 1)
@@ -622,7 +718,7 @@ class RobotLanguageService(LanguageService):
         if not content:
             return None
 
-        if file_path.lower().endswith(".py"):
+        if file_path.lower().endswith(_PYTHON_SUFFIXES):
             jedi_result = await self._jedi_signature_help(content, file_path, line, column)
             if jedi_result is not None:
                 return jedi_result
@@ -852,7 +948,7 @@ class RobotLanguageService(LanguageService):
         line = request.get("line")
         column = request.get("column")
 
-        if file_path.lower().endswith(".py") and content.strip() and line is not None:
+        if file_path.lower().endswith(_PYTHON_SUFFIXES) and content.strip() and line is not None:
             jedi_hits = await self._jedi_definitions(
                 content,
                 file_path,
@@ -916,7 +1012,7 @@ class RobotLanguageService(LanguageService):
                 file_path,
                 line,
                 column,
-                self._python_executable(),
+                self._python_for_jedi(),
                 self._project_root(),
             )
         except RobotParsingError:
@@ -938,7 +1034,7 @@ class RobotLanguageService(LanguageService):
                 file_path,
                 line,
                 column,
-                self._python_executable(),
+                self._python_for_jedi(),
                 self._project_root(),
             )
         except RobotParsingError:
@@ -960,7 +1056,44 @@ class RobotLanguageService(LanguageService):
                 file_path,
                 line,
                 column,
-                self._python_executable(),
+                self._python_for_jedi(),
+                self._project_root(),
+            )
+        except RobotParsingError:
+            return []
+        except Exception:  # noqa: BLE001
+            return []
+
+    async def _python_diagnostics(self, content: str, file_path: str) -> list[dict]:
+        try:
+            return await run_blocking(
+                python_diagnostics,
+                content,
+                file_path,
+                python_executable=self._python_for_jedi(),
+                project_root=self._project_root(),
+            )
+        except RobotParsingError:
+            return []
+        except Exception:  # noqa: BLE001
+            logger.debug("Python diagnostics failed for %s", file_path, exc_info=True)
+            return []
+
+    async def _jedi_references(
+        self,
+        content: str,
+        file_path: str,
+        line: int,
+        column: int,
+    ) -> list[dict]:
+        try:
+            return await run_blocking(
+                jedi_references,
+                content,
+                file_path,
+                line,
+                column,
+                self._python_for_jedi(),
                 self._project_root(),
             )
         except RobotParsingError:

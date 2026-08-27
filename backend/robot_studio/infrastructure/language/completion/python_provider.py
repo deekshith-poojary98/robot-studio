@@ -15,6 +15,7 @@ from robot_studio.domain.interfaces.completion import (
 from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.infrastructure.language.python_jedi import jedi_available, jedi_completions
 from robot_studio.infrastructure.language.python_language import (
+    is_python_path,
     python_buffer_completions,
 )
 from robot_studio.infrastructure.process_utils import run_blocking
@@ -45,7 +46,7 @@ class PythonBufferCompletionProvider(CompletionProvider):
         return 85
 
     def accepts(self, ctx: CompletionRequestContext) -> bool:
-        if not str(ctx.file_path).lower().endswith(".py"):
+        if not is_python_path(ctx.file_path):
             return False
         return super().accepts(ctx)
 
@@ -96,7 +97,7 @@ class PythonIndexCompletionProvider(CompletionProvider):
         return 75
 
     def accepts(self, ctx: CompletionRequestContext) -> bool:
-        if not str(ctx.file_path).lower().endswith(".py"):
+        if not is_python_path(ctx.file_path):
             return False
         if ctx.context == "python_attr":
             # Attribute completions are buffer-local (self. / Class.).
@@ -117,7 +118,7 @@ class PythonIndexCompletionProvider(CompletionProvider):
                 continue
             for item in results:
                 path = str(item.get("file_path") or "")
-                if not path.lower().endswith(".py"):
+                if not is_python_path(path):
                     continue
                 # Skip the file currently being edited — buffer provider owns it.
                 try:
@@ -182,7 +183,7 @@ class PythonJediCompletionProvider(CompletionProvider):
     def accepts(self, ctx: CompletionRequestContext) -> bool:
         if not jedi_available():
             return False
-        if not str(ctx.file_path).lower().endswith(".py"):
+        if not is_python_path(ctx.file_path):
             return False
         return super().accepts(ctx)
 

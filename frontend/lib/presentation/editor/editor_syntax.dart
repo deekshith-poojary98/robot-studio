@@ -7,6 +7,25 @@ import 'package:re_highlight/re_highlight.dart';
 import '../../core/theme/app_theme.dart';
 import 'robot_language.dart';
 
+/// Extensions that get Python intelligence. Stub (`.pyi`) and script (`.pyw`)
+/// files are the same language, so gating them out would give them
+/// highlighting but no completions, hover, or diagnostics.
+const pythonSuffixes = ['.py', '.pyi', '.pyw'];
+const robotSuffixes = ['.robot', '.resource'];
+
+bool isPythonPath(String path) {
+  final lower = path.toLowerCase();
+  return pythonSuffixes.any(lower.endsWith);
+}
+
+bool isRobotPath(String path) {
+  final lower = path.toLowerCase();
+  return robotSuffixes.any(lower.endsWith);
+}
+
+/// A file the language service can analyse (Robot or Python).
+bool isSourcePath(String path) => isPythonPath(path) || isRobotPath(path);
+
 /// Maps a file path to a `re_editor` highlight theme for the active [palette].
 ///
 /// - `.robot` / `.resource` → custom [langRobot]

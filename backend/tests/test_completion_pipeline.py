@@ -106,6 +106,30 @@ async def test_dsl_provider_context_aware_and_prefix() -> None:
     assert "IF" not in labels
 
 
+@pytest.mark.asyncio
+async def test_pipeline_excludes_robot_providers_for_python_files() -> None:
+    from robot_studio.infrastructure.language.completion.python_provider import (
+        PythonBufferCompletionProvider,
+    )
+
+    ctx = CompletionRequestContext(
+        file_path="/proj/test.py",
+        content="i",
+        line=1,
+        column=2,
+        prefix="i",
+        context="python",
+        section="python",
+    )
+    pipe = CompletionPipeline(
+        providers=[PythonBufferCompletionProvider(), DslCompletionProvider()],
+    )
+    ranked = await pipe.complete(ctx, limit=50)
+    providers = {item.provider_id for item in ranked}
+    assert providers <= {"python_buffer"}
+    assert not any("FOR" in item.label for item in ranked)
+
+
 def test_merge_and_rank_prefers_usage_and_buffer() -> None:
     a = CompletionCandidate(
         label="Log",

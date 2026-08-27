@@ -272,6 +272,16 @@ abstract class TransportGateway {
     int? endLine,
   });
 
+  /// Project-wide rename. Returns the new content per affected file; the caller
+  /// decides what to write, so open dirty buffers are never clobbered.
+  Future<RenameResultInfo> languageRename({
+    required String filePath,
+    required int line,
+    required int column,
+    required String content,
+    required String newName,
+  });
+
   Future<SignatureHelpInfo?> languageSignatureHelp({
     required String filePath,
     required int line,

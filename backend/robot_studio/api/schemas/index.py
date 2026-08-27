@@ -40,6 +40,8 @@ class ReferenceResponse(BaseModel):
     name: str
     file_path: str
     line: int = 1
+    # Jedi reports the exact usage column; the Robot index only knows the line.
+    column: int = 1
     project_id: str | None = None
     context: str = ""
 

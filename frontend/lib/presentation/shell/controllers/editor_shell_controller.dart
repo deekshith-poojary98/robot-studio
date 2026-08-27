@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/gateway/transport_gateway.dart';
 import '../../../core/logging/app_logger.dart';
+import '../../editor/editor_syntax.dart' as syntax;
 import 'shell_controller.dart';
 
 class EditorShellController {
@@ -50,6 +51,13 @@ class EditorShellController {
   Timer? cursorUiDebounce;
   Timer? statusTimer;
   int _hoverRequestId = 0;
+  int _languageRequestId = 0;
+
+  static bool isPythonPath(String path) => syntax.isPythonPath(path);
+
+  static bool isRobotPath(String path) => syntax.isRobotPath(path);
+
+  static bool isSourcePath(String path) => syntax.isSourcePath(path);
 
   static const _cursorUiDebounce = Duration(milliseconds: 80);
 
@@ -143,19 +151,36 @@ class EditorShellController {
     });
   }
 
+  /// Python resolves in-process in ~20ms, so it can afford a short debounce.
+  /// Robot still spawns a parser per request and needs the longer one.
+  static const _pythonDebounce = Duration(milliseconds: 120);
+  static const _robotDebounce = Duration(milliseconds: 350);
+
   void scheduleLanguageRefresh() {
+    final path = activePath;
+    final delay = path != null && isPythonPath(path)
+        ? _pythonDebounce
+        : _robotDebounce;
     languageDebounce?.cancel();
-    languageDebounce = Timer(const Duration(milliseconds: 350), () {
+    languageDebounce = Timer(delay, () {
       unawaited(refreshLanguageFeatures());
     });
+  }
+
+  /// Drop stale Robot completions / signature when switching editor tabs.
+  void onActiveTabChanged() {
+    completionItems = [];
+    hoverTooltip = null;
+    languageDebounce?.cancel();
+    scheduleLanguageRefresh();
+    notify();
   }
 
   Future<void> refreshLanguageFeatures() async {
     final tab = activeTab;
     if (tab == null || workspace() == null) return;
-    final isRobot =
-        tab.path.endsWith('.robot') || tab.path.endsWith('.resource');
-    final isPython = tab.path.endsWith('.py');
+    final isRobot = isRobotPath(tab.path);
+    final isPython = isPythonPath(tab.path);
     if (!isRobot && !isPython) {
       if (!isMounted()) return;
       completionItems = [];
@@ -165,50 +190,10 @@ class EditorShellController {
       return;
     }
 
-    if (isPython) {
-      try {
-        final token =
-            extractWordAtCursor(tab.content, cursorLine, cursorColumn) ?? '';
-        final results = await Future.wait([
-          gateway.languageCompletion(
-            filePath: tab.path,
-            line: cursorLine,
-            column: cursorColumn,
-            content: tab.content,
-            query: token,
-          ),
-          gateway.languageSignatureHelp(
-            filePath: tab.path,
-            line: cursorLine,
-            column: cursorColumn,
-            content: tab.content,
-          ),
-          gateway.analyzeDocument(
-            filePath: tab.path,
-            content: tab.content,
-          ),
-        ]);
-        if (!isMounted()) return;
-        completionItems = results[0] as List<CompletionItemInfo>;
-        hoverTooltip = results[1] as SignatureHelpInfo?;
-        documentAnalysis = results[2] as DocumentAnalysisInfo;
-        documentOutline = documentAnalysis!.flattenIndexed();
-        syncActiveSymbol(cursorLine);
-        diagnostics = [];
-        loadingLanguageFeatures = false;
-        notify();
-      } catch (error) {
-        if (!isMounted()) return;
-        loadingLanguageFeatures = false;
-        notify();
-        AppLogger.debug(
-          'Python language refresh failed',
-          tag: 'Shell',
-          data: '$error',
-        );
-      }
-      return;
-    }
+    // Requests are debounced, not serialized: a slow reply must never overwrite
+    // results computed for a later caret position.
+    final requestId = ++_languageRequestId;
+    final requestPath = tab.path;
 
     // Keep showing the current Problems list while refresh runs — never flash
     // a skeleton on every keystroke.
@@ -231,7 +216,9 @@ class EditorShellController {
           content: tab.content,
         ),
       ]);
-      if (!isMounted()) return;
+      if (!isMounted() || !_isCurrentLanguageRequest(requestId, requestPath)) {
+        return;
+      }
       completionItems = results[0] as List<CompletionItemInfo>;
       diagnostics = results[1] as List<DiagnosticInfo>;
       final signature = results[2] as SignatureHelpInfo?;
@@ -239,16 +226,20 @@ class EditorShellController {
       hoverTooltip = signature;
       // Update Problems for the active file in place (no full-workspace rescan).
       workspaceProblems = [
-        ...workspaceProblems.where((item) => item.filePath != tab.path),
+        ...workspaceProblems.where((item) => item.filePath != requestPath),
         ...diagnostics,
       ];
       // Keep outline / folding in sync with the live buffer.
       try {
-        documentAnalysis = await gateway.analyzeDocument(
+        final analysis = await gateway.analyzeDocument(
           filePath: tab.path,
           content: tab.content,
         );
-        documentOutline = documentAnalysis!.flattenIndexed();
+        if (!isMounted() || !_isCurrentLanguageRequest(requestId, requestPath)) {
+          return;
+        }
+        documentAnalysis = analysis;
+        documentOutline = analysis.flattenIndexed();
         syncActiveSymbol(cursorLine);
       } catch (_) {
         // Outline refresh is best-effort alongside completion/diagnostics.
@@ -256,12 +247,17 @@ class EditorShellController {
       loadingLanguageFeatures = false;
       notify();
     } catch (error) {
-      if (!isMounted()) return;
+      if (!isMounted() || !_isCurrentLanguageRequest(requestId, requestPath)) {
+        return;
+      }
       loadingLanguageFeatures = false;
       notify();
       AppLogger.debug('Language refresh failed', tag: 'Shell', data: '$error');
     }
   }
+
+  bool _isCurrentLanguageRequest(int requestId, String path) =>
+      requestId == _languageRequestId && activeTab?.path == path;
 
   void recordCompletionUsage(CompletionItemInfo item) {
     unawaited(() async {
@@ -293,10 +289,8 @@ class EditorShellController {
   }) async {
     final tab = activeTab;
     if (tab == null || workspace() == null) return;
-    final isRobot =
-        tab.path.endsWith('.robot') || tab.path.endsWith('.resource');
-    final isPython = tab.path.endsWith('.py');
-    if (!isRobot && !isPython) {
+    final isPython = isPythonPath(tab.path);
+    if (!isSourcePath(tab.path)) {
       clearHoverTooltip();
       return;
     }
@@ -334,9 +328,7 @@ class EditorShellController {
           keyword: hover.name,
           documentation: hover.documentation,
           detail: hover.detail.isNotEmpty ? hover.detail : hover.kind.label,
-          parameters: [
-            SignatureParameterInfo(label: hover.kind.label),
-          ],
+          parameters: [SignatureParameterInfo(label: hover.kind.label)],
         );
         notify();
         return;
@@ -391,9 +383,7 @@ class EditorShellController {
   Future<void> refreshWorkspaceProblems() async {
     final problems = <DiagnosticInfo>[];
     for (final tab in tabs) {
-      if (!tab.path.endsWith('.robot') && !tab.path.endsWith('.resource')) {
-        continue;
-      }
+      if (!isSourcePath(tab.path)) continue;
       try {
         final tabDiagnostics = await gateway.languageDiagnostics(
           filePath: tab.path,
@@ -480,16 +470,24 @@ class EditorShellController {
     }
     final hit = root.findAtLine(line);
     activeDocumentSymbol = hit;
-    if (hit != null &&
-        (hit.kind == SymbolKind.keyword ||
-            hit.kind == SymbolKind.testCase ||
-            hit.kind == SymbolKind.section ||
-            hit.kind == SymbolKind.keywordCall ||
-            hit.kind == SymbolKind.control ||
-            hit.kind == SymbolKind.variable)) {
+    if (hit != null && _trackableOutlineKinds.contains(hit.kind)) {
       selectedOutlineSymbol = hit.toIndexed(documentAnalysis!.filePath);
     }
   }
+
+  /// Kinds the outline follows the caret into. Python classes/functions/methods
+  /// belong here too, or the Outline pane never tracks a `.py` buffer.
+  static const _trackableOutlineKinds = {
+    SymbolKind.keyword,
+    SymbolKind.testCase,
+    SymbolKind.section,
+    SymbolKind.keywordCall,
+    SymbolKind.control,
+    SymbolKind.variable,
+    SymbolKind.classKind,
+    SymbolKind.function,
+    SymbolKind.method,
+  };
 
   /// Explorer tree keys must be slash-stable: Windows backends return `\`,
   /// while create/refresh paths often use `/`. Mixing them left expanded

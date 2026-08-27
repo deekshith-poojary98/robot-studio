@@ -821,6 +821,27 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<RenameResultInfo> languageRename({
+    required String filePath,
+    required int line,
+    required int column,
+    required String content,
+    required String newName,
+  }) async {
+    final response = await _post(
+      '/language/rename',
+      body: {
+        'file_path': filePath,
+        'line': line,
+        'column': column,
+        'content': content,
+        'new_name': newName,
+      },
+    );
+    return RenameResultInfo.fromJson(response);
+  }
+
+  @override
   Future<SignatureHelpInfo?> languageSignatureHelp({
     required String filePath,
     required int line,
