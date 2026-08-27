@@ -254,6 +254,12 @@ void main() {
                   line: 3,
                   children: [
                     DocumentSymbolNode(
+                      id: 'var:ready',
+                      name: 'ready',
+                      kind: SymbolKind.variable,
+                      line: 5,
+                    ),
+                    DocumentSymbolNode(
                       id: 'method:deposit',
                       name: 'deposit',
                       kind: SymbolKind.method,
@@ -274,6 +280,7 @@ void main() {
 
     expect(find.text('bank'), findsNothing);
     expect(find.text('Bank'), findsOneWidget);
+    expect(find.text('ready'), findsOneWidget);
     expect(find.text('deposit'), findsOneWidget);
   });
 

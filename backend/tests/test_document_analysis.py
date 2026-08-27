@@ -134,11 +134,16 @@ _HIDDEN = 1
 def helper(x):
     def nested():
         return x
+    local = x
     return nested
 
 class Client:
+    timeout: int = 30
+    _secret = 1
+
     def __init__(self):
         self.ready = True
+        amount = 0
 
     async def fetch(self):
         return 1
@@ -152,11 +157,18 @@ class Client:
     assert by_name["helper"]["kind"] == "function"
     nested = {c["name"]: c for c in by_name["helper"]["children"]}
     assert "nested" in nested and nested["nested"]["kind"] == "function"
+    assert "local" not in nested
     assert by_name["Client"]["kind"] == "class"
-    methods = {c["name"]: c for c in by_name["Client"]["children"]}
-    assert methods["__init__"]["kind"] == "method"
-    assert methods["fetch"]["kind"] == "method"
-    assert "async" in methods["fetch"]["detail"]
+    members = {c["name"]: c for c in by_name["Client"]["children"]}
+    assert members["timeout"]["kind"] == "variable"
+    assert "ready" in members and members["ready"]["kind"] == "variable"
+    assert "_secret" not in members
+    assert "amount" not in members
+    assert members["__init__"]["kind"] == "method"
+    assert members["fetch"]["kind"] == "method"
+    assert "async" in members["fetch"]["detail"]
+    names = [c["name"] for c in by_name["Client"]["children"]]
+    assert names.index("timeout") < names.index("ready") < names.index("__init__")
 
 
 def test_python_document_symbol_tree_syntax_error_still_has_root() -> None:

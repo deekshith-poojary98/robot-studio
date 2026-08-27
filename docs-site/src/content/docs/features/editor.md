@@ -19,7 +19,7 @@ The editor supports both Robot Framework suites and the Python modules beside th
 | Document symbols | Navigate within the current file (**Go → Go to Symbol in File…**) |
 | Diagnostics | Live while editing. **Robot:** library imports resolve via the active environment; keywords from libraries imported by a `Resource` you import are treated as available (same as Robot Framework), and extended variable access like `${response.json()}` is accepted when `${response}` is known. **Python:** syntax errors (all of them, not just the first) plus undefined names, unused imports, and unused locals |
 | Formatting | **Robot:** built-in tidy. **Python:** uses your environment’s own `ruff` or `black` so the result matches your project config and CI. With neither installed, only trailing whitespace is trimmed |
-| Outline | **Outline** pane under Explorer — Robot sections/keywords/tests, and Python classes/functions/methods. Click an item to jump the caret and scroll it into view; the selection follows your caret as you move through the file |
+| Outline | **Outline** pane under Explorer — Robot sections/keywords/tests, and Python classes, functions, methods, and variables (module-level names, class fields, and `self.` / `cls.` attributes). Click an item to jump the caret and scroll it into view; the selection follows your caret as you move through the file |
 
 ## Typing in Python files
 

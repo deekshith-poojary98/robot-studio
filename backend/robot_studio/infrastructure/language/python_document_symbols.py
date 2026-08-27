@@ -49,60 +49,131 @@ def _body_symbols(
     in_class: bool,
     include_assigns: bool = True,
 ) -> list[dict[str, Any]]:
-    nodes: list[dict[str, Any]] = []
+    """Symbols for a module, class, or function body.
+
+    Locals inside a function stay out of the outline (too noisy). Class bodies
+    list attributes first — annotated/assigned fields, then ``self.`` / ``cls.``
+    writes from methods — then methods, matching how VS Code groups a class.
+    """
+    fields: list[dict[str, Any]] = []
+    members: list[dict[str, Any]] = []
+    instance_fields: list[dict[str, Any]] = []
+    module_nodes: list[dict[str, Any]] = []
     for stmt in body:
         if isinstance(stmt, ast.ClassDef):
-            nodes.append(
-                _node(
-                    name=stmt.name,
-                    kind="class",
-                    line=_lineno(stmt),
-                    end_line=_end_lineno(stmt),
-                    column=_col(stmt),
-                    detail="class",
-                    children=_body_symbols(list(stmt.body), in_class=True),
-                ),
+            node = _node(
+                name=stmt.name,
+                kind="class",
+                line=_lineno(stmt),
+                end_line=_end_lineno(stmt),
+                column=_col(stmt),
+                detail="class",
+                children=_body_symbols(list(stmt.body), in_class=True),
             )
+            (members if in_class else module_nodes).append(node)
         elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
             async_fn = isinstance(stmt, ast.AsyncFunctionDef)
             kind = "method" if in_class else "function"
             detail = "async method" if async_fn and in_class else (
                 "async" if async_fn else ("method" if in_class else "function")
             )
-            nodes.append(
-                _node(
-                    name=stmt.name,
-                    kind=kind,
-                    line=_lineno(stmt),
-                    end_line=_end_lineno(stmt),
-                    column=_col(stmt),
-                    detail=detail,
-                    children=_body_symbols(
-                        list(stmt.body),
-                        in_class=False,
-                        include_assigns=False,
-                    ),
+            if in_class:
+                instance_fields.extend(_instance_attributes(list(stmt.body)))
+            node = _node(
+                name=stmt.name,
+                kind=kind,
+                line=_lineno(stmt),
+                end_line=_end_lineno(stmt),
+                column=_col(stmt),
+                detail=detail,
+                children=_body_symbols(
+                    list(stmt.body),
+                    in_class=False,
+                    include_assigns=False,
                 ),
             )
-        elif (
-            include_assigns
-            and not in_class
-            and isinstance(stmt, (ast.Assign, ast.AnnAssign, ast.AugAssign))
+            (members if in_class else module_nodes).append(node)
+        elif include_assigns and isinstance(
+            stmt, (ast.Assign, ast.AnnAssign, ast.AugAssign)
         ):
             for name in _assignment_names(stmt):
-                if name.startswith("_") and name != "_":
+                node = _variable_node(name, stmt, detail="variable")
+                if node is None:
                     continue
-                nodes.append(
-                    _node(
-                        name=name,
-                        kind="variable",
-                        line=_lineno(stmt),
-                        end_line=_end_lineno(stmt),
-                        column=_col(stmt),
-                        detail="variable",
-                    ),
-                )
+                (fields if in_class else module_nodes).append(node)
+    if not in_class:
+        return module_nodes
+
+    seen = {node["name"] for node in fields}
+    extras: list[dict[str, Any]] = []
+    for node in instance_fields:
+        name = str(node.get("name") or "")
+        if name in seen:
+            continue
+        seen.add(name)
+        extras.append(node)
+    extras.sort(key=lambda item: (int(item.get("line") or 1), str(item.get("name") or "")))
+    return fields + extras + members
+
+
+def _variable_node(name: str, stmt: ast.stmt, *, detail: str) -> dict[str, Any] | None:
+    if name.startswith("_") and name != "_":
+        return None
+    return _node(
+        name=name,
+        kind="variable",
+        line=_lineno(stmt),
+        end_line=_end_lineno(stmt),
+        column=_col(stmt),
+        detail=detail,
+    )
+
+
+def _instance_attributes(body: list[ast.stmt]) -> list[dict[str, Any]]:
+    """``self.x`` / ``cls.x`` writes in a method — listed on the class, not as locals."""
+    nodes: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for stmt in body:
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if not isinstance(stmt, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            continue
+        for name in _self_attribute_names(stmt):
+            if name in seen:
+                continue
+            node = _variable_node(name, stmt, detail="attribute")
+            if node is None:
+                continue
+            seen.add(name)
+            nodes.append(node)
     return nodes
+
+
+def _self_attribute_names(stmt: ast.stmt) -> list[str]:
+    targets: list[ast.expr] = []
+    if isinstance(stmt, ast.Assign):
+        targets.extend(stmt.targets)
+    elif isinstance(stmt, ast.AnnAssign) and stmt.target is not None:
+        targets.append(stmt.target)
+    elif isinstance(stmt, ast.AugAssign):
+        targets.append(stmt.target)
+    names: list[str] = []
+    for target in targets:
+        names.extend(_names_from_self_attr(target))
+    return names
+
+
+def _names_from_self_attr(target: ast.expr) -> list[str]:
+    if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name):
+        if target.value.id in {"self", "cls"} and target.attr:
+            return [target.attr]
+        return []
+    if isinstance(target, (ast.Tuple, ast.List)):
+        out: list[str] = []
+        for elt in target.elts:
+            out.extend(_names_from_self_attr(elt))
+        return out
+    return []
 
 
 def _assignment_names(stmt: ast.stmt) -> list[str]:
