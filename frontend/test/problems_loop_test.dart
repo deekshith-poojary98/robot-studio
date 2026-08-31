@@ -132,4 +132,186 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Unused variable'), findsOneWidget);
   });
+
+  testWidgets(
+    'auto-opens Problems when diagnostics appear and auto-closes when cleared',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(900, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      const problem = DiagnosticInfo(
+        severity: DiagnosticSeverity.error,
+        filePath: '/tmp/demo.robot',
+        line: 4,
+        column: 2,
+        message: 'Unknown keyword',
+      );
+
+      Widget host({required List<DiagnosticInfo> problems}) {
+        return MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                const Expanded(child: SizedBox()),
+                BottomPanel(problems: problems, problemCount: problems.length),
+              ],
+            ),
+          ),
+        );
+      }
+
+      await tester.pumpWidget(host(problems: const []));
+      await tester.pump();
+      expect(find.byIcon(Icons.keyboard_arrow_up), findsOneWidget);
+      expect(find.text('Unknown keyword'), findsNothing);
+
+      await tester.pumpWidget(host(problems: const [problem]));
+      await tester.pumpAndSettle();
+      expect(find.text('Unknown keyword'), findsOneWidget);
+      expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
+
+      await tester.pumpWidget(host(problems: const []));
+      await tester.pumpAndSettle();
+      expect(find.text('Unknown keyword'), findsNothing);
+      expect(find.text('No problems'), findsNothing);
+      expect(find.byIcon(Icons.keyboard_arrow_up), findsOneWidget);
+    },
+  );
+
+  testWidgets('does not auto-close Problems when the user opened it', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    const problem = DiagnosticInfo(
+      severity: DiagnosticSeverity.error,
+      filePath: '/tmp/demo.robot',
+      line: 4,
+      column: 2,
+      message: 'Unknown keyword',
+    );
+
+    Widget host({
+      required List<DiagnosticInfo> problems,
+      int? revealProblemsToken,
+    }) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              const Expanded(child: SizedBox()),
+              BottomPanel(
+                problems: problems,
+                problemCount: problems.length,
+                revealProblemsToken: revealProblemsToken,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(host(problems: const []));
+    await tester.pump();
+
+    await tester.pumpWidget(host(problems: const [], revealProblemsToken: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('No problems'), findsOneWidget);
+
+    await tester.pumpWidget(
+      host(problems: const [problem], revealProblemsToken: 1),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Unknown keyword'), findsOneWidget);
+
+    await tester.pumpWidget(host(problems: const [], revealProblemsToken: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('No problems'), findsOneWidget);
+    expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
+  });
+
+  testWidgets('does not auto-close Problems opened from the collapsed bar', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    const problem = DiagnosticInfo(
+      severity: DiagnosticSeverity.warning,
+      filePath: '/tmp/demo.robot',
+      line: 1,
+      column: 1,
+      message: 'Unused variable',
+    );
+
+    Widget host({required List<DiagnosticInfo> problems}) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              const Expanded(child: SizedBox()),
+              BottomPanel(problems: problems, problemCount: problems.length),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // First frame with problems stays collapsed (auto-open is 0 → N only).
+    await tester.pumpWidget(host(problems: const [problem]));
+    await tester.pump();
+    expect(find.text('PROBLEMS 1'), findsOneWidget);
+
+    await tester.tap(find.text('PROBLEMS 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Unused variable'), findsOneWidget);
+
+    await tester.pumpWidget(host(problems: const []));
+    await tester.pumpAndSettle();
+    expect(find.text('No problems'), findsOneWidget);
+    expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
+  });
+
+  testWidgets('does not auto-close after the user switches to Terminal', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    const problem = DiagnosticInfo(
+      severity: DiagnosticSeverity.error,
+      filePath: '/tmp/demo.robot',
+      line: 4,
+      column: 2,
+      message: 'Unknown keyword',
+    );
+
+    Widget host({required List<DiagnosticInfo> problems}) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              const Expanded(child: SizedBox()),
+              BottomPanel(problems: problems, problemCount: problems.length),
+            ],
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(host(problems: const []));
+    await tester.pump();
+    await tester.pumpWidget(host(problems: const [problem]));
+    await tester.pumpAndSettle();
+    expect(find.text('Unknown keyword'), findsOneWidget);
+
+    await tester.tap(find.text('TERMINAL'));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(host(problems: const []));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
+    expect(find.text('No problems'), findsNothing);
+  });
 }

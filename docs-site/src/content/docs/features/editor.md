@@ -34,4 +34,6 @@ The editor supports both Robot Framework suites and the Python modules beside th
 
 Findings sync into the bottom **Problems** panel. Missing imports share identity with Robot Doctor’s `missing_import` findings so the same issue does not feel like two different systems.
 
+The panel **auto-opens** when diagnostics first appear while you edit. It **auto-closes** when those findings clear — only if Studio opened it **and** Problems is still the visible tab. If you opened Problems yourself (View menu, status bar ERRORS/WARNINGS, or the collapsed bar), or you switched to **Terminal**, the panel stays open.
+
 Python diagnostics need an active environment. While a file has a syntax error only the parse errors are shown — reporting undefined names in a half-typed file would flag symbols whose definitions simply have not parsed yet.

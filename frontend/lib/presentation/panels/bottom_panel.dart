@@ -50,6 +50,10 @@ class _BottomPanelState extends State<BottomPanel> {
   bool _expanded = false;
   double _height = 180;
 
+  /// True only when Problems was expanded because diagnostics appeared.
+  /// Manual open (menu, status bar, tabs, collapsed bar) must not auto-close.
+  bool _problemsAutoOpened = false;
+
   @override
   void initState() {
     super.initState();
@@ -57,19 +61,26 @@ class _BottomPanelState extends State<BottomPanel> {
     // when they *change* — an initial `0` must not open the panel on launch.
   }
 
+  void _markUserOpenedPanel() {
+    _problemsAutoOpened = false;
+  }
+
   @override
   void didUpdateWidget(covariant BottomPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.preferCollapsed && !oldWidget.preferCollapsed) {
       _expanded = false;
+      _problemsAutoOpened = false;
     }
     if (widget.revealTerminalToken != null &&
         widget.revealTerminalToken != oldWidget.revealTerminalToken) {
       _activeTab = BottomPanelTab.terminal;
       _expanded = true;
+      _markUserOpenedPanel();
     }
     if (widget.toggleTerminalToken != null &&
         widget.toggleTerminalToken != oldWidget.toggleTerminalToken) {
+      _markUserOpenedPanel();
       if (_activeTab == BottomPanelTab.terminal && _expanded) {
         _expanded = false;
       } else {
@@ -81,13 +92,24 @@ class _BottomPanelState extends State<BottomPanel> {
         widget.revealProblemsToken != oldWidget.revealProblemsToken) {
       _activeTab = BottomPanelTab.problems;
       _expanded = true;
+      _markUserOpenedPanel();
     }
     // Auto-open Problems when diagnostics first appear while editing.
     if (widget.problemCount > 0 &&
         oldWidget.problemCount == 0 &&
         widget.problems.isNotEmpty) {
+      _problemsAutoOpened = !_expanded;
       _activeTab = BottomPanelTab.problems;
       _expanded = true;
+    }
+    // Auto-close only while Problems is still the visible tab. If the user
+    // switched to Terminal (or otherwise took over the panel), leave it open.
+    if (oldWidget.problemCount > 0 &&
+        widget.problemCount == 0 &&
+        _problemsAutoOpened &&
+        _activeTab == BottomPanelTab.problems) {
+      _expanded = false;
+      _problemsAutoOpened = false;
     }
   }
 
@@ -97,11 +119,15 @@ class _BottomPanelState extends State<BottomPanel> {
       return _CollapsedBar(
         activeLabel: _activeTab.label,
         problemCount: widget.problemCount,
-        onExpand: () => setState(() => _expanded = true),
+        onExpand: () => setState(() {
+          _expanded = true;
+          _markUserOpenedPanel();
+        }),
         onOpenProblems: widget.problemCount > 0
             ? () => setState(() {
                 _activeTab = BottomPanelTab.problems;
                 _expanded = true;
+                _markUserOpenedPanel();
               })
             : null,
       );
@@ -145,8 +171,14 @@ class _BottomPanelState extends State<BottomPanel> {
               _TabBar(
                 activeTab: _activeTab,
                 problemCount: widget.problemCount,
-                onTabSelected: (tab) => setState(() => _activeTab = tab),
-                onCollapse: () => setState(() => _expanded = false),
+                onTabSelected: (tab) => setState(() {
+                  _activeTab = tab;
+                  _markUserOpenedPanel();
+                }),
+                onCollapse: () => setState(() {
+                  _expanded = false;
+                  _problemsAutoOpened = false;
+                }),
               ),
               // Keep Terminal mounted so the shell survives tab switches.
               Expanded(

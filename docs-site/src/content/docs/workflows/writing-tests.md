@@ -35,7 +35,7 @@ Python library files (`.py`, `.pyi`, `.pyw`) get the same treatment, resolved ag
 - Optional **Auto Save** in **Settings → Editor** (off by default)
 - **Save Before Run** is on by default so runs pick up unsaved edits
 
-Problems appear in the bottom **Problems** panel and stay in sync as you edit. Click a finding to jump to the line and column. The status bar ERRORS / WARNINGS shortcut opens that panel quickly.
+Problems appear in the bottom **Problems** panel and stay in sync as you edit. The panel auto-opens when issues appear, and auto-closes when they clear only if Studio opened it and you are still on Problems. Switching to **Terminal**, or opening the panel yourself, keeps it open. Click a finding to jump to the line and column. The status bar ERRORS / WARNINGS shortcut opens that panel quickly.
 
 ## Find and replace
 
