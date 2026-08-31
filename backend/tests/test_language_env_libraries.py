@@ -375,6 +375,98 @@ Demo
     messages = [item["message"] for item in diagnostics]
     assert any("Missing library 'MissingLib'" in msg for msg in messages)
     assert any("Unknown keyword 'Open Workbook'" in msg for msg in messages)
+    missing = next(item for item in diagnostics if item.get("code") == "missing_library")
+    # Unmapped library names do not get an install action (likely a typo).
+    assert missing.get("quick_fix") is None
+    unknown = next(item for item in diagnostics if item.get("code") == "unknown_keyword")
+    assert unknown.get("quick_fix") is None
+
+
+@pytest.mark.asyncio
+async def test_semantic_diagnostics_keyword_arguments(tmp_path: Path) -> None:
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").UTC,
+        ),
+    )
+    await context.open(workspace)
+    env_path = tmp_path / "new-env"
+    (env_path / "bin").mkdir(parents=True)
+    (env_path / "bin" / "python").write_text("", encoding="utf-8")
+    await context.set_active_environment(
+        Environment(
+            id=uuid4(),
+            workspace_id=workspace.id,
+            name="new-env",
+            path=env_path,
+            python_version="3.13",
+            python_executable=env_path / "bin" / "python",
+            pip_executable=env_path / "bin" / "pip",
+            created_at=workspace.created_at,
+            is_active=True,
+        ),
+    )
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge(  # type: ignore[arg-type]
+            {
+                "ExcelSage": {
+                    "available": True,
+                    "name": "ExcelSage",
+                    "keywords": ["Open Workbook"],
+                    "keyword_info": {
+                        "open workbook": {
+                            "name": "Open Workbook",
+                            "parameters": [
+                                {
+                                    "name": "path",
+                                    "required": True,
+                                    "kind": "positional_or_named",
+                                },
+                                {
+                                    "name": "alias",
+                                    "required": False,
+                                    "default": "None",
+                                    "kind": "positional_or_named",
+                                },
+                            ],
+                        },
+                    },
+                },
+            },
+        ),
+    )
+    content = """*** Settings ***
+Library    ExcelSage
+
+*** Test Cases ***
+Demo
+    Open Workbook
+    Open Workbook    a.xlsx    wb    leftover
+    Open Workbook    a.xlsx    nope=1
+    Open Workbook    a.xlsx
+    ...    extra
+    Open Workbook    report.xlsx
+"""
+    diagnostics: list[dict] = []
+    await service._append_semantic_diagnostics(content, "demo.robot", diagnostics)
+    codes = {item.get("code") for item in diagnostics if item.get("code")}
+    assert "missing_argument" in codes
+    assert "extra_argument" in codes
+    assert "unknown_argument" in codes
+    assert any("nope" in str(item["message"]) for item in diagnostics)
+    valid_line = next(
+        i for i, row in enumerate(content.splitlines(), start=1) if "report.xlsx" in row
+    )
+    assert not any(item.get("line") == valid_line and item.get("code") for item in diagnostics)
 
 
 @pytest.mark.asyncio
@@ -1103,3 +1195,82 @@ Demo
     )
     labels = [item["label"] for item in items]
     assert "Col.Append To List" in labels
+
+
+@pytest.mark.asyncio
+async def test_unused_library_and_resource(tmp_path: Path) -> None:
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").UTC,
+        ),
+    )
+    await context.open(workspace)
+    env_path = tmp_path / "new-env"
+    (env_path / "bin").mkdir(parents=True)
+    (env_path / "bin" / "python").write_text("", encoding="utf-8")
+    await context.set_active_environment(
+        Environment(
+            id=uuid4(),
+            workspace_id=workspace.id,
+            name="new-env",
+            path=env_path,
+            python_version="3.13",
+            python_executable=env_path / "bin" / "python",
+            pip_executable=env_path / "bin" / "pip",
+            created_at=workspace.created_at,
+            is_active=True,
+        ),
+    )
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge(  # type: ignore[arg-type]
+            {
+                "Collections": {
+                    "available": True,
+                    "name": "Collections",
+                    "keywords": ["Append To List", "Create Dictionary"],
+                    "keyword_info": {},
+                },
+            },
+        ),
+    )
+    (tmp_path / "helpers.resource").write_text(
+        "*** Keywords ***\nUnused Kw\n    Log    hi\n",
+        encoding="utf-8",
+    )
+    unused = f"""*** Settings ***
+Library    Collections
+Resource    helpers.resource
+
+*** Test Cases ***
+Demo
+    Log    hi
+"""
+    diagnostics: list[dict] = []
+    await service._append_semantic_diagnostics(unused, str(tmp_path / "demo.robot"), diagnostics)
+    codes = {item.get("code") for item in diagnostics}
+    assert "unused_library" in codes
+    assert "unused_resource" in codes
+
+    used = f"""*** Settings ***
+Library    Collections
+Resource    helpers.resource
+
+*** Test Cases ***
+Demo
+    Create Dictionary    a    1
+    Unused Kw
+"""
+    diagnostics = []
+    await service._append_semantic_diagnostics(used, str(tmp_path / "demo.robot"), diagnostics)
+    codes = {item.get("code") for item in diagnostics}
+    assert "unused_library" not in codes
+    assert "unused_resource" not in codes

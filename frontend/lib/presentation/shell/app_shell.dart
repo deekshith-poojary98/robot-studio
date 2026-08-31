@@ -9,6 +9,7 @@ import '../../core/backend_host.dart';
 import '../../core/gateway/models/workspace_event_info.dart';
 import '../../core/gateway/rest_transport_gateway.dart';
 import '../../core/gateway/transport_gateway.dart';
+import '../../core/language/robot_library_edit.dart';
 import '../../core/logging/app_logger.dart';
 import '../../core/platform/studio_file_picker.dart';
 import '../../core/settings/app_settings_controller.dart';
@@ -4310,9 +4311,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Future<void> _editorRenameSymbol() async {
     final tab = _activeEditorTab;
     if (tab == null) return;
-    if (!EditorShellController.isPythonPath(tab.path)) {
+    final isPython = EditorShellController.isPythonPath(tab.path);
+    final isRobot = EditorShellController.isRobotPath(tab.path);
+    if (!isPython && !isRobot) {
       setState(() {
-        _editor.setStatusMessage('Rename Symbol works in Python files.');
+        _editor.setStatusMessage(
+          'Rename Symbol works in Robot and Python files.',
+        );
       });
       return;
     }
@@ -4593,6 +4598,64 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         column: diagnostic.column,
       ),
     );
+  }
+
+  Future<void> _handleProblemQuickFix(DiagnosticInfo diagnostic) async {
+    final fix = diagnostic.quickFix;
+    if (fix == null) return;
+    if (fix.isInstallPackage) {
+      await _runPackageOperation(
+        title: 'Installing Package',
+        packageName: fix.package!,
+        operation: () => _gateway.installPackage(fix.package!),
+        successMessage: 'Installed package',
+      );
+      if (!mounted) return;
+      _scheduleLanguageRefresh();
+      return;
+    }
+    if (fix.isInsertLibrary) {
+      await _applyInsertLibraryFix(diagnostic.filePath, fix.library!);
+    }
+  }
+
+  Future<void> _applyInsertLibraryFix(String filePath, String library) async {
+    await _openFile(filePath);
+    if (!mounted) return;
+    EditorTabInfo? tab;
+    for (final open in _editor.tabs) {
+      if (open.path == filePath) {
+        tab = open;
+        break;
+      }
+    }
+    if (tab == null) {
+      setState(() {
+        _editor.setStatusMessage('Open the file to add Library    $library');
+      });
+      return;
+    }
+    final target = tab;
+    final source = target.path == _activeEditorTab?.path
+        ? (_editorPageKey.currentState?.currentText ?? target.content)
+        : target.content;
+    final updated = insertLibraryImport(source, library);
+    if (updated == null) {
+      setState(() {
+        _editor.setStatusMessage('Library    $library is already imported');
+      });
+      return;
+    }
+    if (target.path == _activeEditorTab?.path) {
+      setState(() => target.content = updated);
+      _editorPageKey.currentState?.applyExternalContent(updated);
+    } else {
+      setState(() => target.content = updated);
+    }
+    setState(() {
+      _editor.setStatusMessage('Added Library    $library');
+    });
+    _scheduleLanguageRefresh();
   }
 
   void _revealProblemsPanel() {
@@ -5624,7 +5687,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         PaletteItem(
           id: 'editor.rename',
           title: 'Rename Symbol',
-          subtitle: 'Python files',
+          subtitle: 'Robot and Python files',
           icon: Icons.drive_file_rename_outline,
           kind: PaletteItemKind.command,
           onSelect: () => unawaited(_editorRenameSymbol()),
@@ -6379,6 +6442,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                           toggleTerminalToken: _toggleTerminalToken,
                           revealProblemsToken: _revealProblemsToken,
                           onProblemSelected: _handleProblemSelected,
+                          onProblemQuickFix: _handleProblemQuickFix,
                         ),
                       if (_centerView != _CenterView.welcome)
                         StatusBar(

@@ -27,7 +27,7 @@ The Robot editor is multi-tab and understands Robot Framework structure:
 - Play control in the gutter of a `.robot` suite — click it (or **Run → Run Test at Cursor**) to run only that test instead of the whole file. See [Run, stop & re-run](/workflows/running-tests/).
 - **Format Document** (`⇧⌥F` / `Shift+Alt+F`, or **Edit → Format Document**) and **Format Selection** on the current file
 
-Python library files (`.py`, `.pyi`, `.pyw`) get the same treatment, resolved against the active environment: completions from the buffer, other project modules, the stdlib, and installed packages; **Tab** or **Enter** to accept; syntax errors, undefined names, unused imports, missing packages, and unknown `from package import Name` members in **Problems**; and **Rename Symbol** in the command palette to rename across the project. See [Editor & language intelligence](/features/editor/) for the full list.
+Python library files (`.py`, `.pyi`, `.pyw`) get the same treatment, resolved against the active environment: completions from the buffer, other project modules, the stdlib, and installed packages; **Tab** or **Enter** to accept; syntax errors, undefined names, unused imports, missing packages, unknown `from package import Name` members, unknown attributes, and unexpected call keywords in **Problems**; and **Rename Symbol** in the command palette to rename across the project. See [Editor & language intelligence](/features/editor/) for the full list.
 
 ## Save
 
@@ -35,7 +35,7 @@ Python library files (`.py`, `.pyi`, `.pyw`) get the same treatment, resolved ag
 - Optional **Auto Save** in **Settings → Editor** (off by default)
 - **Save Before Run** is on by default so runs pick up unsaved edits
 
-Problems appear in the bottom **Problems** panel and stay in sync as you edit. The panel auto-opens when issues appear, and auto-closes when they clear only if Studio opened it and you are still on Problems. Switching to **Terminal**, or opening the panel yourself, keeps it open. Click a finding to jump to the line and column. The status bar ERRORS / WARNINGS shortcut opens that panel quickly.
+Problems appear in the bottom **Problems** panel and stay in sync as you edit. The panel auto-opens when issues appear, and auto-closes when they clear only if Studio opened it and you are still on Problems. Switching to **Terminal**, or opening the panel yourself, keeps it open. Click a finding to jump to the line and column. When a **Fix** button is shown, it can install a missing package or add a `Library` import for a qualified unknown keyword. The status bar ERRORS / WARNINGS shortcut opens that panel quickly. Keyword calls also warn when a named argument is unknown, a required argument is missing, or extra arguments are passed. Unused `Library` and `Resource` imports in the current file show as information.
 
 ## Find and replace
 

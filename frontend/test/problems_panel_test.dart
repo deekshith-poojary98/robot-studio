@@ -80,6 +80,44 @@ void main() {
 
     expect(find.text('Missing resource'), findsOneWidget);
   });
+
+  testWidgets('ProblemsPanel shows Fix when a quick-fix is available', (
+    WidgetTester tester,
+  ) async {
+    DiagnosticInfo? fixed;
+    const diagnostics = [
+      DiagnosticInfo(
+        severity: DiagnosticSeverity.warning,
+        filePath: '/tmp/demo.robot',
+        line: 2,
+        column: 1,
+        message: "Missing library 'RequestsLibrary'",
+        code: 'missing_library',
+        quickFix: QuickFixHint(
+          kind: 'install_package',
+          title: 'Install robotframework-requests',
+          package: 'robotframework-requests',
+        ),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProblemsPanel(
+            diagnostics: diagnostics,
+            onSelect: _noop,
+            onQuickFix: (item) => fixed = item,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Fix'), findsOneWidget);
+    await tester.tap(find.text('Fix'));
+    await tester.pump();
+    expect(fixed?.code, 'missing_library');
+  });
 }
 
 void _noop(DiagnosticInfo _) {}

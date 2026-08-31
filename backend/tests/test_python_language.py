@@ -426,13 +426,17 @@ def test_python_diagnostics_report_undefined_names_and_unused_imports() -> None:
     content = "import os\nimport sys\n\ndef f(a):\n    return missing_name + a\n"
     items = python_diagnostics(content, "m.py", python_executable=Path(sys.executable))
     codes = {item["code"] for item in items}
-    assert "undefined_name" in codes
-    assert "unused_import" in codes
+    assert codes & {"undefined_name", "F821"}
+    assert codes & {"unused_import", "F401"}
 
-    undefined = next(item for item in items if item["code"] == "undefined_name")
+    undefined = next(
+        item for item in items if item["code"] in {"undefined_name", "F821"}
+    )
     assert undefined["severity"] == "error"
     assert undefined["line"] == 5
-    unused = next(item for item in items if item["code"] == "unused_import")
+    unused = next(
+        item for item in items if item["code"] in {"unused_import", "F401"}
+    )
     assert unused["severity"] == "warning"
 
     # Ordered by position so the Problems panel reads top-to-bottom.
@@ -548,3 +552,68 @@ def test_python_diagnostics_skip_optional_import_error(tmp_path: Path) -> None:
         project_root=tmp_path,
     )
     assert not any(item["code"] == "missing_package" for item in items)
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_python_diagnostics_unknown_attribute(tmp_path: Path) -> None:
+    path = tmp_path / "lib.py"
+    content = (
+        "from pathlib import Path\n"
+        "\n"
+        "def f():\n"
+        "    p = Path('.')\n"
+        "    return p.no_such_attr_zz, p.exists()\n"
+    )
+    path.write_text(content, encoding="utf-8")
+    items = python_diagnostics(
+        content,
+        str(path),
+        python_executable=Path(sys.executable),
+        project_root=tmp_path,
+    )
+    unknown = [item for item in items if item["code"] == "unknown_attribute"]
+    assert len(unknown) == 1
+    assert "no_such_attr_zz" in unknown[0]["message"]
+    assert all("exists" not in item["message"] for item in unknown)
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_python_diagnostics_unexpected_call_keyword(tmp_path: Path) -> None:
+    path = tmp_path / "lib.py"
+    content = (
+        "def greet(name, *, loud=False):\n"
+        "    return name\n"
+        "\n"
+        "def f():\n"
+        "    greet('a', loud=True, nope_zz=1)\n"
+        "    return dict(foo=1)\n"
+    )
+    path.write_text(content, encoding="utf-8")
+    items = python_diagnostics(
+        content,
+        str(path),
+        python_executable=Path(sys.executable),
+        project_root=tmp_path,
+    )
+    unexpected = [item for item in items if item["code"] == "unexpected_keyword"]
+    assert any("nope_zz" in item["message"] for item in unexpected)
+    assert all("loud" not in item["message"] for item in unexpected)
+    assert all("foo" not in item["message"] for item in unexpected)
+
+
+def test_python_diagnostics_missing_package_offers_install(tmp_path: Path) -> None:
+    missing = "zz_rs_not_a_real_package_9f3c"
+    path = tmp_path / "lib.py"
+    content = f"import {missing}\n"
+    path.write_text(content, encoding="utf-8")
+    items = python_diagnostics(
+        content,
+        str(path),
+        python_executable=Path(sys.executable),
+        project_root=tmp_path,
+    )
+    missing_items = [item for item in items if item["code"] == "missing_package"]
+    assert len(missing_items) == 1
+    hint = missing_items[0].get("quick_fix") or {}
+    assert hint.get("kind") == "install_package"
+    assert hint.get("package") == missing

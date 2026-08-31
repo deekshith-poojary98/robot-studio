@@ -27,6 +27,15 @@ class CompletionUsageRequest(BaseModel):
     kind: str = ""
 
 
+class QuickFixHintResponse(BaseModel):
+    """Action the Problems panel can apply without a second round-trip."""
+
+    kind: str
+    title: str
+    package: str | None = None
+    library: str | None = None
+
+
 class DiagnosticResponse(BaseModel):
     severity: str
     file_path: str
@@ -36,6 +45,7 @@ class DiagnosticResponse(BaseModel):
     source: str = "robot"
     code: str | None = None
     inspection_id: str | None = None
+    quick_fix: QuickFixHintResponse | None = None
 
 
 class DiagnosticListResponse(BaseModel):

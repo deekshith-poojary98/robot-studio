@@ -10,7 +10,14 @@ from pathlib import Path
 from typing import Any
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
-from robot_studio.core.events import EventBus, EnvironmentActivated, IndexUpdated
+from robot_studio.core.events import (
+    EventBus,
+    EnvironmentActivated,
+    IndexUpdated,
+    PackageInstalled,
+    PackageRemoved,
+    PackageUpdated,
+)
 from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.domain.interfaces.language import LanguageService
 from robot_studio.domain.models.analysis import EntityKind
@@ -63,6 +70,7 @@ from robot_studio.infrastructure.language.python_language import (
     python_signature_help,
 )
 from robot_studio.infrastructure.language.python_diagnostics import python_diagnostics
+from robot_studio.infrastructure.language.quick_fixes import quick_fix_hint
 from robot_studio.infrastructure.language.python_format import format_python_source
 from robot_studio.infrastructure.language.python_jedi import (
     jedi_definitions,
@@ -76,6 +84,12 @@ from robot_studio.infrastructure.process_utils import run_blocking
 from robot_studio.infrastructure.language.keyword_helpers import (
     active_parameter_index,
     parameters_from_detail_string,
+    strip_keyword_qualifier,
+    validate_keyword_arguments,
+)
+from robot_studio.infrastructure.language.robot_rename import (
+    is_robot_keyword_name,
+    replace_keyword_name,
 )
 from robot_studio.infrastructure.language.document_analysis import DocumentAnalysisService
 from robot_studio.infrastructure.language.library_catalog import LibraryCatalogService
@@ -119,6 +133,9 @@ class RobotLanguageService(LanguageService):
             return
         self.event_bus.subscribe(IndexUpdated, self._on_index_updated)
         self.event_bus.subscribe(EnvironmentActivated, self._on_environment_activated)
+        self.event_bus.subscribe(PackageInstalled, self._on_packages_changed)
+        self.event_bus.subscribe(PackageUpdated, self._on_packages_changed)
+        self.event_bus.subscribe(PackageRemoved, self._on_packages_changed)
         self._subscribed = True
 
     async def _on_index_updated(self, event: IndexUpdated) -> None:
@@ -143,6 +160,12 @@ class RobotLanguageService(LanguageService):
         self._completion_pipeline = None
         # A new interpreter means different site-packages: Jedi's derived
         # sys.path and parsed modules for the old one are now wrong.
+        reset_jedi_caches()
+
+    async def _on_packages_changed(self, event: object) -> None:
+        _ = event
+        if self._library_catalog is not None:
+            self._library_catalog.invalidate()
         reset_jedi_caches()
 
     def _python_executable(self) -> Path:
@@ -635,32 +658,110 @@ class RobotLanguageService(LanguageService):
         column = int(request.get("column") or 0)
         new_name = str(request.get("new_name") or "").strip()
 
-        if not new_name.isidentifier():
-            return {"error": f"'{new_name}' is not a valid Python name", "files": []}
-        if not file_path.lower().endswith(_PYTHON_SUFFIXES):
-            return {"error": "Rename is available for Python files only", "files": []}
-        if not content or not line or not column:
-            return {"error": "Place the caret on a symbol to rename it", "files": []}
+        if file_path.lower().endswith(_PYTHON_SUFFIXES):
+            if not new_name.isidentifier():
+                return {"error": f"'{new_name}' is not a valid Python name", "files": []}
+            if not content or not line or not column:
+                return {"error": "Place the caret on a symbol to rename it", "files": []}
+            try:
+                result = await run_blocking(
+                    jedi_rename,
+                    content,
+                    file_path,
+                    line,
+                    column,
+                    self._python_for_jedi(),
+                    self._project_root(),
+                    new_name=new_name,
+                )
+            except RobotParsingError as exc:
+                return {"error": str(exc), "files": []}
+            except Exception:  # noqa: BLE001
+                logger.debug("Rename failed for %s", file_path, exc_info=True)
+                return {"error": "Rename failed", "files": []}
+            if result is None:
+                return {"error": "No symbol to rename at the caret", "files": []}
+            return result
 
-        try:
-            result = await run_blocking(
-                jedi_rename,
-                content,
-                file_path,
-                line,
-                column,
-                self._python_for_jedi(),
-                self._project_root(),
-                new_name=new_name,
+        suffix = Path(file_path).suffix.lower()
+        if suffix not in {".robot", ".resource"}:
+            return {"error": "Rename is available for Robot and Python files", "files": []}
+        if not is_robot_keyword_name(new_name):
+            return {"error": f"'{new_name}' is not a valid keyword name", "files": []}
+        if not content or not line:
+            return {"error": "Place the caret on a keyword to rename it", "files": []}
+        return await self._rename_robot_keyword(
+            file_path=file_path,
+            content=content,
+            line=line,
+            column=column,
+            new_name=new_name,
+        )
+
+    async def _rename_robot_keyword(
+        self,
+        *,
+        file_path: str,
+        content: str,
+        line: int,
+        column: int,
+        new_name: str,
+    ) -> dict:
+        cell = self._robot_cell_at(content, line, column)
+        if not cell:
+            return {"error": "Place the caret on a keyword to rename it", "files": []}
+        old = strip_library_prefix(cell).strip()
+        for prefix in ("Given ", "When ", "Then ", "And ", "But "):
+            if old.lower().startswith(prefix.lower()):
+                old = old[len(prefix) :].lstrip()
+                break
+        if not old:
+            return {"error": "Place the caret on a keyword to rename it", "files": []}
+        if old.casefold() in {name.casefold() for name in _BUILTIN_KEYWORDS}:
+            return {"error": "BuiltIn keywords cannot be renamed", "files": []}
+        if normalize_keyword_name(old) == normalize_keyword_name(new_name):
+            return {"error": "", "files": []}
+
+        files: dict[str, str] = {}
+        updated = replace_keyword_name(content, old, new_name)
+        if updated != content:
+            files[file_path] = updated
+
+        definitions = await self.store.find_definitions(
+            old,
+            kind=SymbolKind.KEYWORD,
+            workspace_id=self.context.workspace_id,
+            project_id=self.context.project_id,
+        )
+        ref_paths: set[str] = {str(item.get("file_path") or "") for item in definitions}
+        for symbol in definitions:
+            symbol_id = str(symbol.get("id") or "")
+            if not symbol_id:
+                continue
+            refs = await self.store.find_references(
+                symbol_id,
+                workspace_id=self.context.workspace_id,
             )
-        except RobotParsingError as exc:
-            return {"error": str(exc), "files": []}
-        except Exception:  # noqa: BLE001
-            logger.debug("Rename failed for %s", file_path, exc_info=True)
-            return {"error": "Rename failed", "files": []}
-        if result is None:
-            return {"error": "No symbol to rename at the caret", "files": []}
-        return result
+            for ref in refs:
+                path = str(ref.get("file_path") or "")
+                if path:
+                    ref_paths.add(path)
+
+        for path in ref_paths:
+            if not path or path == file_path or path in files:
+                continue
+            try:
+                disk = Path(path).read_text(encoding="utf-8")
+            except OSError:
+                continue
+            rewritten = replace_keyword_name(disk, old, new_name)
+            if rewritten != disk:
+                files[path] = rewritten
+
+        return {
+            "error": "",
+            "files": [{"file_path": path, "content": text} for path, text in files.items()],
+        }
 
     async def format_document(self, request: dict) -> str:
         content = str(request.get("content") or "")
@@ -1307,6 +1408,13 @@ class RobotLanguageService(LanguageService):
         # made Missing library warnings disappear right after save/reindex.
         imported_libraries = self._imported_libraries(content, file_path)
         resolved_libraries: set[str] = set()
+        keyword_signatures: dict[str, KeywordMetadata] = {}
+
+        builtin_lib = await self.library_catalog().get_library("BuiltIn")
+        if builtin_lib is not None:
+            for keyword in builtin_lib.keywords:
+                if keyword.name:
+                    keyword_signatures[keyword.name.casefold()] = keyword
 
         for library_name in imported_libraries:
             target = self._library_resolve_target(library_name, file_path)
@@ -1328,6 +1436,8 @@ class RobotLanguageService(LanguageService):
             resolved_libraries.add(resolved.name.casefold())
             for keyword in resolved.keywords:
                 known_keywords.add(keyword.name.casefold())
+                if keyword.name and keyword.parameters:
+                    keyword_signatures[keyword.name.casefold()] = keyword
 
         for idx, raw in enumerate(lines, start=1):
             line = raw.strip()
@@ -1369,6 +1479,8 @@ class RobotLanguageService(LanguageService):
                             idx,
                             f"Missing library '{token}'",
                             "warning",
+                            code="missing_library",
+                            content=content,
                         ),
                     )
                 continue
@@ -1392,7 +1504,18 @@ class RobotLanguageService(LanguageService):
                             idx,
                             f"Unknown keyword '{keyword}'",
                             "warning",
+                            code="unknown_keyword",
+                            content=content,
                         ),
+                    )
+                elif keyword and self._is_known_keyword_call(keyword, known_keywords):
+                    self._append_keyword_argument_diagnostics(
+                        file_path,
+                        idx,
+                        keyword,
+                        lines,
+                        keyword_signatures,
+                        diagnostics,
                     )
                 for var_token in re.findall(r"\$\{[^}]+\}|@\{[^}]+\}|&\{[^}]+\}|%\{[^}]+\}", raw):
                     normalized = self._normalize_variable_token(var_token)
@@ -1413,6 +1536,184 @@ class RobotLanguageService(LanguageService):
                                 "information",
                             ),
                         )
+
+        await self._append_unused_import_diagnostics(
+            content,
+            file_path,
+            lines,
+            resolved_libraries,
+            diagnostics,
+        )
+
+    async def _append_unused_import_diagnostics(
+        self,
+        content: str,
+        file_path: str,
+        lines: list[str],
+        resolved_libraries: set[str],
+        diagnostics: list[dict],
+    ) -> None:
+        used_bare, used_qualifiers = self._used_keyword_calls(lines)
+        for idx, raw in enumerate(lines, start=1):
+            line = raw.strip()
+            if line.lower().startswith("library "):
+                rest = line.split(None, 1)[1].strip()
+                cells = [cell for cell in re.split(r"[ \t]{2,}|\t+", rest) if cell]
+                token = (cells[0] if cells else rest.split()[0] if rest.split() else "").strip()
+                if not token or token.casefold() in {"builtin", "reserved"}:
+                    continue
+                if token.casefold() not in resolved_libraries:
+                    continue
+                alias = None
+                for index, cell in enumerate(cells):
+                    if cell.upper() in {"AS", "WITH NAME"} and index + 1 < len(cells):
+                        alias = cells[index + 1].strip() or None
+                        break
+                label = alias or token
+                if label.casefold() in used_qualifiers:
+                    continue
+                target = self._library_resolve_target(token, file_path)
+                resolved = await self.library_catalog().get_library(target)
+                if resolved is None and target != token:
+                    resolved = await self.library_catalog().get_library(token)
+                if resolved is None or not resolved.keywords:
+                    continue
+                names = {kw.name.casefold() for kw in resolved.keywords if kw.name}
+                names.update(normalize_keyword_name(kw.name) for kw in resolved.keywords if kw.name)
+                if names & used_bare:
+                    continue
+                diagnostics.append(
+                    self._diag(
+                        file_path,
+                        idx,
+                        f"Unused library '{token}'",
+                        "information",
+                        code="unused_library",
+                    ),
+                )
+                continue
+            if line.lower().startswith("resource "):
+                rest = line.split(None, 1)[1].strip()
+                cells = [cell for cell in re.split(r"[ \t]{2,}|\t+", rest) if cell]
+                token = (cells[0] if cells else rest.split()[0] if rest.split() else "").strip(
+                    "'\"",
+                )
+                if not token or "${" in token:
+                    continue
+                if not self._import_path_exists(file_path, token):
+                    continue
+                candidate = Path(token).expanduser()
+                if not candidate.is_file():
+                    candidate = self._path_beside_file(file_path, token)
+                if not candidate.is_file():
+                    continue
+                try:
+                    child = candidate.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                names = self._collect_local_keyword_names(child.splitlines())
+                if not names:
+                    continue
+                folded = {name.casefold() for name in names}
+                folded.update(normalize_keyword_name(name) for name in names)
+                if folded & used_bare:
+                    continue
+                diagnostics.append(
+                    self._diag(
+                        file_path,
+                        idx,
+                        f"Unused resource '{token}'",
+                        "information",
+                        code="unused_resource",
+                    ),
+                )
+
+    @classmethod
+    def _used_keyword_calls(cls, lines: list[str]) -> tuple[set[str], set[str]]:
+        """Bare keyword names and library/alias qualifiers referenced in this file."""
+        bare: set[str] = set()
+        qualifiers: set[str] = set()
+        setting_heads = {
+            "suite setup",
+            "suite teardown",
+            "test setup",
+            "test teardown",
+            "test template",
+            "task setup",
+            "task teardown",
+            "task template",
+        }
+        for raw in lines:
+            stripped = raw.strip()
+            if not stripped or stripped.startswith("#") or stripped.startswith("*"):
+                continue
+            if stripped.startswith(_CONTINUATION_MARKER):
+                continue
+            keyword = ""
+            if raw.startswith(" ") or raw.startswith("\t"):
+                keyword = cls._keyword_cell(raw)
+            else:
+                cells = cls._robot_cells(stripped)
+                if cells and cells[0].casefold() in setting_heads and len(cells) > 1:
+                    keyword = cells[1]
+            if not keyword or keyword.startswith("[") or keyword.startswith(("$", "@", "&", "%")):
+                continue
+            rest = keyword
+            for prefix in ("Given ", "When ", "Then ", "And ", "But "):
+                if rest.lower().startswith(prefix.lower()):
+                    rest = rest[len(prefix) :].lstrip()
+                    break
+            if "." in rest and not rest.startswith(("$", "@", "&", "%")):
+                head, _, tail = rest.partition(".")
+                if tail:
+                    qualifiers.add(head.casefold())
+                    rest = tail
+            bare.add(rest.casefold())
+            bare.add(normalize_keyword_name(rest))
+        return bare, qualifiers
+
+    def _append_keyword_argument_diagnostics(
+        self,
+        file_path: str,
+        line: int,
+        keyword: str,
+        lines: list[str],
+        signatures: dict[str, KeywordMetadata],
+        diagnostics: list[dict],
+    ) -> None:
+        if keyword.startswith("[") and keyword.endswith("]"):
+            return
+        if keyword.casefold() in {name.casefold() for name in _CONTROL_MARKERS}:
+            return
+        bare = strip_keyword_qualifier(keyword)
+        meta = signatures.get(keyword.casefold()) or signatures.get(bare.casefold())
+        if meta is None:
+            return
+        args = self._call_argument_cells(lines, line)
+        for code, message in validate_keyword_arguments(meta, args):
+            diagnostics.append(
+                self._diag(file_path, line, message, "warning", code=code),
+            )
+
+    def _call_argument_cells(self, lines: list[str], line: int) -> list[str]:
+        """Argument cells on *line* (1-based) plus following ``...`` continuations."""
+        if line < 1 or line > len(lines):
+            return []
+        cells = self._robot_cells(lines[line - 1])
+        if not cells:
+            return []
+        keyword_index = 1 if re.match(r"^[\$@&%]", cells[0]) and len(cells) > 1 else 0
+        args = list(cells[keyword_index + 1 :])
+        for raw in lines[line:]:
+            stripped = raw.strip()
+            if not stripped.startswith(_CONTINUATION_MARKER):
+                break
+            cont = self._robot_cells(raw)
+            if cont and cont[0] == _CONTINUATION_MARKER:
+                args.extend(cont[1:])
+            else:
+                args.extend(cont)
+        return args
 
     @staticmethod
     def _path_beside_file(file_path: str, relative: str) -> Path:
@@ -1757,8 +2058,16 @@ class RobotLanguageService(LanguageService):
         return cells[0].strip()
 
     @staticmethod
-    def _diag(file_path: str, line: int, message: str, severity: str) -> dict:
-        return {
+    def _diag(
+        file_path: str,
+        line: int,
+        message: str,
+        severity: str,
+        *,
+        code: str | None = None,
+        content: str = "",
+    ) -> dict:
+        payload = {
             "severity": severity,
             "file_path": file_path,
             "line": line,
@@ -1766,6 +2075,12 @@ class RobotLanguageService(LanguageService):
             "message": message,
             "source": "robot.semantic",
         }
+        if code:
+            payload["code"] = code
+            hint = quick_fix_hint(code=code, message=message, content=content)
+            if hint:
+                payload["quick_fix"] = hint
+        return payload
 
     @staticmethod
     def _kind_for_context(context: str) -> SymbolKind | None:

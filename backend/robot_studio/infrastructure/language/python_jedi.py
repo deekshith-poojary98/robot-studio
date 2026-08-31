@@ -517,6 +517,88 @@ def jedi_unresolved_imported_names(
     return unresolved
 
 
+def jedi_unknown_attributes(
+    content: str,
+    file_path: str,
+    python_executable: Path,
+    project_root: Path | None,
+    probes: list[tuple[int, int, str]],
+) -> list[tuple[int, int, str]]:
+    """Return ``obj.attr`` probes whose name is not among Jedi completions.
+
+    Each probe is ``(line, column, attr)`` with a 1-based column at the start of
+    the attribute name. Empty completion lists are treated as "unknown object"
+    and skipped — never a false positive on ``Any`` / dynamic types.
+    """
+    if not probes:
+        return []
+    script = _script(content, file_path, python_executable, project_root)
+    if script is None:
+        return []
+    unknown: list[tuple[int, int, str]] = []
+    for line, column, attr in probes:
+        try:
+            completions = list(script.complete(line, _jedi_column(column)) or [])
+        except Exception:  # noqa: BLE001
+            logger.debug("Jedi complete failed for attribute %s", attr, exc_info=True)
+            continue
+        names = {
+            str(item.name)
+            for item in completions
+            if getattr(item, "name", None)
+        }
+        if not names or attr in names:
+            continue
+        unknown.append((line, column, attr))
+    return unknown
+
+
+def jedi_unexpected_call_keywords(
+    content: str,
+    file_path: str,
+    python_executable: Path,
+    project_root: Path | None,
+    probes: list[tuple[int, int, str]],
+) -> list[tuple[int, int, str]]:
+    """Return named arguments that match none of Jedi's signatures.
+
+    Each probe is ``(line, column, keyword_name)``. Calls whose signatures
+    include ``**kwargs`` (or cannot be resolved) are left quiet.
+    """
+    if not probes:
+        return []
+    script = _script(content, file_path, python_executable, project_root)
+    if script is None:
+        return []
+    unexpected: list[tuple[int, int, str]] = []
+    for line, column, name in probes:
+        try:
+            signatures = list(script.get_signatures(line, _jedi_column(column)) or [])
+        except Exception:  # noqa: BLE001
+            logger.debug("Jedi signatures failed for keyword %s", name, exc_info=True)
+            continue
+        if not signatures:
+            continue
+        allowed: set[str] = set()
+        absorbs_extras = False
+        for sig in signatures:
+            for param in getattr(sig, "params", []) or []:
+                label = str(param.to_string() or "")
+                pname = str(getattr(param, "name", "") or "")
+                if label.startswith("**") or pname.startswith("**"):
+                    absorbs_extras = True
+                    break
+                if pname and not pname.startswith("*"):
+                    allowed.add(pname)
+            if absorbs_extras:
+                break
+        if absorbs_extras or not allowed:
+            continue
+        if name not in allowed:
+            unexpected.append((line, column, name))
+    return unexpected
+
+
 def jedi_references(
     content: str,
     file_path: str,

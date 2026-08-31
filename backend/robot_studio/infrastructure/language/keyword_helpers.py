@@ -70,6 +70,101 @@ def present_named_args(arguments: list[str]) -> set[str]:
     return found
 
 
+_VARARG_KINDS = frozenset({"var_positional", "var_named", "free_named"})
+_POSITIONAL_KINDS = frozenset({"positional_only", "positional_or_named", ""})
+
+
+def validate_keyword_arguments(
+    metadata: KeywordMetadata,
+    arguments: list[str],
+) -> list[tuple[str, str]]:
+    """Return ``(code, message)`` issues for a keyword call.
+
+    Only runs when *metadata* has a real signature (non-empty parameters).
+    Unknown signatures are skipped so incomplete libdoc/index rows do not
+    produce false extras. Codes: ``unknown_argument``, ``missing_argument``,
+    ``extra_argument``, ``duplicate_argument``, ``positional_after_named``.
+    """
+    params = [p for p in metadata.parameters if (p.name or "").strip()]
+    if not params:
+        return []
+
+    keyword = metadata.name or "keyword"
+    has_var_pos = any(p.kind == "var_positional" for p in params)
+    has_var_named = any(p.kind in {"var_named", "free_named"} for p in params)
+    bindable = [p for p in params if p.kind not in _VARARG_KINDS]
+    by_name = {p.name.casefold(): p for p in bindable}
+    pos_order = [p for p in bindable if p.kind in _POSITIONAL_KINDS]
+
+    bound: set[str] = set()
+    issues: list[tuple[str, str]] = []
+    saw_named = False
+    extra_positional = 0
+
+    for cell in arguments:
+        text = (cell or "").strip()
+        if not text:
+            continue
+        name, _value = parse_argument_cell(text)
+        if name:
+            saw_named = True
+            key = name.casefold()
+            if key in bound:
+                issues.append(
+                    (
+                        "duplicate_argument",
+                        f"Multiple values for argument '{name}' in '{keyword}'",
+                    ),
+                )
+                continue
+            if key in by_name:
+                bound.add(key)
+                continue
+            if has_var_named:
+                continue
+            issues.append(
+                (
+                    "unknown_argument",
+                    f"Unknown argument '{name}' for keyword '{keyword}'",
+                ),
+            )
+            continue
+        if saw_named:
+            issues.append(
+                (
+                    "positional_after_named",
+                    f"Positional argument after named argument in '{keyword}'",
+                ),
+            )
+            continue
+        slot = next((p for p in pos_order if p.name.casefold() not in bound), None)
+        if slot is not None:
+            bound.add(slot.name.casefold())
+            continue
+        if has_var_pos:
+            continue
+        extra_positional += 1
+
+    if extra_positional:
+        noun = "argument" if extra_positional == 1 else "arguments"
+        issues.append(
+            (
+                "extra_argument",
+                f"Keyword '{keyword}' got {extra_positional} extra {noun}",
+            ),
+        )
+
+    for param in bindable:
+        if param.required and param.name.casefold() not in bound:
+            issues.append(
+                (
+                    "missing_argument",
+                    f"Keyword '{keyword}' missing argument '{param.name}'",
+                ),
+            )
+    return issues
+
+
 def active_parameter_index(
     metadata: KeywordMetadata,
     *,

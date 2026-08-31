@@ -260,6 +260,7 @@ async def language_diagnostics(
                 "source": item.get("source") or "robot",
                 "code": item.get("code"),
                 "inspection_id": item.get("inspection_id"),
+                "quick_fix": item.get("quick_fix"),
             }
             for item in diagnostics
         ],

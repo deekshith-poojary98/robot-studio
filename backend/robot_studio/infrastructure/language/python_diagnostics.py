@@ -1,18 +1,24 @@
-"""Diagnostics for ``.py`` buffers — parser, pyflakes, and env imports.
+"""Diagnostics for ``.py`` buffers — parser, pyflakes, env imports, and members.
 
-Three layers, because they answer different questions:
+Several layers, because they answer different questions:
 
 * **Syntax** (parso, via Jedi) reports *every* parse error in the buffer rather
   than aborting at the first one like ``ast.parse``, so a typo on line 3 does not
   hide a second one on line 40.
-* **Semantics** (pyflakes) catches the mistakes that actually cost time —
-  undefined names, unused imports, shadowed definitions — without needing type
-  inference or a configured type checker.
+* **Lint** uses ``ruff check`` from the active environment when it is installed,
+  otherwise pyflakes. Same findings either way: undefined names, unused imports,
+  unused locals.
+
+* **Members** (Jedi) flags ``obj.wrong`` when completions on ``obj`` are known
 * **Environment** checks whether ``import`` / ``from`` targets exist in the
   active interpreter (stdlib, venv ``site-packages``, or the project tree),
   and whether names in ``from package import Name`` actually exist on that
   package. pyflakes treats ``import pandas`` as a valid binding even when
   pandas is not installed, and it does not inspect the package's members.
+
+* **Members** (Jedi) flags ``obj.wrong`` when completions on ``obj`` are known
+  but do not include that name, and unexpected ``func(nope=…)`` keywords when
+  the call signature has no ``**kwargs``.
 
 pyflakes and env-import checks need a parseable tree, so they only run once the
 buffer is syntactically valid; while you are mid-edit you still get the syntax
@@ -31,8 +37,12 @@ from robot_studio.infrastructure.language.python_jedi import (
     environment_sys_path,
     jedi_available,
     jedi_syntax_errors,
+    jedi_unexpected_call_keywords,
+    jedi_unknown_attributes,
     jedi_unresolved_imported_names,
 )
+from robot_studio.infrastructure.language.python_ruff import ruff_check_diagnostics
+from robot_studio.infrastructure.language.quick_fixes import quick_fix_hint
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +109,13 @@ def python_diagnostics(
         # undefined because their definition failed to parse).
         return _finalize(out, file_path)
 
-    out.extend(_pyflakes_diagnostics(content, file_path))
+    lint = None
+    if python_executable is not None:
+        lint = ruff_check_diagnostics(content, file_path, python_executable)
+    if lint is not None:
+        out.extend(lint)
+    else:
+        out.extend(_pyflakes_diagnostics(content, file_path))
     if python_executable is not None:
         out.extend(
             _env_import_diagnostics(
@@ -109,6 +125,15 @@ def python_diagnostics(
                 project_root=project_root,
             ),
         )
+        if jedi_available():
+            out.extend(
+                _jedi_member_diagnostics(
+                    content,
+                    file_path,
+                    python_executable=python_executable,
+                    project_root=project_root,
+                ),
+            )
     return _finalize(out, file_path)
 
 
@@ -267,6 +292,99 @@ def _env_import_diagnostics(
     return out
 
 
+def _jedi_member_diagnostics(
+    content: str,
+    file_path: str,
+    *,
+    python_executable: Path,
+    project_root: Path | None,
+) -> list[dict[str, Any]]:
+    """Unknown attributes (``obj.wrong``) and unexpected call keywords."""
+    try:
+        tree = ast.parse(content, filename=file_path or "buffer.py")
+    except (SyntaxError, ValueError, RecursionError):
+        return []
+
+    collector = _MemberCollector()
+    collector.visit(tree)
+    out: list[dict[str, Any]] = []
+    if collector.attributes:
+        for line, column, attr in jedi_unknown_attributes(
+            content,
+            file_path,
+            python_executable,
+            project_root,
+            collector.attributes,
+        ):
+            out.append(
+                {
+                    "line": line,
+                    "column": column,
+                    "end_line": line,
+                    "end_column": column,
+                    "message": f"Unknown attribute '{attr}'",
+                    "severity": "warning",
+                    "code": "unknown_attribute",
+                    "source": "python",
+                },
+            )
+    if collector.keywords:
+        for line, column, name in jedi_unexpected_call_keywords(
+            content,
+            file_path,
+            python_executable,
+            project_root,
+            collector.keywords,
+        ):
+            out.append(
+                {
+                    "line": line,
+                    "column": column,
+                    "end_line": line,
+                    "end_column": column,
+                    "message": f"Unexpected keyword argument '{name}'",
+                    "severity": "warning",
+                    "code": "unexpected_keyword",
+                    "source": "python",
+                },
+            )
+    return out
+
+
+class _MemberCollector(ast.NodeVisitor):
+    """Attribute loads and named call arguments for Jedi to verify."""
+
+    def __init__(self) -> None:
+        self.attributes: list[tuple[int, int, str]] = []
+        self.keywords: list[tuple[int, int, str]] = []
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        self.generic_visit(node)
+        if not isinstance(node.ctx, ast.Load):
+            return
+        attr = node.attr or ""
+        if not attr or (attr.startswith("__") and attr.endswith("__")):
+            return
+        end_col = getattr(node, "end_col_offset", None)
+        if end_col is None:
+            return
+        line = int(getattr(node, "end_lineno", None) or node.lineno or 1)
+        column = int(end_col) - len(attr) + 1
+        if column < 1:
+            return
+        self.attributes.append((line, column, attr))
+
+    def visit_Call(self, node: ast.Call) -> None:
+        self.generic_visit(node)
+        for kw in node.keywords:
+            name = kw.arg
+            if not name:
+                continue
+            line = int(getattr(kw, "lineno", None) or node.lineno or 1)
+            column = int(getattr(kw, "col_offset", None) or 0) + 1
+            self.keywords.append((line, column, name))
+
+
 class _ImportCollector(ast.NodeVisitor):
     """Collect top-level import names, skipping optional try/except ImportError."""
 
@@ -412,6 +530,13 @@ def _finalize(items: list[dict[str, Any]], file_path: str) -> list[dict[str, Any
     """Stamp the file path and order by position, as the Problems panel expects."""
     for item in items:
         item["file_path"] = file_path
+        if item.get("quick_fix") is None:
+            hint = quick_fix_hint(
+                code=str(item.get("code") or "") or None,
+                message=str(item.get("message") or ""),
+            )
+            if hint:
+                item["quick_fix"] = hint
     items.sort(key=lambda item: (int(item.get("line") or 1), int(item.get("column") or 1)))
     return items
 

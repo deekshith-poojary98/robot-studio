@@ -204,7 +204,7 @@ Python intelligence resolves against the **active environment**, so it needs one
 - If completions cover the stdlib but miss a package you installed, the package landed in a different environment than the active one — check with **Packages**.
 - Symbols starting with `_` are hidden until you type the leading underscore.
 - While a file has a syntax error, only parse errors are listed. Undefined names, unused imports, and missing-package warnings come back once the file parses.
-- `import pandas` (or any other third-party package) warns when that package is not installed in the **active** environment. `from pandas import NotARealClass` warns when the package exists but that name does not. Install missing packages with **Packages**, or wrap optional imports in `try` / `except ImportError`.
+- `import pandas` (or any other third-party package) warns when that package is not installed in the **active** environment. `from pandas import NotARealClass` warns when the package exists but that name does not. Use **Fix** on the Problems row, or **Packages → Install**, or wrap optional imports in `try` / `except ImportError`.
 
 ## Python: Format Document does nothing
 
@@ -214,7 +214,7 @@ Robot Studio does not bundle a Python formatter — it uses the one in your envi
 
 ## Python: Rename Symbol is unavailable
 
-Rename works on Python files with the caret on a symbol. If it reports that the name is invalid, the new text is not a valid Python identifier. Renaming rewrites every usage across the project, including files that are not open, so review the changes before committing.
+Rename works on Python files with the caret on a symbol, and on Robot files with the caret on a user keyword. BuiltIn keywords cannot be renamed. If it reports that the name is invalid, the new text is not a valid identifier (Python) or keyword name (Robot). Renaming rewrites usages across the project, including files that are not open, so review the changes before committing.
 
 ## Live Output only appears when the run finishes
 

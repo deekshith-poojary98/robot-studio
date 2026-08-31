@@ -24,6 +24,7 @@ class BottomPanel extends StatefulWidget {
     this.toggleTerminalToken,
     this.revealProblemsToken,
     this.onProblemSelected,
+    this.onProblemQuickFix,
     this.preferCollapsed = false,
   });
 
@@ -37,6 +38,7 @@ class BottomPanel extends StatefulWidget {
   final int? toggleTerminalToken;
   final int? revealProblemsToken;
   final ValueChanged<DiagnosticInfo>? onProblemSelected;
+  final ValueChanged<DiagnosticInfo>? onProblemQuickFix;
 
   /// When this becomes true (e.g. entering the welcome page), collapse the panel.
   final bool preferCollapsed;
@@ -191,6 +193,7 @@ class _BottomPanelState extends State<BottomPanel> {
                       diagnostics: widget.problems,
                       isLoading: widget.isLoadingProblems,
                       onSelect: widget.onProblemSelected ?? (_) {},
+                      onQuickFix: widget.onProblemQuickFix,
                     ),
                   ],
                 ),

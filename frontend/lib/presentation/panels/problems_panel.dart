@@ -10,11 +10,13 @@ class ProblemsPanel extends StatelessWidget {
     super.key,
     required this.diagnostics,
     required this.onSelect,
+    this.onQuickFix,
     this.isLoading = false,
   });
 
   final List<DiagnosticInfo> diagnostics;
   final ValueChanged<DiagnosticInfo> onSelect;
+  final ValueChanged<DiagnosticInfo>? onQuickFix;
   final bool isLoading;
 
   @override
@@ -62,10 +64,31 @@ class ProblemsPanel extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            trailing: _fixControl(context, item),
             onTap: () => onSelect(item),
           ),
         );
       },
+    );
+  }
+
+  Widget? _fixControl(BuildContext context, DiagnosticInfo item) {
+    final fix = item.quickFix;
+    if (fix == null || onQuickFix == null) return null;
+    return Tooltip(
+      message: fix.title,
+      child: TextButton(
+        onPressed: () => onQuickFix!(item),
+        style: TextButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          minimumSize: Size.zero,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          foregroundColor: context.palette.accent,
+          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        child: const Text('Fix'),
+      ),
     );
   }
 

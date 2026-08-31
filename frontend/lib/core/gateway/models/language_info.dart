@@ -50,6 +50,36 @@ class CompletionItemInfo {
   final String provider;
 }
 
+class QuickFixHint {
+  const QuickFixHint({
+    required this.kind,
+    required this.title,
+    this.package,
+    this.library,
+  });
+
+  factory QuickFixHint.fromJson(Map<String, dynamic> json) {
+    return QuickFixHint(
+      kind: json['kind'] as String? ?? '',
+      title: json['title'] as String? ?? 'Fix',
+      package: json['package'] as String?,
+      library: json['library'] as String?,
+    );
+  }
+
+  /// `install_package` or `insert_library`.
+  final String kind;
+  final String title;
+  final String? package;
+  final String? library;
+
+  bool get isInstallPackage =>
+      kind == 'install_package' && (package ?? '').isNotEmpty;
+
+  bool get isInsertLibrary =>
+      kind == 'insert_library' && (library ?? '').isNotEmpty;
+}
+
 class DiagnosticInfo {
   const DiagnosticInfo({
     required this.severity,
@@ -60,9 +90,11 @@ class DiagnosticInfo {
     this.source = 'robot',
     this.code,
     this.inspectionId,
+    this.quickFix,
   });
 
   factory DiagnosticInfo.fromJson(Map<String, dynamic> json) {
+    final rawFix = json['quick_fix'];
     return DiagnosticInfo(
       severity: DiagnosticSeverity.fromApi(
         json['severity'] as String? ?? 'error',
@@ -74,6 +106,9 @@ class DiagnosticInfo {
       source: json['source'] as String? ?? 'robot',
       code: json['code'] as String?,
       inspectionId: json['inspection_id'] as String?,
+      quickFix: rawFix is Map<String, dynamic>
+          ? QuickFixHint.fromJson(rawFix)
+          : null,
     );
   }
 
@@ -85,6 +120,7 @@ class DiagnosticInfo {
   final String source;
   final String? code;
   final String? inspectionId;
+  final QuickFixHint? quickFix;
 
   String get fileName {
     final normalized = filePath.replaceAll('\\', '/');
