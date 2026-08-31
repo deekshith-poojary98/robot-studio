@@ -46,8 +46,8 @@ class LibraryCatalogService:
     async def list_libraries(self, *, extra_imports: list[str] | None = None) -> list[LibraryMetadata]:
         """Return library summaries for Library Explorer.
 
-        Re-syncs discovery on every list so path-style custom ``.py`` imports
-        appear after save/reindex without requiring an app restart.
+        Re-syncs discovery on every list so ``Library`` imports from Robot
+        files appear after save/reindex without requiring an app restart.
         """
         async with self._membership_lock:
             if not self._membership_ready:

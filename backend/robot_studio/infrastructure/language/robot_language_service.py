@@ -184,13 +184,14 @@ class RobotLanguageService(LanguageService):
         return self._library_catalog
 
     async def _discover_library_imports(self) -> list[tuple[str, str]]:
-        """Library docs membership: resolvable Library imports + project ``.py`` libs.
+        """Library docs membership: ``Library`` imports from Robot files only.
 
         Returns ``(import_name, importing_file)`` so relative path libraries can be
         resolved against the suite that imported them.
 
-        Resource files (``.robot`` / ``.resource``) are intentionally excluded —
-        they are not test libraries; browse them in Explorer / Outline instead.
+        Project ``.py`` files are not membership sources — they appear only when a
+        ``.robot`` / ``.resource`` file imports them with ``Library``. Resource and
+        variable files are never libraries.
         """
         entries: list[tuple[str, str]] = []
         seen: set[str] = set()
@@ -200,7 +201,7 @@ class RobotLanguageService(LanguageService):
                 "",
                 kind=SymbolKind.LIBRARY,
                 workspace_id=workspace.id if workspace is not None else None,
-                limit=200,
+                limit=500,
             )
         except Exception:  # noqa: BLE001
             symbols = []
@@ -209,9 +210,10 @@ class RobotLanguageService(LanguageService):
             if not name:
                 continue
             source = str(item.get("file_path") or "")
-            detail = str(item.get("detail") or "").casefold()
-
-            # Resource files are not libraries — keep them out of Library docs.
+            # Python indexer tags every .py / class as LIBRARY — ignore those.
+            # Only Settings ``Library`` lines (indexed from .robot / .resource) count.
+            if not self._is_robot_settings_source(source):
+                continue
             if self._is_resource_path(name):
                 continue
 
@@ -224,22 +226,6 @@ class RobotLanguageService(LanguageService):
                     continue
                 seen.add(key)
                 entries.append((target, source))
-            elif (
-                detail == "python"
-                or (
-                    source.lower().endswith(".py")
-                    and Path(source).is_file()
-                    and Path(source).stem.casefold() == name.casefold()
-                )
-            ):
-                target = str(Path(source).expanduser().resolve())
-                if self._is_resource_path(target):
-                    continue
-                key = target.casefold()
-                if key in seen:
-                    continue
-                seen.add(key)
-                entries.append((target, source))
             else:
                 key = name.casefold()
                 if key in seen:
@@ -247,6 +233,12 @@ class RobotLanguageService(LanguageService):
                 seen.add(key)
                 entries.append((name, source))
         return entries
+
+    @staticmethod
+    def _is_robot_settings_source(path: str) -> bool:
+        """True when *path* is a Robot suite or resource that can declare ``Library``."""
+        lower = path.strip().lower().replace("\\", "/")
+        return lower.endswith((".robot", ".resource"))
 
     @staticmethod
     def _is_resource_path(token: str) -> bool:

@@ -14,7 +14,7 @@ description: Short definitions for Robot Studio and Robot Framework terms used i
 | **Run configuration** | Named execution context (tags, variables, optional per-run environment pin) selected next to **Run / Project / Stop**. Does not switch the active environment. Stored in `.robotstudio/run-configurations.json` |
 | **Index** | Background database of keywords, variables (Variables section, `VAR`, arguments, assignments, FOR), and files for search and navigation |
 | **Tests** | Activity-bar tree of suites and tests you can run |
-| **Libraries** | Activity-bar browser for library keywords, docs, and arguments |
+| **Libraries** | Activity-bar browser of **BuiltIn** plus libraries imported with `Library` in `.robot` / `.resource` files |
 | **Packages** | Activity-bar UI to install/update/uninstall PyPI packages into the active environment |
 | **Robot Doctor** | Project health findings UI (activity bar label: **Doctor**) |
 | **Sidecar** | Embedded backend process started by the packaged app |

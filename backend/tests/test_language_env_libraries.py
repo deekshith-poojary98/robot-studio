@@ -469,6 +469,10 @@ async def test_discover_library_imports_resolves_custom_py_and_skips_resources(
         "        pass\n",
         encoding="utf-8",
     )
+    stray = tmp_path / "ExcelSage.py"
+    stray.write_text("class ExcelSage:\n    def ping(self):\n        pass\n", encoding="utf-8")
+    env_py = tmp_path / "env.py"
+    env_py.write_text("BASE_URL = 'https://example.test'\n", encoding="utf-8")
     suite = tests / "login.robot"
     resource = resources / "login.resource"
     resource.write_text("*** Keywords ***\nDummy\n    No Operation\n", encoding="utf-8")
@@ -499,12 +503,31 @@ async def test_discover_library_imports_resolves_custom_py_and_skips_resources(
                 file_path=suite,
                 line=6,
                 workspace_id=workspace.id,
+                detail="Library",
             ),
             IndexedSymbol(
                 id="lib-py",
                 name="CustomLib",
                 kind=SymbolKind.LIBRARY.value,
                 file_path=custom,
+                line=1,
+                workspace_id=workspace.id,
+                detail="python",
+            ),
+            IndexedSymbol(
+                id="lib-stray",
+                name="ExcelSage",
+                kind=SymbolKind.LIBRARY.value,
+                file_path=stray,
+                line=1,
+                workspace_id=workspace.id,
+                detail="python",
+            ),
+            IndexedSymbol(
+                id="lib-env",
+                name="env",
+                kind=SymbolKind.LIBRARY.value,
+                file_path=env_py,
                 line=1,
                 workspace_id=workspace.id,
                 detail="python",
@@ -524,6 +547,16 @@ async def test_discover_library_imports_resolves_custom_py_and_skips_resources(
                 file_path=suite,
                 line=3,
                 workspace_id=workspace.id,
+                detail="Library",
+            ),
+            IndexedSymbol(
+                id="lib-from-resource",
+                name="OperatingSystem",
+                kind=SymbolKind.LIBRARY.value,
+                file_path=resource,
+                line=2,
+                workspace_id=workspace.id,
+                detail="Library",
             ),
         ],
     )
@@ -554,8 +587,12 @@ async def test_discover_library_imports_resolves_custom_py_and_skips_resources(
     abs_custom = str(custom.resolve())
     assert abs_custom in names
     assert "SeleniumLibrary" in names
+    assert "OperatingSystem" in names
     assert not any(item.endswith(".resource") for item in names)
     assert not any("login.resource" in item for item in names)
+    assert "ExcelSage" not in names
+    assert "env" not in names
+    assert not any(Path(item).name.casefold() == "excelsage.py" for item in names)
 
     # End-to-end: relative/absolute custom lib appears in Library docs list.
     async def resolve_raw(name: str, file_path: str = "") -> dict:
@@ -574,6 +611,8 @@ async def test_discover_library_imports_resolves_custom_py_and_skips_resources(
     listed = {lib.name for lib in await catalog.list_libraries()}
     assert "CustomLib" in listed
     assert "BuiltIn" in listed
+    assert "ExcelSage" not in listed
+    assert "env" not in listed
 
 
 @pytest.mark.asyncio
