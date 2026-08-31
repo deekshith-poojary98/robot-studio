@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -211,7 +212,7 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
   }
 
   bool _isModifierPressed() {
-    final isMac = Theme.of(context).platform == TargetPlatform.macOS;
+    final isMac = defaultTargetPlatform == TargetPlatform.macOS;
     return isMac
         ? HardwareKeyboard.instance.isMetaPressed
         : HardwareKeyboard.instance.isControlPressed;
@@ -583,8 +584,9 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
       focusNode: _focusNode,
       autofocus: true,
       onKeyEvent: (node, event) {
+        if (!mounted) return KeyEventResult.ignored;
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        final isMac = Theme.of(context).platform == TargetPlatform.macOS;
+        final isMac = defaultTargetPlatform == TargetPlatform.macOS;
         final key = event.logicalKey;
         final meta = HardwareKeyboard.instance.isMetaPressed;
         final control = HardwareKeyboard.instance.isControlPressed;
