@@ -203,7 +203,8 @@ Python intelligence resolves against the **active environment**, so it needs one
 - Activate an environment (**Manage Environments…**), then reopen the file.
 - If completions cover the stdlib but miss a package you installed, the package landed in a different environment than the active one — check with **Packages**.
 - Symbols starting with `_` are hidden until you type the leading underscore.
-- While a file has a syntax error, only parse errors are listed. Undefined names and unused imports come back once the file parses.
+- While a file has a syntax error, only parse errors are listed. Undefined names, unused imports, and missing-package warnings come back once the file parses.
+- `import pandas` (or any other third-party package) warns when that package is not installed in the **active** environment. `from pandas import NotARealClass` warns when the package exists but that name does not. Install missing packages with **Packages**, or wrap optional imports in `try` / `except ImportError`.
 
 ## Python: Format Document does nothing
 

@@ -456,3 +456,95 @@ def test_python_diagnostics_are_silent_on_clean_code() -> None:
     content = "import os\n\n\ndef f(a):\n    return os.path.join(a, 'b')\n"
     assert python_diagnostics(content, "m.py", python_executable=Path(sys.executable)) == []
     assert python_diagnostics("", "m.py", python_executable=Path(sys.executable)) == []
+
+
+def test_python_diagnostics_warn_when_package_missing_from_env(tmp_path: Path) -> None:
+    missing = "zz_rs_not_a_real_package_9f3c"
+    path = tmp_path / "lib.py"
+    path.write_text(f"import {missing}\nfrom {missing}.sub import Thing\n", encoding="utf-8")
+    items = python_diagnostics(
+        path.read_text(encoding="utf-8"),
+        str(path),
+        python_executable=Path(sys.executable),
+        project_root=tmp_path,
+    )
+    missing_items = [item for item in items if item["code"] == "missing_package"]
+    assert len(missing_items) == 1
+    assert missing_items[0]["severity"] == "warning"
+    assert missing_items[0]["source"] == "python"
+    assert missing in missing_items[0]["message"]
+    assert missing_items[0]["line"] == 1
+    assert not any(item["code"] == "unresolved_import" for item in items)
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_python_diagnostics_warn_unknown_name_from_installed_package(tmp_path: Path) -> None:
+    path = tmp_path / "lib.py"
+    content = (
+        "from pathlib import Path, NoSuchPathClass\n"
+        "from os import not_a_real_os_attr_zz\n"
+        "\n"
+        "def f():\n"
+        "    return Path, NoSuchPathClass, not_a_real_os_attr_zz\n"
+    )
+    path.write_text(content, encoding="utf-8")
+    items = python_diagnostics(
+        content,
+        str(path),
+        python_executable=Path(sys.executable),
+        project_root=tmp_path,
+    )
+    unresolved = [item for item in items if item["code"] == "unresolved_import"]
+    messages = [item["message"] for item in unresolved]
+    assert any("NoSuchPathClass" in msg and "pathlib" in msg for msg in messages)
+    assert any("not_a_real_os_attr_zz" in msg for msg in messages)
+    assert all("'Path'" not in msg for msg in messages)
+    assert all(item["severity"] == "warning" for item in unresolved)
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_python_diagnostics_unknown_name_from_local_module(tmp_path: Path) -> None:
+    (tmp_path / "helper.py").write_text("VALUE = 1\n", encoding="utf-8")
+    path = tmp_path / "lib.py"
+    content = "from helper import VALUE, NOPE\n\ndef f():\n    return VALUE, NOPE\n"
+    path.write_text(content, encoding="utf-8")
+    items = python_diagnostics(
+        content,
+        str(path),
+        python_executable=Path(sys.executable),
+        project_root=tmp_path,
+    )
+    unresolved = [item for item in items if item["code"] == "unresolved_import"]
+    assert len(unresolved) == 1
+    assert "NOPE" in unresolved[0]["message"]
+    assert "VALUE" not in unresolved[0]["message"]
+
+
+def test_python_diagnostics_accept_local_module_and_stdlib(tmp_path: Path) -> None:
+    (tmp_path / "helper.py").write_text("VALUE = 1\n", encoding="utf-8")
+    path = tmp_path / "lib.py"
+    content = "import os\nimport helper\n\ndef f():\n    return os.getcwd(), helper.VALUE\n"
+    path.write_text(content, encoding="utf-8")
+    items = python_diagnostics(
+        content,
+        str(path),
+        python_executable=Path(sys.executable),
+        project_root=tmp_path,
+    )
+    assert not any(item["code"] == "missing_package" for item in items)
+
+
+def test_python_diagnostics_skip_optional_import_error(tmp_path: Path) -> None:
+    missing = "zz_rs_optional_pkg_9f3c"
+    path = tmp_path / "lib.py"
+    content = (
+        f"try:\n    import {missing}\nexcept ImportError:\n    {missing} = None\n"
+    )
+    path.write_text(content, encoding="utf-8")
+    items = python_diagnostics(
+        content,
+        str(path),
+        python_executable=Path(sys.executable),
+        project_root=tmp_path,
+    )
+    assert not any(item["code"] == "missing_package" for item in items)

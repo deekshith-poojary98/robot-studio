@@ -471,6 +471,52 @@ def jedi_syntax_errors(
     return out
 
 
+def jedi_unresolved_imported_names(
+    content: str,
+    file_path: str,
+    python_executable: Path,
+    project_root: Path | None,
+    probes: list[tuple[str, str, int, int]],
+) -> list[tuple[str, str, int, int]]:
+    """Return ``from module import name`` rows Jedi cannot resolve.
+
+    Each probe is ``(module, imported_name, line, column)`` with 1-based columns.
+    Empty infer *and* goto means the name is not on that module. If Jedi cannot
+    run, returns nothing — never a false positive.
+    """
+    if not probes:
+        return []
+    script = _script(content, file_path, python_executable, project_root)
+    if script is None:
+        return []
+    unresolved: list[tuple[str, str, int, int]] = []
+    for module, imported, line, column in probes:
+        col = _jedi_column(column)
+        found: list[Any] = []
+        try:
+            found = list(script.infer(line, col) or [])
+        except Exception:  # noqa: BLE001
+            logger.debug("Jedi infer failed for import %s", imported, exc_info=True)
+            continue
+        if not found:
+            try:
+                found = list(
+                    script.goto(
+                        line,
+                        col,
+                        follow_imports=True,
+                        follow_builtin_imports=True,
+                    )
+                    or [],
+                )
+            except Exception:  # noqa: BLE001
+                logger.debug("Jedi goto failed for import %s", imported, exc_info=True)
+                continue
+        if not found:
+            unresolved.append((module, imported, line, column))
+    return unresolved
+
+
 def jedi_references(
     content: str,
     file_path: str,
