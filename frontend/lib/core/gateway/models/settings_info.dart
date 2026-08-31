@@ -14,6 +14,7 @@ class EditorSettings {
     this.wordWrap = true,
     this.fontSize = 13,
     this.fontFamily = 'Menlo',
+    this.pythonMemberDiagnostics = false,
   });
 
   factory EditorSettings.fromJson(Map<String, dynamic> json) {
@@ -27,6 +28,8 @@ class EditorSettings {
       fontFamily: (json['font_family'] as String?)?.trim().isNotEmpty == true
           ? (json['font_family'] as String).trim()
           : 'Menlo',
+      pythonMemberDiagnostics:
+          json['python_member_diagnostics'] as bool? ?? false,
     );
   }
 
@@ -37,6 +40,7 @@ class EditorSettings {
   final bool wordWrap;
   final int fontSize;
   final String fontFamily;
+  final bool pythonMemberDiagnostics;
 
   Map<String, dynamic> toJson() => {
     'auto_save': autoSave,
@@ -46,6 +50,7 @@ class EditorSettings {
     'word_wrap': wordWrap,
     'font_size': fontSize,
     'font_family': fontFamily,
+    'python_member_diagnostics': pythonMemberDiagnostics,
   };
 
   EditorSettings copyWith({
@@ -56,6 +61,7 @@ class EditorSettings {
     bool? wordWrap,
     int? fontSize,
     String? fontFamily,
+    bool? pythonMemberDiagnostics,
   }) {
     return EditorSettings(
       autoSave: autoSave ?? this.autoSave,
@@ -65,6 +71,8 @@ class EditorSettings {
       wordWrap: wordWrap ?? this.wordWrap,
       fontSize: fontSize ?? this.fontSize,
       fontFamily: fontFamily ?? this.fontFamily,
+      pythonMemberDiagnostics:
+          pythonMemberDiagnostics ?? this.pythonMemberDiagnostics,
     );
   }
 }

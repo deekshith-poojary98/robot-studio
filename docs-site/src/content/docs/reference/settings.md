@@ -18,6 +18,7 @@ Settings are stored in `~/.robot-studio/settings.json`. Use **Save** to apply ch
 | **Tab Width** | `4` | Spaces per indent level |
 | **Font Size** | `13` | Editor font size |
 | **Font Family** | `Menlo` | Monospace fonts **installed on this computer**. Robot Studio does not ship extra typefaces and does not keep a hand-picked list beyond the Menlo default. Install a font in the OS (Font Book on macOS), relaunch if it does not appear, pick it here, then Save. |
+| **Python Member Checks** | Off | Warn on unknown Python attributes (`obj.wrong`) and unexpected call keywords (`func(nope=…)`). Useful on typed code; can be noisy when Jedi cannot infer types (Path variables, Pydantic models, AST walkers). |
 
 ## Execution
 

@@ -494,6 +494,23 @@ class _PreferencesPageState extends State<PreferencesPage> {
           },
         ),
         _SwitchRow(
+          label: 'Python Member Checks',
+          hint:
+              'Warn on unknown attributes (obj.wrong) and unexpected call '
+              'keywords in Python files. Can be noisy on untyped code.',
+          value: _draft.editor.pythonMemberDiagnostics,
+          onChanged: (value) {
+            _markChanged();
+            setState(() {
+              _draft = _draft.copyWith(
+                editor: _draft.editor.copyWith(
+                  pythonMemberDiagnostics: value,
+                ),
+              );
+            });
+          },
+        ),
+        _SwitchRow(
           label: 'Insert Spaces',
           hint: 'Indent with spaces instead of tab characters',
           value: _draft.editor.insertSpaces,

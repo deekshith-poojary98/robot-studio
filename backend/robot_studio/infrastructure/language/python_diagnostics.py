@@ -9,16 +9,16 @@ Several layers, because they answer different questions:
   otherwise pyflakes. Same findings either way: undefined names, unused imports,
   unused locals.
 
-* **Members** (Jedi) flags ``obj.wrong`` when completions on ``obj`` are known
+* **Members** (Jedi, optional via **Settings → Editor → Python Member Checks**) flags
+  ``obj.wrong`` when completions on ``obj`` are known but do not include that
+  name, and unexpected ``func(nope=…)`` keywords when the call signature has no
+  ``**kwargs``. Off by default because Jedi inference is noisy on untyped code.
+
 * **Environment** checks whether ``import`` / ``from`` targets exist in the
   active interpreter (stdlib, venv ``site-packages``, or the project tree),
   and whether names in ``from package import Name`` actually exist on that
   package. pyflakes treats ``import pandas`` as a valid binding even when
   pandas is not installed, and it does not inspect the package's members.
-
-* **Members** (Jedi) flags ``obj.wrong`` when completions on ``obj`` are known
-  but do not include that name, and unexpected ``func(nope=…)`` keywords when
-  the call signature has no ``**kwargs``.
 
 pyflakes and env-import checks need a parseable tree, so they only run once the
 buffer is syntactically valid; while you are mid-edit you still get the syntax
@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import ast
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -96,6 +97,7 @@ def python_diagnostics(
     *,
     python_executable: Path | None = None,
     project_root: Path | None = None,
+    python_member_diagnostics: bool = False,
 ) -> list[dict[str, Any]]:
     """Syntax + semantic diagnostics for one Python buffer."""
     if not content.strip():
@@ -125,7 +127,7 @@ def python_diagnostics(
                 project_root=project_root,
             ),
         )
-        if jedi_available():
+        if python_member_diagnostics and jedi_available():
             out.extend(
                 _jedi_member_diagnostics(
                     content,
@@ -134,6 +136,7 @@ def python_diagnostics(
                     project_root=project_root,
                 ),
             )
+    out = _drop_redundant_unused_imports(out, content)
     return _finalize(out, file_path)
 
 
@@ -357,22 +360,61 @@ class _MemberCollector(ast.NodeVisitor):
     def __init__(self) -> None:
         self.attributes: list[tuple[int, int, str]] = []
         self.keywords: list[tuple[int, int, str]] = []
+        self._in_annotation = False
+
+    def _visit_annotation(self, node: ast.AST | None) -> None:
+        if node is None:
+            return
+        previous = self._in_annotation
+        self._in_annotation = True
+        self.visit(node)
+        self._in_annotation = previous
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_function(node.args, node.returns, node.body, node.decorator_list)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_function(node.args, node.returns, node.body, node.decorator_list)
+
+    def _visit_function(
+        self,
+        args: ast.arguments,
+        returns: ast.expr | None,
+        body: list[ast.stmt],
+        decorators: list[ast.expr],
+    ) -> None:
+        for arg in args.posonlyargs + args.args + args.kwonlyargs:
+            self._visit_annotation(arg.annotation)
+        if args.vararg is not None:
+            self._visit_annotation(args.vararg.annotation)
+        if args.kwarg is not None:
+            self._visit_annotation(args.kwarg.annotation)
+        self._visit_annotation(returns)
+        for child in body:
+            self.visit(child)
+        for child in decorators:
+            self.visit(child)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        self._visit_annotation(node.annotation)
+        if node.value is not None:
+            self.visit(node.value)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
+        if (
+            not self._in_annotation
+            and isinstance(node.ctx, ast.Load)
+            and isinstance(node.value, ast.Name)
+        ):
+            attr = node.attr or ""
+            if attr and not (attr.startswith("__") and attr.endswith("__")):
+                end_col = getattr(node, "end_col_offset", None)
+                if end_col is not None:
+                    line = int(getattr(node, "end_lineno", None) or node.lineno or 1)
+                    column = int(end_col) - len(attr) + 1
+                    if column >= 1:
+                        self.attributes.append((line, column, attr))
         self.generic_visit(node)
-        if not isinstance(node.ctx, ast.Load):
-            return
-        attr = node.attr or ""
-        if not attr or (attr.startswith("__") and attr.endswith("__")):
-            return
-        end_col = getattr(node, "end_col_offset", None)
-        if end_col is None:
-            return
-        line = int(getattr(node, "end_lineno", None) or node.lineno or 1)
-        column = int(end_col) - len(attr) + 1
-        if column < 1:
-            return
-        self.attributes.append((line, column, attr))
 
     def visit_Call(self, node: ast.Call) -> None:
         self.generic_visit(node)
@@ -524,6 +566,82 @@ def _list_top_level(root: Path) -> set[str]:
             elif ".so" in name or name.endswith(".pyd"):
                 names.add(stem)
     return names
+
+
+_UNUSED_IMPORT_CODES = frozenset({"unused_import", "F401"})
+_MISSING_PACKAGE_RE = re.compile(r"Cannot find package '([^']+)'")
+_UNUSED_IMPORT_RE = re.compile(r"^'([^']+)' imported but unused")
+
+
+def _drop_redundant_unused_imports(
+    items: list[dict[str, Any]],
+    content: str,
+) -> list[dict[str, Any]]:
+    """Hide unused-import lint when the package is already reported missing."""
+    missing = _missing_package_names(items)
+    if not missing:
+        return items
+    try:
+        tree = ast.parse(content)
+    except (SyntaxError, ValueError, RecursionError):
+        return items
+    bindings = _import_bindings_by_line(tree)
+    kept: list[dict[str, Any]] = []
+    for item in items:
+        if item.get("code") not in _UNUSED_IMPORT_CODES:
+            kept.append(item)
+            continue
+        name = _unused_import_name(str(item.get("message") or ""))
+        if name is None:
+            kept.append(item)
+            continue
+        line = int(item.get("line") or 1)
+        top = bindings.get(line, {}).get(name, name.split(".", 1)[0])
+        if name in missing or top in missing:
+            continue
+        kept.append(item)
+    return kept
+
+
+def _missing_package_names(items: list[dict[str, Any]]) -> set[str]:
+    names: set[str] = set()
+    for item in items:
+        if item.get("code") != "missing_package":
+            continue
+        match = _MISSING_PACKAGE_RE.search(str(item.get("message") or ""))
+        if match:
+            names.add(match.group(1))
+    return names
+
+
+def _unused_import_name(message: str) -> str | None:
+    match = _UNUSED_IMPORT_RE.match(message.strip())
+    return match.group(1) if match else None
+
+
+def _import_bindings_by_line(tree: ast.AST) -> dict[int, dict[str, str]]:
+    """Map source line → local import name → top-level package."""
+    bindings: dict[int, dict[str, str]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                top = _top_level(alias.name)
+                if not top:
+                    continue
+                local = alias.asname or top
+                line = int(getattr(alias, "lineno", None) or node.lineno or 1)
+                bindings.setdefault(line, {})[local] = top
+        elif isinstance(node, ast.ImportFrom):
+            relative = (node.level or 0) > 0
+            top = _top_level(node.module) if not relative else ""
+            for alias in node.names:
+                imported = (alias.name or "").strip()
+                if not imported or imported == "*":
+                    continue
+                local = alias.asname or imported
+                line = int(getattr(alias, "lineno", None) or node.lineno or 1)
+                bindings.setdefault(line, {})[local] = top or local
+    return bindings
 
 
 def _finalize(items: list[dict[str, Any]], file_path: str) -> list[dict[str, Any]]:

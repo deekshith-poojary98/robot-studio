@@ -342,6 +342,7 @@ class Container:
             store=self.index_store,
             context=self.workspace_context,
             event_bus=self.event_bus,
+            settings_service=self.settings_service,
             analysis_engine=self.analysis_engine,
             usage_store=SqliteCompletionUsageStore(
                 settings.data_dir / "completion-usage.db",

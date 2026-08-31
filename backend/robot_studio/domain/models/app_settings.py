@@ -43,6 +43,7 @@ class EditorSettings:
     word_wrap: bool = True
     font_size: int = 13
     font_family: str = "Menlo"
+    python_member_diagnostics: bool = False
 
     def to_api(self) -> dict[str, Any]:
         return asdict(self)
@@ -58,6 +59,9 @@ class EditorSettings:
             word_wrap=bool(raw.get("word_wrap", True)),
             font_size=max(9, min(32, int(raw.get("font_size", 13) or 13))),
             font_family=str(raw.get("font_family") or "Menlo").strip() or "Menlo",
+            python_member_diagnostics=bool(
+                raw.get("python_member_diagnostics", False),
+            ),
         )
 
 

@@ -478,6 +478,7 @@ def test_python_diagnostics_warn_when_package_missing_from_env(tmp_path: Path) -
     assert missing_items[0]["source"] == "python"
     assert missing in missing_items[0]["message"]
     assert missing_items[0]["line"] == 1
+    assert not any(item["code"] in {"unused_import", "F401"} for item in items)
     assert not any(item["code"] == "unresolved_import" for item in items)
 
 
@@ -554,6 +555,40 @@ def test_python_diagnostics_skip_optional_import_error(tmp_path: Path) -> None:
     assert not any(item["code"] == "missing_package" for item in items)
 
 
+def test_python_diagnostics_drop_unused_import_when_package_missing(tmp_path: Path) -> None:
+    missing = "zz_rs_not_a_real_package_9f3c"
+    path = tmp_path / "lib.py"
+    path.write_text(f"import {missing}\n", encoding="utf-8")
+    items = python_diagnostics(
+        path.read_text(encoding="utf-8"),
+        str(path),
+        python_executable=Path(sys.executable),
+        project_root=tmp_path,
+    )
+    assert any(item["code"] == "missing_package" for item in items)
+    assert not any(item["code"] in {"unused_import", "F401"} for item in items)
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_python_diagnostics_member_checks_off_by_default(tmp_path: Path) -> None:
+    path = tmp_path / "lib.py"
+    content = (
+        "from pathlib import Path\n"
+        "\n"
+        "def f():\n"
+        "    p = Path('.')\n"
+        "    return p.no_such_attr_zz\n"
+    )
+    path.write_text(content, encoding="utf-8")
+    items = python_diagnostics(
+        content,
+        str(path),
+        python_executable=Path(sys.executable),
+        project_root=tmp_path,
+    )
+    assert not any(item["code"] == "unknown_attribute" for item in items)
+
+
 @pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
 def test_python_diagnostics_unknown_attribute(tmp_path: Path) -> None:
     path = tmp_path / "lib.py"
@@ -570,11 +605,52 @@ def test_python_diagnostics_unknown_attribute(tmp_path: Path) -> None:
         str(path),
         python_executable=Path(sys.executable),
         project_root=tmp_path,
+        python_member_diagnostics=True,
     )
     unknown = [item for item in items if item["code"] == "unknown_attribute"]
     assert len(unknown) == 1
     assert "no_such_attr_zz" in unknown[0]["message"]
     assert all("exists" not in item["message"] for item in unknown)
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_python_diagnostics_skip_attributes_in_annotations(tmp_path: Path) -> None:
+    path = tmp_path / "lib.py"
+    content = (
+        "import openpyxl as excel\n"
+        "\n"
+        "def f(sheet: excel.worksheet.worksheet.Worksheet) -> None:\n"
+        "    return sheet.title\n"
+    )
+    path.write_text(content, encoding="utf-8")
+    items = python_diagnostics(
+        content,
+        str(path),
+        python_executable=Path(sys.executable),
+        project_root=tmp_path,
+        python_member_diagnostics=True,
+    )
+    unknown = [item for item in items if item["code"] == "unknown_attribute"]
+    assert not any("Worksheet" in item["message"] for item in unknown)
+    assert not any("worksheet" in item["message"] for item in unknown)
+
+
+@pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
+def test_python_diagnostics_skip_generic_tuple_cell_attributes(tmp_path: Path) -> None:
+    path = tmp_path / "lib.py"
+    content = (
+        "def f(row):\n"
+        "    return [cell.value for cell in row]\n"
+    )
+    path.write_text(content, encoding="utf-8")
+    items = python_diagnostics(
+        content,
+        str(path),
+        python_executable=Path(sys.executable),
+        project_root=tmp_path,
+        python_member_diagnostics=True,
+    )
+    assert not any(item["code"] == "unknown_attribute" for item in items)
 
 
 @pytest.mark.skipif(not jedi_available(), reason="jedi not installed")
@@ -594,6 +670,7 @@ def test_python_diagnostics_unexpected_call_keyword(tmp_path: Path) -> None:
         str(path),
         python_executable=Path(sys.executable),
         project_root=tmp_path,
+        python_member_diagnostics=True,
     )
     unexpected = [item for item in items if item["code"] == "unexpected_keyword"]
     assert any("nope_zz" in item["message"] for item in unexpected)

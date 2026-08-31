@@ -21,6 +21,157 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Completion names Jedi returns for ``object`` / ``tuple`` / ``list`` when it
+# cannot see domain-specific attributes — not evidence that ``attr`` is wrong.
+_GENERIC_COMPLETION_NAMES = frozenset(
+    {
+        "append",
+        "clear",
+        "copy",
+        "count",
+        "extend",
+        "get",
+        "index",
+        "insert",
+        "items",
+        "keys",
+        "pop",
+        "remove",
+        "reverse",
+        "sort",
+        "values",
+    },
+)
+
+# ``str`` surface Jedi returns when the base type is unknown or mis-inferred.
+_STRING_SURFACE_NAMES = frozenset(
+    {
+        "capitalize",
+        "casefold",
+        "center",
+        "encode",
+        "endswith",
+        "expandtabs",
+        "find",
+        "format",
+        "format_map",
+        "isalnum",
+        "isalpha",
+        "isascii",
+        "isdecimal",
+        "isdigit",
+        "isidentifier",
+        "islower",
+        "isnumeric",
+        "isprintable",
+        "isspace",
+        "istitle",
+        "isupper",
+        "join",
+        "ljust",
+        "lower",
+        "lstrip",
+        "partition",
+        "removeprefix",
+        "removesuffix",
+        "replace",
+        "rfind",
+        "rindex",
+        "rjust",
+        "rpartition",
+        "rsplit",
+        "rstrip",
+        "split",
+        "splitlines",
+        "startswith",
+        "strip",
+        "swapcase",
+        "title",
+        "translate",
+        "upper",
+        "maketrans",
+        "zfill",
+    },
+)
+
+# ``datetime`` / ``date`` fields Jedi may not tie back to the attribute probe.
+_DATETIME_ATTR_NAMES = frozenset(
+    {
+        "astimezone",
+        "date",
+        "day",
+        "dst",
+        "fold",
+        "hour",
+        "microsecond",
+        "minute",
+        "month",
+        "second",
+        "time",
+        "timestamp",
+        "timetuple",
+        "tzinfo",
+        "utcoffset",
+        "utctimetuple",
+        "weekday",
+        "year",
+    },
+)
+
+# Partial ``pathlib.Path`` completions when Jedi sees a path-like value but not
+# the full API — skip known Path methods in that situation.
+_PATHLIKE_ATTR_NAMES = frozenset(
+    {
+        "absolute",
+        "chmod",
+        "exists",
+        "glob",
+        "is_dir",
+        "is_file",
+        "is_symlink",
+        "iterdir",
+        "mkdir",
+        "open",
+        "read_bytes",
+        "read_text",
+        "rename",
+        "resolve",
+        "rmdir",
+        "stat",
+        "suffix",
+        "touch",
+        "unlink",
+        "with_name",
+        "with_suffix",
+        "write_bytes",
+        "write_text",
+    },
+)
+_PATHLIKE_COMPLETION_MARKERS = frozenset(
+    {
+        "anchor",
+        "as_posix",
+        "as_uri",
+        "drive",
+        "full_match",
+        "is_absolute",
+        "is_relative_to",
+        "is_reserved",
+        "match",
+        "name",
+        "parent",
+        "parents",
+        "parts",
+        "root",
+        "stem",
+        "with_segments",
+        "with_stem",
+    },
+)
+
+# Keyword names Jedi's stubs often omit even though the stdlib accepts them.
+_INCOMPLETE_SIGNATURE_KEYWORDS = frozenset({"fold", "tzinfo"})
+
 try:
     import jedi
     from jedi import settings as jedi_settings
@@ -524,11 +675,12 @@ def jedi_unknown_attributes(
     project_root: Path | None,
     probes: list[tuple[int, int, str]],
 ) -> list[tuple[int, int, str]]:
-    """Return ``obj.attr`` probes whose name is not among Jedi completions.
+    """Return ``obj.attr`` probes Jedi cannot resolve at runtime.
 
     Each probe is ``(line, column, attr)`` with a 1-based column at the start of
-    the attribute name. Empty completion lists are treated as "unknown object"
-    and skipped — never a false positive on ``Any`` / dynamic types.
+    the attribute name. Skips when completions are empty (unknown base type) or
+    when ``infer`` / ``goto`` resolves the attribute (avoids false positives on
+    loosely typed ``self`` fields and import aliases).
     """
     if not probes:
         return []
@@ -537,20 +689,74 @@ def jedi_unknown_attributes(
         return []
     unknown: list[tuple[int, int, str]] = []
     for line, column, attr in probes:
-        try:
-            completions = list(script.complete(line, _jedi_column(column)) or [])
-        except Exception:  # noqa: BLE001
-            logger.debug("Jedi complete failed for attribute %s", attr, exc_info=True)
+        if _jedi_attribute_resolved(script, line, column, attr):
             continue
-        names = {
-            str(item.name)
-            for item in completions
-            if getattr(item, "name", None)
-        }
-        if not names or attr in names:
+        names = _jedi_attribute_completion_names(script, line, column, attr)
+        if not names or attr in names or _completion_names_inconclusive(names, attr):
             continue
         unknown.append((line, column, attr))
     return unknown
+
+
+def _jedi_attribute_resolved(script: Any, line: int, column: int, attr: str) -> bool:
+    """True when infer/goto resolves anywhere on the attribute name."""
+    start = _jedi_column(column)
+    end = start + max(len(attr), 1)
+    for col in range(start, end):
+        try:
+            if script.infer(line, col) or []:
+                return True
+        except Exception:  # noqa: BLE001
+            logger.debug("Jedi infer failed for attribute %s", attr, exc_info=True)
+        try:
+            if script.goto(
+                line,
+                col,
+                follow_imports=True,
+                follow_builtin_imports=True,
+            ):
+                return True
+        except Exception:  # noqa: BLE001
+            logger.debug("Jedi goto failed for attribute %s", attr, exc_info=True)
+    return False
+
+
+def _jedi_attribute_completion_names(
+    script: Any,
+    line: int,
+    column: int,
+    attr: str,
+) -> set[str]:
+    """Completion names at the start of ``attr`` (where the name is fully typed)."""
+    col = _jedi_column(column)
+    try:
+        completions = list(script.complete(line, col) or [])
+    except Exception:  # noqa: BLE001
+        logger.debug("Jedi complete failed for attribute %s", attr, exc_info=True)
+        return set()
+    return {
+        str(item.name)
+        for item in completions
+        if getattr(item, "name", None)
+    }
+
+
+def _completion_names_inconclusive(names: set[str], attr: str) -> bool:
+    """True when completions do not confidently disprove ``attr``."""
+    public = {
+        name
+        for name in names
+        if not (name.startswith("__") and name.endswith("__"))
+    }
+    if not public:
+        return True
+    if public <= (_GENERIC_COMPLETION_NAMES | _STRING_SURFACE_NAMES):
+        return True
+    if attr in _PATHLIKE_ATTR_NAMES and public & _PATHLIKE_COMPLETION_MARKERS:
+        return True
+    if attr in _DATETIME_ATTR_NAMES:
+        return True
+    return False
 
 
 def jedi_unexpected_call_keywords(
@@ -572,6 +778,8 @@ def jedi_unexpected_call_keywords(
         return []
     unexpected: list[tuple[int, int, str]] = []
     for line, column, name in probes:
+        if name in _INCOMPLETE_SIGNATURE_KEYWORDS:
+            continue
         try:
             signatures = list(script.get_signatures(line, _jedi_column(column)) or [])
         except Exception:  # noqa: BLE001

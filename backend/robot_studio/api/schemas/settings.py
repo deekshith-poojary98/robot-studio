@@ -13,6 +13,7 @@ class EditorSettingsResponse(BaseModel):
     word_wrap: bool = True
     font_size: int = 13
     font_family: str = "Menlo"
+    python_member_diagnostics: bool = False
 
 
 class ExecutionSettingsResponse(BaseModel):
@@ -53,6 +54,7 @@ class EditorSettingsPatch(BaseModel):
     word_wrap: bool | None = None
     font_size: int | None = None
     font_family: str | None = None
+    python_member_diagnostics: bool | None = None
 
 
 class ExecutionSettingsPatch(BaseModel):

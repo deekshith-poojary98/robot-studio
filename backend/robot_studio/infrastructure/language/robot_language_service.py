@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
+from robot_studio.application.services.settings_service import SettingsService
 from robot_studio.core.events import (
     EventBus,
     EnvironmentActivated,
@@ -119,6 +120,7 @@ class RobotLanguageService(LanguageService):
     context: WorkspaceContext
     parsing: RobotParsingBridge = field(default_factory=RobotParsingBridge)
     event_bus: EventBus | None = None
+    settings_service: SettingsService | None = None
     analysis_engine: RobotAnalysisEngine | None = None
     usage_store: SqliteCompletionUsageStore | None = None
     _cache_generation: int = field(default=0, init=False)
@@ -1175,6 +1177,11 @@ class RobotLanguageService(LanguageService):
             return []
 
     async def _python_diagnostics(self, content: str, file_path: str) -> list[dict]:
+        member_checks = False
+        if self.settings_service is not None:
+            member_checks = bool(
+                self.settings_service.get().editor.python_member_diagnostics,
+            )
         try:
             return await run_blocking(
                 python_diagnostics,
@@ -1182,6 +1189,7 @@ class RobotLanguageService(LanguageService):
                 file_path,
                 python_executable=self._python_for_jedi(),
                 project_root=self._project_root(),
+                python_member_diagnostics=member_checks,
             )
         except RobotParsingError:
             return []

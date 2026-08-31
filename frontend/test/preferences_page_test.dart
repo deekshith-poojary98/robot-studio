@@ -254,6 +254,9 @@ void main() {
   });
 
   testWidgets('font family lists installed faces only', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
     final gateway = _SettingsGateway();
     final controller = AppSettingsController(gateway: gateway);
     await _pump(tester, controller);

@@ -27,7 +27,7 @@ The Robot editor is multi-tab and understands Robot Framework structure:
 - Play control in the gutter of a `.robot` suite — click it (or **Run → Run Test at Cursor**) to run only that test instead of the whole file. See [Run, stop & re-run](/workflows/running-tests/).
 - **Format Document** (`⇧⌥F` / `Shift+Alt+F`, or **Edit → Format Document**) and **Format Selection** on the current file
 
-Python library files (`.py`, `.pyi`, `.pyw`) get the same treatment, resolved against the active environment: completions from the buffer, other project modules, the stdlib, and installed packages; **Tab** or **Enter** to accept; syntax errors, undefined names, unused imports, missing packages, unknown `from package import Name` members, unknown attributes, and unexpected call keywords in **Problems**; and **Rename Symbol** in the command palette to rename across the project. See [Editor & language intelligence](/features/editor/) for the full list.
+Python library files (`.py`, `.pyi`, `.pyw`) get the same treatment, resolved against the active environment: completions from the buffer, other project modules, the stdlib, and installed packages; **Tab** or **Enter** to accept; syntax errors, undefined names, unused imports, missing packages, and unknown `from package import Name` members in **Problems**; optional **Python member checks** (Settings → Editor) for unknown attributes and unexpected call keywords; and **Rename Symbol** in the command palette to rename across the project. See [Editor & language intelligence](/features/editor/) for the full list.
 
 ## Save
 

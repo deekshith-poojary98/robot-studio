@@ -39,6 +39,7 @@ def test_defaults_and_persist(tmp_path: Path) -> None:
     service = SettingsService(data_dir=tmp_path)
     snap = service.load()
     assert snap.editor.font_size == 13
+    assert snap.editor.python_member_diagnostics is False
     assert snap.execution.large_run_threshold == 100
     assert snap.appearance.restore_last_project is True
     assert snap.appearance.accent == "teal"
