@@ -28,6 +28,7 @@ class AppMenuBarActions {
     required this.onFindInProject,
     required this.onFormatDocument,
     required this.onFormatSelection,
+    required this.onRenameSymbol,
     required this.onToggleWordWrap,
     required this.onPreferences,
     required this.onCommandPalette,
@@ -76,6 +77,7 @@ class AppMenuBarActions {
   final VoidCallback onFindInProject;
   final VoidCallback onFormatDocument;
   final VoidCallback onFormatSelection;
+  final VoidCallback onRenameSymbol;
   final VoidCallback onToggleWordWrap;
   final VoidCallback onPreferences;
   final VoidCallback onCommandPalette;
@@ -288,6 +290,10 @@ class RobotStudioMenuBar extends StatelessWidget {
               PlatformMenuItem(
                 label: 'Format Selection',
                 onSelected: a.hasActiveFile ? a.onFormatSelection : null,
+              ),
+              PlatformMenuItem(
+                label: 'Rename Symbol…',
+                onSelected: a.hasActiveFile ? a.onRenameSymbol : null,
               ),
             ],
           ),
@@ -548,6 +554,10 @@ class _InWindowMenuBar extends StatelessWidget {
                 _item(
                   'Format Selection',
                   onPressed: a.hasActiveFile ? a.onFormatSelection : null,
+                ),
+                _item(
+                  'Rename Symbol…',
+                  onPressed: a.hasActiveFile ? a.onRenameSymbol : null,
                 ),
                 const Divider(height: 8),
                 _item(

@@ -190,7 +190,7 @@ Notable suites under `test/`:
 |------|--------|
 | `editor_tabs_context_menu_test.dart` | Editor tab right-click Close/Others/All/Saved/Right + path actions |
 | `find_in_files_panel_test.dart` | Find in Files rail: auto-expand single-file hits, remember expansion |
-| `widget_test.dart` | Welcome, dialogs, managers, toolbar, editor shells, Symbols page |
+| `widget_test.dart` | Welcome, dialogs, managers, toolbar, editor shells, index status |
 | `editor_syntax_test.dart` | File-extension → re_highlight / custom Robot theme mapping |
 | `editor_trust_fixes_test.dart` | Section completion prefix replace; Documentation vs IF/FOR highlighting |
 | `app_menu_bar_test.dart` | Native File/Edit/View/Go/Run/Terminal menus; Save disabled with no file |

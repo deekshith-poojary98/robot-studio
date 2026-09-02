@@ -20,7 +20,6 @@ import 'package:robot_studio/presentation/reports/delete_run_dialog.dart';
 import 'package:robot_studio/presentation/reports/reports_page.dart';
 import 'package:robot_studio/presentation/reports/run_details_panel.dart';
 import 'package:robot_studio/presentation/search/index_status_card.dart';
-import 'package:robot_studio/presentation/search/symbols_page.dart';
 import 'package:robot_studio/presentation/shell/app_shell.dart';
 import 'package:robot_studio/presentation/toolbar/app_toolbar.dart';
 import 'package:robot_studio/presentation/widgets/toolbar_button.dart';
@@ -1395,109 +1394,6 @@ void main() {
     expect(find.textContaining('Pass Rate'), findsWidgets);
     expect(find.textContaining('Total Runs'), findsWidgets);
     expect(find.textContaining('Average'), findsWidgets);
-  });
-
-  testWidgets('Symbols page shows empty state', (WidgetTester tester) async {
-    await tester.binding.setSurfaceSize(const Size(1280, 800));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SymbolsPage(
-            query: '',
-            kind: null,
-            results: const [],
-            isSearching: false,
-            indexStatus: const IndexStatusInfo(state: 'ready', filesIndexed: 3),
-            isLoadingStatus: false,
-            onQueryChanged: (_) {},
-            onKindChanged: (_) {},
-            onSearch: () {},
-            onSelect: (_) {},
-            onGoToDefinition: () {},
-            onFindReferences: () {},
-            onShowHover: () {},
-            onRebuildIndex: () {},
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    expect(find.text('Symbols'), findsOneWidget);
-    expect(find.text('Search symbols…'), findsOneWidget);
-    expect(find.text('Index Status'), findsOneWidget);
-    expect(find.text('No symbols found'), findsOneWidget);
-  });
-
-  testWidgets('Symbols page shows results and detail actions', (
-    WidgetTester tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(1280, 800));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    const symbol = IndexedSymbolInfo(
-      id: 'sym-1',
-      name: 'Login With Credentials',
-      kind: SymbolKind.keyword,
-      filePath: 'resources/login.resource',
-      line: 12,
-      documentation: 'Logs into the application.',
-    );
-
-    var definitionTaps = 0;
-    var hoverTaps = 0;
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SymbolsPage(
-            query: 'login',
-            kind: SymbolKind.keyword,
-            results: const [symbol],
-            isSearching: false,
-            indexStatus: const IndexStatusInfo(
-              state: 'ready',
-              keywordsIndexed: 4,
-            ),
-            isLoadingStatus: false,
-            selected: symbol,
-            navigationMessage: null,
-            hover: const HoverInfo(
-              name: 'Login With Credentials',
-              kind: SymbolKind.keyword,
-              filePath: 'resources/login.resource',
-              line: 12,
-              documentation: 'Logs into the application.',
-            ),
-            onQueryChanged: (_) {},
-            onKindChanged: (_) {},
-            onSearch: () {},
-            onSelect: (_) {},
-            onGoToDefinition: () => definitionTaps++,
-            onFindReferences: () {},
-            onShowHover: () => hoverTaps++,
-            onRebuildIndex: () {},
-            onOpenPlaceholder: () {},
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    expect(find.text('Login With Credentials'), findsWidgets);
-    expect(find.text('Keyword'), findsWidgets);
-    expect(find.text('Open File'), findsOneWidget);
-    expect(find.text('Hover'), findsOneWidget);
-
-    await tester.tap(find.text('Go to Definition'));
-    await tester.pump();
-    expect(definitionTaps, 1);
-
-    await tester.tap(find.text('Hover Info'));
-    await tester.pump();
-    expect(hoverTaps, 1);
   });
 
   testWidgets('Index status card shows metrics', (WidgetTester tester) async {

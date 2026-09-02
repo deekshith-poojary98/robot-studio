@@ -5995,6 +5995,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onFindInProject: _openProjectSearch,
         onFormatDocument: () => unawaited(_editorFormatDocument()),
         onFormatSelection: () => unawaited(_editorFormatSelection()),
+        onRenameSymbol: () => unawaited(_editorRenameSymbol()),
         onToggleWordWrap: () => unawaited(_toggleWordWrap()),
         onPreferences: _openPreferences,
         onCommandPalette: () => unawaited(_openCommandPalette()),

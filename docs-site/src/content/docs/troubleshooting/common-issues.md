@@ -214,7 +214,7 @@ Robot Studio does not bundle a Python formatter — it uses the one in your envi
 
 ## Python: Rename Symbol is unavailable
 
-Rename works on Python files with the caret on a symbol, and on Robot files with the caret on a user keyword. BuiltIn keywords cannot be renamed. If it reports that the name is invalid, the new text is not a valid identifier (Python) or keyword name (Robot). Renaming rewrites usages across the project, including files that are not open, so review the changes before committing.
+Rename works on Python files with the caret on a symbol, and on Robot files with the caret on a user keyword (**Edit → Rename Symbol…**, or the command palette). BuiltIn keywords cannot be renamed. If it reports that the name is invalid, the new text is not a valid identifier (Python) or keyword name (Robot). Renaming rewrites usages across the project, including files that are not open, so review the changes before committing.
 
 ## Live Output only appears when the run finishes
 
