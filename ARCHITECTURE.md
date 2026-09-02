@@ -2,12 +2,13 @@
 
 > A cross-platform desktop IDE for Robot Framework development.
 
-**Status:** Core IDE shipped (workspaces → execution → reports → indexing → **analysis engine** → **Robot Doctor** → language → Git → plugins). Active **usability hardening** against the public-beta review backlog.  
-**Last updated:** 2026-08-03 — Robot Analysis Engine (`/api/v1/analysis/*`)
+**Status:** Core IDE shipped (workspaces → execution → reports → indexing → **analysis engine** → **Robot Doctor** → language → Git → Settings → terminal). Plugins are implemented but **hidden from the activity bar** for private beta. Active **usability hardening**.  
+**Last updated:** 2026-09-03 — Settings shipped; presentation chrome aligned with current UI
 
 Product snapshot / how to run: [README.md](./README.md)  
 Flutter layout: [frontend/README.md](./frontend/README.md)  
 E2E suites: [frontend/integration_test/README.md](./frontend/integration_test/README.md)
+User guide: https://deekshith-poojary98.github.io/robot-studio/
 
 ---
 
@@ -72,12 +73,13 @@ Persistent state lives in **SQLite** under `~/.robot-studio` (configurable). Sym
 | Execution + WebSocket log stream | **Shipped** |
 | Reports | **Shipped** |
 | Git source control | **Shipped** |
-| Plugin manager + builtin/user load | **Shipped** (sandboxing still evolving) |
-| **Robot Analysis Engine** (semantic graphs + query APIs) | **Shipped** (backend infrastructure — no UI) |
-| Settings / AI assistant UI | **Not shipped** (both hidden from the rail until ready — no stub surfaces) |
-| Robot Doctor / Impact Analysis / Safe Rename (UI) | **Doctor shipped** (Project Health Center); Impact / Safe Rename **Planned** |
+| Plugin manager + builtin/user load | **Shipped** (sandboxing still evolving); **activity bar + palette entry hidden** for private beta |
+| **Robot Analysis Engine** (semantic graphs + query APIs) | **Shipped** (backend infrastructure — no product UI; Doctor/Problems consume subsets) |
+| **Settings** UI | **Shipped** — full center screen (Editor / Execution / Search / Appearance); gear on activity-bar footer; File → Settings… |
+| AI assistant UI | **Not shipped** |
+| Robot Doctor / Impact Analysis / Safe Rename (UI) | **Doctor shipped** (structural Project Health); Impact / Safe Rename **Planned** |
 | Integrated Terminal (bottom panel PTY) | **Shipped** — `xterm` + `flutter_pty`, cwd = project folder; macOS App Sandbox disabled so shells can spawn |
-| Desktop packaging: auto-start bundled backend sidecar | **Shipped (closed beta)** — PyInstaller freeze + Flutter `BackendHost` spawns sidecar from the `.app` / Windows / Linux bundle, health-waits, stops on quit; `make package-macos` / `package-windows` / `package-linux` (CI: **Package Desktop**) |
+| Desktop packaging: auto-start bundled backend sidecar | **Shipped (private beta)** — PyInstaller freeze + Flutter `BackendHost`; `make package-macos` / `package-windows` / `package-linux` (CI: **Package Desktop**). Zips are Actions artifacts / supplied builds — **no published GitHub Release assets yet** |
 | gRPC Language Service sidecar | **Planned** |
 | Full plugin subprocess sandbox (P2) | **Planned** |
 
@@ -736,13 +738,13 @@ Engineering audit notes: [audit.md](./audit.md).
 | **M6** | Indexing pipeline; Keyword/Search UI; Language Service (completion + hover + more) | ✅ Done |
 | **M7** | Runner + history + WebSocket log stream | ✅ Done (gRPC migration deferred) |
 | **M8** | ReportProvider + reports UI | ✅ Done |
-| **M9** | Settings, packaging polish, AI provider | Settings shipped; AI deferred; zip packaging for GitHub Releases (no installer) |
+| **M9** | Settings, packaging polish, AI provider | Settings shipped; AI deferred; zip packaging via Actions / `make package-*` (no installer; no published Release assets yet) |
 | **M10** | Intelligent editor (parsing bridge, diagnostics, navigation) | ✅ Done |
 | **M11** | Plugin framework + manager UI | ✅ Done (manager hidden from the activity bar for beta) |
 | **M12** | Git source control | ✅ Done |
 | **M13** | Test Explorer (discover/run suites, tests, tags, failed) | ✅ Done |
 | **Pre-M14** | Workspace Explorer file ops (create/rename/delete/duplicate/move/reveal) | ✅ Done |
-| **UX** | Public-beta usability backlog (status, reports, guidance, terminology, …) | 🔶 In progress |
+| **UX** | Private-beta usability backlog (status, reports, guidance, terminology, …) | 🔶 In progress |
 
 ---
 
@@ -770,18 +772,18 @@ Not domain architecture, but product-facing constraints that affect shell design
 - **Background indexing**: `WorkspaceOpened` schedules an incremental index rebuild and returns immediately (VS Code-style). Explicit **Rebuild Index** still runs a full rebuild and waits. Discovery prunes `.venv` / `node_modules` / `.git` / `.robotstudio` / etc. Robot parsing runs off the event loop; bulk rebuilds do not emit per-file `FileIndexed` events.
 - **Large projects**: explorer uses VS Code-style lazy expand (`GET /files/tree` default `depth=0` + `has_children`) and a virtualized flat list so only visible rows are built. Heavy dirs (`.venv`, `.git`, `node_modules`, …) are skipped; other dotfiles (`.gitignore`, …) are shown, and `.robotstudio/` is fully browsable (no filtering inside it, so envs and run output can be inspected in-tree). Git status includes untracked files (`-uall` so files inside new folders appear; `.gitignore` still hides ignored paths like `.venv`).
 - **Explorer mutations**: create/rename/delete/duplicate/move publish `FilesystemChanged` from `FileService`; UI updates via the live workspace pipeline (parent-only refresh). Inline rename and create avoid dialogs except delete confirmation.
-- **Test Explorer** (Tests rail): hierarchical workspace → project → suite → test/task tree with status, live filter, and run actions (all / current file / failed / node). Discovery uses IndexStore + `robot.api` document symbols; runs reuse `ExecutionService` / `Runner`.
+- **Test Explorer** (internal; UI label **Tests**): hierarchical workspace → project → suite → test/task tree with status, live filter, and run actions (all / current file / failed / node). Discovery uses IndexStore + `robot.api` document symbols; runs reuse `ExecutionService` / `Runner`.
 - **Actionable guidance** for missing project/environment (primary buttons prefer Open/New Project).
 - **Status chrome**: project name; `ROBOT` / full `PYTHON major.minor.micro` from the active environment in the status bar (no CONNECTED/OFFLINE label); toolbar context shows **project name** (plus branch • environment), not the workspace name unless multiple projects are open. Health is probed on launch, then every 2s while offline and 15s while connected; three consecutive failures are required before disconnecting the execution stream.
-- **Toolbar layout**: left context (project chip / environment / branch, with git Fetch·Pull·Push in a ⋯ menu shown only for repositories), centered command search, right **Run** (primary, labelled) plus icon-only Run Project and Stop. No product wordmark; profile and notifications deferred.
-- **Editor chrome**: the permanent strip carries editing verbs only (Save, Save All, Format, Find) plus a word-wrap toggle. Language navigation (Definition, Peek, References, Hover, Go to Symbol in File, Find Symbol in Project, Replace, Format Selection, Reveal) is reachable through the editor ⋯ menu and the command palette, matching VS Code / PyCharm chrome discipline.
-- **Rail ownership**: only Explorer, Tests, and Reports render side-rail content (`SidePanel.hasSideContent`); Search, Packages, Plugins, and Source Control own the main view and the rail collapses. Bottom panel exposes Terminal / Problems. Run output is on the Tests view; Terminal is a real PTY (`xterm` + `flutter_pty`) rooted at the project folder, so the macOS app ships **unsandboxed** (App Sandbox blocks spawning a shell). Shell shortcuts live in `shell_shortcuts.dart` (palette, save, tabs, sidebar, terminal, project search, format, Problems); editor chords use re_editor defaults plus `RobotCodeShortcutsActivatorsBuilder` (VS Code delete-line / replace) and `#` comment formatting for `.robot` / `.resource`.
+- **Toolbar layout**: left context (project chip / environment / branch, with git Fetch·Pull·Push in a ⋯ menu shown only for repositories), centered command search, right **run configuration** selector then labelled **Run / Project / Stop** segmented control (not icon-only). No product wordmark; profile and notifications deferred.
+- **Editor chrome**: tabs + breadcrumbs only. Save / Format / Find / word-wrap / language navigation live in the **window menu bar** (File / Edit / View / Go / Run / Terminal), keyboard shortcuts, and the command palette — there is no permanent editor action strip.
+- **Rail ownership**: activity bar shows Explorer · Search · Insights · Libraries · Tests · Packages · Source Control · Reports · Doctor. Footer: Help (opens user guide URL) · **Settings**. Side column content: Explorer, Search (**Find in Files**), Libraries, Tests, Reports. Insights / Packages / Source Control / Doctor / Settings take the main view. Plugins remain implemented but `showInActivityBar: false` for beta. Bottom panel: Terminal · Problems. Run output is on the Tests/Execution center view.
+- **Symbol search**: **Go → Find Symbol in Project…** (`⌘T` / `Ctrl+T`) and the command palette — there is **no** Symbols activity-bar item and no **View → Symbols** menu entry.
 - **Empty and error surfaces**: `EmptyState` gives every empty view an icon, a reason, and one action; `showFriendlyErrorDialog` maps transport/OS exceptions to a plain sentence plus a suggested fix, hiding raw text behind **Show details**. Dialog widths are limited to `AppDialogWidth.form` / `.wide`.
 - **Reports**: Rail Recent list selects a run; main Reports view shows dashboard + details (no second run list). Artifact hyperlinks open output.xml / log.html / report.html.
-- **Problems loop**: Diagnostics refresh while editing `.robot` files; Problems panel + status-bar ERRORS/WARNINGS jump to file:line:column.
-- **Command palette**: ⌘K (macOS) / Ctrl+K and toolbar search open a filtered command list plus project file/symbol search; full Search page remains on the sidebar Search action.
+- **Problems loop**: Diagnostics refresh while editing; missing imports stay in Problems (not Doctor). Problems panel + status-bar ERRORS/WARNINGS jump to file:line:column.
+- **Command palette**: ⌘⇧P / Ctrl+Shift+P (also ⌘K / Ctrl+K) and toolbar search; **Go to File** (`⌘P` / `Ctrl+P`) opens the **same** palette. Sidebar **Search** opens Find in Files while keeping the editor mounted.
 - **AI** entry points withheld until `AIProvider` ships.
-- Usability backlog: [Robot Studio — Public Beta Usability Review.md](./Robot%20Studio%20%E2%80%94%20Public%20Beta%20Usability%20Review.md).
 
 ---
 

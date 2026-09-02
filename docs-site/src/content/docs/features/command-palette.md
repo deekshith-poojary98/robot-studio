@@ -7,10 +7,12 @@ Open the **Command Palette** with:
 
 - `⌘⇧P` / `Ctrl+Shift+P`
 - Also `⌘K` / `Ctrl+K`
+- The toolbar search field (**Search commands, files, symbols…**)
+- **View → Command Palette…**
 
-**Go to File…** uses a different chord — `⌘P` / `Ctrl+P` (**View → Go to File…**). It shares the same palette chrome for opening files, but it is not the full command list.
+**Go to File…** (`⌘P` / `Ctrl+P`, or **View → Go to File…**) opens the **same** palette. Type to filter commands, recent files, project files, and symbols.
 
-From the Command Palette you can:
+From the palette you can:
 
 - Run commands (for example **Run Current File**, **Show Libraries**, **Settings**)
 - Jump to recent files and project files

@@ -33,5 +33,5 @@ This is the usual path for libraries such as `robotframework-seleniumlibrary`, `
 ## Health tips
 
 - If completions or diagnostics look wrong after switching environments, wait for indexing to settle, then reopen the file.
-- Missing imports often show up in both the Problems panel and [Robot Doctor](/features/robot-doctor/).
+- Missing `Library` / `Resource` imports show in the **Problems** panel (and editor diagnostics) — not in [Robot Doctor](/features/robot-doctor/). Doctor covers structural project-wide issues (circular imports, duplicate keywords, unused assets).
 - Prefer one clearly activated environment per project so runs and analysis stay aligned.

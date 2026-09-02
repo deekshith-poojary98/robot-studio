@@ -43,6 +43,15 @@ With no popup open, `Tab` indents and `Shift+Tab` outdents as usual.
 | Toggle Terminal | `⌘\`` / `Ctrl+\`` (**Terminal → Toggle Terminal**) |
 | Close Editor | `⌘W` / `Ctrl+W` |
 | Reopen Closed Editor | `⌘⇧T` / `Ctrl+Shift+T` |
+| Next / previous editor tab | `Ctrl+Tab` / `Ctrl+Shift+Tab` |
+
+## Editor
+
+| Action | Shortcut |
+|--------|----------|
+| Delete line | `⌘⇧K` / `Ctrl+Shift+K` |
+| Copy line up / down | `⇧⌥↑` / `⇧⌥↓` (`Shift+Alt+↑` / `Shift+Alt+↓`) |
+| Undo / Redo | `⌘Z` / `Ctrl+Z` · `⌘⇧Z` / `Ctrl+Y` |
 
 Open this user guide with the **Help** (?) icon above **Settings** in the activity bar.
 

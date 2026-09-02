@@ -3,7 +3,7 @@ title: Roadmap
 description: Strategic direction for Robot Studio — beta hardening first, then semantic RF workflows that a generic editor cannot match.
 ---
 
-This page is **locked product strategy**, not a release calendar and not a feature wishlist. Do not add roadmap items, panels, or beta scope here. Day-to-day rules for the current beta live in the repo’s `docs/internal/polish.md` and `docs/internal/quality.md` — those remain authoritative until freeze.
+This page is **locked product strategy**, not a release calendar and not a feature wishlist. It describes direction **after** private beta freeze — not capabilities in the current build. Do not treat items here as shipped. Day-to-day beta rules live in the repo’s internal polish/quality notes for maintainers.
 
 ## North-star questions
 
@@ -27,7 +27,7 @@ If the answer to **#4** is no, it does not belong on the active post-beta roadma
 
 ## Strategic direction
 
-Robot Studio already has a large surface: Editor, Tests, Execution, Reports, Libraries, Insights, Robot Doctor, Terminal, Git, Preferences, Find in Files, Find Symbol, completion, signature help, outline, and more.
+Robot Studio already has a large surface: Editor, Tests, Execution, Reports, Libraries, Insights, Robot Doctor, Terminal, Git, Settings, Find in Files, Find Symbol, completion, signature help, outline, and more.
 
 The next phase is **not** more panels. It is making the **semantic foundation** produce workflows an RF SDET cannot get from VS Code + a Robot plugin.
 
@@ -192,7 +192,7 @@ Directional only — not active post-beta bets until pull from real use.
 | Area | Stance |
 |------|--------|
 | **Plugins** | Keep the capability model. Do not prioritize sandbox polish or ecosystem work until there is a concrete extension use case that cannot live as a first-party workflow. |
-| **Preferences** | Ship preference changes when beta or post-beta workflows **need** them. Extra settings categories are not roadmap work. |
+| **Settings** | Ship Settings changes when beta or post-beta workflows **need** them. Extra settings categories are not roadmap work. |
 
 Removed from the strategic roadmap as standalone items: “Settings as a product feature” and undirected “plugin hardening.”
 
@@ -213,7 +213,7 @@ This roadmap is **locked** and stays short on purpose. We already have a large p
 
 ## Feedback
 
-Bugs and “I wish Robot Studio could…” notes go on [GitHub Issues](https://github.com/deekshith-poojary98/robot-studio/issues). Prefer a clear RF workflow over a generic IDE wishlist. Packaged beta zips live on [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases).
+Bugs and “I wish Robot Studio could…” notes go on [GitHub Issues](https://github.com/deekshith-poojary98/robot-studio/issues). Prefer a clear RF workflow over a generic IDE wishlist. Packaged private beta zips are supplied by maintainers or built via **Actions → Package Desktop** (see [Install](/getting-started/install/)).
 
 ## Next step
 

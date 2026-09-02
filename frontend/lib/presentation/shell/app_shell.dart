@@ -58,6 +58,7 @@ import '../sidebar/app_sidebar.dart';
 import '../sidebar/sidebar_panel.dart';
 import '../toolbar/app_toolbar.dart';
 import 'app_menu_bar.dart';
+import 'large_run_guard.dart';
 import 'shell_shortcuts.dart';
 import '../widgets/side_panel_resize_handle.dart';
 import '../widgets/environment_prompt_toast.dart';
@@ -1865,8 +1866,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     await _saveAll();
   }
 
-  static const int _defaultLargeRunThreshold = 100;
-
   Future<bool> _showLargeRunConfirmDialog({
     required int count,
     required int threshold,
@@ -1904,6 +1903,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   /// Pre-confirm when over threshold, then call [start] with confirm flags.
   /// Retries once if the backend returns 409 large_run_confirmation_required.
+  ///
+  /// Threshold comes from Settings → Execution → Large Run Threshold
+  /// ([AppSettingsController.execution]), matching the backend 409 check.
   Future<ExecutionInfo?> _runWithLargeRunGuard({
     required Future<ExecutionInfo> Function({required bool confirm}) start,
     String? tag,
@@ -1913,18 +1915,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     try {
       count = await _gateway.countTests(tag: tag, projectWide: projectWide);
     } catch (_) {}
-    final wildcard =
-        tag != null &&
-        (tag.contains('*') ||
-            tag.contains('?') ||
-            tag.toUpperCase().contains('OR') ||
-            tag.toUpperCase().contains('AND') ||
-            tag.toUpperCase().contains('NOT'));
-    final needsConfirm = count > _defaultLargeRunThreshold || wildcard;
+    final threshold = _settings.execution.largeRunThreshold;
+    final needsConfirm = LargeRunGuard.needsConfirmation(
+      count: count,
+      threshold: threshold,
+      tag: tag,
+    );
     if (needsConfirm &&
         !await _showLargeRunConfirmDialog(
           count: count,
-          threshold: _defaultLargeRunThreshold,
+          threshold: threshold,
           tag: tag,
         )) {
       return null;
@@ -1935,7 +1935,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       if (!error.isLargeRunConfirmation) rethrow;
       if (!await _showLargeRunConfirmDialog(
         count: error.count ?? count,
-        threshold: error.threshold ?? _defaultLargeRunThreshold,
+        threshold: error.threshold ?? threshold,
         tag: tag,
       )) {
         return null;

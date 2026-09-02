@@ -77,7 +77,6 @@ export default defineConfig({
 					label: 'Get started',
 					items: [
 						{ label: 'What is Robot Studio?', slug: 'getting-started/overview' },
-						{ label: 'Roadmap', slug: 'getting-started/roadmap' },
 						{ label: 'Install', slug: 'getting-started/install' },
 						{ label: 'Your first project', slug: 'getting-started/first-project' },
 						{ label: 'Run your first tests', slug: 'getting-started/first-run' },
@@ -118,6 +117,7 @@ export default defineConfig({
 						{ label: 'Troubleshooting', slug: 'troubleshooting/common-issues' },
 						{ label: 'Glossary', slug: 'reference/glossary' },
 						{ label: 'Settings reference', slug: 'reference/settings' },
+						{ label: 'Roadmap', slug: 'getting-started/roadmap' },
 					],
 				},
 			],

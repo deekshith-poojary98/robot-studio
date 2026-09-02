@@ -32,7 +32,7 @@ The editor supports both Robot Framework suites and the Python modules beside th
 
 ## Problems panel
 
-Findings sync into the bottom **Problems** panel. Missing imports share identity with Robot Doctor’s `missing_import` findings so the same issue does not feel like two different systems.
+Findings sync into the bottom **Problems** panel. Missing imports and other file-level analysis issues stay here — [Robot Doctor](/features/robot-doctor/) is a separate structural scan (circular imports, duplicate keywords, unused assets) and does **not** list `missing_import` findings.
 
 Some findings include a **Fix** action on the row:
 

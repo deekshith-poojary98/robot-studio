@@ -20,7 +20,7 @@ You do not pick a “template type” — every new project is a plain Robot Fra
 2. Select a folder that looks like a Robot project — for example it contains `.robot` / `.resource` files, or markers such as `requirements.txt`, `pyproject.toml`, `robot.yaml`, or an existing Studio manifest.
 3. Robot Studio will use that folder in place and create `.robotstudio/` as needed.
 
-Empty folders and unrelated trees are rejected. Use **New Project** when you need a seeded layout.
+If the folder does **not** look like a Robot project, Robot Studio warns and offers **Continue anyways**. Choosing that opens the folder anyway (`force`). Prefer **New Project** when you want the seeded `tests/` / `resources/` / `variables/` layout.
 
 **Recent Projects** on the welcome screen is the fastest way back to work you already opened. With a project open, the folder chip next to **Env** in the toolbar also lists recents, **Open Project**, and **Reveal in Finder** (Windows: **Reveal in Explorer**) so you can open the project folder in the OS file manager.
 
