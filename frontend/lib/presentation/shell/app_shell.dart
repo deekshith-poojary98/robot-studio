@@ -4329,7 +4329,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return;
     }
 
-    final newName = await _promptForRename(token);
+    final newName = await _promptForRename(token, isPython: isPython);
     if (newName == null || newName == token) return;
 
     final source = _editorPageKey.currentState?.currentText ?? tab.content;
@@ -4358,33 +4358,98 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
-  Future<String?> _promptForRename(String current) async {
+  Future<String?> _promptForRename(
+    String current, {
+    required bool isPython,
+  }) async {
     final controller = TextEditingController(text: current);
     controller.selection = TextSelection(
       baseOffset: 0,
       extentOffset: current.length,
     );
+    final scopeNote = isPython
+        ? 'Renames the definition and every usage across the project, '
+              'including files that are not open.'
+        : 'Renames this user keyword everywhere it is called across the '
+              'project, including files that are not open. BuiltIn keywords '
+              'cannot be renamed.';
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename Symbol'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'New name'),
-          onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+      builder: (context) {
+        final theme = Theme.of(context);
+        final palette = context.palette;
+        return AlertDialog(
+          title: const Text('Rename Symbol'),
+          titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+          contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          content: SizedBox(
+            width: AppDialogWidth.form,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Symbol',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: palette.textMuted,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                SelectableText(
+                  current,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontFamily: 'Menlo',
+                    fontFamilyFallback: const [
+                      'Consolas',
+                      'Courier New',
+                      'monospace',
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  scopeNote,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  decoration: const InputDecoration(labelText: 'New name'),
+                  onSubmitted: (value) =>
+                      Navigator.of(context).pop(value.trim()),
+                ),
+              ],
+            ),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('Rename'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(controller.text.trim()),
+              style: FilledButton.styleFrom(
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              child: const Text('Rename'),
+            ),
+          ],
+        );
+      },
     );
     controller.dispose();
     if (result == null || result.isEmpty) return null;
