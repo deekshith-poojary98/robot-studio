@@ -16,6 +16,7 @@
   <img alt="Platform" src="https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey">
   <a href="https://github.com/deekshith-poojary98/robot-studio/actions/workflows/unit-tests.yml"><img alt="Unit tests" src="https://github.com/deekshith-poojary98/robot-studio/actions/workflows/unit-tests.yml/badge.svg?branch=main"></a>
   <a href="https://github.com/deekshith-poojary98/robot-studio/actions/workflows/package-desktop.yml"><img alt="Build" src="https://github.com/deekshith-poojary98/robot-studio/actions/workflows/package-desktop.yml/badge.svg"></a>
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg"></a>
 </p>
 
 </div>
@@ -128,4 +129,8 @@ Milestone detail and design notes: [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## License
 
-TBD
+Licensed under the [Apache License, Version 2.0](./LICENSE).
+
+```
+Copyright 2026 Deekshith Poojary
+```
