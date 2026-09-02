@@ -42,6 +42,10 @@ class EditorShellController {
   List<DiagnosticInfo> diagnostics = [];
   List<DiagnosticInfo> workspaceProblems = [];
   SignatureHelpInfo? hoverTooltip;
+
+  /// True when [hoverTooltip] came from pointer hover, not caret refresh.
+  /// Python only shows the card on hover; caret refresh must not wipe it.
+  bool _hoverFromPointer = false;
   IndexedSymbolInfo? peekDefinition;
   bool loadingLanguageFeatures = false;
   bool loadingFileTree = false;
@@ -171,6 +175,7 @@ class EditorShellController {
   void onActiveTabChanged() {
     completionItems = [];
     hoverTooltip = null;
+    _hoverFromPointer = false;
     languageDebounce?.cancel();
     scheduleLanguageRefresh();
     notify();
@@ -186,6 +191,7 @@ class EditorShellController {
       completionItems = [];
       diagnostics = [];
       hoverTooltip = null;
+      _hoverFromPointer = false;
       notify();
       return;
     }
@@ -200,7 +206,10 @@ class EditorShellController {
     try {
       final token =
           extractWordAtCursor(tab.content, cursorLine, cursorColumn) ?? '';
-      final results = await Future.wait([
+      // Python signature / docs are mouse-hover only (requestHoverTooltip).
+      // Caret-driven signature help is Robot-only — otherwise just parking the
+      // caret on a line pops the info card.
+      final futures = <Future<Object?>>[
         gateway.languageCompletion(
           filePath: tab.path,
           line: cursorLine,
@@ -209,21 +218,28 @@ class EditorShellController {
           query: token,
         ),
         gateway.languageDiagnostics(filePath: tab.path, content: tab.content),
-        gateway.languageSignatureHelp(
-          filePath: tab.path,
-          line: cursorLine,
-          column: cursorColumn,
-          content: tab.content,
-        ),
-      ]);
+        if (isRobot)
+          gateway.languageSignatureHelp(
+            filePath: tab.path,
+            line: cursorLine,
+            column: cursorColumn,
+            content: tab.content,
+          ),
+      ];
+      final results = await Future.wait(futures);
       if (!isMounted() || !_isCurrentLanguageRequest(requestId, requestPath)) {
         return;
       }
-      completionItems = results[0] as List<CompletionItemInfo>;
-      diagnostics = results[1] as List<DiagnosticInfo>;
-      final signature = results[2] as SignatureHelpInfo?;
-      // Caret-driven signature: update when resolved; clear when leaving a call.
-      hoverTooltip = signature;
+      completionItems = results[0]! as List<CompletionItemInfo>;
+      diagnostics = results[1]! as List<DiagnosticInfo>;
+      if (isRobot) {
+        // Caret-driven signature: update when resolved; clear when leaving a call.
+        hoverTooltip = results[2] as SignatureHelpInfo?;
+        _hoverFromPointer = false;
+      } else if (!_hoverFromPointer) {
+        // Drop any leftover caret card when navigating Python files.
+        hoverTooltip = null;
+      }
       // Update Problems for the active file in place (no full-workspace rescan).
       workspaceProblems = [
         ...workspaceProblems.where((item) => item.filePath != requestPath),
@@ -235,7 +251,8 @@ class EditorShellController {
           filePath: tab.path,
           content: tab.content,
         );
-        if (!isMounted() || !_isCurrentLanguageRequest(requestId, requestPath)) {
+        if (!isMounted() ||
+            !_isCurrentLanguageRequest(requestId, requestPath)) {
           return;
         }
         documentAnalysis = analysis;
@@ -278,6 +295,7 @@ class EditorShellController {
 
   void clearHoverTooltip() {
     hoverDebounce?.cancel();
+    _hoverFromPointer = false;
     if (hoverTooltip == null) return;
     hoverTooltip = null;
     notify();
@@ -307,6 +325,7 @@ class EditorShellController {
       if (!isMounted() || requestId != _hoverRequestId) return;
       if (signature != null) {
         hoverTooltip = signature;
+        _hoverFromPointer = true;
         notify();
         return;
       }
@@ -321,6 +340,7 @@ class EditorShellController {
         if (!isMounted() || requestId != _hoverRequestId) return;
         if (hover == null) {
           hoverTooltip = null;
+          _hoverFromPointer = false;
           notify();
           return;
         }
@@ -330,6 +350,7 @@ class EditorShellController {
           detail: hover.detail.isNotEmpty ? hover.detail : hover.kind.label,
           parameters: [SignatureParameterInfo(label: hover.kind.label)],
         );
+        _hoverFromPointer = true;
         notify();
         return;
       }
@@ -337,19 +358,22 @@ class EditorShellController {
       final token = extractRobotTokenAt(tab.content, line, column);
       if (token == null || token.isEmpty) {
         hoverTooltip = null;
+        _hoverFromPointer = false;
         notify();
         return;
       }
+
       final hover = await gateway.languageHover(
-        name: token,
         filePath: tab.path,
         line: line,
         column: column,
         content: tab.content,
+        name: token,
       );
       if (!isMounted() || requestId != _hoverRequestId) return;
       if (hover == null) {
         hoverTooltip = null;
+        _hoverFromPointer = false;
         notify();
         return;
       }
@@ -371,11 +395,13 @@ class EditorShellController {
           parameters: [SignatureParameterInfo(label: hover.kind.label)],
         );
       }
+      _hoverFromPointer = true;
       notify();
     } catch (error) {
       if (!isMounted() || requestId != _hoverRequestId) return;
       AppLogger.debug('Hover tooltip failed', tag: 'Shell', data: '$error');
       hoverTooltip = null;
+      _hoverFromPointer = false;
       notify();
     }
   }
@@ -451,6 +477,7 @@ class EditorShellController {
     completionItems = [];
     diagnostics = [];
     hoverTooltip = null;
+    _hoverFromPointer = false;
     peekDefinition = null;
     loadingOutline = false;
     jumpToLine = null;

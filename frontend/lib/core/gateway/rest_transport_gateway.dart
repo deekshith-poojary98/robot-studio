@@ -616,6 +616,33 @@ class RestTransportGateway implements TransportGateway {
     int? column,
     String? content,
   }) async {
+    // Buffer-backed definition (Python packages / Jedi) must POST — a GET
+    // query cannot carry the file. Uvicorn rejects oversized request lines as
+    // "Invalid HTTP request received."
+    if (content != null && content.isNotEmpty) {
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/language/definition'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'file_path': filePath ?? '',
+              'line': line ?? 1,
+              'column': column ?? 1,
+              'content': content,
+              'name': ?name,
+              'symbol_id': ?symbolId,
+              'kind': ?kind?.apiValue,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode == 200 &&
+          (response.body.isEmpty || response.body == 'null')) {
+        return null;
+      }
+      final decoded = _decode(response);
+      return IndexedSymbolInfo.fromJson(decoded);
+    }
+
     final params = <String>[];
     if (name != null) params.add('name=${Uri.encodeQueryComponent(name)}');
     if (symbolId != null) {
@@ -629,9 +656,6 @@ class RestTransportGateway implements TransportGateway {
     }
     if (line != null) params.add('line=$line');
     if (column != null) params.add('column=$column');
-    if (content != null) {
-      params.add('content=${Uri.encodeQueryComponent(content)}');
-    }
     final response = await _client
         .get(Uri.parse('$baseUrl/language/definition?${params.join('&')}'))
         .timeout(const Duration(seconds: 30));
@@ -655,6 +679,28 @@ class RestTransportGateway implements TransportGateway {
     int? column,
     String? content,
   }) async {
+    if (content != null && content.isNotEmpty) {
+      final response = await _post(
+        '/language/references',
+        body: {
+          'file_path': filePath ?? '',
+          'line': line ?? 1,
+          'column': column ?? 1,
+          'content': content,
+          'name': ?name,
+          'symbol_id': ?symbolId,
+          'kind': ?kind?.apiValue,
+        },
+      );
+      final items = response['references'] as List<dynamic>? ?? [];
+      return items
+          .map(
+            (item) =>
+                SymbolReferenceInfo.fromJson(item as Map<String, dynamic>),
+          )
+          .toList();
+    }
+
     final params = <String>[];
     if (name != null) params.add('name=${Uri.encodeQueryComponent(name)}');
     if (symbolId != null) {
@@ -668,9 +714,6 @@ class RestTransportGateway implements TransportGateway {
     }
     if (line != null) params.add('line=$line');
     if (column != null) params.add('column=$column');
-    if (content != null) {
-      params.add('content=${Uri.encodeQueryComponent(content)}');
-    }
     final response = await _get('/language/references?${params.join('&')}');
     final items = response['references'] as List<dynamic>;
     return items

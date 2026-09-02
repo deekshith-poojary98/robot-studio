@@ -14,6 +14,7 @@ from robot_studio.api.schemas.language import (
     CompletionListResponse,
     CompletionRequest,
     CompletionUsageRequest,
+    DefinitionRequest,
     DiagnosticListResponse,
     DiagnosticsRequest,
     DocumentAnalysisRequest,
@@ -23,6 +24,7 @@ from robot_studio.api.schemas.language import (
     HoverRequest,
     LibraryDetailResponse,
     LibraryListResponse,
+    ReferencesRequest,
     RenameFileEdit,
     RenameRequest,
     RenameResponse,
@@ -63,6 +65,29 @@ async def language_definition(
     return to_symbol_response(result)
 
 
+@router.post("/definition", response_model=SymbolResponse | None)
+async def language_definition_at(
+    body: DefinitionRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> SymbolResponse | None:
+    """Go to definition with the live buffer in the body — GET cannot carry a file."""
+    try:
+        result = await gateway.language_definition(
+            name=body.name,
+            symbol_id=body.symbol_id,
+            kind=body.kind,
+            file_path=body.file_path or None,
+            line=body.line,
+            column=body.column,
+            content=body.content or None,
+        )
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if result is None:
+        return None
+    return to_symbol_response(result)
+
+
 @router.get("/references", response_model=ReferenceListResponse)
 async def language_references(
     name: str | None = Query(default=None),
@@ -86,6 +111,31 @@ async def language_references(
         )
     except LanguageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _references_response(refs)
+
+
+@router.post("/references", response_model=ReferenceListResponse)
+async def language_references_at(
+    body: ReferencesRequest,
+    gateway: RestGateway = Depends(get_gateway),
+) -> ReferenceListResponse:
+    """Find references with the live buffer in the body — GET cannot carry a file."""
+    try:
+        refs = await gateway.language_references(
+            name=body.name,
+            symbol_id=body.symbol_id,
+            kind=body.kind,
+            file_path=body.file_path or None,
+            line=body.line,
+            column=body.column,
+            content=body.content or None,
+        )
+    except LanguageValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _references_response(refs)
+
+
+def _references_response(refs: list[dict]) -> ReferenceListResponse:
     return ReferenceListResponse(
         references=[
             ReferenceResponse(

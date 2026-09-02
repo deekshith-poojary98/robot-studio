@@ -130,6 +130,30 @@ class HoverRequest(BaseModel):
     kind: str | None = None
 
 
+class DefinitionRequest(BaseModel):
+    """Buffer-backed go-to-definition. GET cannot carry a Python/Robot buffer."""
+
+    file_path: str = ""
+    line: int = 1
+    column: int = 1
+    content: str = ""
+    name: str | None = None
+    symbol_id: str | None = None
+    kind: str | None = None
+
+
+class ReferencesRequest(BaseModel):
+    """Buffer-backed find-references. GET cannot carry a Python/Robot buffer."""
+
+    file_path: str = ""
+    line: int = 1
+    column: int = 1
+    content: str = ""
+    name: str | None = None
+    symbol_id: str | None = None
+    kind: str | None = None
+
+
 class LibraryKeywordResponse(BaseModel):
     name: str
     qualified_name: str = ""

@@ -14,7 +14,10 @@ enum SymbolKind {
   control,
   classKind,
   function,
-  method;
+  method,
+  module,
+  property,
+  parameter;
 
   static SymbolKind fromApi(String value) {
     return switch (value) {
@@ -34,7 +37,12 @@ enum SymbolKind {
       'class' => SymbolKind.classKind,
       'function' => SymbolKind.function,
       'method' => SymbolKind.method,
-      _ => SymbolKind.keyword,
+      'module' || 'namespace' => SymbolKind.module,
+      'property' => SymbolKind.property,
+      'parameter' || 'param' => SymbolKind.parameter,
+      // Prefer Variable over Keyword for unknown Python/Jedi kinds — Keyword
+      // is Robot Framework's default and mislabels modules as "Keyword".
+      _ => SymbolKind.variable,
     };
   }
 
@@ -55,6 +63,9 @@ enum SymbolKind {
     SymbolKind.classKind => 'class',
     SymbolKind.function => 'function',
     SymbolKind.method => 'method',
+    SymbolKind.module => 'module',
+    SymbolKind.property => 'property',
+    SymbolKind.parameter => 'parameter',
   };
 
   String get label => switch (this) {
@@ -74,6 +85,9 @@ enum SymbolKind {
     SymbolKind.classKind => 'Class',
     SymbolKind.function => 'Function',
     SymbolKind.method => 'Method',
+    SymbolKind.module => 'Module',
+    SymbolKind.property => 'Property',
+    SymbolKind.parameter => 'Parameter',
   };
 }
 

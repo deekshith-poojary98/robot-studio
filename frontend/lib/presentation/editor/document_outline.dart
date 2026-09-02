@@ -650,10 +650,10 @@ class _TreeNode extends StatelessWidget {
 IconData _iconForKind(SymbolKind kind) {
   return switch (kind) {
     SymbolKind.keyword => Icons.vpn_key_outlined,
-    SymbolKind.variable => Icons.data_object,
+    SymbolKind.variable || SymbolKind.parameter => Icons.data_object,
     SymbolKind.testCase => Icons.science_outlined,
     SymbolKind.testSuite => Icons.description_outlined,
-    SymbolKind.library => Icons.library_books_outlined,
+    SymbolKind.library || SymbolKind.module => Icons.library_books_outlined,
     SymbolKind.resource => Icons.link,
     SymbolKind.setting => Icons.settings_outlined,
     SymbolKind.tag => Icons.sell_outlined,
@@ -662,7 +662,7 @@ IconData _iconForKind(SymbolKind kind) {
     SymbolKind.control => Icons.code,
     SymbolKind.classKind => Icons.account_tree_outlined,
     SymbolKind.function => Icons.functions,
-    SymbolKind.method => Icons.polyline_outlined,
+    SymbolKind.method || SymbolKind.property => Icons.polyline_outlined,
     SymbolKind.file => Icons.insert_drive_file_outlined,
     SymbolKind.documentation => Icons.notes_outlined,
   };
@@ -676,9 +676,14 @@ Color _colorForKind(BuildContext context, SymbolKind kind) {
     SymbolKind.keywordCall ||
     SymbolKind.function ||
     SymbolKind.method ||
-    SymbolKind.library => p.info,
+    SymbolKind.library ||
+    SymbolKind.module => p.info,
     SymbolKind.testCase => p.success,
-    SymbolKind.variable || SymbolKind.tag || SymbolKind.classKind => p.warning,
+    SymbolKind.variable ||
+    SymbolKind.parameter ||
+    SymbolKind.property ||
+    SymbolKind.tag ||
+    SymbolKind.classKind => p.warning,
     SymbolKind.testSuite ||
     SymbolKind.resource ||
     SymbolKind.section => p.accent,

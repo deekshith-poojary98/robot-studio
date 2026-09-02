@@ -295,6 +295,39 @@ async def test_language_hover_python_builtin_posts_buffer(api_client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_language_definition_posts_buffer_for_python_import(api_client) -> None:
+    """Go-to-definition must accept the live buffer via POST.
+
+    Putting ``content`` on a GET query string blows past httptools/uvicorn's
+    request-line limit and surfaces as ``Invalid HTTP request received``.
+    """
+    client, _fresh, tmp_path = api_client
+    await _open_workspace_with_suite(client, tmp_path)
+    # Large-enough buffer that a GET query would be rejected by uvicorn.
+    padding = "# " + ("x" * 12000) + "\n"
+    content = padding + "import json\njson.dumps\n"
+    dumps_col = len("json.dumps")
+
+    response = await client.post(
+        "/api/v1/language/definition",
+        json={
+            "file_path": str(tmp_path / "module.py"),
+            "line": 3,
+            "column": dumps_col,
+            "content": content,
+            "name": "dumps",
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    # Jedi may or may not resolve depending on the active environment; the
+    # contract under test is that the POST is accepted and parsed.
+    if body is not None:
+        assert body["name"] == "dumps"
+        assert body["file_path"]
+
+
+@pytest.mark.asyncio
 async def test_language_requires_workspace(api_client) -> None:
     client, _fresh, _tmp = api_client
 

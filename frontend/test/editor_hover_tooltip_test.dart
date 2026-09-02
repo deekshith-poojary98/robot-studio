@@ -283,6 +283,16 @@ void main() {
     expect(SymbolKind.testCase.label, 'Test Case');
   });
 
+  test('SymbolKind maps Python Jedi kinds instead of Keyword fallback', () {
+    expect(SymbolKind.fromApi('module').label, 'Module');
+    expect(SymbolKind.fromApi('namespace').label, 'Module');
+    expect(SymbolKind.fromApi('property').label, 'Property');
+    expect(SymbolKind.fromApi('parameter').label, 'Parameter');
+    expect(SymbolKind.fromApi('param').label, 'Parameter');
+    // Unknown must not become Keyword (that mislabeled pandas as Keyword).
+    expect(SymbolKind.fromApi('weird_future_kind'), SymbolKind.variable);
+  });
+
   test('extractRobotTokenAt keeps multi-word keyword cells', () {
     const content = '''*** Test Cases ***
 Demo

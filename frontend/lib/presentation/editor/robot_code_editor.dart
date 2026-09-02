@@ -119,6 +119,10 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   static const _hoverDelay = Duration(milliseconds: 400);
   static const _hoverDismissDelay = Duration(milliseconds: 280);
 
+  /// After a click to place the caret, ignore hover until the pointer moves —
+  /// otherwise resting on the same glyph re-opens the card ~400ms later.
+  static const _hoverResumeMove = 4.0;
+
   late CodeLineEditingController _controller;
   late CodeFindController _findController;
   late CodeScrollController _scrollController;
@@ -131,6 +135,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   Offset? _hoverLocal;
   int? _hoverLine;
   int? _hoverColumn;
+  Offset? _suppressHoverOrigin;
   double _charWidth = 7.8;
   bool _pointerOverTooltip = false;
   final GlobalKey _hoverTooltipKey = GlobalKey();
@@ -480,6 +485,20 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     }
   }
 
+  /// Python docs only for an identifier under the pointer — blank parts of a
+  /// line must not open the card.
+  bool _isPythonHoverTarget(int line, int column) {
+    final index = line - 1;
+    if (index < 0 || index >= _controller.lineCount) return false;
+    final text = _controller.codeLines[index].text;
+    final i = column - 1;
+    if (i < 0 || i >= text.length) return false;
+    final code = text.codeUnitAt(i);
+    final isAz = (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+    final isDigit = code >= 48 && code <= 57;
+    return isAz || isDigit || code == 95; // letter, digit, or _
+  }
+
   void _scheduleDismissHover() {
     _hoverDismissTimer?.cancel();
     _hoverDismissTimer = Timer(_hoverDismissDelay, () {
@@ -604,6 +623,15 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     final local = event.localPosition;
     _hoverDismissTimer?.cancel();
 
+    // Click-to-place-caret: ignore dwell until the pointer actually moves.
+    final suppressOrigin = _suppressHoverOrigin;
+    if (suppressOrigin != null) {
+      if ((local - suppressOrigin).distance < _hoverResumeMove) {
+        return;
+      }
+      _suppressHoverOrigin = null;
+    }
+
     // Keep the card while the pointer is on (or near) it so the user can
     // scroll long docs — IgnorePointer used to make this impossible.
     if (widget.hoverTooltip != null && _isPointerOverTooltip(local)) {
@@ -618,6 +646,10 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       return;
     }
     final (line, column) = hit;
+    if (isPythonPath(widget.path) && !_isPythonHoverTarget(line, column)) {
+      _scheduleDismissHover();
+      return;
+    }
     final movedFar =
         _hoverLocal == null ||
         (local - _hoverLocal!).distance > 6 ||
@@ -632,6 +664,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       _hoverTimer?.cancel();
       _hoverTimer = Timer(_hoverDelay, () {
         if (!mounted || _pointerOverTooltip) return;
+        if (_suppressHoverOrigin != null) return;
         widget.onHoverRequest?.call(line, column);
         setState(() {});
       });
@@ -849,10 +882,14 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
           ),
         },
         child: MouseRegion(
-          onExit: (_) => _scheduleDismissHover(),
+          onExit: (_) {
+            _suppressHoverOrigin = null;
+            _scheduleDismissHover();
+          },
           child: Listener(
             onPointerHover: _onPointerHover,
             onPointerDown: (event) {
+              _suppressHoverOrigin = event.localPosition;
               _dismissHover(immediate: true);
               final pressed = HardwareKeyboard.instance.logicalKeysPressed;
               final ctrl =
