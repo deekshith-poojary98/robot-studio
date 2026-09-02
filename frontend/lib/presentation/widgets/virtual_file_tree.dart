@@ -212,10 +212,10 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
   }
 
   bool _isModifierPressed() {
-    final isMac = defaultTargetPlatform == TargetPlatform.macOS;
-    return isMac
-        ? HardwareKeyboard.instance.isMetaPressed
-        : HardwareKeyboard.instance.isControlPressed;
+    // Cmd (macOS) or Ctrl (Windows/Linux). Accept either so widget tests —
+    // which default to TargetPlatform.android — and mixed input still toggle.
+    return HardwareKeyboard.instance.isMetaPressed ||
+        HardwareKeyboard.instance.isControlPressed;
   }
 
   void _handlePrimaryTap(FlatFileTreeRow row) {

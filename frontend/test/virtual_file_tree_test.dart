@@ -382,7 +382,6 @@ void main() {
     List<String>? deleted;
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(platform: TargetPlatform.macOS),
         home: Scaffold(
           body: VirtualFileTree(
             rows: [_file('a.robot'), _file('b.robot'), _file('c.robot')],
@@ -399,9 +398,9 @@ void main() {
 
     await tester.tap(find.text('a.robot'));
     await tester.pump();
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     await tester.tap(find.text('c.robot'));
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
     await tester.pump();
 
     await tester.tap(find.text('c.robot'), buttons: kSecondaryButton);
@@ -452,7 +451,6 @@ void main() {
     List<String>? deleted;
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(platform: TargetPlatform.macOS),
         home: Scaffold(
           body: Row(
             children: [
@@ -483,9 +481,9 @@ void main() {
 
     await tester.tap(find.text('a.robot'));
     await tester.pump();
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     await tester.tap(find.text('c.robot'));
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
     await tester.pump();
 
     await tester.tap(find.byKey(const Key('outside-pane')));
@@ -500,75 +498,74 @@ void main() {
     expect(deleted, ['/tmp/a.robot']);
   });
 
-  testWidgets(
-    'clearing folder selection makes New File land at project root',
-    (tester) async {
-      await tester.binding.setSurfaceSize(const Size(800, 600));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+  testWidgets('clearing folder selection makes New File land at project root', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      String? createdParent;
-      final key = GlobalKey<VirtualFileTreeState>();
+    String? createdParent;
+    final key = GlobalKey<VirtualFileTreeState>();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Row(
-              children: [
-                SizedBox(
-                  width: 280,
-                  child: VirtualFileTree(
-                    key: key,
-                    rows: [_dir('empty', expanded: true), _file('root.robot')],
-                    rootPath: '/tmp',
-                    onOpenFile: (_) {},
-                    onToggleDirectory: (_) {},
-                    onEnsureExpanded: (_) async {},
-                    onCreateEntry:
-                        ({
-                          required parentPath,
-                          required name,
-                          required isDirectory,
-                        }) async {
-                          createdParent = parentPath;
-                        },
-                  ),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Row(
+            children: [
+              SizedBox(
+                width: 280,
+                child: VirtualFileTree(
+                  key: key,
+                  rows: [_dir('empty', expanded: true), _file('root.robot')],
+                  rootPath: '/tmp',
+                  onOpenFile: (_) {},
+                  onToggleDirectory: (_) {},
+                  onEnsureExpanded: (_) async {},
+                  onCreateEntry:
+                      ({
+                        required parentPath,
+                        required name,
+                        required isDirectory,
+                      }) async {
+                        createdParent = parentPath;
+                      },
                 ),
-                const Expanded(
-                  child: ColoredBox(
-                    key: Key('outside-pane'),
-                    color: Colors.black,
-                    child: SizedBox.expand(),
-                  ),
+              ),
+              const Expanded(
+                child: ColoredBox(
+                  key: Key('outside-pane'),
+                  color: Colors.black,
+                  child: SizedBox.expand(),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
 
-      await tester.tap(find.text('empty'));
-      await tester.pump();
+    await tester.tap(find.text('empty'));
+    await tester.pump();
 
-      // Without clearing, New File would target the selected folder.
-      key.currentState!.beginNewFile();
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'inside');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pumpAndSettle();
-      expect(createdParent, '/tmp/empty');
+    // Without clearing, New File would target the selected folder.
+    key.currentState!.beginNewFile();
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'inside');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(createdParent, '/tmp/empty');
 
-      createdParent = null;
-      await tester.tap(find.text('empty'));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('outside-pane')));
-      await tester.pumpAndSettle();
+    createdParent = null;
+    await tester.tap(find.text('empty'));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('outside-pane')));
+    await tester.pumpAndSettle();
 
-      key.currentState!.beginNewFile();
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'at-root');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pumpAndSettle();
-      expect(createdParent, '/tmp');
-    },
-  );
+    key.currentState!.beginNewFile();
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'at-root');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(createdParent, '/tmp');
+  });
 }
