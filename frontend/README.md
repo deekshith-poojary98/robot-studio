@@ -36,9 +36,9 @@ flutter run -d macos    # or linux / windows
 
 On launch the shell health-checks the backend quietly in the background (connection chrome is not shown in the status bar). Day-to-day entry is **New Project** / **Open Project** (folder becomes its own `.robotstudio/` root). **Open/New Workspace** live under Advanced for multi-project containers.
 
-### Packaged desktop (private beta)
+### Packaged desktop (beta)
 
-Testers use a **supplied zip** or an **Actions → Package Desktop** workflow artifact — there are **no published GitHub Release downloads** yet. Double-click the app; do not run `make backend` + `flutter run`. File bugs on GitHub Issues. Maintainers build from the repo root:
+Testers download a zip from **[GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases)** (assets from a `v*` tag / Package Desktop). Double-click the app; do not run `make backend` + `flutter run`. File bugs on GitHub Issues. Maintainers build from the repo root:
 
 ```bash
 make package-macos     # → dist/macos/Robot Studio.app

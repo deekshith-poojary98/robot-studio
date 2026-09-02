@@ -213,7 +213,7 @@ This roadmap is **locked** and stays short on purpose. We already have a large p
 
 ## Feedback
 
-Bugs and “I wish Robot Studio could…” notes go on [GitHub Issues](https://github.com/deekshith-poojary98/robot-studio/issues). Prefer a clear RF workflow over a generic IDE wishlist. Packaged private beta zips are supplied by maintainers or built via **Actions → Package Desktop** (see [Install](/getting-started/install/)).
+Bugs and “I wish Robot Studio could…” notes go on [GitHub Issues](https://github.com/deekshith-poojary98/robot-studio/issues). Prefer a clear RF workflow over a generic IDE wishlist. Packaged beta zips are on [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases) (see [Install](/getting-started/install/)).
 
 ## Next step
 

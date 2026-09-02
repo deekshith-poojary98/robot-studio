@@ -36,9 +36,9 @@ Robot Studio pairs a **Flutter desktop** UI with a local **Python** backend. Whe
 
 App data (database, Settings, logs) lives under `~/.robot-studio`. Project-specific Studio state lives under `.robotstudio/` inside the project.
 
-## Private beta
+## Beta
 
-This is a **private beta**. Expect bugs; please file them on [GitHub Issues](https://github.com/deekshith-poojary98/robot-studio/issues). Packaged builds are zip-only (no installer). Longer-term product direction (not shipped features) is sketched on the [Roadmap](/getting-started/roadmap/).
+This is a **beta**. Expect bugs; please file them on [GitHub Issues](https://github.com/deekshith-poojary98/robot-studio/issues). Packaged builds are zip-only from [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases) (no installer). Longer-term product direction (not shipped features) is sketched on the [Roadmap](/getting-started/roadmap/).
 
 ## Next step
 

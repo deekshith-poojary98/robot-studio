@@ -1,17 +1,17 @@
 ---
 title: Install
-description: Get a private beta build, or run from source for development.
+description: Download a beta build from GitHub Releases, or run from source for development.
 ---
 
-:::caution[Private beta]
+:::caution[Beta]
 Packaged builds are zip downloads for **macOS**, **Windows**, and **Linux** (x64 and arm64). There is no installer (no `.dmg` / `.msi` / `.deb`).
 
-There is **no published GitHub Release artifact** for Robot Studio yet. Private beta testers use a **supplied zip**, or a zip from the **Package Desktop** GitHub Actions workflow. File bugs on [GitHub Issues](https://github.com/deekshith-poojary98/robot-studio/issues).
+Download the zip for your OS from **[GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases)** (Release assets on the latest beta tag). File bugs on [GitHub Issues](https://github.com/deekshith-poojary98/robot-studio/issues).
 :::
 
 ## Packaged beta (recommended for testers)
 
-1. Obtain the zip for your OS **and CPU** (supplied by the maintainers, or downloaded from an Actions run — see below).
+1. Open **[Releases](https://github.com/deekshith-poojary98/robot-studio/releases)** and download the zip for your OS **and CPU**.
 2. Unzip it somewhere convenient (Applications, Desktop, or a beta folder). On macOS you can drag **Robot Studio.app** into Applications yourself.
 3. **Launch the app** — do not start a Python process by hand. Keep the unzipped folder together (Windows / Linux need `backend/` next to the binary).
 4. Quitting the app stops the embedded backend sidecar.
@@ -23,9 +23,11 @@ There is **no published GitHub Release artifact** for Robot Studio yet. Private 
 | **Linux x64** | `Robot-Studio-*-linux-x64.zip` → `RobotStudio/` | Double-click `robot-studio.desktop` (first time: right-click → **Allow Launching**), or run `./robot_studio`. Optional once: `./install-desktop-launcher.sh` to add it to the app menu. Uninstall: `./uninstall.sh` (add `--purge` to also delete `~/.robot-studio`). |
 | **Linux arm64** | `Robot-Studio-*-linux-arm64.zip` → `RobotStudio/` | Same as Linux x64. Use this zip on Apple Silicon / ARM VMs (`uname -m` → `aarch64`). An x64 zip shows `Exec format error` on ARM. |
 
-### Where maintainers get zips today
+### How Release zips are produced
 
-From the repository: **Actions → Package Desktop → Run workflow**. Download each OS zip from that run’s **artifacts**.
+Pushing a `v*` tag (for example `v0.1.0`) runs **Actions → Package Desktop** and attaches each platform zip to that [GitHub Release](https://github.com/deekshith-poojary98/robot-studio/releases). Prefer those **Release assets** for testers — they stay available and do not require Actions access.
+
+Maintainers can also run **Actions → Package Desktop → Run workflow** and download workflow artifacts for a one-off build (artifacts expire; use Releases for lasting distribution).
 
 Local packaging (must run on that OS — no cross-compile):
 
@@ -35,8 +37,6 @@ make package-windows   # → dist/windows/RobotStudio/  (run on Windows)
 make package-linux     # → dist/linux/RobotStudio/    (run on Linux; zip tagged x64 or arm64)
 make package           # package for the OS you are on
 ```
-
-Pushing a `v*` tag is configured to attach platform zips to a GitHub Release. Until a release is published, do **not** expect a download on the Releases page.
 
 ### macOS: app blocked after unzip
 
@@ -58,7 +58,7 @@ App data lives under `~/.robot-studio`.
 
 ## Run from source (developers)
 
-Supported desktop targets when developing from the repository: **macOS**, **Windows**, and **Linux** (Flutter desktop). This path is for contributors — not the private beta hand-off.
+Supported desktop targets when developing from the repository: **macOS**, **Windows**, and **Linux** (Flutter desktop). This path is for contributors — not the packaged beta download.
 
 ### Prerequisites
 

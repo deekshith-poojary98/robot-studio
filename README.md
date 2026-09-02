@@ -43,13 +43,13 @@
 | **Doctor** | Structural project health (circular imports, duplicates, unused assets) |
 | **Search / Libraries / Git / Terminal / Settings** | Find in Files, library docs, project-scoped Git, bottom terminal, Settings |
 
-Private beta: expect bugs. Plugins exist in the codebase but are **hidden from the activity bar** for this beta. No AI assistant, debugger, or impact-analysis product UI in this build.
+Beta: expect bugs. Plugins exist in the codebase but are **hidden from the activity bar** for this beta. No AI assistant, debugger, or impact-analysis product UI in this build.
 
 ---
 
-## Private beta — how to get a build
+## Beta — how to get a build
 
-There are **no published GitHub Release downloads** yet. Testers use a **supplied zip**, or maintainers download zips from **Actions → Package Desktop** workflow artifacts.
+Download the zip for your OS from **[GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases)** (assets on the latest `v*` beta tag).
 
 | Platform | What to open |
 |----------|----------------|
@@ -59,7 +59,7 @@ There are **no published GitHub Release downloads** yet. Testers use a **supplie
 
 No installer (no `.dmg` / `.msi` / `.deb`). The app embeds the backend sidecar — double-click to launch; quit to stop. App data: `~/.robot-studio`.
 
-Build locally (must run on that OS):
+Pushing a `v*` tag runs **Actions → Package Desktop** and attaches the platform zips to that Release. Local packaging (must run on that OS):
 
 ```bash
 make package-macos    # → dist/macos/Robot Studio.app
@@ -120,7 +120,7 @@ API surface, modules, and transport details: [ARCHITECTURE.md](./ARCHITECTURE.md
 
 ## Status
 
-Core IDE loop (open project → environment → edit → run → reports → Doctor) is in place. The product is in **private beta** usability hardening. Desktop packaging is zip-only via `make package-*` / Actions **Package Desktop**.
+Core IDE loop (open project → environment → edit → run → reports → Doctor) is in place. The product is in **beta** usability hardening. Desktop packaging is zip-only via GitHub Releases (`v*` tag → Actions **Package Desktop**).
 
 Milestone detail and design notes: [ARCHITECTURE.md](./ARCHITECTURE.md).
 
