@@ -778,34 +778,56 @@ class EditorShellController {
     return token.isEmpty ? null : token;
   }
 
+  /// Inclusive 1-based column spans for Robot cells (2+ spaces or tabs).
+  static List<({String text, int start, int end})> robotCellSpans(String row) {
+    final spans = <({String text, int start, int end})>[];
+    var i = 0;
+    final n = row.length;
+    while (i < n && (row[i] == ' ' || row[i] == '\t')) {
+      i += 1;
+    }
+    while (i < n) {
+      final start = i;
+      while (i < n) {
+        if (row[i] == '\t') break;
+        if (row[i] == ' ' &&
+            i + 1 < n &&
+            (row[i + 1] == ' ' || row[i + 1] == '\t')) {
+          break;
+        }
+        i += 1;
+      }
+      final cell = row.substring(start, i);
+      if (cell.isNotEmpty) {
+        spans.add((text: cell, start: start + 1, end: i));
+      }
+      final rest = row.substring(i);
+      final sep = RegExp(r'[ \t]{2,}|\t+').matchAsPrefix(rest);
+      if (sep == null) break;
+      i += sep.end;
+    }
+    return spans;
+  }
+
+  /// `${x}` from `${x}=` / `${x}[id]` / `${x.json()}`.
+  static String? variableTokenFromCell(String cell) {
+    var text = cell.trim();
+    if (text.endsWith('=')) {
+      text = text.substring(0, text.length - 1).trimRight();
+    }
+    return RegExp(r'^[\$@&%]\{[^}]+\}').firstMatch(text)?.group(0);
+  }
+
   /// Prefer Robot cell under the caret (multi-word keywords), else word token.
   static String? extractRobotTokenAt(String content, int line, int column) {
     final lines = content.split('\n');
     if (line < 1 || line > lines.length) return null;
     final row = lines[line - 1];
     if (row.startsWith(' ') || row.startsWith('\t')) {
-      final cells = row
-          .trim()
-          .split(RegExp(r'[ \t]{2,}|\t+'))
-          .where((cell) => cell.isNotEmpty)
-          .toList();
-      if (cells.isNotEmpty) {
-        var keywordIndex = 0;
-        if (RegExp(r'^[\$@&%]').hasMatch(cells.first) && cells.length > 1) {
-          keywordIndex = 1;
+      for (final span in robotCellSpans(row)) {
+        if (column >= span.start && column <= span.end) {
+          return variableTokenFromCell(span.text) ?? span.text;
         }
-        // Locate cell by scanning separators from the left of the caret.
-        final prefix = row.substring(0, (column - 1).clamp(0, row.length));
-        final beforeCells = prefix
-            .trim()
-            .split(RegExp(r'[ \t]{2,}|\t+'))
-            .where((cell) => cell.isNotEmpty)
-            .toList();
-        final cellIndex = beforeCells.isEmpty
-            ? keywordIndex
-            : (beforeCells.length - 1).clamp(0, cells.length - 1);
-        final cell = cells[cellIndex];
-        if (cell.isNotEmpty) return cell;
       }
     }
     return extractWordAtCursor(content, line, column);

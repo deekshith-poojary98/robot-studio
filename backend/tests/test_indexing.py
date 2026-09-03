@@ -215,6 +215,149 @@ async def test_hover_force_tags_not_confused_with_resource(index_stack) -> None:
     assert import_hover["kind"] == "resource"
 
 
+def test_symbol_lookup_names_strips_assign_and_extended_syntax() -> None:
+    assert "${response}" in RobotLanguageService._symbol_lookup_names("${response}=")
+    assert "${comment}" in RobotLanguageService._symbol_lookup_names("${comment}[id]")
+    assert "${response}" in RobotLanguageService._symbol_lookup_names("${response.json()}")
+    # Python Variables modules are indexed without ${…} braces.
+    assert "KNOWN_COMMENT_ID" in RobotLanguageService._symbol_lookup_names(
+        "${KNOWN_COMMENT_ID}",
+    )
+
+
+@pytest.mark.asyncio
+async def test_hover_assignment_equals_and_extended_variable(index_stack) -> None:
+    service, _store, facade, suite, _lib, _bus, workspace, project = index_stack
+    content = (
+        "*** Variables ***\n"
+        "${KNOWN_COMMENT_ID}    1\n"
+        "\n"
+        "*** Test Cases ***\n"
+        "Get Comment By Id\n"
+        "    ${comment}    ${response}=    Log    ${KNOWN_COMMENT_ID}\n"
+        "    Status Should Be    ${response}    200\n"
+        "    Comment Should Match Schema Keys    ${comment}\n"
+        "    Should Be Equal As Integers    ${comment}[id]    ${KNOWN_COMMENT_ID}\n"
+    )
+    suite.write_text(content, encoding="utf-8")
+    await service.indexer.index_file(
+        suite,
+        workspace_id=workspace.id,
+        project_id=project.id,
+        force=True,
+    )
+    lines = content.splitlines()
+    assign = lines[5]
+    response_col = assign.index("${response}") + 2
+    hover_eq = await facade.hover(
+        name="${response}=",
+        file_path=str(suite),
+        line=6,
+        column=response_col,
+        content=content,
+    )
+    assert hover_eq is not None
+    assert hover_eq["kind"] == "variable"
+    assert hover_eq["name"] == "${response}"
+
+    usage = lines[8]
+    comment_col = usage.index("${comment}") + 2
+    hover_ext = await facade.hover(
+        name="${comment}[id]",
+        file_path=str(suite),
+        line=9,
+        column=comment_col,
+        content=content,
+    )
+    assert hover_ext is not None
+    assert hover_ext["kind"] == "variable"
+    assert hover_ext["name"] == "${comment}"
+
+    known_col = usage.index("${KNOWN_COMMENT_ID}") + 2
+    hover_known = await facade.hover(
+        name="${KNOWN_COMMENT_ID}",
+        file_path=str(suite),
+        line=9,
+        column=known_col,
+        content=content,
+    )
+    assert hover_known is not None
+    assert hover_known["kind"] == "variable"
+    assert hover_known["name"] == "${KNOWN_COMMENT_ID}"
+
+
+@pytest.mark.asyncio
+async def test_hover_variables_py_import(index_stack) -> None:
+    service, _store, facade, suite, _lib, _bus, workspace, project = index_stack
+    env = suite.parent / "env.py"
+    env.write_text("KNOWN_COMMENT_ID = 42\n", encoding="utf-8")
+    content = (
+        "*** Settings ***\n"
+        "Variables    env.py\n"
+        "\n"
+        "*** Test Cases ***\n"
+        "Get Comment By Id\n"
+        "    Should Be Equal As Integers    ${comment}[id]    ${KNOWN_COMMENT_ID}\n"
+    )
+    suite.write_text(content, encoding="utf-8")
+    await service.indexer.index_file(
+        env,
+        workspace_id=workspace.id,
+        project_id=project.id,
+        force=True,
+    )
+    await service.indexer.index_file(
+        suite,
+        workspace_id=workspace.id,
+        project_id=project.id,
+        force=True,
+    )
+    usage = content.splitlines()[5]
+    known_col = usage.index("${KNOWN_COMMENT_ID}") + 2
+    hover = await facade.hover(
+        name="${KNOWN_COMMENT_ID}",
+        file_path=str(suite),
+        line=6,
+        column=known_col,
+        content=content,
+    )
+    assert hover is not None
+    assert hover["kind"] == "variable"
+    assert hover["name"] == "${KNOWN_COMMENT_ID}"
+    assert Path(hover["file_path"]).name == "env.py"
+
+
+@pytest.mark.asyncio
+async def test_hover_variables_py_import_without_index(index_stack) -> None:
+    """Variables *.py still hover when the module is not indexed yet."""
+    _service, _store, facade, suite, _lib, _bus, _workspace, _project = index_stack
+    env = suite.parent / "env.py"
+    env.write_text("KNOWN_COMMENT_ID = 42\n", encoding="utf-8")
+    content = (
+        "*** Settings ***\n"
+        "Variables    env.py\n"
+        "\n"
+        "*** Test Cases ***\n"
+        "Use Known Id\n"
+        "    Log    ${KNOWN_COMMENT_ID}\n"
+    )
+    suite.write_text(content, encoding="utf-8")
+    usage = content.splitlines()[5]
+    known_col = usage.index("${KNOWN_COMMENT_ID}") + 2
+    hover = await facade.hover(
+        name="${KNOWN_COMMENT_ID}",
+        file_path=str(suite),
+        line=6,
+        column=known_col,
+        content=content,
+    )
+    assert hover is not None
+    assert hover["kind"] == "variable"
+    assert hover["name"] == "${KNOWN_COMMENT_ID}"
+    assert Path(hover["file_path"]).name == "env.py"
+    assert hover["line"] == 1
+
+
 @pytest.mark.asyncio
 async def test_incremental_indexing_skips_unchanged(index_stack) -> None:
     service, store, _facade, suite, _lib, _bus, workspace, project = index_stack

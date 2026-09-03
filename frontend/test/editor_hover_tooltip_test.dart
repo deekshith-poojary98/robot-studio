@@ -301,4 +301,32 @@ Demo
     final token = EditorShellController.extractRobotTokenAt(content, 3, 12);
     expect(token, 'Open Workbook');
   });
+
+  test('extractRobotTokenAt normalizes assignment and extended variables', () {
+    const content = r'''*** Test Cases ***
+Get Comment By Id
+    ${comment}    ${response}=    Get Comment By Id    ${KNOWN_COMMENT_ID}
+    Status Should Be    ${response}    200
+    Comment Should Match Schema Keys    ${comment}
+    Should Be Equal As Integers    ${comment}[id]    ${KNOWN_COMMENT_ID}
+''';
+    final assign = content.split('\n')[2];
+    final responseCol = assign.indexOf(r'${response}') + 1;
+    expect(
+      EditorShellController.extractRobotTokenAt(content, 3, responseCol),
+      r'${response}',
+    );
+
+    final extended = content.split('\n')[5];
+    final commentCol = extended.indexOf(r'${comment}') + 1;
+    expect(
+      EditorShellController.extractRobotTokenAt(content, 6, commentCol),
+      r'${comment}',
+    );
+    final knownCol = extended.indexOf(r'${KNOWN_COMMENT_ID}') + 1;
+    expect(
+      EditorShellController.extractRobotTokenAt(content, 6, knownCol),
+      r'${KNOWN_COMMENT_ID}',
+    );
+  });
 }

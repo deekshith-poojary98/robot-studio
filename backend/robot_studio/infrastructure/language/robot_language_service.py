@@ -1103,14 +1103,42 @@ class RobotLanguageService(LanguageService):
         if on_tag_value:
             kind = SymbolKind.TAG
 
-        symbols = await self.store.find_definitions(
-            str(name),
-            kind=kind,
-            workspace_id=self.context.workspace_id,
-            project_id=self.context.project_id,
-            limit=20,
+        lookup_names = (
+            [str(name)] if on_tag_value else self._symbol_lookup_names(str(name))
         )
+        # RF variable tokens (${x}) must not resolve to a same-named keyword /
+        # resource. Python ``Variables`` modules are indexed as bare names.
+        rf_display = next(
+            (n for n in lookup_names if re.match(r"^[\$@&%]\{.+\}$", n)),
+            None,
+        )
+        if kind is None and rf_display is not None:
+            kind = SymbolKind.VARIABLE
+
+        symbols: list[dict] = []
+        matched_candidate = ""
+        for candidate in lookup_names:
+            symbols = await self.store.find_definitions(
+                candidate,
+                kind=kind,
+                workspace_id=self.context.workspace_id,
+                project_id=self.context.project_id,
+                limit=20,
+            )
+            if symbols:
+                matched_candidate = candidate
+                break
         if symbols:
+            hit = symbols[0]
+            # Present Python-indexed ``KNOWN_ID`` as ``${KNOWN_ID}`` in RF buffers.
+            if (
+                rf_display is not None
+                and not re.match(r"^[\$@&%]\{", str(hit.get("name") or ""))
+            ):
+                sigil = rf_display[0]
+                py_name = str(hit.get("name") or matched_candidate)
+                hit = {**hit, "name": f"{sigil}{{{py_name}}}"}
+                return [hit, *symbols[1:]]
             return symbols
         if on_tag_value:
             return [
@@ -1125,9 +1153,39 @@ class RobotLanguageService(LanguageService):
                 },
             ]
 
+        # ``Variables`` *.py / YAML imports are known to diagnostics even when
+        # the module has not been indexed yet — still offer hover / go-to.
+        if content and rf_display is not None:
+            declared = self._collect_declared_variables(
+                str(content).splitlines(),
+                file_path=file_path,
+            )
+            for candidate in lookup_names:
+                if not self._is_known_variable(candidate, declared):
+                    continue
+                located = self._locate_imported_variable(
+                    str(content),
+                    file_path,
+                    rf_display,
+                )
+                return [
+                    {
+                        "id": "",
+                        "name": rf_display,
+                        "kind": SymbolKind.VARIABLE.value,
+                        "file_path": str(located["file_path"]) if located else file_path,
+                        "line": int(located["line"]) if located else int(line or 1),
+                        "documentation": "",
+                        "detail": str(located["detail"]) if located else "variable",
+                    },
+                ]
+
         # Analysis Engine fallback — semantic graph keyword entities.
-        analysis_hits = await self._definitions_from_analysis(str(name))
-        return analysis_hits
+        for candidate in lookup_names:
+            analysis_hits = await self._definitions_from_analysis(candidate)
+            if analysis_hits:
+                return analysis_hits
+        return []
 
     async def _jedi_hover(
         self,
@@ -1967,8 +2025,134 @@ class RobotLanguageService(LanguageService):
     def _normalize_variable_token(token: str) -> str:
         cleaned = token.strip()
         if cleaned.endswith("="):
-            cleaned = cleaned[:-1]
+            cleaned = cleaned[:-1].rstrip()
         return cleaned
+
+    @classmethod
+    def _symbol_lookup_names(cls, name: str) -> list[str]:
+        """Names to try in the index for a hover / go-to token.
+
+        Assignment cells (``${x}=``) and RF extended syntax (``${x}[id]``,
+        ``${x.json()}``) must resolve to the declared variable ``${x}``.
+        Python ``Variables`` modules are indexed as bare identifiers
+        (``KNOWN_ID``), so those forms are tried last.
+        """
+        raw = str(name or "").strip()
+        if not raw:
+            return []
+        names: list[str] = []
+
+        def _add(item: str) -> None:
+            if item and item not in names:
+                names.append(item)
+
+        _add(raw)
+        stripped = cls._normalize_variable_token(raw)
+        _add(stripped)
+        match = re.match(r"^([\$@&%])\{(.+)\}$", stripped)
+        if match:
+            sigil, body = match.group(1), match.group(2)
+            base = cls._extended_variable_base(body)
+            if base != body:
+                _add(f"{sigil}{{{base}}}")
+        else:
+            prefix = re.match(r"^([\$@&%]\{[^}]+\})", stripped)
+            if prefix:
+                _add(prefix.group(1))
+        # Bare Python / YAML variable names — after braced RF forms.
+        for item in list(names):
+            inner = re.match(r"^[\$@&%]\{(.+)\}$", item)
+            if not inner:
+                continue
+            body = inner.group(1)
+            _add(body)
+            base = cls._extended_variable_base(body)
+            if base != body:
+                _add(base)
+        return names
+
+    @classmethod
+    def _locate_imported_variable(
+        cls,
+        content: str,
+        file_path: str,
+        rf_name: str,
+    ) -> dict | None:
+        """Find ``Variables`` *.py / YAML assignment for an RF ``${NAME}``."""
+        match = re.match(r"^([\$@&%])\{(.+)\}$", rf_name)
+        if not match:
+            return None
+        py_name = match.group(2)
+        for raw in content.splitlines():
+            line = raw.strip()
+            if not line.lower().startswith("variables "):
+                continue
+            token = (
+                line.split(None, 1)[1]
+                .strip()
+                .split("    ")[0]
+                .strip()
+                .strip("'\"")
+            )
+            candidate = Path(token).expanduser()
+            if not candidate.is_file():
+                candidate = cls._path_beside_file(file_path, token)
+            if not candidate.is_file():
+                continue
+            suffix = candidate.suffix.lower()
+            if suffix == ".py":
+                line_no = cls._python_assign_line(candidate, py_name)
+                if line_no is not None:
+                    return {
+                        "file_path": str(candidate),
+                        "line": line_no,
+                        "detail": "Variables",
+                    }
+            elif suffix in {".yaml", ".yml"}:
+                line_no = cls._yaml_key_line(candidate, py_name)
+                if line_no is not None:
+                    return {
+                        "file_path": str(candidate),
+                        "line": line_no,
+                        "detail": "Variables",
+                    }
+        return None
+
+    @staticmethod
+    def _python_assign_line(path: Path, name: str) -> int | None:
+        import ast
+
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, SyntaxError):
+            return None
+        for node in tree.body:
+            targets: list = []
+            if isinstance(node, ast.Assign):
+                targets.extend(node.targets)
+            elif isinstance(node, ast.AnnAssign) and node.target is not None:
+                targets.append(node.target)
+            for target in targets:
+                if isinstance(target, ast.Name) and target.id == name:
+                    return int(getattr(node, "lineno", 1) or 1)
+        return None
+
+    @staticmethod
+    def _yaml_key_line(path: Path, name: str) -> int | None:
+        try:
+            for index, raw in enumerate(
+                path.read_text(encoding="utf-8", errors="replace").splitlines(),
+                start=1,
+            ):
+                line = raw.strip()
+                if not line or line.startswith("#") or ":" not in line:
+                    continue
+                key = line.split(":", 1)[0].strip()
+                if key == name:
+                    return index
+        except OSError:
+            return None
+        return None
 
     @classmethod
     def _is_known_variable(cls, token: str, declared: set[str]) -> bool:
