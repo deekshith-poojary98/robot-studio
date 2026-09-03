@@ -1065,10 +1065,13 @@ class RobotLanguageService(LanguageService):
                 return jedi_hits
 
         name = request.get("name") or request.get("symbol") or request.get("query")
+        on_tag_value = False
 
         # Prefer RF cell under cursor when content is available.
         if content and line:
-            cell = self._robot_cell_at(str(content), int(line), int(column or 1))
+            col = int(column or 1)
+            on_tag_value = self._is_tag_value_at(str(content), int(line), col)
+            cell = self._robot_cell_at(str(content), int(line), col)
             if cell:
                 name = cell
             if not name:
@@ -1079,7 +1082,7 @@ class RobotLanguageService(LanguageService):
                         content=str(content),
                         file_path=str(file_path or ""),
                         line=int(line),
-                        column=int(column or 1),
+                        column=col,
                     )
                     name = ctx.get("prefix") or ctx.get("keyword") or name
                 except RobotParsingError:
@@ -1095,6 +1098,10 @@ class RobotLanguageService(LanguageService):
                 kind = SymbolKind(str(kind_raw))
             except ValueError:
                 kind = None
+        # Force Tags / [Tags] values share names with resources often
+        # (comments.resource vs Force Tags    comments). Cursor context wins.
+        if on_tag_value:
+            kind = SymbolKind.TAG
 
         symbols = await self.store.find_definitions(
             str(name),
@@ -1105,6 +1112,18 @@ class RobotLanguageService(LanguageService):
         )
         if symbols:
             return symbols
+        if on_tag_value:
+            return [
+                {
+                    "id": "",
+                    "name": str(name),
+                    "kind": SymbolKind.TAG.value,
+                    "file_path": file_path,
+                    "line": int(line),
+                    "documentation": "",
+                    "detail": "tag",
+                },
+            ]
 
         # Analysis Engine fallback — semantic graph keyword entities.
         analysis_hits = await self._definitions_from_analysis(str(name))
@@ -1252,15 +1271,23 @@ class RobotLanguageService(LanguageService):
             }
         return None
 
-    @staticmethod
-    def _robot_cell_at(content: str, line: int, column: int) -> str | None:
+    _TAG_SETTING_HEADS = frozenset(
+        {
+            "force tags",
+            "default tags",
+            "test tags",
+            "[tags]",
+        },
+    )
+
+    @classmethod
+    def _robot_cells_at(cls, content: str, line: int) -> list[tuple[int, int, str]]:
         lines = content.splitlines()
         if line < 1 or line > len(lines):
-            return None
+            return []
         raw = lines[line - 1]
         if not raw.strip() or raw.lstrip().startswith("#"):
-            return None
-        # Split Robot cells on 2+ spaces or tabs, preserving 1-based columns.
+            return []
         cells: list[tuple[int, int, str]] = []
         parts = re.split(r"(\t+|[ ]{2,})", raw)
         pos = 1
@@ -1277,6 +1304,25 @@ class RobotLanguageService(LanguageService):
             if token:
                 cells.append((start, end, token))
             pos += len(part)
+        return cells
+
+    @classmethod
+    def _is_tag_value_at(cls, content: str, line: int, column: int) -> bool:
+        """True when the caret is on a tag value, not the setting name."""
+        cells = cls._robot_cells_at(content, line)
+        if len(cells) < 2:
+            return False
+        head = cells[0][2].casefold()
+        if head not in cls._TAG_SETTING_HEADS:
+            return False
+        for index, (start, end, _token) in enumerate(cells):
+            if start <= column <= max(end, start):
+                return index > 0
+        return True
+
+    @classmethod
+    def _robot_cell_at(cls, content: str, line: int, column: int) -> str | None:
+        cells = cls._robot_cells_at(content, line)
         for start, end, token in cells:
             if start <= column <= max(end, start):
                 if token.startswith("...") or token.startswith("["):

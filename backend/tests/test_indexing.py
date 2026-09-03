@@ -137,6 +137,84 @@ def test_robot_indexer_extracts_symbols(tmp_path: Path) -> None:
     assert any(ref["name"] == "Login User" for ref in refs)
 
 
+def test_is_tag_value_at_force_tags_and_local_tags() -> None:
+    content = """*** Settings ***
+Force Tags    comments    api
+Resource      comments.resource
+
+*** Test Cases ***
+List
+    [Tags]    comments    smoke
+    No Operation
+"""
+    force = content.splitlines()[1]
+    comments_col = force.index("comments") + 1
+    api_col = force.index("api") + 1
+    setting_col = force.index("Force") + 1
+    assert RobotLanguageService._is_tag_value_at(content, 2, comments_col)
+    assert RobotLanguageService._is_tag_value_at(content, 2, api_col)
+    assert not RobotLanguageService._is_tag_value_at(content, 2, setting_col)
+
+    resource = content.splitlines()[2]
+    res_col = resource.index("comments") + 1
+    assert not RobotLanguageService._is_tag_value_at(content, 3, res_col)
+
+    tags = content.splitlines()[6]
+    local_col = tags.index("comments") + 1
+    assert RobotLanguageService._is_tag_value_at(content, 7, local_col)
+
+
+@pytest.mark.asyncio
+async def test_hover_force_tags_not_confused_with_resource(index_stack) -> None:
+    service, _store, facade, suite, _lib, _bus, workspace, project = index_stack
+    resource = suite.parent.parent / "resources" / "comments.resource"
+    resource.parent.mkdir(parents=True, exist_ok=True)
+    resource.write_text(
+        "*** Keywords ***\nDo Comment\n    No Operation\n",
+        encoding="utf-8",
+    )
+    content = (
+        "*** Settings ***\n"
+        "Resource    ../resources/comments.resource\n"
+        "Force Tags    comments    api\n"
+        "\n"
+        "*** Test Cases ***\n"
+        "List Comments\n"
+        "    [Tags]    comments\n"
+        "    No Operation\n"
+    )
+    suite.write_text(content, encoding="utf-8")
+    await service.indexer.index_file(
+        resource,
+        workspace_id=workspace.id,
+        project_id=project.id,
+        force=True,
+    )
+    await service.indexer.index_file(
+        suite,
+        workspace_id=workspace.id,
+        project_id=project.id,
+        force=True,
+    )
+
+    force_line = content.splitlines()[2]
+    comments_col = force_line.index("comments") + 1
+    hover = await facade.hover(
+        name="comments",
+        file_path=str(suite),
+        line=3,
+        column=comments_col,
+        content=content,
+    )
+    assert hover is not None
+    assert hover["kind"] == "tag"
+    assert hover["name"] == "comments"
+
+    import_hover = await facade.hover(name="comments")
+    assert import_hover is not None
+    assert import_hover["kind"] == "resource"
+
+
 @pytest.mark.asyncio
 async def test_incremental_indexing_skips_unchanged(index_stack) -> None:
     service, store, _facade, suite, _lib, _bus, workspace, project = index_stack

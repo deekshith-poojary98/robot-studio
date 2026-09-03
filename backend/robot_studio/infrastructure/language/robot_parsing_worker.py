@@ -672,8 +672,12 @@ def document_symbols(content: str, file_path: str) -> list[dict[str, Any]]:
                 # Documentation text is attached to keywords/tests/suite metadata;
                 # do not index the first word of the doc as its own symbol.
                 continue
-            elif item_type in {"TestTags", "DefaultTags"}:
-                detail = "Force Tags" if item_type == "TestTags" else "Default Tags"
+            elif item_type in {"TestTags", "DefaultTags", "ForceTags"}:
+                detail = {
+                    "TestTags": "Test Tags",
+                    "DefaultTags": "Default Tags",
+                    "ForceTags": "Force Tags",
+                }.get(item_type, item_type)
                 for tag in getattr(item, "values", ()) or ():
                     symbols.append(
                         {
