@@ -8,6 +8,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+
 from robot_studio.application.services.index_service import IndexService
 from robot_studio.application.services.language_service import LanguageFacade
 from robot_studio.application.services.workspace_context import WorkspaceContext
@@ -504,6 +505,14 @@ async def test_rebuild_search_definition_references(index_stack) -> None:
     hover = await facade.hover(name="Login User")
     assert hover is not None
     assert "Logs the user in" in hover["documentation"]
+    assert hover["detail_kind"] == "signature"
+    assert "username" in hover["detail"]
+
+    case_hover = await facade.hover(name="Verify Login")
+    assert case_hover is not None
+    assert case_hover["kind"] == "test_case"
+    assert case_hover["detail_kind"] == "annotation"
+    assert str(case_hover["detail"]).startswith("test case")
 
     refs = await facade.references(name="Login User")
     assert any(ref["file_path"] == str(suite) for ref in refs)

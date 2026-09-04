@@ -381,7 +381,10 @@ class EditorShellController {
         notify();
         return;
       }
-      final argChips = _argumentChipsFromHoverDetail(hover.detail);
+      final argChips = _argumentChipsFromHoverDetail(
+        hover.detail,
+        detailKind: hover.detailKind,
+      );
       if (argChips.isNotEmpty) {
         hoverTooltip = SignatureHelpInfo(
           keyword: hover.name,
@@ -863,15 +866,21 @@ class EditorShellController {
   /// True when [detail] looks like keyword args (`a, b=1`), not a section label.
   @visibleForTesting
   static List<SignatureParameterInfo> argumentChipsFromHoverDetail(
-    String detail,
-  ) => _argumentChipsFromHoverDetail(detail);
+    String detail, {
+    String detailKind = '',
+  }) => _argumentChipsFromHoverDetail(detail, detailKind: detailKind);
 
   static List<SignatureParameterInfo> _argumentChipsFromHoverDetail(
-    String detail,
-  ) {
+    String detail, {
+    String detailKind = '',
+  }) {
     final trimmed = detail.trim();
     if (trimmed.isEmpty) return const [];
-    // Section / kind labels from the parser (and tag annotations).
+    if (detailKind == 'annotation') return const [];
+    if (detailKind == 'signature') {
+      return parametersFromDetail(trimmed);
+    }
+    // Compat for payloads that predate ``detail_kind``.
     final lower = trimmed.toLowerCase();
     if (lower == 'test case' ||
         lower == 'test cases' ||

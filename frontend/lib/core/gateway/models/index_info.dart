@@ -244,6 +244,7 @@ class HoverInfo {
     required this.line,
     this.documentation = '',
     this.detail = '',
+    this.detailKind = '',
     this.id = '',
   });
 
@@ -255,6 +256,7 @@ class HoverInfo {
       line: (json['line'] as num?)?.toInt() ?? 1,
       documentation: json['documentation'] as String? ?? '',
       detail: json['detail'] as String? ?? '',
+      detailKind: json['detail_kind'] as String? ?? '',
       id: json['id'] as String? ?? '',
     );
   }
@@ -265,5 +267,8 @@ class HoverInfo {
   final int line;
   final String documentation;
   final String detail;
+
+  /// `signature` = keyword args; `annotation` = section/kind/tag label.
+  final String detailKind;
   final String id;
 }

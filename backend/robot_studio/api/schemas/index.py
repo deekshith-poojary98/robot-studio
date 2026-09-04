@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from pydantic import BaseModel, Field
+
 from robot_studio.domain.models import IndexStatus
 
 
@@ -56,6 +57,8 @@ class HoverResponse(BaseModel):
     line: int = 1
     documentation: str = ""
     detail: str = ""
+    # ``signature`` = keyword args; ``annotation`` = section/kind/tag label.
+    detail_kind: str = ""
     id: str = ""
 
 

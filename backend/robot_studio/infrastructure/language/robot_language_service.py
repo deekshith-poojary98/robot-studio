@@ -117,6 +117,56 @@ _SECTION_HEADERS = SECTION_HEADERS
 _AUTOMATIC_VARIABLE_NAMES = AUTOMATIC_VARIABLE_NAMES
 _CONTINUATION_MARKER = CONTINUATION_MARKER
 
+_SECTION_HOVER_LABELS = frozenset(
+    {
+        "test case",
+        "test cases",
+        "task",
+        "tasks",
+        "keyword",
+        "keywords",
+    },
+)
+_SECTION_HOVER_PREFIXES = ("test case|", "test cases|", "task|", "tasks|")
+
+
+def _classify_hover_detail(kind: str, detail: str) -> str:
+    """``signature`` is keyword args; ``annotation`` is a section/kind label."""
+    if (kind or "").casefold() != SymbolKind.KEYWORD.value:
+        return "annotation"
+    text = (detail or "").strip()
+    if not text:
+        return "annotation"
+    lower = text.casefold()
+    if lower in _SECTION_HOVER_LABELS or lower.startswith(_SECTION_HOVER_PREFIXES):
+        return "annotation"
+    return "signature"
+
+
+def _hover_payload(
+    *,
+    name: object,
+    kind: object,
+    file_path: object,
+    line: object,
+    documentation: str = "",
+    detail: str = "",
+    symbol_id: str = "",
+    detail_kind: str | None = None,
+) -> dict[str, Any]:
+    kind_text = str(kind or "")
+    detail_text = str(detail or "")
+    return {
+        "name": name,
+        "kind": kind_text,
+        "file_path": file_path,
+        "line": line,
+        "documentation": documentation,
+        "detail": detail_text,
+        "id": symbol_id,
+        "detail_kind": detail_kind or _classify_hover_detail(kind_text, detail_text),
+    }
+
 
 @dataclass
 class RobotLanguageService(LanguageService):
@@ -483,9 +533,10 @@ class RobotLanguageService(LanguageService):
         if symbol is not None:
             detail = str(symbol.get("detail") or "")
             documentation = str(symbol.get("documentation") or "")
+            kind = str(symbol.get("kind") or "")
             # Open-buffer keywords may be newer than the last index pass —
             # prefer live [Arguments] / [Documentation] when available.
-            if content and str(symbol.get("kind") or "") == SymbolKind.KEYWORD.value:
+            if content and kind == SymbolKind.KEYWORD.value:
                 live = await self._live_keyword_fields(
                     content,
                     file_path,
@@ -494,15 +545,15 @@ class RobotLanguageService(LanguageService):
                 if live is not None:
                     detail = str(live.get("detail") or detail)
                     documentation = str(live.get("documentation") or documentation)
-            return {
-                "name": symbol["name"],
-                "kind": symbol["kind"],
-                "file_path": symbol["file_path"],
-                "line": symbol["line"],
-                "documentation": documentation,
-                "detail": detail,
-                "id": symbol["id"],
-            }
+            return _hover_payload(
+                name=symbol["name"],
+                kind=kind,
+                file_path=symbol["file_path"],
+                line=symbol["line"],
+                documentation=documentation,
+                detail=detail,
+                symbol_id=str(symbol.get("id") or ""),
+            )
 
         # Env / library keywords are not in the workspace index.
         name = str(request.get("name") or request.get("symbol") or "").strip()
@@ -531,15 +582,15 @@ class RobotLanguageService(LanguageService):
                 for item in parameters
                 if item.get("label")
             )
-            return {
-                "name": str(env_info.get("name") or name),
-                "kind": SymbolKind.KEYWORD.value,
-                "file_path": file_path,
-                "line": line,
-                "documentation": str(env_info.get("documentation") or ""),
-                "detail": detail,
-                "id": "",
-            }
+            return _hover_payload(
+                name=str(env_info.get("name") or name),
+                kind=SymbolKind.KEYWORD.value,
+                file_path=file_path,
+                line=line,
+                documentation=str(env_info.get("documentation") or ""),
+                detail=detail,
+                detail_kind="signature",
+            )
 
         for library_name in self._imported_libraries(content, file_path):
             if library_name.casefold() != name.casefold():
@@ -547,19 +598,19 @@ class RobotLanguageService(LanguageService):
             resolved = await self.library_catalog().get_library(library_name)
             if resolved is None:
                 continue
-            return {
-                "name": resolved.name or library_name,
-                "kind": SymbolKind.LIBRARY.value,
-                "file_path": file_path,
-                "line": line,
-                "documentation": resolved.documentation
+            return _hover_payload(
+                name=resolved.name or library_name,
+                kind=SymbolKind.LIBRARY.value,
+                file_path=file_path,
+                line=line,
+                documentation=resolved.documentation
                 or (
                     f"Library available in the active environment "
                     f"({resolved.keyword_count} keywords)."
                 ),
-                "detail": resolved.name or library_name,
-                "id": "",
-            }
+                detail=resolved.name or library_name,
+                detail_kind="annotation",
+            )
         return None
 
     async def diagnostics(self, request: dict) -> list[dict]:

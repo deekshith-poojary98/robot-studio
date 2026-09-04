@@ -270,6 +270,7 @@ def _hover_response(result: dict) -> HoverResponse:
         line=int(result.get("line") or 1),
         documentation=result.get("documentation") or "",
         detail=result.get("detail") or "",
+        detail_kind=str(result.get("detail_kind") or ""),
         id=result.get("id") or "",
     )
 

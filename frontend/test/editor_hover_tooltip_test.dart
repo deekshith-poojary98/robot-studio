@@ -262,12 +262,20 @@ void main() {
       isEmpty,
     );
     expect(
+      EditorShellController.argumentChipsFromHoverDetail(
+        'test case|tags:smoke,critical',
+        detailKind: 'annotation',
+      ),
+      isEmpty,
+    );
+    expect(
       EditorShellController.argumentChipsFromHoverDetail(r'${path}'),
       isNotEmpty,
     );
     expect(
       EditorShellController.argumentChipsFromHoverDetail(
         r'${username}, ${password}=secret',
+        detailKind: 'signature',
       ),
       hasLength(2),
     );

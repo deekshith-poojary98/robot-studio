@@ -902,6 +902,7 @@ def _name_to_hover(name: Any, *, fallback_path: str) -> dict[str, Any]:
         "documentation": doc,
         "detail": detail,
         "id": "",
+        "detail_kind": "annotation",
     }
 
 
