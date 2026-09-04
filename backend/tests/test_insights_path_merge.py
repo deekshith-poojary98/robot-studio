@@ -198,6 +198,153 @@ def test_aggregate_fans_out_project_run_from_file_outcomes(
     assert by_path[b].runs == 1 and by_path[b].passed == 0 and by_path[b].failed == 1
 
 
+def test_aggregate_prefers_file_outcomes_over_sole_robot(tmp_path) -> None:
+    """A one-file project must not ignore file_outcomes and credit the run badge."""
+    robot = str(tmp_path / "only.robot")
+    output_dir = tmp_path / "Run-1"
+    output_dir.mkdir()
+    (output_dir / "file_outcomes.json").write_text(
+        json.dumps({"files": {robot: "PASS"}}),
+        encoding="utf-8",
+    )
+    runs = [
+        ExecutionRun(
+            id=uuid4(),
+            workspace_id=uuid4(),
+            project_id=uuid4(),
+            environment_id=uuid4(),
+            project_name="Demo",
+            suite="Project: Demo",
+            status=ExecutionStatus.FAILED,
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+            duration_ms=400,
+            exit_code=1,
+            passed=0,
+            failed=1,
+            output_dir=output_dir,
+        ),
+    ]
+    composition = [FileComposition(file_path=robot, counts={"test_case": 1})]
+
+    _totals, _recent, files = _aggregate_runs(
+        runs,
+        recent_limit=10,
+        composition_files=composition,
+    )
+
+    assert len(files) == 1
+    assert files[0].file_path == robot
+    assert files[0].passed == 1
+    assert files[0].failed == 0
+
+
+def test_aggregate_credits_sole_robot_when_outcomes_missing() -> None:
+    robot = "/proj/only.robot"
+    runs = [
+        ExecutionRun(
+            id=uuid4(),
+            workspace_id=uuid4(),
+            project_id=uuid4(),
+            environment_id=uuid4(),
+            project_name="Demo",
+            suite="Project: Demo",
+            status=ExecutionStatus.FAILED,
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+            duration_ms=400,
+            exit_code=1,
+            passed=0,
+            failed=1,
+        ),
+    ]
+    composition = [FileComposition(file_path=robot, counts={"test_case": 1})]
+
+    _totals, _recent, files = _aggregate_runs(
+        runs,
+        recent_limit=10,
+        composition_files=composition,
+    )
+
+    assert len(files) == 1
+    assert files[0].file_path == robot
+    assert files[0].failed == 1
+    assert files[0].runs == 1
+
+
+def test_aggregate_builds_outcomes_for_every_cache_miss(tmp_path) -> None:
+    a = str(tmp_path / "a.robot")
+    b = str(tmp_path / "b.robot")
+
+    def _xml(output_dir, a_status: str, b_status: str) -> None:
+        output_dir.mkdir()
+        (output_dir / "output.xml").write_text(
+            "<?xml version='1.0'?>\n"
+            "<robot><suite id='s1' name='Root'>\n"
+            f"<suite id='s1-s1' name='A' source='{a}'>"
+            f"<status status='{a_status}'/></suite>\n"
+            f"<suite id='s1-s2' name='B' source='{b}'>"
+            f"<status status='{b_status}'/></suite>\n"
+            "<status status='FAIL'/></suite></robot>\n",
+            encoding="utf-8",
+        )
+
+    first = tmp_path / "Run-1"
+    second = tmp_path / "Run-2"
+    _xml(first, "PASS", "FAIL")
+    _xml(second, "PASS", "PASS")
+    runs = [
+        ExecutionRun(
+            id=uuid4(),
+            workspace_id=uuid4(),
+            project_id=uuid4(),
+            environment_id=uuid4(),
+            project_name="Demo",
+            suite="Project: Demo",
+            status=ExecutionStatus.FAILED,
+            started_at=datetime.now(UTC) - timedelta(minutes=2),
+            finished_at=datetime.now(UTC) - timedelta(minutes=2),
+            duration_ms=200,
+            exit_code=1,
+            passed=1,
+            failed=1,
+            output_dir=first,
+        ),
+        ExecutionRun(
+            id=uuid4(),
+            workspace_id=uuid4(),
+            project_id=uuid4(),
+            environment_id=uuid4(),
+            project_name="Demo",
+            suite="Project: Demo",
+            status=ExecutionStatus.FINISHED,
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+            duration_ms=200,
+            exit_code=0,
+            passed=2,
+            failed=0,
+            output_dir=second,
+        ),
+    ]
+    composition = [
+        FileComposition(file_path=a, counts={"test_case": 1}),
+        FileComposition(file_path=b, counts={"test_case": 1}),
+    ]
+
+    _totals, _recent, files = _aggregate_runs(
+        runs,
+        recent_limit=10,
+        composition_files=composition,
+    )
+
+    by_path = {item.file_path: item for item in files}
+    assert by_path[a].runs == 2 and by_path[a].passed == 2
+    assert by_path[b].runs == 2 and by_path[b].passed == 1 and by_path[b].failed == 1
+    assert (first / "file_outcomes.json").is_file()
+    assert (second / "file_outcomes.json").is_file()
+
+
 def test_aggregate_excludes_empty_runs_from_pass_rate() -> None:
     suite = "/proj/tests/demo.robot"
     runs = [

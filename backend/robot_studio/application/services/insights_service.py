@@ -21,7 +21,6 @@ from robot_studio.domain.models.insights import (
     RunOutcomeTotals,
 )
 from robot_studio.infrastructure.execution.output_stats import (
-    load_cached_file_outcomes,
     load_or_build_file_outcomes,
 )
 from robot_studio.infrastructure.repositories.execution_repository import (
@@ -254,7 +253,6 @@ class InsightsService:
             runs,
             recent_limit=recent_limit,
             composition_files=composition_files,
-            max_xml_builds=1,
         )
 
         index_status = await self.index_store.status(workspace.id)
@@ -283,14 +281,12 @@ def _aggregate_runs(
     *,
     recent_limit: int,
     composition_files: list[FileComposition] | None = None,
-    max_xml_builds: int = 1,
 ) -> tuple[RunOutcomeTotals, list[InsightsRecentRun], list[FileRunStats]]:
     passed = failed = cancelled = aborted = 0
     skipped_tests = 0
     durations: list[int] = []
     recent: list[InsightsRecentRun] = []
     by_file: dict[str, dict] = defaultdict(_empty_file_bucket)
-    xml_builds_left = max(0, int(max_xml_builds))
 
     composition_paths = [item.file_path for item in (composition_files or [])]
     robot_files = [
@@ -298,17 +294,6 @@ def _aggregate_runs(
         for item in (composition_files or [])
         if str(item.file_path).lower().endswith(".robot")
     ]
-    sole_robot = robot_files[0] if len(robot_files) == 1 else None
-
-    def _file_outcomes_for(run: ExecutionRun) -> dict[str, str]:
-        nonlocal xml_builds_left
-        cached = load_cached_file_outcomes(run.output_dir)
-        if cached:
-            return cached
-        if xml_builds_left <= 0:
-            return {}
-        xml_builds_left -= 1
-        return load_or_build_file_outcomes(run.output_dir)
 
     for run in runs:
         outcome = _run_outcome(run)
@@ -349,14 +334,10 @@ def _aggregate_runs(
 
         path = _file_suite_key(run.suite)
         if path is None and _is_multi_file_label(run.suite):
-            if sole_robot is not None:
-                path = sole_robot
-            else:
-                # Full-suite Project/Tag/Selected runs: credit each leaf .robot
-                # from output.xml (cached as file_outcomes.json).
-                file_outcomes = _file_outcomes_for(run)
-                if not file_outcomes:
-                    continue
+            # Project/Tag/Selected runs: credit each leaf .robot from the
+            # canonical sidecar (built from output.xml when missing).
+            file_outcomes = load_or_build_file_outcomes(run.output_dir)
+            if file_outcomes:
                 for source, status in file_outcomes.items():
                     file_path = _canonicalize_run_file(source, composition_paths)
                     file_outcome = _file_status_to_outcome(
@@ -369,6 +350,10 @@ def _aggregate_runs(
                         outcome=file_outcome,
                     )
                 continue
+            if len(robot_files) == 1:
+                path = robot_files[0]
+            else:
+                continue
         if not path:
             continue
         path = _canonicalize_run_file(path, composition_paths)
@@ -378,7 +363,7 @@ def _aggregate_runs(
 
     # If composition was empty but every file-scoped run points at one suite,
     # fold Project:/Tag:/Selected runs into that sole file.
-    if len(by_file) == 1 and sole_robot is None:
+    if len(by_file) == 1 and len(robot_files) != 1:
         only_path = next(iter(by_file))
         only_bucket = by_file[only_path]
         for run in runs:
@@ -387,7 +372,7 @@ def _aggregate_runs(
             if not _is_multi_file_label(run.suite):
                 continue
             # Prefer xml fan-out when available so we do not double-count.
-            if _file_outcomes_for(run):
+            if load_or_build_file_outcomes(run.output_dir):
                 continue
             outcome = _run_outcome(run)
             _credit_file_bucket(only_bucket, run=run, outcome=outcome)

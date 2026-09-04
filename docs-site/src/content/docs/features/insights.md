@@ -13,7 +13,7 @@ Run health is computed from the same run history as [Reports](/workflows/reports
 
 Once you have executed suites, the left panel (top on a narrow window) is the primary surface. Numbers are about **runs** (each time you pressed Run), not individual test cases — so a suite with 4 passes and 2 fails still counts as one **Failed** run.
 
-**Project** / **Tag** / multi-select runs still count once in the headline strip. In the **Files** table they are broken out per `.robot` file using that run’s `output.xml`, so a full-project pass shows **Pass = 1** on each file that ran (not zero).
+**Project** / **Tag** / multi-select runs still count once in the headline strip. In the **Files** table they are broken out per `.robot` file from that run’s saved file outcomes (`file_outcomes.json`, built from `output.xml` when missing), so a full-project pass shows **Pass = 1** on each file that ran (not zero).
 
 ### Headline strip
 
