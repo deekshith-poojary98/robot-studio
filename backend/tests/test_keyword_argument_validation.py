@@ -73,6 +73,26 @@ def test_validate_kwargs_absorb_unknown_named() -> None:
     assert validate_keyword_arguments(meta, ["name=n", "extra=1"]) == []
 
 
+def test_validate_create_dictionary_accepts_free_named() -> None:
+    """Libdoc is ``*items`` only; RF still allows ``key=value`` entries."""
+    meta = _kw(
+        ParameterMetadata(name="items", required=False, kind="var_positional"),
+        name="Create Dictionary",
+    )
+    assert (
+        validate_keyword_arguments(
+            meta,
+            [
+                "id=${KNOWN_POST_ID}",
+                "title=updated via put",
+                "body=full replacement body",
+                "userId=${KNOWN_USER_ID}",
+            ],
+        )
+        == []
+    )
+
+
 def test_validate_ok_named_and_positional() -> None:
     meta = _kw(
         ParameterMetadata(name="first", required=True),
