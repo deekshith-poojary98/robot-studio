@@ -302,7 +302,7 @@ async def test_hover_assignment_equals_and_extended_variable(index_stack) -> Non
 
 @pytest.mark.asyncio
 async def test_hover_variables_py_import(index_stack) -> None:
-    service, _store, facade, suite, _lib, _bus, workspace, project = index_stack
+    service, store, facade, suite, _lib, _bus, workspace, project = index_stack
     env = suite.parent / "env.py"
     env.write_text("KNOWN_COMMENT_ID = 42\n", encoding="utf-8")
     content = (
@@ -325,6 +325,17 @@ async def test_hover_variables_py_import(index_stack) -> None:
         workspace_id=workspace.id,
         project_id=project.id,
         force=True,
+    )
+    indexed = await store.search_symbols(
+        query="${KNOWN_COMMENT_ID}",
+        workspace_id=workspace.id,
+        project_id=project.id,
+        kind=SymbolKind.VARIABLE,
+    )
+    assert any(
+        item["name"] == "${KNOWN_COMMENT_ID}"
+        and Path(item["file_path"]).name == "env.py"
+        for item in indexed
     )
     usage = content.splitlines()[5]
     known_col = usage.index("${KNOWN_COMMENT_ID}") + 2

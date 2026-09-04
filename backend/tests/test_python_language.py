@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from robot_studio.domain.interfaces.completion import CompletionRequestContext
 from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.infrastructure.indexing.python_indexer import PythonLibraryIndexer
@@ -144,6 +145,7 @@ def test_python_indexer_emits_snake_case_and_class() -> None:
     assert (SymbolKind.KEYWORD.value, "get_user") in kinds
     assert (SymbolKind.KEYWORD.value, "helper") in kinds
     assert (SymbolKind.VARIABLE.value, "BASE_URL") in kinds
+    assert (SymbolKind.VARIABLE.value, "${BASE_URL}") in kinds
     assert (SymbolKind.KEYWORD.value, "get user") in kinds
 
 

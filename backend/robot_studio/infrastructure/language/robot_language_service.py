@@ -1162,7 +1162,7 @@ class RobotLanguageService(LanguageService):
             [str(name)] if on_tag_value else self._symbol_lookup_names(str(name))
         )
         # RF variable tokens (${x}) must not resolve to a same-named keyword /
-        # resource. Python ``Variables`` modules are indexed as bare names.
+        # resource. Python / YAML Variables files are indexed as ${NAME}.
         rf_display = next(
             (n for n in lookup_names if re.match(r"^[\$@&%]\{.+\}$", n)),
             None,
@@ -1185,7 +1185,7 @@ class RobotLanguageService(LanguageService):
                 break
         if symbols:
             hit = symbols[0]
-            # Present Python-indexed ``KNOWN_ID`` as ``${KNOWN_ID}`` in RF buffers.
+            # Older indexes may still store the bare Python name.
             if (
                 rf_display is not None
                 and not re.match(r"^[\$@&%]\{", str(hit.get("name") or ""))
@@ -2089,8 +2089,7 @@ class RobotLanguageService(LanguageService):
 
         Assignment cells (``${x}=``) and RF extended syntax (``${x}[id]``,
         ``${x.json()}``) must resolve to the declared variable ``${x}``.
-        Python ``Variables`` modules are indexed as bare identifiers
-        (``KNOWN_ID``), so those forms are tried last.
+        Bare names are tried last for older indexes and Python-editor search.
         """
         raw = str(name or "").strip()
         if not raw:

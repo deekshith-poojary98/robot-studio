@@ -134,19 +134,36 @@ class PythonLibraryIndexer:
                 for name in self._assignment_names(node):
                     if name.startswith("_"):
                         continue
+                    line_no = int(getattr(node, "lineno", 1) or 1)
+                    # Canonical RF identity (${NAME}) plus bare name for Python search.
+                    display = name if name.startswith(("${", "@{", "&{", "%{")) else f"${{{name}}}"
                     symbols.append(
                         IndexedSymbol(
-                            id=_sid(SymbolKind.VARIABLE.value, path, name, getattr(node, "lineno", 1)),
-                            name=name,
+                            id=_sid(SymbolKind.VARIABLE.value, path, display, line_no),
+                            name=display,
                             kind=SymbolKind.VARIABLE.value,
                             file_path=path,
-                            line=int(getattr(node, "lineno", 1) or 1),
+                            line=line_no,
                             project_id=project_id,
                             workspace_id=workspace_id,
                             detail="python",
                             last_modified=mtime,
                         ),
                     )
+                    if display != name:
+                        symbols.append(
+                            IndexedSymbol(
+                                id=_sid(SymbolKind.VARIABLE.value, path, name, line_no),
+                                name=name,
+                                kind=SymbolKind.VARIABLE.value,
+                                file_path=path,
+                                line=line_no,
+                                project_id=project_id,
+                                workspace_id=workspace_id,
+                                detail="python",
+                                last_modified=mtime,
+                            ),
+                        )
         return symbols
 
     def _keyword_symbol(
