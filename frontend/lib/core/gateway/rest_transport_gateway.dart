@@ -616,56 +616,22 @@ class RestTransportGateway implements TransportGateway {
     int? column,
     String? content,
   }) async {
-    // Buffer-backed definition (Python packages / Jedi) must POST — a GET
-    // query cannot carry the file. Uvicorn rejects oversized request lines as
+    // Always POST. GET /definition is name-only compat and cannot carry a
+    // buffer — uvicorn rejects oversized request lines as
     // "Invalid HTTP request received."
-    if (content != null && content.isNotEmpty) {
-      final response = await _client
-          .post(
-            Uri.parse('$baseUrl/language/definition'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'file_path': filePath ?? '',
-              'line': line ?? 1,
-              'column': column ?? 1,
-              'content': content,
-              'name': ?name,
-              'symbol_id': ?symbolId,
-              'kind': ?kind?.apiValue,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-      if (response.statusCode == 200 &&
-          (response.body.isEmpty || response.body == 'null')) {
-        return null;
-      }
-      final decoded = _decode(response);
-      return IndexedSymbolInfo.fromJson(decoded);
-    }
-
-    final params = <String>[];
-    if (name != null) params.add('name=${Uri.encodeQueryComponent(name)}');
-    if (symbolId != null) {
-      params.add('symbol_id=${Uri.encodeQueryComponent(symbolId)}');
-    }
-    if (kind != null) {
-      params.add('kind=${Uri.encodeQueryComponent(kind.apiValue)}');
-    }
-    if (filePath != null) {
-      params.add('file=${Uri.encodeQueryComponent(filePath)}');
-    }
-    if (line != null) params.add('line=$line');
-    if (column != null) params.add('column=$column');
-    final response = await _client
-        .get(Uri.parse('$baseUrl/language/definition?${params.join('&')}'))
-        .timeout(const Duration(seconds: 30));
-    if (response.statusCode == 200 && response.body.isEmpty) {
-      return null;
-    }
-    if (response.statusCode == 200 && response.body == 'null') {
-      return null;
-    }
-    final decoded = _decode(response);
+    final decoded = await _postOptional(
+      '/language/definition',
+      body: _languageLookupBody(
+        name: name,
+        symbolId: symbolId,
+        kind: kind,
+        filePath: filePath,
+        line: line,
+        column: column,
+        content: content,
+      ),
+    );
+    if (decoded == null) return null;
     return IndexedSymbolInfo.fromJson(decoded);
   }
 
@@ -679,43 +645,20 @@ class RestTransportGateway implements TransportGateway {
     int? column,
     String? content,
   }) async {
-    if (content != null && content.isNotEmpty) {
-      final response = await _post(
-        '/language/references',
-        body: {
-          'file_path': filePath ?? '',
-          'line': line ?? 1,
-          'column': column ?? 1,
-          'content': content,
-          'name': ?name,
-          'symbol_id': ?symbolId,
-          'kind': ?kind?.apiValue,
-        },
-      );
-      final items = response['references'] as List<dynamic>? ?? [];
-      return items
-          .map(
-            (item) =>
-                SymbolReferenceInfo.fromJson(item as Map<String, dynamic>),
-          )
-          .toList();
-    }
-
-    final params = <String>[];
-    if (name != null) params.add('name=${Uri.encodeQueryComponent(name)}');
-    if (symbolId != null) {
-      params.add('symbol_id=${Uri.encodeQueryComponent(symbolId)}');
-    }
-    if (kind != null) {
-      params.add('kind=${Uri.encodeQueryComponent(kind.apiValue)}');
-    }
-    if (filePath != null) {
-      params.add('file=${Uri.encodeQueryComponent(filePath)}');
-    }
-    if (line != null) params.add('line=$line');
-    if (column != null) params.add('column=$column');
-    final response = await _get('/language/references?${params.join('&')}');
-    final items = response['references'] as List<dynamic>;
+    final response = await _post(
+      '/language/references',
+      timeout: const Duration(seconds: 30),
+      body: _languageLookupBody(
+        name: name,
+        symbolId: symbolId,
+        kind: kind,
+        filePath: filePath,
+        line: line,
+        column: column,
+        content: content,
+      ),
+    );
+    final items = response['references'] as List<dynamic>? ?? [];
     return items
         .map(
           (item) => SymbolReferenceInfo.fromJson(item as Map<String, dynamic>),
@@ -733,53 +676,20 @@ class RestTransportGateway implements TransportGateway {
     int? column,
     String? content,
   }) async {
-    // Buffer-backed hover (Python builtins, locals) must POST — a GET query
-    // cannot carry the file. Name-only lookups still use GET.
-    if (content != null && content.isNotEmpty) {
-      final response = await _client
-          .post(
-            Uri.parse('$baseUrl/language/hover'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'file_path': filePath ?? '',
-              'line': line ?? 1,
-              'column': column ?? 1,
-              'content': content,
-              'name': ?name,
-              'symbol_id': ?symbolId,
-              'kind': ?kind?.apiValue,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-      if (response.statusCode == 200 &&
-          (response.body.isEmpty || response.body == 'null')) {
-        return null;
-      }
-      final decoded = _decode(response);
-      return HoverInfo.fromJson(decoded);
-    }
-
-    final params = <String>[];
-    if (name != null) params.add('name=${Uri.encodeQueryComponent(name)}');
-    if (symbolId != null) {
-      params.add('symbol_id=${Uri.encodeQueryComponent(symbolId)}');
-    }
-    if (kind != null) {
-      params.add('kind=${Uri.encodeQueryComponent(kind.apiValue)}');
-    }
-    if (filePath != null) {
-      params.add('file=${Uri.encodeQueryComponent(filePath)}');
-    }
-    if (line != null) params.add('line=$line');
-    if (column != null) params.add('column=$column');
-    final response = await _client
-        .get(Uri.parse('$baseUrl/language/hover?${params.join('&')}'))
-        .timeout(const Duration(seconds: 30));
-    if (response.statusCode == 200 &&
-        (response.body.isEmpty || response.body == 'null')) {
-      return null;
-    }
-    final decoded = _decode(response);
+    // Always POST. GET /hover is name-only compat and cannot carry a buffer.
+    final decoded = await _postOptional(
+      '/language/hover',
+      body: _languageLookupBody(
+        name: name,
+        symbolId: symbolId,
+        kind: kind,
+        filePath: filePath,
+        line: line,
+        column: column,
+        content: content,
+      ),
+    );
+    if (decoded == null) return null;
     return HoverInfo.fromJson(decoded);
   }
 
@@ -1435,6 +1345,45 @@ class RestTransportGateway implements TransportGateway {
     }
     if (decoded is List<dynamic>) return decoded;
     throw GatewayException('Expected JSON array from $path');
+  }
+
+  Map<String, dynamic> _languageLookupBody({
+    String? name,
+    String? symbolId,
+    SymbolKind? kind,
+    String? filePath,
+    int? line,
+    int? column,
+    String? content,
+  }) {
+    return {
+      'file_path': filePath ?? '',
+      'line': line ?? 1,
+      'column': column ?? 1,
+      'content': content ?? '',
+      'name': ?name,
+      'symbol_id': ?symbolId,
+      'kind': ?kind?.apiValue,
+    };
+  }
+
+  Future<Map<String, dynamic>?> _postOptional(
+    String path, {
+    required Map<String, dynamic> body,
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse('$baseUrl$path'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(timeout);
+    if (response.statusCode == 200 &&
+        (response.body.isEmpty || response.body == 'null')) {
+      return null;
+    }
+    return _decode(response);
   }
 
   Future<Map<String, dynamic>> _post(

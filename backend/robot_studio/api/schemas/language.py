@@ -119,7 +119,7 @@ class SignatureHelpRequest(BaseModel):
 
 
 class HoverRequest(BaseModel):
-    """Buffer-backed hover. GET /hover is name-only and cannot carry a file."""
+    """Canonical hover body. GET /hover is name-only and cannot carry a file."""
 
     file_path: str = ""
     line: int = 1
@@ -131,7 +131,7 @@ class HoverRequest(BaseModel):
 
 
 class DefinitionRequest(BaseModel):
-    """Buffer-backed go-to-definition. GET cannot carry a Python/Robot buffer."""
+    """Canonical go-to-definition body. GET cannot carry a Python/Robot buffer."""
 
     file_path: str = ""
     line: int = 1
@@ -143,7 +143,7 @@ class DefinitionRequest(BaseModel):
 
 
 class ReferencesRequest(BaseModel):
-    """Buffer-backed find-references. GET cannot carry a Python/Robot buffer."""
+    """Canonical find-references body. GET cannot carry a Python/Robot buffer."""
 
     file_path: str = ""
     line: int = 1

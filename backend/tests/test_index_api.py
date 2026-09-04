@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.core.config import settings
@@ -103,6 +104,20 @@ async def test_index_search_language_api(api_client) -> None:
     )
     assert hover.status_code == 200
     assert "Hi" in hover.json()["documentation"]
+
+    posted_hover = await client.post(
+        "/api/v1/language/hover",
+        json={"name": "Hello World"},
+    )
+    assert posted_hover.status_code == 200
+    assert posted_hover.json()["documentation"] == hover.json()["documentation"]
+
+    posted_definition = await client.post(
+        "/api/v1/language/definition",
+        json={"name": "Hello World"},
+    )
+    assert posted_definition.status_code == 200
+    assert posted_definition.json()["name"] == definition.json()["name"]
 
     refs = await client.get(
         "/api/v1/language/references",

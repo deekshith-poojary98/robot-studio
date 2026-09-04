@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.index import (
@@ -39,23 +40,23 @@ router = APIRouter(prefix="/language", tags=["language"])
 GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
-@router.get("/definition", response_model=SymbolResponse | None)
-async def language_definition(
-    gateway: GatewayDep,
-    name: Annotated[str | None, Query()] = None,
-    symbol_id: Annotated[str | None, Query()] = None,
-    kind: Annotated[str | None, Query()] = None,
-    file: Annotated[str | None, Query()] = None,
-    line: Annotated[int | None, Query()] = None,
-    column: Annotated[int | None, Query()] = None,
-    content: Annotated[str | None, Query()] = None,
+async def _definition_result(
+    gateway: RestGateway,
+    *,
+    name: str | None,
+    symbol_id: str | None,
+    kind: str | None,
+    file_path: str | None,
+    line: int | None,
+    column: int | None,
+    content: str | None,
 ) -> SymbolResponse | None:
     try:
         result = await gateway.language_definition(
             name=name,
             symbol_id=symbol_id,
             kind=kind,
-            file_path=file,
+            file_path=file_path,
             line=line,
             column=column,
             content=content,
@@ -67,27 +68,71 @@ async def language_definition(
     return to_symbol_response(result)
 
 
+@router.get("/definition", response_model=SymbolResponse | None)
+async def language_definition(
+    gateway: GatewayDep,
+    name: Annotated[str | None, Query()] = None,
+    symbol_id: Annotated[str | None, Query()] = None,
+    kind: Annotated[str | None, Query()] = None,
+    file: Annotated[str | None, Query()] = None,
+    line: Annotated[int | None, Query()] = None,
+    column: Annotated[int | None, Query()] = None,
+) -> SymbolResponse | None:
+    """Name/index lookup. Send a live buffer with POST — GET cannot carry a file."""
+    return await _definition_result(
+        gateway,
+        name=name,
+        symbol_id=symbol_id,
+        kind=kind,
+        file_path=file,
+        line=line,
+        column=column,
+        content=None,
+    )
+
+
 @router.post("/definition", response_model=SymbolResponse | None)
 async def language_definition_at(
     body: DefinitionRequest,
     gateway: GatewayDep,
 ) -> SymbolResponse | None:
-    """Go to definition with the live buffer in the body — GET cannot carry a file."""
+    """Canonical go-to-definition (index and/or live buffer)."""
+    return await _definition_result(
+        gateway,
+        name=body.name,
+        symbol_id=body.symbol_id,
+        kind=body.kind,
+        file_path=body.file_path or None,
+        line=body.line,
+        column=body.column,
+        content=body.content or None,
+    )
+
+
+async def _references_result(
+    gateway: RestGateway,
+    *,
+    name: str | None,
+    symbol_id: str | None,
+    kind: str | None,
+    file_path: str | None,
+    line: int | None,
+    column: int | None,
+    content: str | None,
+) -> ReferenceListResponse:
     try:
-        result = await gateway.language_definition(
-            name=body.name,
-            symbol_id=body.symbol_id,
-            kind=body.kind,
-            file_path=body.file_path or None,
-            line=body.line,
-            column=body.column,
-            content=body.content or None,
+        refs = await gateway.language_references(
+            name=name,
+            symbol_id=symbol_id,
+            kind=kind,
+            file_path=file_path,
+            line=line,
+            column=column,
+            content=content,
         )
     except LanguageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if result is None:
-        return None
-    return to_symbol_response(result)
+    return _references_response(refs)
 
 
 @router.get("/references", response_model=ReferenceListResponse)
@@ -99,21 +144,18 @@ async def language_references(
     file: Annotated[str | None, Query()] = None,
     line: Annotated[int | None, Query()] = None,
     column: Annotated[int | None, Query()] = None,
-    content: Annotated[str | None, Query()] = None,
 ) -> ReferenceListResponse:
-    try:
-        refs = await gateway.language_references(
-            name=name,
-            symbol_id=symbol_id,
-            kind=kind,
-            file_path=file,
-            line=line,
-            column=column,
-            content=content,
-        )
-    except LanguageValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return _references_response(refs)
+    """Name/index lookup. Send a live buffer with POST — GET cannot carry a file."""
+    return await _references_result(
+        gateway,
+        name=name,
+        symbol_id=symbol_id,
+        kind=kind,
+        file_path=file,
+        line=line,
+        column=column,
+        content=None,
+    )
 
 
 @router.post("/references", response_model=ReferenceListResponse)
@@ -121,20 +163,17 @@ async def language_references_at(
     body: ReferencesRequest,
     gateway: GatewayDep,
 ) -> ReferenceListResponse:
-    """Find references with the live buffer in the body — GET cannot carry a file."""
-    try:
-        refs = await gateway.language_references(
-            name=body.name,
-            symbol_id=body.symbol_id,
-            kind=body.kind,
-            file_path=body.file_path or None,
-            line=body.line,
-            column=body.column,
-            content=body.content or None,
-        )
-    except LanguageValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return _references_response(refs)
+    """Canonical find-references (index and/or live buffer)."""
+    return await _references_result(
+        gateway,
+        name=body.name,
+        symbol_id=body.symbol_id,
+        kind=body.kind,
+        file_path=body.file_path or None,
+        line=body.line,
+        column=body.column,
+        content=body.content or None,
+    )
 
 
 def _references_response(refs: list[dict]) -> ReferenceListResponse:
@@ -154,23 +193,23 @@ def _references_response(refs: list[dict]) -> ReferenceListResponse:
     )
 
 
-@router.get("/hover", response_model=HoverResponse | None)
-async def language_hover(
-    gateway: GatewayDep,
-    name: Annotated[str | None, Query()] = None,
-    symbol_id: Annotated[str | None, Query()] = None,
-    kind: Annotated[str | None, Query()] = None,
-    file: Annotated[str | None, Query()] = None,
-    line: Annotated[int | None, Query()] = None,
-    column: Annotated[int | None, Query()] = None,
-    content: Annotated[str | None, Query()] = None,
+async def _hover_result(
+    gateway: RestGateway,
+    *,
+    name: str | None,
+    symbol_id: str | None,
+    kind: str | None,
+    file_path: str | None,
+    line: int | None,
+    column: int | None,
+    content: str | None,
 ) -> HoverResponse | None:
     try:
         result = await gateway.language_hover(
             name=name,
             symbol_id=symbol_id,
             kind=kind,
-            file_path=file,
+            file_path=file_path,
             line=line,
             column=column,
             content=content,
@@ -182,27 +221,45 @@ async def language_hover(
     return _hover_response(result)
 
 
+@router.get("/hover", response_model=HoverResponse | None)
+async def language_hover(
+    gateway: GatewayDep,
+    name: Annotated[str | None, Query()] = None,
+    symbol_id: Annotated[str | None, Query()] = None,
+    kind: Annotated[str | None, Query()] = None,
+    file: Annotated[str | None, Query()] = None,
+    line: Annotated[int | None, Query()] = None,
+    column: Annotated[int | None, Query()] = None,
+) -> HoverResponse | None:
+    """Name/index lookup. Send a live buffer with POST — GET cannot carry a file."""
+    return await _hover_result(
+        gateway,
+        name=name,
+        symbol_id=symbol_id,
+        kind=kind,
+        file_path=file,
+        line=line,
+        column=column,
+        content=None,
+    )
+
+
 @router.post("/hover", response_model=HoverResponse | None)
 async def language_hover_at(
     body: HoverRequest,
     gateway: GatewayDep,
 ) -> HoverResponse | None:
-    """Hover with the live buffer in the body — GET cannot carry a Python file."""
-    try:
-        result = await gateway.language_hover(
-            name=body.name,
-            symbol_id=body.symbol_id,
-            kind=body.kind,
-            file_path=body.file_path or None,
-            line=body.line,
-            column=body.column,
-            content=body.content or None,
-        )
-    except LanguageValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if result is None:
-        return None
-    return _hover_response(result)
+    """Canonical hover (index and/or live buffer)."""
+    return await _hover_result(
+        gateway,
+        name=body.name,
+        symbol_id=body.symbol_id,
+        kind=body.kind,
+        file_path=body.file_path or None,
+        line=body.line,
+        column=body.column,
+        content=body.content or None,
+    )
 
 
 def _hover_response(result: dict) -> HoverResponse:
