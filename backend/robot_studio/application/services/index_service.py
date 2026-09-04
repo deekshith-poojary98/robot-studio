@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sys
 from concurrent.futures import ProcessPoolExecutor
@@ -40,6 +41,7 @@ from robot_studio.infrastructure.repositories.project_repository import (
 
 # Cap process workers so large trees do not thrash disk / RAM.
 _MAX_INDEX_WORKERS = 8
+logger = logging.getLogger(__name__)
 
 
 def _index_worker_count() -> int:
@@ -80,6 +82,7 @@ class IndexService:
     _last_indexed_at: datetime | None = field(default=None, init=False)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     _rebuild_task: asyncio.Task | None = field(default=None, init=False)
+    _finalize_task: asyncio.Task | None = field(default=None, init=False)
     _unsubscribes: list[Subscription] = field(default_factory=list, init=False)
     _stopped: bool = field(default=False, init=False)
 
@@ -112,6 +115,12 @@ class IndexService:
         self.watcher.on_change = None
         if self.watcher.is_running:
             await self.watcher.stop()
+        finalize = self._finalize_task
+        self._finalize_task = None
+        if finalize is not None and not finalize.done():
+            finalize.cancel()
+            with suppress(asyncio.CancelledError):
+                await finalize
         async with self._lock:
             task = self._rebuild_task
             self._rebuild_task = None
@@ -169,7 +178,9 @@ class IndexService:
                 workspace_id=workspace.id,
                 project_id=project_id,
                 force=True,
+                analysis_rebind=False,
             )
+            self._arm_analysis_finalize()
             if removed:
                 await self.event_bus.publish(
                     FileRemoved(path=str(path), workspace_id=workspace.id),
@@ -183,7 +194,9 @@ class IndexService:
             path,
             workspace_id=workspace.id,
             project_id=project_id,
+            analysis_rebind=False,
         )
+        self._arm_analysis_finalize()
         if not changed:
             return
         self._last_indexed_at = datetime.now(UTC)
@@ -197,6 +210,32 @@ class IndexService:
         )
         await self.event_bus.publish(
             IndexUpdated(scope=IndexScope.FILE.value, scope_id=str(path)),
+        )
+
+    def _arm_analysis_finalize(self) -> None:
+        """Rebind analysis once after this watcher flush (index already coalesced)."""
+        if self._stopped:
+            return
+        existing = self._finalize_task
+        if existing is not None and not existing.done():
+            existing.cancel()
+
+        async def _run() -> None:
+            try:
+                await asyncio.sleep(0)
+                await self.indexer.finalize_analysis()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Analysis finalize after index failed")
+            finally:
+                current = self._finalize_task
+                if current is not None and current.done():
+                    self._finalize_task = None
+
+        self._finalize_task = asyncio.create_task(
+            _run(),
+            name="index-analysis-finalize",
         )
 
     def _require_workspace(self):

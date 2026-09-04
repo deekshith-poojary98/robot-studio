@@ -183,9 +183,11 @@ class FilesystemIndexer:
         analysis_rebind: bool = True,
     ) -> tuple[int, bool]:
         if not path.is_file():
-            removed = await self.store.remove_file(path)
-            if self.analysis_engine is not None:
-                await self.analysis_engine.remove_file(path, project_id=project_id)
+            removed = await self._remove_indexed_file(
+                path,
+                project_id=project_id,
+                analysis_rebind=analysis_rebind,
+            )
             return removed, False
 
         mtime = path.stat().st_mtime
@@ -274,9 +276,11 @@ class FilesystemIndexer:
         """Write a parsed payload to SQLite and optionally ingest analysis."""
         path = Path(payload.path)
         if payload.error == "not a file" or not path.is_file():
-            removed = await self.store.remove_file(path)
-            if self.analysis_engine is not None:
-                await self.analysis_engine.remove_file(path, project_id=project_id)
+            removed = await self._remove_indexed_file(
+                path,
+                project_id=project_id,
+                analysis_rebind=analysis_rebind,
+            )
             return removed, False
         if payload.error:
             raise RuntimeError(payload.error)
@@ -303,6 +307,24 @@ class FilesystemIndexer:
                 self.pending_analysis_projects.add(project_id)
 
         return len(symbols), True
+
+    async def _remove_indexed_file(
+        self,
+        path: Path,
+        *,
+        project_id: UUID | None,
+        analysis_rebind: bool,
+    ) -> int:
+        removed = await self.store.remove_file(path)
+        if self.analysis_engine is not None:
+            await self.analysis_engine.remove_file(
+                path,
+                project_id=project_id,
+                rebind=analysis_rebind,
+            )
+            if project_id is not None and not analysis_rebind:
+                self.pending_analysis_projects.add(project_id)
+        return removed
 
     async def finalize_analysis(self) -> None:
         """Rebind projects that were ingested with rebind=False during a bulk pass."""

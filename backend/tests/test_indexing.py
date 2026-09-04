@@ -925,6 +925,37 @@ async def test_find_definitions_ranks_by_caret_context(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_watcher_index_finalizes_analysis_once(index_stack) -> None:
+    service, _store, _facade, suite, _lib, _bus, _workspace, _project = index_stack
+
+    class FakeEngine:
+        def __init__(self) -> None:
+            self.ingests: list[bool] = []
+            self.finalizes = 0
+
+        async def ingest_file(self, path, *, workspace_id, project_id, rebind=True):
+            self.ingests.append(rebind)
+
+        async def finalize_project(self, project_id):
+            self.finalizes += 1
+
+        async def remove_file(self, path, *, project_id, rebind=True):
+            return None
+
+    engine = FakeEngine()
+    service.indexer.analysis_engine = engine
+    other = suite.parent / "other.robot"
+    other.write_text("*** Test Cases ***\nB\n    Log    1\n", encoding="utf-8")
+    suite.write_text(SAMPLE_ROBOT + "\n# changed\n", encoding="utf-8")
+    await service._on_file_change("modified", suite)
+    await service._on_file_change("modified", other)
+    await asyncio.sleep(0)
+    assert engine.ingests
+    assert all(flag is False for flag in engine.ingests)
+    assert engine.finalizes == 1
+
+
+@pytest.mark.asyncio
 async def test_watcher_detects_new_file(index_stack, tmp_path: Path) -> None:
     service, store, _facade, suite, _lib, _bus, workspace, project = index_stack
     root = suite.parent

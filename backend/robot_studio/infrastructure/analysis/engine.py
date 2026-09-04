@@ -106,11 +106,18 @@ class RobotAnalysisEngine(AnalysisEngine):
         await self.binder.rebind_project(project_id)
         return await self.snapshot(project_id)
 
-    async def remove_file(self, path: Path, *, project_id: UUID | None) -> None:
+    async def remove_file(
+        self,
+        path: Path,
+        *,
+        project_id: UUID | None,
+        rebind: bool = True,
+    ) -> None:
         await self.store.clear_file(path)
         if project_id:
             await self.store.bump_revision(project_id, new_graph_version=False)
-            self._schedule_rebind(project_id)
+            if rebind:
+                self._schedule_rebind(project_id)
 
     def _schedule_rebind(self, project_id: UUID) -> None:
         existing = self._rebind_tasks.get(project_id)
