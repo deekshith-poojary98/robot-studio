@@ -12,7 +12,7 @@ from robot_studio.domain.models.keyword_metadata import (
 # Prefer these names when ranking named-arg completions for common keywords.
 _POPULAR_PARAM_NAMES: dict[str, tuple[str, ...]] = {
     "open browser": ("url", "browser", "alias"),
-    "create dictionary": ("&{kwargs}",),
+    "create dictionary": ("items",),
     "set variable": ("values",),
     "log": ("message", "level"),
     "should be equal": ("first", "second", "msg"),

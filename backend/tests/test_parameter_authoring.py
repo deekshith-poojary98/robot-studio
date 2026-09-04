@@ -107,6 +107,19 @@ def test_parameter_score_prefers_popular_required() -> None:
     )
 
 
+def test_create_dictionary_popular_hint_matches_libdoc_items() -> None:
+    """Libdoc is ``*items``; the old ``&{kwargs}`` alias must not win ranking."""
+    items = ParameterMetadata(name="items", required=False, kind="var_positional")
+    stale_kwargs = ParameterMetadata(name="&{kwargs}", required=False, kind="var_named")
+    assert parameter_completion_score(
+        items,
+        keyword_name="Create Dictionary",
+    ) > parameter_completion_score(
+        stale_kwargs,
+        keyword_name="Create Dictionary",
+    )
+
+
 def test_strip_qualifier() -> None:
     assert strip_keyword_qualifier("BuiltIn.Log") == "Log"
     assert strip_keyword_qualifier("Col.Append To List") == "Append To List"
