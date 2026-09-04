@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,6 +38,19 @@ FlatFileTreeRow _dir(String name, {int depth = 0, bool expanded = false}) {
     expanded: expanded,
     loading: false,
   );
+}
+
+Future<void> _withPlatform(
+  TargetPlatform platform,
+  Future<void> Function() body,
+) async {
+  final previous = debugDefaultTargetPlatformOverride;
+  debugDefaultTargetPlatformOverride = platform;
+  try {
+    await body();
+  } finally {
+    debugDefaultTargetPlatformOverride = previous;
+  }
 }
 
 void main() {
@@ -378,37 +392,110 @@ void main() {
     expect(deleteCalled, isTrue);
   });
 
-  testWidgets('cmd/ctrl click builds a multi-selection', (tester) async {
-    List<String>? deleted;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: VirtualFileTree(
-            rows: [_file('a.robot'), _file('b.robot'), _file('c.robot')],
-            rootPath: '/tmp',
-            onOpenFile: (_) {},
-            onToggleDirectory: (_) {},
-            onDeleteEntry: (paths) async {
-              deleted = paths;
-            },
+  testWidgets('cmd click builds a multi-selection on macOS', (tester) async {
+    await _withPlatform(TargetPlatform.macOS, () async {
+      List<String>? deleted;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: VirtualFileTree(
+              rows: [_file('a.robot'), _file('b.robot'), _file('c.robot')],
+              rootPath: '/tmp',
+              onOpenFile: (_) {},
+              onToggleDirectory: (_) {},
+              onDeleteEntry: (paths) async {
+                deleted = paths;
+              },
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.tap(find.text('a.robot'));
-    await tester.pump();
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
-    await tester.tap(find.text('c.robot'));
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
-    await tester.pump();
+      await tester.tap(find.text('a.robot'));
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.tap(find.text('c.robot'));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pump();
 
-    await tester.tap(find.text('c.robot'), buttons: kSecondaryButton);
-    await tester.pumpAndSettle();
-    expect(find.text('Delete 2 Items'), findsOneWidget);
-    await tester.tap(find.text('Delete 2 Items'));
-    await tester.pumpAndSettle();
-    expect(deleted, ['/tmp/a.robot', '/tmp/c.robot']);
+      await tester.tap(find.text('c.robot'), buttons: kSecondaryButton);
+      await tester.pumpAndSettle();
+      expect(find.text('Delete 2 Items'), findsOneWidget);
+      await tester.tap(find.text('Delete 2 Items'));
+      await tester.pumpAndSettle();
+      expect(deleted, ['/tmp/a.robot', '/tmp/c.robot']);
+    });
+  });
+
+  testWidgets('ctrl click builds a multi-selection on Windows', (tester) async {
+    await _withPlatform(TargetPlatform.windows, () async {
+      List<String>? deleted;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: VirtualFileTree(
+              rows: [_file('a.robot'), _file('b.robot'), _file('c.robot')],
+              rootPath: '/tmp',
+              onOpenFile: (_) {},
+              onToggleDirectory: (_) {},
+              onDeleteEntry: (paths) async {
+                deleted = paths;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('a.robot'));
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.tap(find.text('c.robot'));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+
+      await tester.tap(find.text('c.robot'), buttons: kSecondaryButton);
+      await tester.pumpAndSettle();
+      expect(find.text('Delete 2 Items'), findsOneWidget);
+      await tester.tap(find.text('Delete 2 Items'));
+      await tester.pumpAndSettle();
+      expect(deleted, ['/tmp/a.robot', '/tmp/c.robot']);
+    });
+  });
+
+  testWidgets('cmd click does not multi-select on Windows', (tester) async {
+    await _withPlatform(TargetPlatform.windows, () async {
+      List<String>? deleted;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: VirtualFileTree(
+              rows: [_file('a.robot'), _file('b.robot'), _file('c.robot')],
+              rootPath: '/tmp',
+              onOpenFile: (_) {},
+              onToggleDirectory: (_) {},
+              onDeleteEntry: (paths) async {
+                deleted = paths;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('a.robot'));
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.tap(find.text('c.robot'));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pump();
+
+      await tester.tap(find.text('c.robot'), buttons: kSecondaryButton);
+      await tester.pumpAndSettle();
+      expect(find.text('Delete 2 Items'), findsNothing);
+      expect(find.text('Delete'), findsOneWidget);
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+      expect(deleted, ['/tmp/c.robot']);
+    });
   });
 
   testWidgets('shift click selects a contiguous range', (tester) async {
@@ -448,54 +535,60 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(800, 600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    List<String>? deleted;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Row(
-            children: [
-              SizedBox(
-                width: 280,
-                child: VirtualFileTree(
-                  rows: [_file('a.robot'), _file('b.robot'), _file('c.robot')],
-                  rootPath: '/tmp',
-                  onOpenFile: (_) {},
-                  onToggleDirectory: (_) {},
-                  onDeleteEntry: (paths) async {
-                    deleted = paths;
-                  },
+    await _withPlatform(TargetPlatform.macOS, () async {
+      List<String>? deleted;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Row(
+              children: [
+                SizedBox(
+                  width: 280,
+                  child: VirtualFileTree(
+                    rows: [
+                      _file('a.robot'),
+                      _file('b.robot'),
+                      _file('c.robot'),
+                    ],
+                    rootPath: '/tmp',
+                    onOpenFile: (_) {},
+                    onToggleDirectory: (_) {},
+                    onDeleteEntry: (paths) async {
+                      deleted = paths;
+                    },
+                  ),
                 ),
-              ),
-              const Expanded(
-                child: ColoredBox(
-                  key: Key('outside-pane'),
-                  color: Colors.black,
-                  child: SizedBox.expand(),
+                const Expanded(
+                  child: ColoredBox(
+                    key: Key('outside-pane'),
+                    color: Colors.black,
+                    child: SizedBox.expand(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.tap(find.text('a.robot'));
-    await tester.pump();
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
-    await tester.tap(find.text('c.robot'));
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
-    await tester.pump();
+      await tester.tap(find.text('a.robot'));
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.tap(find.text('c.robot'));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pump();
 
-    await tester.tap(find.byKey(const Key('outside-pane')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('outside-pane')));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.text('a.robot'), buttons: kSecondaryButton);
-    await tester.pumpAndSettle();
-    expect(find.text('Delete 2 Items'), findsNothing);
-    expect(find.text('Delete'), findsOneWidget);
-    await tester.tap(find.text('Delete'));
-    await tester.pumpAndSettle();
-    expect(deleted, ['/tmp/a.robot']);
+      await tester.tap(find.text('a.robot'), buttons: kSecondaryButton);
+      await tester.pumpAndSettle();
+      expect(find.text('Delete 2 Items'), findsNothing);
+      expect(find.text('Delete'), findsOneWidget);
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+      expect(deleted, ['/tmp/a.robot']);
+    });
   });
 
   testWidgets('clearing folder selection makes New File land at project root', (

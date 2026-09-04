@@ -211,17 +211,16 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
     return const [];
   }
 
-  bool _isModifierPressed() {
-    // Cmd (macOS) or Ctrl (Windows/Linux). Accept either so widget tests —
-    // which default to TargetPlatform.android — and mixed input still toggle.
-    return HardwareKeyboard.instance.isMetaPressed ||
-        HardwareKeyboard.instance.isControlPressed;
+  bool _isPrimaryModifierPressed() {
+    final meta = HardwareKeyboard.instance.isMetaPressed;
+    final control = HardwareKeyboard.instance.isControlPressed;
+    return defaultTargetPlatform == TargetPlatform.macOS ? meta : control;
   }
 
   void _handlePrimaryTap(FlatFileTreeRow row) {
     final path = row.node.path;
     final shift = HardwareKeyboard.instance.isShiftPressed;
-    final modifier = _isModifierPressed();
+    final modifier = _isPrimaryModifierPressed();
     setState(() {
       if (shift) {
         _selectRangeTo(path);
@@ -586,12 +585,9 @@ class VirtualFileTreeState extends State<VirtualFileTree> {
       onKeyEvent: (node, event) {
         if (!mounted) return KeyEventResult.ignored;
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        final isMac = defaultTargetPlatform == TargetPlatform.macOS;
         final key = event.logicalKey;
-        final meta = HardwareKeyboard.instance.isMetaPressed;
-        final control = HardwareKeyboard.instance.isControlPressed;
         final shift = HardwareKeyboard.instance.isShiftPressed;
-        final modifier = isMac ? meta : control;
+        final modifier = _isPrimaryModifierPressed();
 
         if (key == LogicalKeyboardKey.f2) {
           beginRename();
