@@ -64,11 +64,16 @@ class _SlowLanguageGateway implements TransportGateway {
     return null;
   }
 
+  bool analyzeThrows = false;
+
   @override
   Future<DocumentAnalysisInfo> analyzeDocument({
     required String filePath,
     required String content,
   }) async {
+    if (analyzeThrows) {
+      throw StateError('analysis down');
+    }
     return DocumentAnalysisInfo(
       filePath: filePath,
       root: DocumentSymbolNode(
@@ -175,7 +180,72 @@ void main() {
       expect(controller.diagnostics.single.message, 'new');
     });
 
-    test('python files receive diagnostics and feed the problems panel', () async {
+    test(
+      'python files receive diagnostics and feed the problems panel',
+      () async {
+        final tab = EditorTabInfo(
+          path: '/ws/module.py',
+          content: 'import os',
+          savedContent: 'import os',
+          mtime: 0,
+        );
+        controller.tabs = [tab];
+        controller.activePath = tab.path;
+
+        await controller.refreshLanguageFeatures();
+
+        expect(controller.diagnostics, hasLength(1));
+        expect(controller.diagnostics.single.source, 'pyflakes');
+        expect(controller.workspaceProblems.map((item) => item.filePath), [
+          '/ws/module.py',
+        ]);
+      },
+    );
+
+    test(
+      'outline analysis failure keeps completions and the last outline',
+      () async {
+        gateway.analyzeThrows = true;
+        final tab = EditorTabInfo(
+          path: '/ws/module.py',
+          content: 'import os',
+          savedContent: 'import os',
+          mtime: 0,
+        );
+        controller.tabs = [tab];
+        controller.activePath = tab.path;
+        controller.documentAnalysis = DocumentAnalysisInfo(
+          filePath: tab.path,
+          root: const DocumentSymbolNode(
+            id: 'stale',
+            name: 'module',
+            kind: SymbolKind.module,
+            line: 1,
+          ),
+          foldingRanges: const [],
+        );
+        controller.documentOutline = const [
+          IndexedSymbolInfo(
+            id: 'stale',
+            name: 'module',
+            kind: SymbolKind.module,
+            filePath: '/ws/module.py',
+            line: 1,
+          ),
+        ];
+
+        await controller.refreshLanguageFeatures();
+
+        expect(controller.diagnostics, hasLength(1));
+        expect(controller.completionItems, isNotEmpty);
+        expect(controller.documentOutline.single.id, 'stale');
+        expect(controller.documentAnalysis?.root.id, 'stale');
+        expect(controller.loadingLanguageFeatures, isFalse);
+      },
+    );
+
+    test('loadOutline failure clears outline instead of hanging', () async {
+      gateway.analyzeThrows = true;
       final tab = EditorTabInfo(
         path: '/ws/module.py',
         content: 'import os',
@@ -183,16 +253,21 @@ void main() {
         mtime: 0,
       );
       controller.tabs = [tab];
-      controller.activePath = tab.path;
+      controller.documentOutline = const [
+        IndexedSymbolInfo(
+          id: 'stale',
+          name: 'module',
+          kind: SymbolKind.module,
+          filePath: '/ws/module.py',
+          line: 1,
+        ),
+      ];
 
-      await controller.refreshLanguageFeatures();
+      await controller.loadOutline(tab.path, content: tab.content);
 
-      expect(controller.diagnostics, hasLength(1));
-      expect(controller.diagnostics.single.source, 'pyflakes');
-      expect(
-        controller.workspaceProblems.map((item) => item.filePath),
-        ['/ws/module.py'],
-      );
+      expect(controller.documentOutline, isEmpty);
+      expect(controller.documentAnalysis, isNull);
+      expect(controller.loadingOutline, isFalse);
     });
   });
 

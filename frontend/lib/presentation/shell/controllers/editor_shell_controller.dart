@@ -261,8 +261,9 @@ class EditorShellController {
         documentAnalysis = analysis;
         documentOutline = analysis.flattenIndexed();
         syncActiveSymbol(cursorLine);
-      } catch (_) {
-        // Outline refresh is best-effort alongside completion/diagnostics.
+      } catch (error) {
+        // Keep the last good outline; completions / diagnostics already landed.
+        AppLogger.warn('Outline refresh failed', tag: 'Shell', error: error);
       }
       loadingLanguageFeatures = false;
       notify();
@@ -457,7 +458,8 @@ class EditorShellController {
       syncActiveSymbol(cursorLine);
       loadingOutline = false;
       notify();
-    } catch (_) {
+    } catch (error) {
+      AppLogger.warn('Outline load failed', tag: 'Shell', error: error);
       if (!isMounted()) return;
       documentOutline = [];
       documentAnalysis = null;
