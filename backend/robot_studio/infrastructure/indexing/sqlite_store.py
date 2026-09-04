@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
@@ -11,6 +12,45 @@ import aiosqlite
 
 from robot_studio.domain.interfaces.indexing import IndexScope, IndexStore, SymbolKind
 from robot_studio.domain.models import IndexedSymbol
+
+# Default go-to ranking when the caller has no caret context.
+_DEFAULT_KIND_RANK = (
+    SymbolKind.KEYWORD.value,
+    SymbolKind.VARIABLE.value,
+    SymbolKind.TEST_CASE.value,
+    SymbolKind.LIBRARY.value,
+    SymbolKind.RESOURCE.value,
+    SymbolKind.TAG.value,
+    SymbolKind.SETTING.value,
+    SymbolKind.TEST_SUITE.value,
+    SymbolKind.FILE.value,
+    SymbolKind.DOCUMENTATION.value,
+)
+
+
+def _kind_values(kinds: Sequence[SymbolKind | str] | None) -> list[str]:
+    if not kinds:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for kind in kinds:
+        value = kind.value if isinstance(kind, SymbolKind) else str(kind)
+        if value in seen:
+            continue
+        seen.add(value)
+        out.append(value)
+    return out
+
+
+def _kind_rank_sql(prefer_kinds: Sequence[SymbolKind | str] | None) -> tuple[str, list[object]]:
+    """CASE kind WHEN … for context-aware definition ranking."""
+    ordered = _kind_values((*_kind_values(prefer_kinds), *_DEFAULT_KIND_RANK))
+    sql = "CASE kind " + " ".join("WHEN ? THEN ?" for _ in ordered) + " ELSE ? END"
+    params: list[object] = []
+    for index, kind in enumerate(ordered):
+        params.extend((kind, index))
+    params.append(len(ordered))
+    return sql, params
 
 
 def _symbol_id(kind: str, file_path: Path, name: str, line: int) -> str:
@@ -636,6 +676,7 @@ class SqliteIndexStore(IndexStore):
         name: str,
         *,
         kind: SymbolKind | None = None,
+        prefer_kinds: Sequence[SymbolKind | str] | None = None,
         workspace_id: UUID | None = None,
         project_id: UUID | None = None,
         limit: int = 20,
@@ -652,6 +693,7 @@ class SqliteIndexStore(IndexStore):
             clauses.append("project_id = ?")
             params.append(str(project_id))
         rank_project = str(project_id) if project_id is not None else ""
+        kind_sql, kind_params = _kind_rank_sql(prefer_kinds)
         async with aiosqlite.connect(self._database_path) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
@@ -660,19 +702,12 @@ class SqliteIndexStore(IndexStore):
                 WHERE {' AND '.join(clauses)}
                 ORDER BY
                     CASE WHEN project_id = ? THEN 0 ELSE 1 END,
-                    CASE kind
-                        WHEN 'keyword' THEN 0
-                        WHEN 'variable' THEN 1
-                        WHEN 'test' THEN 2
-                        WHEN 'library' THEN 3
-                        WHEN 'resource' THEN 4
-                        ELSE 5
-                    END,
+                    {kind_sql},
                     file_path,
                     line
                 LIMIT ?
                 """,
-                [*params, rank_project, limit],
+                [*params, rank_project, *kind_params, limit],
             )
             rows = await cursor.fetchall()
         return [self._row_to_dict(row) for row in rows]

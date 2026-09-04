@@ -176,6 +176,11 @@ List
     tags = content.splitlines()[6]
     local_col = tags.index("comments") + 1
     assert RobotLanguageService._is_tag_value_at(content, 7, local_col)
+    assert (
+        RobotLanguageService._caret_definition_kind(content, 2, comments_col)
+        is SymbolKind.TAG
+    )
+    assert RobotLanguageService._caret_definition_kind(content, 3, res_col) is None
 
 
 @pytest.mark.asyncio
@@ -879,6 +884,44 @@ async def test_find_definitions_prefers_active_project(tmp_path: Path) -> None:
 
     foreign = await store.find_definitions("api", workspace_id=uuid4())
     assert foreign == []
+
+
+@pytest.mark.asyncio
+async def test_find_definitions_ranks_by_caret_context(tmp_path: Path) -> None:
+    db = tmp_path / "index.db"
+    store = SqliteIndexStore(db)
+    await store.initialize()
+    from robot_studio.domain.models import IndexedSymbol
+
+    ws = uuid4()
+    await store.upsert_symbols(
+        [
+            IndexedSymbol(
+                id="res-comments",
+                name="comments",
+                kind=SymbolKind.RESOURCE.value,
+                file_path=tmp_path / "comments.resource",
+                line=1,
+                workspace_id=ws,
+            ),
+            IndexedSymbol(
+                id="tag-comments",
+                name="comments",
+                kind=SymbolKind.TAG.value,
+                file_path=tmp_path / "suite.robot",
+                line=3,
+                workspace_id=ws,
+            ),
+        ]
+    )
+    default = await store.find_definitions("comments", workspace_id=ws)
+    assert [item["id"] for item in default] == ["res-comments", "tag-comments"]
+    on_tag = await store.find_definitions(
+        "comments",
+        workspace_id=ws,
+        prefer_kinds=[SymbolKind.TAG],
+    )
+    assert [item["id"] for item in on_tag] == ["tag-comments", "res-comments"]
 
 
 @pytest.mark.asyncio

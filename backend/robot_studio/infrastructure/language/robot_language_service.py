@@ -1122,12 +1122,12 @@ class RobotLanguageService(LanguageService):
                 return jedi_hits
 
         name = request.get("name") or request.get("symbol") or request.get("query")
-        on_tag_value = False
+        caret_kind: SymbolKind | None = None
 
         # Prefer RF cell under cursor when content is available.
         if content and line:
             col = int(column or 1)
-            on_tag_value = self._is_tag_value_at(str(content), int(line), col)
+            caret_kind = self._caret_definition_kind(str(content), int(line), col)
             cell = self._robot_cell_at(str(content), int(line), col)
             if cell:
                 name = cell
@@ -1155,13 +1155,9 @@ class RobotLanguageService(LanguageService):
                 kind = SymbolKind(str(kind_raw))
             except ValueError:
                 kind = None
-        # Force Tags / [Tags] values share names with resources often
-        # (comments.resource vs Force Tags    comments). Cursor context wins.
-        if on_tag_value:
-            kind = SymbolKind.TAG
 
         lookup_names = (
-            [str(name)] if on_tag_value else self._symbol_lookup_names(str(name))
+            [str(name)] if caret_kind == SymbolKind.TAG else self._symbol_lookup_names(str(name))
         )
         # RF variable tokens (${x}) must not resolve to a same-named keyword /
         # resource. Python / YAML Variables files are indexed as ${NAME}.
@@ -1172,12 +1168,14 @@ class RobotLanguageService(LanguageService):
         if kind is None and rf_display is not None:
             kind = SymbolKind.VARIABLE
 
+        prefer_kinds = [caret_kind] if caret_kind is not None else None
         symbols: list[dict] = []
         matched_candidate = ""
         for candidate in lookup_names:
             symbols = await self.store.find_definitions(
                 candidate,
                 kind=kind,
+                prefer_kinds=prefer_kinds,
                 workspace_id=self.context.workspace_id,
                 project_id=self.context.project_id,
                 limit=20,
@@ -1185,6 +1183,23 @@ class RobotLanguageService(LanguageService):
             if symbols:
                 matched_candidate = candidate
                 break
+        if caret_kind == SymbolKind.TAG:
+            tag_hits = [
+                item for item in symbols if item.get("kind") == SymbolKind.TAG.value
+            ]
+            if tag_hits:
+                return tag_hits
+            return [
+                {
+                    "id": "",
+                    "name": str(name),
+                    "kind": SymbolKind.TAG.value,
+                    "file_path": file_path,
+                    "line": int(line),
+                    "documentation": "",
+                    "detail": "tag",
+                },
+            ]
         if symbols:
             hit = symbols[0]
             # Older indexes may still store the bare Python name.
@@ -1197,18 +1212,6 @@ class RobotLanguageService(LanguageService):
                 hit = {**hit, "name": f"{sigil}{{{py_name}}}"}
                 return [hit, *symbols[1:]]
             return symbols
-        if on_tag_value:
-            return [
-                {
-                    "id": "",
-                    "name": str(name),
-                    "kind": SymbolKind.TAG.value,
-                    "file_path": file_path,
-                    "line": int(line),
-                    "documentation": "",
-                    "detail": "tag",
-                },
-            ]
 
         # ``Variables`` *.py / YAML imports are known to diagnostics even when
         # the module has not been indexed yet — still offer hover / go-to.
@@ -1404,6 +1407,18 @@ class RobotLanguageService(LanguageService):
         if not raw.strip() or raw.lstrip().startswith("#"):
             return []
         return robot_cell_spans(raw)
+
+    @classmethod
+    def _caret_definition_kind(
+        cls,
+        content: str,
+        line: int,
+        column: int,
+    ) -> SymbolKind | None:
+        """Symbol kind implied by the caret — used to rank definitions, not filter."""
+        if cls._is_tag_value_at(content, line, column):
+            return SymbolKind.TAG
+        return None
 
     @classmethod
     def _is_tag_value_at(cls, content: str, line: int, column: int) -> bool:
