@@ -95,6 +95,11 @@ from robot_studio.infrastructure.language.robot_parsing_bridge import (
     RobotParsingBridge,
     RobotParsingError,
 )
+from robot_studio.infrastructure.language.robot_parsing_worker import (
+    first_robot_cell,
+    robot_cell_spans,
+    split_robot_cells,
+)
 from robot_studio.infrastructure.language.robot_rename import (
     is_robot_keyword_name,
     replace_keyword_name,
@@ -994,7 +999,7 @@ class RobotLanguageService(LanguageService):
             if not line.lower().startswith("library "):
                 continue
             rest = line.split(None, 1)[1].strip()
-            cells = [cell for cell in re.split(r"[ \t]{2,}|\t+", rest) if cell]
+            cells = split_robot_cells(rest)
             if not cells:
                 # Single-space fallback: first token is the library name.
                 tokens = rest.split()
@@ -1023,10 +1028,7 @@ class RobotLanguageService(LanguageService):
             if not line.lower().startswith("resource "):
                 continue
             rest = line.split(None, 1)[1].strip()
-            cells = [cell for cell in re.split(r"[ \t]{2,}|\t+", rest) if cell]
-            token = (cells[0] if cells else rest.split()[0] if rest.split() else "").strip(
-                "'\"",
-            )
+            token = first_robot_cell(rest).strip("'\"")
             if token and "${" not in token:
                 paths.append(token)
         return paths
@@ -1401,23 +1403,7 @@ class RobotLanguageService(LanguageService):
         raw = lines[line - 1]
         if not raw.strip() or raw.lstrip().startswith("#"):
             return []
-        cells: list[tuple[int, int, str]] = []
-        parts = re.split(r"(\t+|[ ]{2,})", raw)
-        pos = 1
-        for part in parts:
-            if not part:
-                continue
-            if re.fullmatch(r"\t+|[ ]{2,}", part):
-                pos += len(part)
-                continue
-            leading = len(part) - len(part.lstrip(" "))
-            token = part.strip()
-            start = pos + leading
-            end = start + max(len(token) - 1, 0)
-            if token:
-                cells.append((start, end, token))
-            pos += len(part)
-        return cells
+        return robot_cell_spans(raw)
 
     @classmethod
     def _is_tag_value_at(cls, content: str, line: int, column: int) -> bool:
@@ -1614,7 +1600,7 @@ class RobotLanguageService(LanguageService):
             if line.startswith(_CONTINUATION_MARKER):
                 continue
             if line.lower().startswith("resource "):
-                token = line.split(None, 1)[1].strip().split("    ")[0]
+                token = first_robot_cell(line.split(None, 1)[1].strip())
                 if not self._import_path_exists(file_path, token):
                     diagnostics.append(
                         self._diag(
@@ -1626,7 +1612,7 @@ class RobotLanguageService(LanguageService):
                     )
                 continue
             if line.lower().startswith("variables "):
-                token = line.split(None, 1)[1].strip().split("    ")[0]
+                token = first_robot_cell(line.split(None, 1)[1].strip())
                 if not self._import_path_exists(file_path, token):
                     diagnostics.append(
                         self._diag(
@@ -1638,7 +1624,7 @@ class RobotLanguageService(LanguageService):
                     )
                 continue
             if line.lower().startswith("library "):
-                token = line.split(None, 1)[1].strip().split("    ")[0].strip()
+                token = first_robot_cell(line.split(None, 1)[1].strip())
                 if token.casefold() not in resolved_libraries:
                     diagnostics.append(
                         self._diag(
@@ -1725,7 +1711,7 @@ class RobotLanguageService(LanguageService):
             line = raw.strip()
             if line.lower().startswith("library "):
                 rest = line.split(None, 1)[1].strip()
-                cells = [cell for cell in re.split(r"[ \t]{2,}|\t+", rest) if cell]
+                cells = split_robot_cells(rest)
                 token = (cells[0] if cells else rest.split()[0] if rest.split() else "").strip()
                 if not token or token.casefold() in {"builtin", "reserved"}:
                     continue
@@ -1761,10 +1747,7 @@ class RobotLanguageService(LanguageService):
                 continue
             if line.lower().startswith("resource "):
                 rest = line.split(None, 1)[1].strip()
-                cells = [cell for cell in re.split(r"[ \t]{2,}|\t+", rest) if cell]
-                token = (cells[0] if cells else rest.split()[0] if rest.split() else "").strip(
-                    "'\"",
-                )
+                token = first_robot_cell(rest).strip("'\"")
                 if not token or "${" in token:
                     continue
                 if not self._import_path_exists(file_path, token):
@@ -1963,7 +1946,7 @@ class RobotLanguageService(LanguageService):
                 continue
 
             if line.lower().startswith("variables ") and file_path:
-                token = line.split(None, 1)[1].strip().split("    ")[0].strip().strip("'\"")
+                token = first_robot_cell(line.split(None, 1)[1].strip()).strip("'\"")
                 declared.update(cls._variables_from_import_file(file_path, token))
 
             cells = cls._robot_cells(line)
@@ -2074,7 +2057,7 @@ class RobotLanguageService(LanguageService):
 
     @staticmethod
     def _robot_cells(line: str) -> list[str]:
-        return [cell for cell in re.split(r"[ \t]{2,}|\t+", line.strip()) if cell]
+        return split_robot_cells(line)
 
     @staticmethod
     def _normalize_variable_token(token: str) -> str:
@@ -2141,13 +2124,7 @@ class RobotLanguageService(LanguageService):
             line = raw.strip()
             if not line.lower().startswith("variables "):
                 continue
-            token = (
-                line.split(None, 1)[1]
-                .strip()
-                .split("    ")[0]
-                .strip()
-                .strip("'\"")
-            )
+            token = first_robot_cell(line.split(None, 1)[1].strip()).strip("'\"")
             candidate = Path(token).expanduser()
             if not candidate.is_file():
                 candidate = cls._path_beside_file(file_path, token)
@@ -2342,7 +2319,7 @@ class RobotLanguageService(LanguageService):
     @staticmethod
     def _keyword_cell(raw: str) -> str:
         """Return the keyword cell from an indented Robot row (supports multi-word)."""
-        cells = [cell for cell in re.split(r"[ \t]{2,}|\t+", raw.strip()) if cell]
+        cells = split_robot_cells(raw)
         if not cells:
             return ""
         if re.match(r"^[\$@&%]", cells[0]) and len(cells) > 1:

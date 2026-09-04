@@ -13,6 +13,55 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+# Authoritative RF table separator: two or more spaces, or one or more tabs.
+CELL_SEPARATOR_PATTERN = r"[ \t]{2,}|\t+"
+_CELL_SEP = re.compile(CELL_SEPARATOR_PATTERN)
+_CELL_SEP_CAPTURE = re.compile(rf"({CELL_SEPARATOR_PATTERN})")
+_CELL_SEP_ONLY = re.compile(rf"^(?:{CELL_SEPARATOR_PATTERN})$")
+
+
+def split_robot_cells(line: str) -> list[str]:
+    """Split a Robot Framework row into cells (2+ spaces or tabs)."""
+    return [cell for cell in _CELL_SEP.split(line.strip()) if cell]
+
+
+def split_robot_row(raw: str) -> list[str]:
+    """Split *raw* keeping separator pieces (for rewrite / column math)."""
+    return _CELL_SEP_CAPTURE.split(raw)
+
+
+def is_robot_cell_separator(part: str) -> bool:
+    return bool(part) and _CELL_SEP_ONLY.fullmatch(part) is not None
+
+
+def first_robot_cell(rest: str) -> str:
+    """First path/name cell after a Settings keyword (``Resource``, ``Library``, …)."""
+    cells = split_robot_cells(rest)
+    if cells:
+        return cells[0]
+    tokens = rest.split()
+    return tokens[0] if tokens else ""
+
+
+def robot_cell_spans(row: str) -> list[tuple[int, int, str]]:
+    """Return ``(start, end, token)`` with 1-based inclusive columns."""
+    cells: list[tuple[int, int, str]] = []
+    pos = 1
+    for part in split_robot_row(row):
+        if not part:
+            continue
+        if is_robot_cell_separator(part):
+            pos += len(part)
+            continue
+        leading = len(part) - len(part.lstrip(" \t"))
+        token = part.strip()
+        start = pos + leading
+        end = start + max(len(token) - 1, 0)
+        if token:
+            cells.append((start, end, token))
+        pos += len(part)
+    return cells
+
 
 def _line_col_at_offset(text: str, offset: int) -> tuple[int, int]:
     offset = max(offset, 0)
@@ -43,7 +92,7 @@ def _word_at(text: str, line: int, column: int) -> str:
     before = row[:col]
     # 2+ spaces / tabs are cell separators. Do not treat ``random    name``
     # as one prefix — that hides ``namespace=`` when the user typed ``name``.
-    cells = re.split(r"[ \t]{2,}|\t+", before.lstrip())
+    cells = split_robot_cells(before.lstrip())
     if len(cells) > 1:
         return cells[-1].strip()
     match = re.search(r"[\w${}@&][\w\s${}@&.-]*$", before)
@@ -927,8 +976,7 @@ def completion_context(
 
 
 def _robot_cells(row: str) -> list[str]:
-    """Split a Robot Framework row into cells (2+ spaces or tabs)."""
-    return [cell for cell in re.split(r"[ \t]{2,}|\t+", row.strip()) if cell]
+    return split_robot_cells(row)
 
 
 def _keyword_call_at(
@@ -1076,29 +1124,7 @@ def _keyword_call_at(
 
 def _robot_cell_spans(row: str) -> list[tuple[str, int, int]]:
     """Return ``(cell, start_col, end_col)`` with 1-based inclusive columns."""
-    spans: list[tuple[str, int, int]] = []
-    i = 0
-    n = len(row)
-    while i < n and row[i] in " \t":
-        i += 1
-    while i < n:
-        start = i
-        while i < n:
-            if row[i] == "\t":
-                break
-            if row[i] == " " and i + 1 < n and row[i + 1] in " \t":
-                break
-            i += 1
-        cell = row[start:i]
-        if cell:
-            # Inclusive end column: last character is at index i-1 → col i.
-            spans.append((cell, start + 1, i))
-        sep = re.match(r"[ \t]{2,}|\t+", row[i:])
-        if sep:
-            i += len(sep.group(0))
-            continue
-        break
-    return spans
+    return [(token, start, end) for start, end, token in robot_cell_spans(row)]
 
 
 def _looks_like_keyword_token(text: str) -> bool:

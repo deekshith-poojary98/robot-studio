@@ -8,6 +8,10 @@ from robot_studio.infrastructure.analysis.normalize import (
     normalize_keyword_name,
     strip_library_prefix,
 )
+from robot_studio.infrastructure.language.robot_parsing_worker import (
+    is_robot_cell_separator,
+    split_robot_row,
+)
 
 _BDD_PREFIXES = ("Given ", "When ", "Then ", "And ", "But ")
 _SETTING_KEYWORD_HEADS = frozenset(
@@ -67,7 +71,7 @@ def replace_keyword_name(content: str, old: str, new: str) -> str:
 
 
 def _rewrite_line(raw: str, old_norm: str, new_name: str, *, in_keywords: bool) -> str:
-    cells = [cell for cell in re.split(r"([ \t]{2,}|\t+)", raw)]
+    cells = split_robot_row(raw)
     if not cells:
         return raw
     # Reconstruct with separators preserved. Odd tokens are separators.
@@ -75,7 +79,7 @@ def _rewrite_line(raw: str, old_norm: str, new_name: str, *, in_keywords: bool) 
     cell_index = 0
     leading = bool(raw.startswith((" ", "\t")))
     for part in cells:
-        if re.fullmatch(r"[ \t]{2,}|\t+", part or ""):
+        if is_robot_cell_separator(part or ""):
             parts.append(part)
             continue
         if not part:
@@ -99,7 +103,7 @@ def _rewrite_line(raw: str, old_norm: str, new_name: str, *, in_keywords: bool) 
 
 def _first_token(parts: list[str]) -> str:
     for part in parts:
-        if part and not re.fullmatch(r"[ \t]{2,}|\t+", part):
+        if part and not is_robot_cell_separator(part):
             return part
     return ""
 

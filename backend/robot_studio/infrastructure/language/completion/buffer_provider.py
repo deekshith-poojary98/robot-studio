@@ -12,6 +12,7 @@ from robot_studio.domain.interfaces.completion import (
     match_score,
     matches_prefix,
 )
+from robot_studio.infrastructure.language.robot_parsing_worker import split_robot_cells
 
 _VAR_RE = re.compile(r"[\$@&%]\{([^{}\n]+)\}")
 _IDENT_RE = re.compile(r"[A-Za-z_][\w]*(?: [A-Za-z_][\w]*){0,4}")
@@ -150,7 +151,7 @@ class BufferCompletionProvider(CompletionProvider):
             }:
                 continue
             # Column-0 names (tests / keywords) and indented calls
-            cells = re.split(r"[ \t]{2,}|\t+", line)
+            cells = split_robot_cells(line)
             for cell in cells[:2]:
                 cell = cell.strip()
                 if not cell or cell.startswith(("#", "[", "$", "@", "&", "%")):

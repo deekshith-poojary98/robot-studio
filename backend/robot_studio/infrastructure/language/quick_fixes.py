@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from robot_studio.infrastructure.language.robot_parsing_worker import first_robot_cell
+
 # Robot library import name → PyPI distribution. Unmapped names are not
 # offered an install action (a typo is more likely than a discoverable wheel).
 LIBRARY_TO_PYPI: dict[str, str] = {
@@ -113,10 +115,7 @@ def library_already_imported(content: str, library: str) -> bool:
         if not line.lower().startswith("library "):
             continue
         rest = line.split(None, 1)[1].strip()
-        cells = [cell for cell in re.split(r"[ \t]{2,}|\t+", rest) if cell]
-        token = (cells[0] if cells else rest.split()[0] if rest.split() else "").strip(
-            "'\"",
-        )
+        token = first_robot_cell(rest).strip("'\"")
         if token.casefold() == target:
             return True
     return False
