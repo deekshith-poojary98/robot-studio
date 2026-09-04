@@ -6,9 +6,10 @@ from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
-
 from robot_studio.api.schemas.analysis import FindingResponse
-from robot_studio.api.schemas.execution_knowledge import ExecutionKnowledgeSnapshotResponse
+from robot_studio.api.schemas.execution_knowledge import (
+    ExecutionKnowledgeSnapshotResponse,
+)
 from robot_studio.domain.models.doctor import (
     CategoryGroup,
     DoctorHealthSummary,

@@ -8,14 +8,12 @@ from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.core.config import settings
 from robot_studio.core.container import Container
 from robot_studio.domain.models import ExecutionRun, ExecutionStatus
 from robot_studio.main import create_app
-
 
 SAMPLE_OUTPUT_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <robot generator="Robot 7.1.0 (Python 3.12.0 on darwin)" generated="20260719 12:00:00.000000">

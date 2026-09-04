@@ -9,19 +9,22 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.application.services.settings_service import SettingsService
+from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.events import (
-    EventBus,
     EnvironmentActivated,
+    EventBus,
     IndexUpdated,
     PackageInstalled,
     PackageRemoved,
     PackageUpdated,
 )
+from robot_studio.domain.interfaces.completion import CompletionRequestContext
 from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.domain.interfaces.language import LanguageService
+from robot_studio.domain.interfaces.signature_help import SignatureHelpRequestContext
 from robot_studio.domain.models.analysis import EntityKind
+from robot_studio.domain.models.keyword_metadata import KeywordMetadata
 from robot_studio.infrastructure.analysis.engine import RobotAnalysisEngine
 from robot_studio.infrastructure.analysis.normalize import (
     normalize_keyword_name,
@@ -29,11 +32,6 @@ from robot_studio.infrastructure.analysis.normalize import (
     strip_library_prefix,
 )
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
-from robot_studio.infrastructure.language.robot_parsing_bridge import (
-    RobotParsingBridge,
-    RobotParsingError,
-)
-
 from robot_studio.infrastructure.language.builtin_keywords import (
     AUTOMATIC_VARIABLE_NAMES,
     BUILTIN_KEYWORDS,
@@ -44,8 +42,6 @@ from robot_studio.infrastructure.language.builtin_keywords import (
     SECTION_HEADERS,
     SETTING_NAMES,
 )
-from robot_studio.domain.interfaces.completion import CompletionRequestContext
-from robot_studio.domain.interfaces.signature_help import SignatureHelpRequestContext
 from robot_studio.infrastructure.language.completion import (
     BufferCompletionProvider,
     CompletionPipeline,
@@ -65,13 +61,17 @@ from robot_studio.infrastructure.language.completion.python_provider import (
     PythonIndexCompletionProvider,
     PythonJediCompletionProvider,
 )
-from robot_studio.infrastructure.language.python_language import (
-    PYTHON_SUFFIXES as _PYTHON_SUFFIXES,
-    python_completion_context,
-    python_signature_help,
+from robot_studio.infrastructure.language.document_analysis import (
+    DocumentAnalysisService,
 )
+from robot_studio.infrastructure.language.keyword_helpers import (
+    active_parameter_index,
+    parameters_from_detail_string,
+    strip_keyword_qualifier,
+    validate_keyword_arguments,
+)
+from robot_studio.infrastructure.language.library_catalog import LibraryCatalogService
 from robot_studio.infrastructure.language.python_diagnostics import python_diagnostics
-from robot_studio.infrastructure.language.quick_fixes import quick_fix_hint
 from robot_studio.infrastructure.language.python_format import format_python_source
 from robot_studio.infrastructure.language.python_jedi import (
     jedi_definitions,
@@ -79,28 +79,32 @@ from robot_studio.infrastructure.language.python_jedi import (
     jedi_references,
     jedi_rename,
     jedi_signature_help,
+)
+from robot_studio.infrastructure.language.python_jedi import (
     reset_caches as reset_jedi_caches,
 )
-from robot_studio.infrastructure.process_utils import run_blocking
-from robot_studio.infrastructure.language.keyword_helpers import (
-    active_parameter_index,
-    parameters_from_detail_string,
-    strip_keyword_qualifier,
-    validate_keyword_arguments,
+from robot_studio.infrastructure.language.python_language import (
+    PYTHON_SUFFIXES as _PYTHON_SUFFIXES,
+)
+from robot_studio.infrastructure.language.python_language import (
+    python_completion_context,
+    python_signature_help,
+)
+from robot_studio.infrastructure.language.quick_fixes import quick_fix_hint
+from robot_studio.infrastructure.language.robot_parsing_bridge import (
+    RobotParsingBridge,
+    RobotParsingError,
 )
 from robot_studio.infrastructure.language.robot_rename import (
     is_robot_keyword_name,
     replace_keyword_name,
 )
-from robot_studio.infrastructure.language.document_analysis import DocumentAnalysisService
-from robot_studio.infrastructure.language.library_catalog import LibraryCatalogService
-from robot_studio.domain.models.keyword_metadata import KeywordMetadata
-from robot_studio.domain.models.library_metadata import LibraryMetadata
 from robot_studio.infrastructure.language.signature import (
     IndexSignatureHelpProvider,
     LibdocSignatureHelpProvider,
     SignatureHelpPipeline,
 )
+from robot_studio.infrastructure.process_utils import run_blocking
 
 logger = logging.getLogger(__name__)
 
@@ -678,7 +682,7 @@ class RobotLanguageService(LanguageService):
                 )
             except RobotParsingError as exc:
                 return {"error": str(exc), "files": []}
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.debug("Rename failed for %s", file_path, exc_info=True)
                 return {"error": "Rename failed", "files": []}
             if result is None:
@@ -1270,7 +1274,7 @@ class RobotLanguageService(LanguageService):
             )
         except RobotParsingError:
             return []
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Python diagnostics failed for %s", file_path, exc_info=True)
             return []
 
@@ -1383,7 +1387,7 @@ class RobotLanguageService(LanguageService):
         cells = cls._robot_cells_at(content, line)
         for start, end, token in cells:
             if start <= column <= max(end, start):
-                if token.startswith("...") or token.startswith("["):
+                if token.startswith(("...", "[")):
                     return None
                 return token
         # Column past last cell → last keyword-ish cell.
@@ -1596,7 +1600,7 @@ class RobotLanguageService(LanguageService):
                         ),
                     )
                 continue
-            if raw.startswith(" ") or raw.startswith("\t"):
+            if raw.startswith((" ", "\t")):
                 keyword = self._keyword_cell(raw)
                 if keyword == _CONTINUATION_MARKER:
                     continue
@@ -1757,18 +1761,18 @@ class RobotLanguageService(LanguageService):
         }
         for raw in lines:
             stripped = raw.strip()
-            if not stripped or stripped.startswith("#") or stripped.startswith("*"):
+            if not stripped or stripped.startswith(("#", "*")):
                 continue
             if stripped.startswith(_CONTINUATION_MARKER):
                 continue
             keyword = ""
-            if raw.startswith(" ") or raw.startswith("\t"):
+            if raw.startswith((" ", "\t")):
                 keyword = cls._keyword_cell(raw)
             else:
                 cells = cls._robot_cells(stripped)
                 if cells and cells[0].casefold() in setting_heads and len(cells) > 1:
                     keyword = cells[1]
-            if not keyword or keyword.startswith("[") or keyword.startswith(("$", "@", "&", "%")):
+            if not keyword or keyword.startswith(("[", "$", "@", "&", "%")):
                 continue
             rest = keyword
             for prefix in ("Given ", "When ", "Then ", "And ", "But "):
@@ -1887,7 +1891,7 @@ class RobotLanguageService(LanguageService):
                 continue
             if not in_keywords or not stripped or stripped.startswith("#"):
                 continue
-            if raw.startswith(" ") or raw.startswith("\t"):
+            if raw.startswith((" ", "\t")):
                 continue
             if stripped.startswith("["):
                 continue
@@ -2060,7 +2064,7 @@ class RobotLanguageService(LanguageService):
             if prefix:
                 _add(prefix.group(1))
         # Bare Python / YAML variable names — after braced RF forms.
-        for item in list(names):
+        for item in names:
             inner = re.match(r"^[\$@&%]\{(.+)\}$", item)
             if not inner:
                 continue
@@ -2359,10 +2363,8 @@ class RobotLanguageService(LanguageService):
         file_path: str,
     ) -> str:
         lines = content.splitlines()
-        if start_line < 1:
-            start_line = 1
-        if end_line > len(lines):
-            end_line = len(lines)
+        start_line = max(start_line, 1)
+        end_line = min(end_line, len(lines))
         if start_line > end_line or not lines:
             return content
         selected = "\n".join(lines[start_line - 1 : end_line])

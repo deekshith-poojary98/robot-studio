@@ -3,13 +3,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from pydantic import BaseModel, Field
-
 from robot_studio.domain.models.git import (
     GitBranch,
     GitCommit,
     GitCommitDetail,
     GitDiff,
-    GitDiffLine,
     GitFileChange,
     GitIdentity,
     GitRemote,

@@ -121,18 +121,17 @@ class BufferCompletionProvider(CompletionProvider):
             full = match.group(0)
             var_counts[full] += 1
         for label, freq in var_counts.most_common(80):
-            if ctx.context == "variable" or prefix.startswith(("${", "@{", "&{", "%{")):
-                add(label, "variable", "In this file", freq=freq)
-            elif ctx.context in {"keyword_call", "keyword", "control"}:
+            if ctx.context == "variable" or prefix.startswith(("${", "@{", "&{", "%{")) or ctx.context in {"keyword_call", "keyword", "control"}:
                 add(label, "variable", "In this file", freq=freq)
 
         # Suite/user keywords & identifiers from non-comment lines
         word_counts: Counter[str] = Counter()
         for raw in content.splitlines():
             line = raw.strip()
-            if not line or line.startswith("#") or line.startswith("*"):
+            if not line or line.startswith(("#", "*")):
                 continue
-            if line.startswith("[") and line.endswith("]"):
+            # Local settings — including values: [Documentation]    Doc: …
+            if line.startswith("["):
                 continue
             # Skip suite settings rows
             head = line.split()[0] if line.split() else ""
@@ -158,10 +157,11 @@ class BufferCompletionProvider(CompletionProvider):
                     continue
                 if cell.casefold() in _STOP:
                     continue
-                if _IDENT_RE.fullmatch(cell) or " " in cell:
-                    # Multi-word RF keywords / titles
-                    if re.match(r"^[A-Za-z_]", cell):
-                        word_counts[cell] += 1
+                if (_IDENT_RE.fullmatch(cell) or " " in cell) and re.match(
+                    r"^[A-Za-z_]",
+                    cell,
+                ):
+                    word_counts[cell] += 1
 
         for label, freq in word_counts.most_common(100):
             if len(label) < 2:

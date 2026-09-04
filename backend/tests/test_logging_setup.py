@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from robot_studio.core import logging_setup
@@ -13,7 +13,7 @@ from robot_studio.core import logging_setup
 def test_purge_old_logs_keeps_week_and_deletes_older(tmp_path: Path) -> None:
     logs = tmp_path / "logs"
     logs.mkdir()
-    today = date.today()
+    today = datetime.now().astimezone().date()
     keep = logs / f"backend-{today.isoformat()}.log"
     keep.write_text("fresh\n", encoding="utf-8")
     mid = logs / f"frontend-{(today - timedelta(days=3)).isoformat()}.log"
@@ -52,7 +52,7 @@ def test_purge_falls_back_to_mtime_for_unstamped_names(tmp_path: Path) -> None:
 def test_purge_keeps_file_on_the_retention_boundary(tmp_path: Path) -> None:
     logs = tmp_path / "logs"
     logs.mkdir()
-    today = date.today()
+    today = datetime.now().astimezone().date()
     boundary = logs / f"frontend-{(today - timedelta(days=7)).isoformat()}.log"
     boundary.write_text("edge\n", encoding="utf-8")
 
@@ -74,7 +74,7 @@ def test_configure_logging_writes_daily_file(tmp_path: Path) -> None:
     try:
         root = logging_setup.configure_logging(tmp_path, retention_days=7)
         assert root == tmp_path / "logs"
-        expected = root / f"backend-{date.today().isoformat()}.log"
+        expected = root / f"backend-{datetime.now().astimezone().date().isoformat()}.log"
         assert expected.is_file()
 
         logging.getLogger("robot_studio.test").info("hello from test")

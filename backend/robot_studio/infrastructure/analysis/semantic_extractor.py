@@ -32,8 +32,7 @@ def stable_entity_id(kind: str, file_path: Path, name_normalized: str) -> str:
 def _line_col(node: Any) -> tuple[int, int]:
     line = int(getattr(node, "lineno", None) or getattr(node, "line", None) or 1)
     col = int(getattr(node, "col_offset", None) or getattr(node, "col", None) or 1)
-    if col < 1:
-        col = 1
+    col = max(col, 1)
     return line, col
 
 
@@ -105,7 +104,7 @@ class _SemanticVisitor(ModelVisitor):
         self._current_owner_id: str | None = None
         self._suite_template: str | None = None
 
-    def visit_File(self, node):  # noqa: N802
+    def visit_File(self, node):
         self.entities.append(
             SemanticEntity(
                 id=self._file_id,
@@ -163,7 +162,7 @@ class _SemanticVisitor(ModelVisitor):
         )
         return self.generic_visit(node)
 
-    def visit_LibraryImport(self, node):  # noqa: N802
+    def visit_LibraryImport(self, node):
         name = _node_name(node) or str(getattr(node, "name", "") or "")
         if not name:
             return
@@ -208,7 +207,7 @@ class _SemanticVisitor(ModelVisitor):
             ),
         )
 
-    def visit_ResourceImport(self, node):  # noqa: N802
+    def visit_ResourceImport(self, node):
         name = _node_name(node) or str(getattr(node, "name", "") or "")
         if not name:
             return
@@ -230,7 +229,7 @@ class _SemanticVisitor(ModelVisitor):
             ),
         )
 
-    def visit_VariablesImport(self, node):  # noqa: N802
+    def visit_VariablesImport(self, node):
         name = _node_name(node) or str(getattr(node, "name", "") or "")
         if not name:
             return
@@ -252,7 +251,7 @@ class _SemanticVisitor(ModelVisitor):
             ),
         )
 
-    def visit_Variable(self, node):  # noqa: N802
+    def visit_Variable(self, node):
         name = _node_name(node)
         if not name:
             return
@@ -289,7 +288,7 @@ class _SemanticVisitor(ModelVisitor):
         for value in getattr(node, "value", ()) or ():
             self._emit_variable_refs(str(value), owner, line, col)
 
-    def visit_Keyword(self, node):  # noqa: N802
+    def visit_Keyword(self, node):
         name = _node_name(node)
         if not name:
             return
@@ -329,7 +328,7 @@ class _SemanticVisitor(ModelVisitor):
         self.generic_visit(node)
         self._current_owner_id = previous
 
-    def visit_TestCase(self, node):  # noqa: N802
+    def visit_TestCase(self, node):
         name = _node_name(node)
         if not name:
             return
@@ -416,35 +415,35 @@ class _SemanticVisitor(ModelVisitor):
         self.generic_visit(node)
         self._current_owner_id = previous
 
-    def visit_TestTemplate(self, node):  # noqa: N802
+    def visit_TestTemplate(self, node):
         value = getattr(node, "value", None)
         if value:
             self._suite_template = str(value)
             self._emit_call(str(value), (), node, count_as_call=True)
 
-    def visit_KeywordCall(self, node):  # noqa: N802
+    def visit_KeywordCall(self, node):
         keyword = str(getattr(node, "keyword", "") or "").strip()
         if not keyword:
             return
         args = tuple(str(a) for a in (getattr(node, "args", ()) or ()))
         self._emit_call(keyword, args, node, count_as_call=True)
 
-    def visit_Setup(self, node):  # noqa: N802
+    def visit_Setup(self, node):
         self._emit_setting_call(node)
 
-    def visit_Teardown(self, node):  # noqa: N802
+    def visit_Teardown(self, node):
         self._emit_setting_call(node)
 
-    def visit_TestSetup(self, node):  # noqa: N802
+    def visit_TestSetup(self, node):
         self._emit_named_call(node)
 
-    def visit_TestTeardown(self, node):  # noqa: N802
+    def visit_TestTeardown(self, node):
         self._emit_named_call(node)
 
-    def visit_SuiteSetup(self, node):  # noqa: N802
+    def visit_SuiteSetup(self, node):
         self._emit_named_call(node)
 
-    def visit_SuiteTeardown(self, node):  # noqa: N802
+    def visit_SuiteTeardown(self, node):
         self._emit_named_call(node)
 
     def _emit_setting_call(self, node: Any) -> None:

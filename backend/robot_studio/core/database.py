@@ -1,5 +1,4 @@
 import aiosqlite
-
 from robot_studio.core.config import settings
 
 

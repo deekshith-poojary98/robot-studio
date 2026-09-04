@@ -80,9 +80,12 @@ def validate_extra_robot_args(args: list[str]) -> None:
                 code="invalid_robot_args",
             )
         looks_like_suite = tok.lower().endswith((".robot", ".resource"))
-        if looks_like_suite and previous_flag not in _VALUE_FLAGS_ALLOWING_ROBOT_PATH:
-            if not tok.startswith("-"):
-                raise ExecutionPlanError(
+        if (
+            looks_like_suite
+            and previous_flag not in _VALUE_FLAGS_ALLOWING_ROBOT_PATH
+            and not tok.startswith("-")
+        ):
+            raise ExecutionPlanError(
                     "Advanced arguments cannot set the suite or target path.",
                     code="invalid_robot_args",
                 )

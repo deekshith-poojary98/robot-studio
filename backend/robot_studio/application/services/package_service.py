@@ -14,7 +14,11 @@ from robot_studio.core.events import (
     RobotFrameworkInstalled,
 )
 from robot_studio.domain.interfaces.installer import Installer, PackageRegistry
-from robot_studio.domain.models import Environment, InstalledPackage, PackageSearchResult
+from robot_studio.domain.models import (
+    Environment,
+    InstalledPackage,
+    PackageSearchResult,
+)
 from robot_studio.infrastructure.packages.package_match import rank_packages
 from robot_studio.infrastructure.packages.pip_installer import PackageInstallError
 

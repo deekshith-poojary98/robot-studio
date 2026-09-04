@@ -109,7 +109,7 @@ class KeywordCompletionProvider(CompletionProvider):
                                     base_priority=self.base_priority + 2,
                                 ),
                             )
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
 
             if ctx.content:
@@ -157,7 +157,7 @@ class KeywordCompletionProvider(CompletionProvider):
                                         base_priority=self.base_priority + 5,
                                     ),
                                 )
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
 
         try:
@@ -182,7 +182,7 @@ class KeywordCompletionProvider(CompletionProvider):
                         base_priority=self.base_priority + 8,
                     ),
                 )
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
 
         return out
@@ -211,9 +211,12 @@ class VariableCompletionProvider(CompletionProvider):
         return 65
 
     async def complete(self, ctx: CompletionRequestContext) -> list[CompletionCandidate]:
-        if ctx.context != "variable" and not ctx.prefix.startswith(("${", "@{", "&{", "%{")):
-            if len(ctx.prefix) < 2:
-                return []
+        if (
+            ctx.context != "variable"
+            and not ctx.prefix.startswith(("${", "@{", "&{", "%{"))
+            and len(ctx.prefix) < 2
+        ):
+            return []
         out: list[CompletionCandidate] = []
         try:
             results = await self.search_symbols(
@@ -245,7 +248,7 @@ class VariableCompletionProvider(CompletionProvider):
                         base_priority=self.base_priority,
                     ),
                 )
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
         return out
 
@@ -314,6 +317,6 @@ class IndexSymbolCompletionProvider(CompletionProvider):
                         base_priority=self.base_priority,
                     ),
                 )
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
         return out

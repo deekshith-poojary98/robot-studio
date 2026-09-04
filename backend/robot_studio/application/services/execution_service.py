@@ -35,6 +35,12 @@ from robot_studio.core.events import (
 )
 from robot_studio.domain.interfaces.runner import ResultsStore, Runner
 from robot_studio.domain.models import Environment, ExecutionRun, ExecutionStatus
+from robot_studio.infrastructure.environment.python_provider import (
+    _host_python_subprocess_env,
+)
+from robot_studio.infrastructure.execution.output_stats import (
+    load_or_build_file_outcomes,
+)
 from robot_studio.infrastructure.execution.parent_suite_target import (
     expand_parent_suite_target,
 )
@@ -42,21 +48,14 @@ from robot_studio.infrastructure.execution.subprocess_runner import (
     RunnerError,
     SubprocessRunner,
 )
-from robot_studio.infrastructure.execution.output_stats import (
-    load_or_build_file_outcomes,
-)
+from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
 from robot_studio.infrastructure.repositories.environment_repository import (
     SqliteEnvironmentRepository,
 )
 from robot_studio.infrastructure.repositories.execution_repository import (
     SqliteExecutionRepository,
 )
-from robot_studio.infrastructure.environment.python_provider import (
-    _host_python_subprocess_env,
-)
-from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
 from robot_studio.infrastructure.workspace.filesystem import studio_reports_root
-
 
 #: Lines of console output kept so a failed run can explain itself.
 _OUTPUT_TAIL_LINES = 40
@@ -762,8 +761,8 @@ class ExecutionService:
                     self._warm_file_outcomes(final.output_dir),
                     name=f"file-outcomes-{run.id}",
                 )
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("Run %s monitor crashed: %s", run.id, exc)
+        except Exception as exc:
+            logger.exception("Run %s monitor crashed", run.id)
             failed = run.model_copy(
                 update={
                     "status": ExecutionStatus.FAILED,
@@ -790,7 +789,7 @@ class ExecutionService:
         """Build Insights ``file_outcomes.json`` off the finish critical path."""
         try:
             await asyncio.to_thread(load_or_build_file_outcomes, output_dir)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug(
                 "file_outcomes warm failed for %s",
                 output_dir,

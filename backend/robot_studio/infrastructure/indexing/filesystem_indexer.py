@@ -12,7 +12,9 @@ from robot_studio.domain.models import IndexedSymbol
 from robot_studio.infrastructure.indexing.python_indexer import PythonLibraryIndexer
 from robot_studio.infrastructure.indexing.robot_indexer import RobotIndexer
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
-from robot_studio.infrastructure.indexing.yaml_variable_indexer import YamlVariableIndexer
+from robot_studio.infrastructure.indexing.yaml_variable_indexer import (
+    YamlVariableIndexer,
+)
 
 if TYPE_CHECKING:
     from robot_studio.infrastructure.analysis.engine import RobotAnalysisEngine

@@ -8,7 +8,6 @@ from uuid import UUID
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.core.config import settings
@@ -177,8 +176,8 @@ async def test_doctor_report_not_found(api_client) -> None:
 
 @pytest.mark.asyncio
 async def test_doctor_rescan_drops_findings_for_deleted_file(api_client) -> None:
-    client, fresh, tmp_path = api_client
-    project_id = await _seed_project(client, tmp_path)
+    client, _fresh, tmp_path = api_client
+    await _seed_project(client, tmp_path)
 
     run1 = await client.post("/api/v1/doctor/run", json={"profile": "default"})
     assert run1.status_code == 200, run1.text

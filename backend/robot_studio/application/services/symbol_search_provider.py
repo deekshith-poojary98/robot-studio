@@ -17,7 +17,7 @@ class IndexSymbolSearchProvider(SymbolSearchProvider):
 
     async def is_available(self) -> bool:
         try:
-            self._index._require_workspace()  # noqa: SLF001
+            self._index._require_workspace()
             return True
         except Exception:  # noqa: BLE001
             return False

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.execution import (
@@ -18,6 +19,7 @@ from robot_studio.core.container import container
 from robot_studio.domain.models import ExecutionStatus
 
 router = APIRouter(prefix="/execution", tags=["execution"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 def _http_run_error(exc: Exception) -> HTTPException:
@@ -39,7 +41,7 @@ def _http_run_error(exc: Exception) -> HTTPException:
 @router.post("/run", response_model=ExecutionResponse)
 async def run_file(
     request: RunFileRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ExecutionResponse:
     try:
         run = await gateway.run_file(
@@ -53,8 +55,8 @@ async def run_file(
 
 @router.post("/run-project", response_model=ExecutionResponse)
 async def run_project(
+    gateway: GatewayDep,
     request: RunProjectRequest | None = None,
-    gateway: RestGateway = Depends(get_gateway),
 ) -> ExecutionResponse:
     body = request or RunProjectRequest()
     try:
@@ -69,7 +71,7 @@ async def run_project(
 
 @router.post("/stop", response_model=ExecutionStatusResponse)
 async def stop_execution(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ExecutionStatusResponse:
     try:
         run = await gateway.stop_execution()
@@ -85,7 +87,7 @@ async def stop_execution(
 
 @router.get("/history", response_model=ExecutionHistoryResponse)
 async def execution_history(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ExecutionHistoryResponse:
     try:
         runs = await gateway.list_execution_history()
@@ -98,7 +100,7 @@ async def execution_history(
 
 @router.get("/status", response_model=ExecutionStatusResponse)
 async def execution_status(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ExecutionStatusResponse:
     run = await gateway.get_execution_status()
     if run is None:

@@ -28,16 +28,22 @@ from robot_studio.application.services.run_configuration_service import (
 from robot_studio.application.services.settings_service import SettingsService
 from robot_studio.application.services.test_explorer_service import TestExplorerService
 from robot_studio.application.services.workspace_context import WorkspaceContext
-from robot_studio.application.services.workspace_event_service import WorkspaceEventService
+from robot_studio.application.services.workspace_event_service import (
+    WorkspaceEventService,
+)
 from robot_studio.application.services.workspace_service import WorkspaceService
 from robot_studio.core.config import settings
 from robot_studio.core.events import EventBus, InMemoryEventBus
 from robot_studio.core.plugins import PluginHost
 from robot_studio.domain.interfaces.plugins import Capability
 from robot_studio.infrastructure.analysis.engine import RobotAnalysisEngine
-from robot_studio.infrastructure.analysis.execution_store import SqliteExecutionKnowledgeStore
+from robot_studio.infrastructure.analysis.execution_store import (
+    SqliteExecutionKnowledgeStore,
+)
 from robot_studio.infrastructure.analysis.inspections_engine import InspectionEngine
-from robot_studio.infrastructure.analysis.sqlite_analysis_store import SqliteAnalysisStore
+from robot_studio.infrastructure.analysis.sqlite_analysis_store import (
+    SqliteAnalysisStore,
+)
 from robot_studio.infrastructure.doctor.store import SqliteDoctorStore
 from robot_studio.infrastructure.environment.filesystem import (
     FilesystemEnvironmentProvider,
@@ -46,15 +52,17 @@ from robot_studio.infrastructure.environment.python_provider import (
     PythonEnvironmentProvider,
 )
 from robot_studio.infrastructure.execution.results_store import FilesystemResultsStore
-from robot_studio.infrastructure.git.cli_provider import CliGitProvider
 from robot_studio.infrastructure.execution.subprocess_runner import SubprocessRunner
-from robot_studio.infrastructure.indexing.file_watcher import NativeFileWatcher, PollingFileWatcher
+from robot_studio.infrastructure.git.cli_provider import CliGitProvider
+from robot_studio.infrastructure.indexing.file_watcher import (
+    NativeFileWatcher,
+)
 from robot_studio.infrastructure.indexing.filesystem_indexer import FilesystemIndexer
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
+from robot_studio.infrastructure.language.completion import SqliteCompletionUsageStore
 from robot_studio.infrastructure.language.robot_language_service import (
     RobotLanguageService,
 )
-from robot_studio.infrastructure.language.completion import SqliteCompletionUsageStore
 from robot_studio.infrastructure.packages.pip_installer import PipInstaller
 from robot_studio.infrastructure.packages.pypi_provider import PyPIProvider
 from robot_studio.infrastructure.plugins.builtins import register_builtin_capabilities

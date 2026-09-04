@@ -5,7 +5,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.application.services.workspace_service import WorkspaceService
 from robot_studio.core.events import InMemoryEventBus, WorkspaceOpened
@@ -293,10 +292,10 @@ async def test_migrate_on_read_reuses_project_id_for_standalone(
     import json
     from uuid import uuid4
 
+    from robot_studio.domain.models import ProjectType
     from robot_studio.infrastructure.project.filesystem import (
         FilesystemProjectProvider,
     )
-    from robot_studio.domain.models import ProjectType
 
     root = tmp_path / "Legacy"
     root.mkdir()

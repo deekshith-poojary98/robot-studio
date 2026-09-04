@@ -7,7 +7,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from robot_studio.domain.interfaces.completion import CompletionRequestContext
 from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.infrastructure.indexing.python_indexer import PythonLibraryIndexer
@@ -37,7 +36,6 @@ from robot_studio.infrastructure.language.python_language import (
     python_completion_context,
     python_signature_help,
 )
-
 
 SAMPLE = """\
 BASE_URL = "https://example.com"
@@ -174,7 +172,7 @@ async def test_python_buffer_provider_accepts_py_only() -> None:
 
 
 async def test_python_index_provider_filters_py_paths() -> None:
-    async def search_symbols(prefix: str, kind=None, limit: int = 60):  # noqa: ANN001
+    async def search_symbols(prefix: str, kind=None, limit: int = 60):
         return [
             {
                 "name": "shared_helper",

@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-
 from robot_studio.application.services.project_service import ProjectService
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.application.services.workspace_service import WorkspaceService

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.workspace import (
@@ -10,8 +11,8 @@ from robot_studio.api.schemas.workspace import (
 )
 from robot_studio.infrastructure.workspace.filesystem import WorkspaceValidationError
 
-
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 def _to_response(workspace) -> WorkspaceResponse:
@@ -26,7 +27,7 @@ def _to_response(workspace) -> WorkspaceResponse:
 @router.post("", response_model=WorkspaceResponse, status_code=201)
 async def create_workspace(
     request: CreateWorkspaceRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> WorkspaceResponse:
     try:
         workspace = await gateway.create_workspace(
@@ -41,7 +42,7 @@ async def create_workspace(
 @router.post("/open", response_model=WorkspaceResponse)
 async def open_workspace(
     request: OpenWorkspaceRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> WorkspaceResponse:
     try:
         workspace = await gateway.open_workspace(path=request.path)
@@ -52,7 +53,7 @@ async def open_workspace(
 
 @router.get("/recent", response_model=RecentWorkspacesResponse)
 async def list_recent_workspaces(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> RecentWorkspacesResponse:
     workspaces = await gateway.list_recent_workspaces()
     return RecentWorkspacesResponse(

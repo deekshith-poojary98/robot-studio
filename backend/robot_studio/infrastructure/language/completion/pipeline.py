@@ -47,7 +47,7 @@ class CompletionPipeline:
                 continue
             try:
                 batch = await provider.complete(ctx)
-            except Exception:  # noqa: BLE001 — one provider must not break completion
+            except Exception:  # noqa: BLE001, S112 — one provider must not break completion
                 continue
             for item in batch:
                 key = f"{item.kind}:{item.label.casefold()}"

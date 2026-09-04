@@ -7,11 +7,11 @@ are read-only consumers of ``LibraryMetadata`` / ``KeywordMetadata``.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
-import asyncio
 from typing import Any
 
 from robot_studio.domain.models.keyword_metadata import (
@@ -212,7 +212,7 @@ class LibraryCatalogService:
             except TypeError:
                 # Test doubles that only accept ``name``.
                 resolved = await self._resolve_raw(name)
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S112
                 continue
             if not resolved.get("available"):
                 continue

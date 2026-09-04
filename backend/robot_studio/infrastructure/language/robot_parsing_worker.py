@@ -15,8 +15,7 @@ from typing import Any
 
 
 def _line_col_at_offset(text: str, offset: int) -> tuple[int, int]:
-    if offset < 0:
-        offset = 0
+    offset = max(offset, 0)
     line = text.count("\n", 0, offset) + 1
     last_nl = text.rfind("\n", 0, offset)
     col = offset - last_nl if last_nl >= 0 else offset + 1
@@ -25,8 +24,7 @@ def _line_col_at_offset(text: str, offset: int) -> tuple[int, int]:
 
 def _offset_at_line_col(text: str, line: int, column: int) -> int:
     lines = text.splitlines(keepends=True)
-    if line < 1:
-        line = 1
+    line = max(line, 1)
     if line > len(lines):
         return len(text)
     offset = sum(len(lines[i]) for i in range(line - 1))
@@ -871,7 +869,7 @@ def completion_context(
 
     # Local settings: "    [Doc…" inside Test Cases / Keywords / Tasks.
     local_setting = re.match(r"^(\s*)(\[[^\]]*)\]?", row)
-    if local_setting and (row.startswith(" ") or row.startswith("\t")):
+    if local_setting and (row.startswith((" ", "\t"))):
         bracket_prefix = local_setting.group(2)
         if bracket_prefix.startswith("["):
             return {
@@ -895,7 +893,7 @@ def completion_context(
     if section == "variables" or prefix.startswith(("${", "@{", "&{")):
         return {"prefix": prefix, "context": "variable", "section": section}
     if section in {"keywords", "test cases", "tasks"}:
-        if row.startswith(" ") or row.startswith("\t"):
+        if row.startswith((" ", "\t")):
             call = _keyword_call_at(lines, line, column)
             if call is not None and call.get("in_arguments"):
                 return {
@@ -927,7 +925,7 @@ def _keyword_call_at(
     if line < 1 or line > len(lines):
         return None
     row = lines[line - 1]
-    if not (row.startswith(" ") or row.startswith("\t")):
+    if not (row.startswith((" ", "\t"))):
         return None
     if row.strip().startswith("#"):
         return None
@@ -938,7 +936,7 @@ def _keyword_call_at(
     start = line - 1
     while start > 0:
         prev = lines[start - 1]
-        if not (prev.startswith(" ") or prev.startswith("\t")):
+        if not (prev.startswith((" ", "\t"))):
             break
         prev_cells = _robot_cells(prev)
         if prev_cells and prev_cells[0] == "...":
@@ -1095,9 +1093,7 @@ def _looks_like_keyword_token(text: str) -> bool:
         return False
     if token.startswith(("$", "@", "&", "%", "#", "[")):
         return False
-    if token.endswith("="):
-        return False
-    return True
+    return not token.endswith("=")
 
 
 def _hover_keyword_at(
@@ -1114,9 +1110,9 @@ def _hover_keyword_at(
     if line < 1 or line > len(lines):
         return None
     row = lines[line - 1]
-    if not (row.startswith(" ") or row.startswith("\t")):
+    if not (row.startswith((" ", "\t"))):
         return None
-    if row.strip().startswith("#") or row.strip().startswith("["):
+    if row.strip().startswith(("#", "[")):
         return None
     for text, start, end in _robot_cell_spans(row):
         if start <= column <= end:
@@ -1147,9 +1143,9 @@ def signature_help(
     if line < 1 or line > len(lines):
         return None
     row = lines[line - 1]
-    if not (row.startswith(" ") or row.startswith("\t")):
+    if not (row.startswith((" ", "\t"))):
         return None
-    if row.strip().startswith("#") or row.strip().startswith("["):
+    if row.strip().startswith(("#", "[")):
         return None
     if hover:
         return _hover_keyword_at(lines, line, column)

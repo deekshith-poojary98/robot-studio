@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 import robot_studio.infrastructure.language.robot_parsing_bridge as bridge
 from robot_studio.infrastructure.language.robot_parsing_bridge import (
     RobotParsingError,

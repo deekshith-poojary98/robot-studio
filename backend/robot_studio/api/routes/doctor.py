@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.doctor import (
     DoctorHistoryResponse,
-    DoctorProfilesResponse,
     DoctorProfileResponse,
+    DoctorProfilesResponse,
     DoctorReportResponse,
     DoctorReportSummaryResponse,
     DoctorRunRequestBody,
@@ -21,6 +21,7 @@ from robot_studio.application.services.doctor_service import DoctorValidationErr
 from robot_studio.domain.models.doctor import DoctorProfileId
 
 router = APIRouter(prefix="/doctor", tags=["doctor"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 def _http(exc: DoctorValidationError) -> HTTPException:
@@ -31,7 +32,7 @@ def _http(exc: DoctorValidationError) -> HTTPException:
 
 @router.get("/profiles", response_model=DoctorProfilesResponse)
 async def list_profiles(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> DoctorProfilesResponse:
     profiles = gateway.doctor_list_profiles()
     providers = gateway.doctor_list_providers()
@@ -43,8 +44,8 @@ async def list_profiles(
 
 @router.post("/run", response_model=DoctorReportResponse)
 async def run_doctor(
+    gateway: GatewayDep,
     body: DoctorRunRequestBody | None = None,
-    gateway: RestGateway = Depends(get_gateway),
 ) -> DoctorReportResponse:
     req = body or DoctorRunRequestBody()
     try:
@@ -61,7 +62,7 @@ async def run_doctor(
 @router.get("/report/{report_id}", response_model=DoctorReportResponse)
 async def get_report(
     report_id: str,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> DoctorReportResponse:
     try:
         report = await gateway.doctor_get_report(report_id)
@@ -72,9 +73,9 @@ async def get_report(
 
 @router.get("/history", response_model=DoctorHistoryResponse)
 async def doctor_history(
-    project_id: str | None = Query(default=None),
-    limit: int = Query(default=20, ge=1, le=100),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    project_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> DoctorHistoryResponse:
     try:
         items = await gateway.doctor_history(

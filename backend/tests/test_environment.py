@@ -1,10 +1,9 @@
 """Unit tests for environment management."""
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
-
 from robot_studio.application.services.environment_service import EnvironmentService
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.application.services.workspace_service import WorkspaceService

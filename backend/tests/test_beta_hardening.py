@@ -8,16 +8,19 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.container import Container
-from robot_studio.core.events import AnalysisProgress, InMemoryEventBus, IndexProgress
+from robot_studio.core.events import AnalysisProgress, IndexProgress, InMemoryEventBus
 from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.domain.models import Project, Workspace, WorkspaceSettings
 from robot_studio.infrastructure.analysis.engine import RobotAnalysisEngine
-from robot_studio.infrastructure.analysis.sqlite_analysis_store import SqliteAnalysisStore
+from robot_studio.infrastructure.analysis.sqlite_analysis_store import (
+    SqliteAnalysisStore,
+)
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
-from robot_studio.infrastructure.language.robot_language_service import RobotLanguageService
+from robot_studio.infrastructure.language.robot_language_service import (
+    RobotLanguageService,
+)
 
 
 @pytest.mark.asyncio

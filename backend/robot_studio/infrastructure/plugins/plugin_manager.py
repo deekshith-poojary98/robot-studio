@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,16 +30,17 @@ from robot_studio.domain.models.plugin import PluginInfo, PluginManifest, utc_no
 from robot_studio.infrastructure.plugins.builtin_plugins import (
     BUILTIN_PLUGIN_SPECS,
     BuiltinPluginAdapter,
-    BuiltinPluginSpec,
 )
 from robot_studio.infrastructure.plugins.plugin_context import PluginContext
-from robot_studio.infrastructure.plugins.plugin_loader import DiscoveredPlugin, PluginLoader
+from robot_studio.infrastructure.plugins.plugin_loader import (
+    DiscoveredPlugin,
+    PluginLoader,
+)
 from robot_studio.infrastructure.plugins.plugin_runtime import (
     PluginLoadError,
     load_plugin_module,
 )
 from robot_studio.infrastructure.plugins.plugin_storage import PluginStorage
-
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +187,7 @@ class PluginManager:
                 await record.instance.initialize(context)
             await self._activate_record(record, context)
             self._write_state(plugin_id, True)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             record.status = "failed"
             record.enabled = False
             record.error = str(exc)
@@ -211,7 +212,7 @@ class PluginManager:
             record.status = "disabled"
             self._write_state(plugin_id, False)
             await self.event_bus.publish(PluginDisabled(plugin_id=plugin_id))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             record.error = str(exc)
             raise PluginManagerError(str(exc)) from exc
         return self.to_info(record)

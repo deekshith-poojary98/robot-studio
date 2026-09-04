@@ -7,13 +7,17 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from robot_studio.application.services.content_search_service import (
     ContentSearchService,
 )
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.events import InMemoryEventBus
-from robot_studio.domain.models import Project, ProjectType, Workspace, WorkspaceSettings
+from robot_studio.domain.models import (
+    Project,
+    ProjectType,
+    Workspace,
+    WorkspaceSettings,
+)
 
 
 @pytest.fixture

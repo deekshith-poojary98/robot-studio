@@ -98,9 +98,39 @@ void main() {
         ),
         isTrue,
       );
+      expect(LargeRunGuard.isWildcardTag('a AND b'), isTrue);
+      expect(LargeRunGuard.isWildcardTag('a NOT b'), isTrue);
+      expect(LargeRunGuard.isWildcardTag('smoke?'), isTrue);
       expect(
         LargeRunGuard.isWildcardTag('regression'),
         isFalse,
+      );
+    });
+
+    test('boolean operators are space-delimited, not substrings', () {
+      expect(LargeRunGuard.isWildcardTag('important'), isFalse);
+      expect(LargeRunGuard.isWildcardTag('report'), isFalse);
+      expect(LargeRunGuard.isWildcardTag('work'), isFalse);
+      expect(LargeRunGuard.isWildcardTag('notation'), isFalse);
+    });
+
+    test('unknown count is not treated as a small run', () {
+      expect(
+        LargeRunGuard.needsConfirmation(
+          count: null,
+          threshold: LargeRunGuard.defaultThreshold,
+        ),
+        isFalse,
+        reason: 'defer to backend 409 instead of assuming zero tests',
+      );
+      expect(
+        LargeRunGuard.needsConfirmation(
+          count: null,
+          threshold: 1000,
+          tag: 'smoke*',
+        ),
+        isTrue,
+        reason: 'wildcard still pre-confirms when the estimate is missing',
       );
     });
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 
 from pydantic import BaseModel, Field
-
 from robot_studio.api.schemas.analysis import EntityRefResponse
 from robot_studio.domain.models.execution_knowledge import (
     EntityExecutionStats,

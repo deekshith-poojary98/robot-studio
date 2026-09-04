@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from contextlib import suppress
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import UUID
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.events import (
+    AnalysisProgress,
     EnvironmentActivated,
     EnvironmentCloned,
     EnvironmentCreated,
@@ -21,7 +22,6 @@ from robot_studio.core.events import (
     FilesystemChanged,
     IndexProgress,
     IndexUpdated,
-    AnalysisProgress,
     ProjectOpened,
     RepositoryUpdated,
     Subscription,
@@ -111,7 +111,7 @@ class WorkspaceEventService:
                 await self._check_roots_missing()
             except asyncio.CancelledError:
                 raise
-            except Exception:  # noqa: BLE001 - liveness poll must never die
+            except Exception:
                 logger.debug("Root liveness check failed", exc_info=True)
 
     async def stop(self) -> None:
@@ -291,7 +291,7 @@ class WorkspaceEventService:
                 if self.on_workspace_missing is not None:
                     try:
                         await self.on_workspace_missing(workspace.id)
-                    except Exception:  # noqa: BLE001 - never block missing UX
+                    except Exception:
                         logger.debug(
                             "Failed to purge environments for missing workspace",
                             exc_info=True,
@@ -344,7 +344,7 @@ class WorkspaceEventService:
                 try:
                     _ = subscriber.queue.get_nowait()
                     subscriber.queue.put_nowait(message)
-                except Exception:
+                except (asyncio.QueueEmpty, asyncio.QueueFull):
                     stale.append(subscriber)
                     logger.warning("Dropping stalled workspace event subscriber")
         if stale:

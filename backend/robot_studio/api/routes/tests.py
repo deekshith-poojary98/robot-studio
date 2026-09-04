@@ -1,7 +1,8 @@
 """Test Explorer REST routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Query
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.execution import ExecutionResponse, to_execution_response
@@ -21,13 +22,14 @@ from robot_studio.application.services.test_explorer_service import (
 )
 
 router = APIRouter(prefix="/tests", tags=["tests"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 @router.get("/tree", response_model=TestTreeResponse)
 async def get_test_tree(
-    q: str | None = Query(default=None),
-    lazy: bool = Query(default=True),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    q: Annotated[str | None, Query()] = None,
+    lazy: Annotated[bool, Query()] = True,
 ) -> TestTreeResponse:
     try:
         tree = await gateway.get_test_tree(query=q, lazy=lazy)
@@ -38,9 +40,9 @@ async def get_test_tree(
 
 @router.get("/count")
 async def count_tests(
-    tag: str | None = Query(default=None),
-    project_wide: bool = Query(default=False),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    tag: Annotated[str | None, Query()] = None,
+    project_wide: Annotated[bool, Query()] = False,
 ) -> dict:
     try:
         total = await gateway.count_tests(tag=tag, project_wide=project_wide)
@@ -50,8 +52,8 @@ async def count_tests(
 
 @router.get("/file", response_model=TestFileResponse)
 async def get_tests_for_file(
-    path: str = Query(min_length=1),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    path: Annotated[str, Query(min_length=1)],
 ) -> TestFileResponse:
     try:
         nodes = await gateway.get_tests_for_file(path=path)
@@ -63,7 +65,7 @@ async def get_tests_for_file(
 @router.post("/run", response_model=ExecutionResponse)
 async def run_test(
     request: RunTestRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ExecutionResponse:
     try:
         run = await gateway.run_test(
@@ -79,7 +81,7 @@ async def run_test(
 @router.post("/run-suite", response_model=ExecutionResponse)
 async def run_suite(
     request: RunSuiteRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ExecutionResponse:
     try:
         run = await gateway.run_test_suite(
@@ -108,7 +110,7 @@ async def run_suite(
 @router.post("/run-tag", response_model=ExecutionResponse)
 async def run_tag(
     request: RunTagRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ExecutionResponse:
     try:
         run = await gateway.run_tests_by_tag(
@@ -136,8 +138,8 @@ async def run_tag(
 
 @router.post("/run-failed", response_model=ExecutionResponse)
 async def run_failed(
+    gateway: GatewayDep,
     request: RunFailedRequest | None = None,
-    gateway: RestGateway = Depends(get_gateway),
 ) -> ExecutionResponse:
     body = request or RunFailedRequest()
     try:
@@ -150,7 +152,7 @@ async def run_failed(
 @router.post("/run-selected", response_model=ExecutionResponse)
 async def run_selected(
     request: RunSelectedRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ExecutionResponse:
     try:
         run = await gateway.run_selected_tests(

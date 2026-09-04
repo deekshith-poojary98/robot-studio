@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.core.config import settings
@@ -156,7 +155,7 @@ async def test_index_rebuild_returns_immediately_by_default(api_client) -> None:
     deadline = time.perf_counter() + 30.0
     last_state = started.json()["state"]
     while time.perf_counter() < deadline:
-        task = fresh.index_service._rebuild_task  # noqa: SLF001
+        task = fresh.index_service._rebuild_task
         if task is not None and not task.done():
             await task
         ready = await client.get("/api/v1/index/status")

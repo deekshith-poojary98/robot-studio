@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Query
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.package import (
@@ -15,13 +16,14 @@ from robot_studio.api.schemas.package import (
 from robot_studio.application.services.package_service import PackageValidationError
 
 router = APIRouter(prefix="/packages", tags=["packages"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 @router.get("", response_model=PackageListResponse)
 async def list_packages(
-    q: str | None = Query(default=None),
-    sort: str = Query(default="name"),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    q: Annotated[str | None, Query()] = None,
+    sort: Annotated[str, Query()] = "name",
 ) -> PackageListResponse:
     try:
         result = await gateway.list_packages(query=q, sort=sort)
@@ -38,8 +40,8 @@ async def list_packages(
 
 @router.get("/search", response_model=PackageSearchResponse)
 async def search_packages(
-    q: str = Query(min_length=1),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    q: Annotated[str, Query(min_length=1)],
 ) -> PackageSearchResponse:
     try:
         results = await gateway.search_packages(query=q)
@@ -51,7 +53,7 @@ async def search_packages(
 @router.get("/{name}/versions", response_model=PackageVersionsResponse)
 async def list_package_versions(
     name: str,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> PackageVersionsResponse:
     try:
         versions = await gateway.list_package_versions(name=name)
@@ -68,7 +70,7 @@ async def list_package_versions(
 @router.post("/install", response_model=PackageOperationResponse)
 async def install_package(
     request: PackageNameRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> PackageOperationResponse:
     try:
         result = await gateway.install_package(
@@ -89,7 +91,7 @@ async def install_package(
 @router.post("/install-requirements", response_model=PackageOperationResponse)
 async def install_requirements(
     request: RequirementsFileRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> PackageOperationResponse:
     try:
         result = await gateway.install_requirements(file_path=request.path)
@@ -106,7 +108,7 @@ async def install_requirements(
 @router.post("/export-requirements", response_model=PackageOperationResponse)
 async def export_requirements(
     request: RequirementsFileRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> PackageOperationResponse:
     try:
         result = await gateway.export_requirements(file_path=request.path)
@@ -123,7 +125,7 @@ async def export_requirements(
 @router.post("/update", response_model=PackageOperationResponse)
 async def update_package(
     request: PackageNameRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> PackageOperationResponse:
     try:
         result = await gateway.update_package(name=request.name)
@@ -140,7 +142,7 @@ async def update_package(
 @router.post("/uninstall", response_model=PackageOperationResponse)
 async def uninstall_package(
     request: PackageNameRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> PackageOperationResponse:
     try:
         result = await gateway.uninstall_package(name=request.name)
@@ -157,7 +159,7 @@ async def uninstall_package(
 @router.get("/{name}", response_model=PackageResponse)
 async def get_package(
     name: str,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> PackageResponse:
     try:
         package = await gateway.get_package(name=name)

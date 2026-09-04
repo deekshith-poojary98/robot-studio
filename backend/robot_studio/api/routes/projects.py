@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.project import (
@@ -19,6 +20,7 @@ from robot_studio.infrastructure.project.filesystem import ProjectValidationErro
 from robot_studio.infrastructure.workspace.filesystem import WorkspaceValidationError
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 def _to_response(project: Project) -> ProjectResponse:
@@ -58,7 +60,7 @@ def _open_path_response(
 @router.post("", response_model=ProjectResponse, status_code=201)
 async def create_project(
     request: CreateProjectRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ProjectResponse:
     try:
         project = await gateway.create_project(
@@ -72,7 +74,7 @@ async def create_project(
 @router.post("/standalone", response_model=OpenProjectByPathResponse, status_code=201)
 async def create_standalone_project(
     request: CreateStandaloneProjectRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> OpenProjectByPathResponse:
     try:
         workspace, project = await gateway.create_standalone_project(
@@ -93,7 +95,7 @@ async def create_standalone_project(
 @router.post("/import", response_model=ProjectResponse)
 async def import_project(
     request: ImportProjectRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ProjectResponse:
     try:
         project = await gateway.import_project(path=request.path)
@@ -105,7 +107,7 @@ async def import_project(
 @router.post("/open", response_model=ProjectResponse)
 async def open_project(
     request: OpenProjectRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ProjectResponse:
     try:
         project = await gateway.open_project(project_id=request.project_id)
@@ -117,7 +119,7 @@ async def open_project(
 @router.post("/open-path", response_model=OpenProjectByPathResponse)
 async def open_project_by_path(
     request: OpenProjectByPathRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> OpenProjectByPathResponse:
     try:
         workspace, project = await gateway.open_project_by_path(
@@ -137,7 +139,7 @@ async def open_project_by_path(
 
 @router.get("", response_model=ProjectListResponse)
 async def list_projects(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ProjectListResponse:
     try:
         projects = await gateway.list_projects()
@@ -148,7 +150,7 @@ async def list_projects(
 
 @router.get("/recent", response_model=ProjectListResponse)
 async def list_recent_projects(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ProjectListResponse:
     projects = await gateway.list_recent_projects()
     return ProjectListResponse(projects=[_to_response(item) for item in projects])

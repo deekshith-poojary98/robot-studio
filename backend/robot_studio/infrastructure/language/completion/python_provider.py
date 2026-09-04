@@ -13,7 +13,10 @@ from robot_studio.domain.interfaces.completion import (
     match_score,
 )
 from robot_studio.domain.interfaces.indexing import SymbolKind
-from robot_studio.infrastructure.language.python_jedi import jedi_available, jedi_completions
+from robot_studio.infrastructure.language.python_jedi import (
+    jedi_available,
+    jedi_completions,
+)
 from robot_studio.infrastructure.language.python_language import (
     is_python_path,
     python_buffer_completions,
@@ -114,7 +117,7 @@ class PythonIndexCompletionProvider(CompletionProvider):
         for kind in (SymbolKind.KEYWORD, SymbolKind.LIBRARY, SymbolKind.VARIABLE, SymbolKind.FILE):
             try:
                 results = await self.search_symbols(prefix, kind=kind, limit=60)
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S112
                 continue
             for item in results:
                 path = str(item.get("file_path") or "")

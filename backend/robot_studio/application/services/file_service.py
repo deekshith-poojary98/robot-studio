@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
-from robot_studio.core.events import EventBus, FileWritten, FilesystemChanged
+from robot_studio.core.events import EventBus, FilesystemChanged, FileWritten
 
 _SKIP_NAMES = {
     "__pycache__",
@@ -164,7 +164,7 @@ class FileService:
             raise FileValidationError("Name cannot contain path separators")
         if _INVALID_CHARS.search(cleaned):
             raise FileValidationError('Name contains invalid characters (<>:"|?*)')
-        if cleaned.endswith(".") or cleaned.endswith(" "):
+        if cleaned.endswith((".", " ")):
             raise FileValidationError("Name cannot end with a dot or space")
         stem = cleaned.split(".")[0].upper()
         if stem in _WINDOWS_RESERVED:

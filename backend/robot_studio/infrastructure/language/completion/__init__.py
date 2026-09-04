@@ -21,7 +21,10 @@ from robot_studio.infrastructure.language.completion.named_argument_provider imp
     resolve_keyword_via_pipeline,
 )
 from robot_studio.infrastructure.language.completion.pipeline import CompletionPipeline
-from robot_studio.infrastructure.language.completion.ranking import merge_and_rank, rank_score
+from robot_studio.infrastructure.language.completion.ranking import (
+    merge_and_rank,
+    rank_score,
+)
 from robot_studio.infrastructure.language.completion.usage_store import (
     SqliteCompletionUsageStore,
 )

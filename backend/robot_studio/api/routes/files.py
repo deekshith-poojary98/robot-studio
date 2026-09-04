@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Query
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.files import (
@@ -18,12 +19,13 @@ from robot_studio.api.schemas.files import (
 from robot_studio.application.services.file_service import FileValidationError
 
 router = APIRouter(prefix="/files", tags=["files"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 @router.get("/content", response_model=FileContentResponse)
 async def read_file(
-    path: str = Query(min_length=1),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    path: Annotated[str, Query(min_length=1)],
 ) -> FileContentResponse:
     try:
         result = await gateway.read_file(path)
@@ -35,7 +37,7 @@ async def read_file(
 @router.put("/content", response_model=FileWriteResponse)
 async def write_file(
     request: FileWriteRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> FileWriteResponse:
     try:
         result = await gateway.write_file(request.path, request.content)
@@ -47,7 +49,7 @@ async def write_file(
 @router.post("/create", response_model=FileMutationResponse)
 async def create_file(
     request: FileCreateRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> FileMutationResponse:
     try:
         result = await gateway.create_file(request.path, request.content)
@@ -64,7 +66,7 @@ async def create_file(
 @router.post("/mkdir", response_model=FileMutationResponse)
 async def create_directory(
     request: DirectoryCreateRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> FileMutationResponse:
     try:
         result = await gateway.create_directory(request.path)
@@ -76,7 +78,7 @@ async def create_directory(
 @router.post("/rename", response_model=FileMutationResponse)
 async def rename_path(
     request: FileRenameRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> FileMutationResponse:
     try:
         result = await gateway.rename_path(request.path, request.new_name)
@@ -88,7 +90,7 @@ async def rename_path(
 @router.post("/move", response_model=FileMutationResponse)
 async def move_path(
     request: FileMoveRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> FileMutationResponse:
     try:
         result = await gateway.move_path(request.path, request.destination_dir)
@@ -100,7 +102,7 @@ async def move_path(
 @router.post("/duplicate", response_model=FileMutationResponse)
 async def duplicate_path(
     request: FilePathRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> FileMutationResponse:
     try:
         result = await gateway.duplicate_path(request.path)
@@ -112,7 +114,7 @@ async def duplicate_path(
 @router.post("/delete", response_model=FileMutationResponse)
 async def delete_path(
     request: FilePathRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> FileMutationResponse:
     try:
         result = await gateway.delete_path(request.path)
@@ -123,9 +125,9 @@ async def delete_path(
 
 @router.get("/tree", response_model=FileTreeResponse)
 async def list_tree(
-    path: str | None = Query(default=None),
-    depth: int = Query(default=0, ge=0, le=8),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    path: Annotated[str | None, Query()] = None,
+    depth: Annotated[int, Query(ge=0, le=8)] = 0,
 ) -> FileTreeResponse:
     try:
         entries = await gateway.list_file_tree(path=path, depth=depth)

@@ -8,7 +8,7 @@ from uuid import UUID
 
 import aiosqlite
 
-from robot_studio.domain.models.analysis import BindingConfidence, EntityRef
+from robot_studio.domain.models.analysis import BindingConfidence
 from robot_studio.domain.models.execution_knowledge import (
     EntityExecutionStats,
     ExecutionEdgeKind,

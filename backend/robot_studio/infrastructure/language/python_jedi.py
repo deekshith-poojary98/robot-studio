@@ -254,7 +254,7 @@ def _get_environment() -> Any | None:
     if _ENVIRONMENT is None:
         try:
             _ENVIRONMENT = InterpreterEnvironment()
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Jedi InterpreterEnvironment unavailable", exc_info=True)
             return None
     return _ENVIRONMENT
@@ -312,7 +312,7 @@ def _get_project(project_root: Path | None, extra_paths: tuple[str, ...]) -> Any
             root or str(Path.cwd()),
             added_sys_path=list(extra_paths),
         )
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("Jedi project unavailable for %s", root, exc_info=True)
         return None
     _PROJECT_CACHE[key] = project
@@ -345,7 +345,7 @@ def _script(
             environment=environment,
             project=_get_project(project_root, extra_paths),
         )
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("Jedi Script creation failed", exc_info=True)
         return None
 
@@ -378,7 +378,7 @@ def jedi_completions(
         return []
     try:
         items = script.complete(line, _jedi_column(column))
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("Jedi complete failed", exc_info=True)
         return []
 
@@ -447,7 +447,7 @@ def jedi_signature_help(
         return None
     try:
         signatures = script.get_signatures(line, _jedi_column(column))
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("Jedi get_signatures failed", exc_info=True)
         return None
     if not signatures:
@@ -531,7 +531,7 @@ def jedi_hover(
 def _jedi_names(fetch: Callable[[], Any], what: str) -> list[Any]:
     try:
         return list(fetch() or [])
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("Jedi %s failed", what, exc_info=True)
         return []
 
@@ -557,12 +557,12 @@ def jedi_definitions(
     names: list[Any] = []
     try:
         names = list(script.goto(line, col, follow_imports=True, follow_builtin_imports=True))
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("Jedi goto failed", exc_info=True)
     if not names:
         try:
             names = list(script.infer(line, col))
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Jedi infer failed", exc_info=True)
             return []
 
@@ -596,7 +596,7 @@ def jedi_syntax_errors(
         return []
     try:
         errors = script.get_syntax_errors()
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("Jedi get_syntax_errors failed", exc_info=True)
         return []
 
@@ -646,7 +646,7 @@ def jedi_unresolved_imported_names(
         found: list[Any] = []
         try:
             found = list(script.infer(line, col) or [])
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Jedi infer failed for import %s", imported, exc_info=True)
             continue
         if not found:
@@ -660,7 +660,7 @@ def jedi_unresolved_imported_names(
                     )
                     or [],
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.debug("Jedi goto failed for import %s", imported, exc_info=True)
                 continue
         if not found:
@@ -706,7 +706,7 @@ def _jedi_attribute_resolved(script: Any, line: int, column: int, attr: str) -> 
         try:
             if script.infer(line, col) or []:
                 return True
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Jedi infer failed for attribute %s", attr, exc_info=True)
         try:
             if script.goto(
@@ -716,7 +716,7 @@ def _jedi_attribute_resolved(script: Any, line: int, column: int, attr: str) -> 
                 follow_builtin_imports=True,
             ):
                 return True
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Jedi goto failed for attribute %s", attr, exc_info=True)
     return False
 
@@ -731,7 +731,7 @@ def _jedi_attribute_completion_names(
     col = _jedi_column(column)
     try:
         completions = list(script.complete(line, col) or [])
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("Jedi complete failed for attribute %s", attr, exc_info=True)
         return set()
     return {
@@ -754,9 +754,7 @@ def _completion_names_inconclusive(names: set[str], attr: str) -> bool:
         return True
     if attr in _PATHLIKE_ATTR_NAMES and public & _PATHLIKE_COMPLETION_MARKERS:
         return True
-    if attr in _DATETIME_ATTR_NAMES:
-        return True
-    return False
+    return attr in _DATETIME_ATTR_NAMES
 
 
 def jedi_unexpected_call_keywords(
@@ -782,7 +780,7 @@ def jedi_unexpected_call_keywords(
             continue
         try:
             signatures = list(script.get_signatures(line, _jedi_column(column)) or [])
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Jedi signatures failed for keyword %s", name, exc_info=True)
             continue
         if not signatures:
@@ -821,7 +819,7 @@ def jedi_references(
         return []
     try:
         names = script.get_references(line, _jedi_column(column), include_builtins=False)
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("Jedi get_references failed", exc_info=True)
         return []
 
@@ -867,7 +865,7 @@ def jedi_rename(
         return None
     try:
         refactoring = script.rename(line, _jedi_column(column), new_name=new_name)
-    except Exception as exc:  # noqa: BLE001 — invalid identifier, unresolved name…
+    except Exception as exc:
         logger.debug("Jedi rename failed", exc_info=True)
         return {"error": str(exc), "files": []}
 
@@ -880,7 +878,7 @@ def jedi_rename(
                     "content": new_code.get_new_code(),
                 },
             )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.debug("Jedi rename diff failed", exc_info=True)
         return {"error": str(exc), "files": []}
 

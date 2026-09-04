@@ -9,7 +9,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from robot_studio.core.container import Container
 from robot_studio.core.events import FilesystemChanged, IndexUpdated, RepositoryUpdated
 from robot_studio.domain.models import Project, ProjectType, Workspace

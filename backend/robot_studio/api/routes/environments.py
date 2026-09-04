@@ -1,7 +1,7 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.environment import (
@@ -20,6 +20,7 @@ from robot_studio.infrastructure.environment.filesystem import (
 )
 
 router = APIRouter(prefix="/environments", tags=["environments"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 def _to_response(environment: Environment) -> EnvironmentResponse:
@@ -46,8 +47,8 @@ def _to_response(environment: Environment) -> EnvironmentResponse:
 
 @router.get("", response_model=EnvironmentListResponse)
 async def list_environments(
-    sort: str = Query(default="active"),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    sort: Annotated[str, Query()] = "active",
 ) -> EnvironmentListResponse:
     try:
         environments = await gateway.list_environments(sort=sort)
@@ -60,7 +61,7 @@ async def list_environments(
 
 @router.get("/interpreters", response_model=PythonInterpreterListResponse)
 async def list_python_interpreters(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> PythonInterpreterListResponse:
     interpreters = await gateway.list_python_interpreters()
     return PythonInterpreterListResponse(
@@ -78,7 +79,7 @@ async def list_python_interpreters(
 @router.post("", response_model=EnvironmentResponse, status_code=201)
 async def create_environment(
     request: CreateEnvironmentRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> EnvironmentResponse:
     try:
         environment = await gateway.create_environment(
@@ -94,7 +95,7 @@ async def create_environment(
 @router.post("/import", response_model=EnvironmentResponse)
 async def import_environment(
     request: ImportEnvironmentRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> EnvironmentResponse:
     try:
         environment = await gateway.import_environment(path=request.path)
@@ -106,7 +107,7 @@ async def import_environment(
 @router.post("/activate", response_model=EnvironmentResponse)
 async def activate_environment(
     request: ActivateEnvironmentRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> EnvironmentResponse:
     try:
         environment = await gateway.activate_environment(
@@ -121,7 +122,7 @@ async def activate_environment(
 async def clone_environment(
     environment_id: UUID,
     request: CloneEnvironmentRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> EnvironmentResponse:
     try:
         environment = await gateway.clone_environment(
@@ -136,7 +137,7 @@ async def clone_environment(
 @router.get("/{environment_id}", response_model=EnvironmentResponse)
 async def get_environment(
     environment_id: UUID,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> EnvironmentResponse:
     try:
         environment = await gateway.get_environment(environment_id=environment_id)
@@ -148,8 +149,8 @@ async def get_environment(
 @router.delete("/{environment_id}", status_code=204)
 async def delete_environment(
     environment_id: UUID,
-    delete_files: bool = Query(default=False),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    delete_files: Annotated[bool, Query()] = False,
 ) -> None:
     try:
         await gateway.delete_environment(

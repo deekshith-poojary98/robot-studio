@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC
 
 import pytest
-
 from robot_studio.domain.models.keyword_metadata import (
     KeywordMetadata,
     KeywordSourceType,

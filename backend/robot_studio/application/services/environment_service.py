@@ -679,9 +679,7 @@ class EnvironmentService:
             return True
         if (environment.path / "bin" / "python").is_file():
             return True
-        if (environment.path / "Scripts" / "python.exe").is_file():
-            return True
-        return False
+        return (environment.path / "Scripts" / "python.exe").is_file()
 
     @staticmethod
     def _from_manifest(workspace_id: UUID, manifest) -> Environment:

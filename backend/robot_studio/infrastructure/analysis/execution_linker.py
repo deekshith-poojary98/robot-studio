@@ -8,6 +8,7 @@ from pathlib import Path
 from uuid import UUID
 
 from robot_studio.domain.interfaces.analysis import AnalysisStore
+from robot_studio.domain.models import ExecutionRun
 from robot_studio.domain.models.analysis import BindingConfidence, EntityKind
 from robot_studio.domain.models.execution_knowledge import (
     ExecutionEdgeKind,
@@ -15,11 +16,11 @@ from robot_studio.domain.models.execution_knowledge import (
     ExecutionHistoryEntry,
     LinkedRunInfo,
 )
-from robot_studio.domain.models import ExecutionRun
-from robot_studio.infrastructure.analysis.execution_store import SqliteExecutionKnowledgeStore
+from robot_studio.infrastructure.analysis.execution_store import (
+    SqliteExecutionKnowledgeStore,
+)
 from robot_studio.infrastructure.analysis.normalize import normalize_keyword_name
 from robot_studio.infrastructure.execution.execution_trace import (
-    ExecutionTrace,
     KeywordStep,
     flatten_keyword_steps,
     iter_tests,
@@ -257,11 +258,12 @@ class ExecutionLinker:
                     kind=kind,
                 )
                 for ent in entities:
-                    if str(ent.file_path.resolve()) == src:
-                        if kind == EntityKind.SUITE.value or ent.name_normalized == normalize_keyword_name(
-                            name or Path(source).stem,
-                        ):
-                            return ent
+                    if str(ent.file_path.resolve()) == src and (
+                        kind == EntityKind.SUITE.value
+                        or ent.name_normalized
+                        == normalize_keyword_name(name or Path(source).stem)
+                    ):
+                        return ent
                 for ent in entities:
                     if str(ent.file_path.resolve()) == src and kind == EntityKind.SUITE.value:
                         return ent

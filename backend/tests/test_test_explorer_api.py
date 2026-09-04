@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.core.config import settings
@@ -422,8 +421,8 @@ async def test_large_run_requires_confirmation(api_client, monkeypatch: pytest.M
     assert project_blocked.json()["detail"]["code"] == "large_run_confirmation_required"
 
     # Tag include can also exceed threshold (smoke covers Alpha via suite tags).
-    tag_blocked = await client.post("/api/v1/tests/run-tag", json={"tag": "smoke"})
     # May be under or over depending on discovery; force with wildcard which always confirms.
+    await client.post("/api/v1/tests/run-tag", json={"tag": "smoke"})
     wild = await client.post("/api/v1/tests/run-tag", json={"tag": "smoke*"})
     assert wild.status_code == 409, wild.text
     assert wild.json()["detail"]["code"] == "large_run_confirmation_required"

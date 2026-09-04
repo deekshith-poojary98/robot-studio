@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
 from uuid import UUID
-import sys
 
 import pytest
-
 from robot_studio.application.services.environment_service import EnvironmentService
 from robot_studio.application.services.execution_service import (
     ExecutionService,

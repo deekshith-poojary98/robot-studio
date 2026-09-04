@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.core.config import settings
@@ -15,7 +14,9 @@ from robot_studio.infrastructure.analysis.normalize import (
     normalize_keyword_name,
     normalize_variable_name,
 )
-from robot_studio.infrastructure.analysis.semantic_extractor import extract_file_semantics
+from robot_studio.infrastructure.analysis.semantic_extractor import (
+    extract_file_semantics,
+)
 from robot_studio.main import create_app
 
 
@@ -141,7 +142,7 @@ async def test_variables_py_import_not_flagged_missing(api_client) -> None:
 @pytest.mark.asyncio
 async def test_stale_missing_import_cache_filtered_by_disk(api_client) -> None:
     """Epoch cache must not keep Variables *.py flagged after the file exists."""
-    client, fresh, tmp_path = api_client
+    client, _fresh, tmp_path = api_client
     project_path = await _seed_project(client, tmp_path)
 
     suite = project_path / "tests" / "api.robot"

@@ -57,7 +57,7 @@ class SignatureHelpPipeline:
                 continue
             try:
                 meta = await provider.resolve(ctx)
-            except Exception:  # noqa: BLE001 — one provider must not break signature help
+            except Exception:  # noqa: BLE001, S112 — one provider must not break signature help
                 continue
             if meta is not None and meta.name:
                 contributions.append(meta)

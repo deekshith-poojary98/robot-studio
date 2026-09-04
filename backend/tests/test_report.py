@@ -7,13 +7,17 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from robot_studio.application.services.report_service import (
     ReportService,
     ReportValidationError,
 )
 from robot_studio.application.services.workspace_context import WorkspaceContext
-from robot_studio.core.events import InMemoryEventBus, RunDeleted, RunIndexed, WorkspaceOpened
+from robot_studio.core.events import (
+    InMemoryEventBus,
+    RunDeleted,
+    RunIndexed,
+    WorkspaceOpened,
+)
 from robot_studio.domain.models import (
     ExecutionRun,
     ExecutionStatus,
@@ -29,7 +33,6 @@ from robot_studio.infrastructure.execution.results_store import FilesystemResult
 from robot_studio.infrastructure.repositories.execution_repository import (
     SqliteExecutionRepository,
 )
-
 
 SAMPLE_OUTPUT_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <robot generator="Robot 7.0.1 (Python 3.12.0 on darwin)" generated="20260719 12:00:00.000000" rpa="false" schemaversion="5">

@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from robot_studio.domain.interfaces.completion import (
     CompletionCandidate,
     CompletionRequestContext,
@@ -19,7 +18,10 @@ from robot_studio.infrastructure.language.completion.dsl_provider import (
     DslCompletionProvider,
 )
 from robot_studio.infrastructure.language.completion.pipeline import CompletionPipeline
-from robot_studio.infrastructure.language.completion.ranking import merge_and_rank, rank_score
+from robot_studio.infrastructure.language.completion.ranking import (
+    merge_and_rank,
+    rank_score,
+)
 from robot_studio.infrastructure.language.completion.usage_store import (
     SqliteCompletionUsageStore,
 )
@@ -76,6 +78,30 @@ Demo
     var_items = await BufferCompletionProvider().complete(var_ctx)
     var_labels = {item.label for item in var_items}
     assert "${user}" in var_labels
+
+
+@pytest.mark.asyncio
+async def test_buffer_provider_skips_documentation_and_local_settings() -> None:
+    content = """*** Keywords ***
+Click Element
+    [Documentation]    Doc: Perform click action
+    [Tags]    smoke
+    Click
+"""
+    ctx = CompletionRequestContext(
+        file_path="demo.robot",
+        content=content,
+        line=5,
+        column=10,
+        prefix="C",
+        context="keyword_call",
+        section="keywords",
+    )
+    items = await BufferCompletionProvider().complete(ctx)
+    labels = {item.label for item in items}
+    assert "Click Element" in labels
+    assert "Doc: Perform click action" not in labels
+    assert "smoke" not in labels
 
 
 @pytest.mark.asyncio

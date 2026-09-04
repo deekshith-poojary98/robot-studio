@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from robot_studio.application.services.git_service import GitService, GitValidationError
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.events import (

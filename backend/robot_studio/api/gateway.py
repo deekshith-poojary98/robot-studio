@@ -62,7 +62,6 @@ from robot_studio.domain.models.doctor import (
     DoctorReportSummary,
     FindingProviderInfo,
 )
-from robot_studio.domain.models.insights import InsightsSnapshot
 from robot_studio.domain.models.execution_knowledge import (
     EntityExecutionStats,
     ExecutionHistoryEntry,
@@ -73,6 +72,7 @@ from robot_studio.domain.models.execution_knowledge import (
     RunTestFailure,
     SlowEntity,
 )
+from robot_studio.domain.models.insights import InsightsSnapshot
 
 
 class RestGateway:
@@ -357,7 +357,7 @@ class RestGateway:
         """Return whether the UI should prompt for an environment, plus detections."""
         try:
             environments = await self._environment_service.list_environments()
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False, []
         if environments:
             return False, []
@@ -881,7 +881,6 @@ class RestGateway:
 
     @property
     def _git_service(self):
-        from robot_studio.application.services.git_service import GitService
 
         service = self._container.git_service
         if service is None:
@@ -889,12 +888,10 @@ class RestGateway:
         return service
 
     async def git_refresh(self):
-        from robot_studio.domain.models.git import GitRepositoryInfo
 
         return await self._git_service.refresh()
 
     async def git_status(self):
-        from robot_studio.domain.models.git import GitStatus
 
         repository = await self._git_service.get_repository()
         if repository is None:

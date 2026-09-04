@@ -28,9 +28,7 @@ def is_robot_keyword_name(name: str) -> bool:
     text = (name or "").strip()
     if not text or "\n" in text or "\r" in text:
         return False
-    if text.startswith("*") or text.startswith("#"):
-        return False
-    return True
+    return not text.startswith(("*", "#"))
 
 
 def replace_keyword_name(content: str, old: str, new: str) -> str:
@@ -75,7 +73,7 @@ def _rewrite_line(raw: str, old_norm: str, new_name: str, *, in_keywords: bool) 
     # Reconstruct with separators preserved. Odd tokens are separators.
     parts: list[str] = []
     cell_index = 0
-    leading = bool(raw.startswith(" ") or raw.startswith("\t"))
+    leading = bool(raw.startswith((" ", "\t")))
     for part in cells:
         if re.fullmatch(r"[ \t]{2,}|\t+", part or ""):
             parts.append(part)
@@ -85,9 +83,7 @@ def _rewrite_line(raw: str, old_norm: str, new_name: str, *, in_keywords: bool) 
         is_keyword_cell = False
         if leading:
             # First non-empty cell is the keyword (or assignment target).
-            if cell_index == 0:
-                is_keyword_cell = True
-            elif cell_index == 1 and re.match(r"^[\$@&%]", _first_token(parts)):
+            if cell_index == 0 or cell_index == 1 and re.match(r"^[\$@&%]", _first_token(parts)):
                 is_keyword_cell = True
         elif in_keywords and cell_index == 0 and not part.strip().startswith("["):
             is_keyword_cell = True

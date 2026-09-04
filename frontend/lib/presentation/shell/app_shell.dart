@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/backend_host.dart';
@@ -1877,12 +1878,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<bool> _showLargeRunConfirmDialog({
-    required int count,
+    required int? count,
     required int threshold,
     String? tag,
   }) async {
     if (!mounted) return false;
-    final estimate = count > 0 ? '$count' : 'many';
+    final estimate = (count != null && count > 0) ? '$count' : 'many';
     final focus = tag == null || tag.isEmpty
         ? 'the whole project'
         : 'tag filter "$tag"';
@@ -1921,10 +1922,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     String? tag,
     bool projectWide = true,
   }) async {
-    int count = 0;
+    int? count;
     try {
       count = await _gateway.countTests(tag: tag, projectWide: projectWide);
-    } catch (_) {}
+    } catch (_) {
+      count = null;
+    }
     final threshold = _settings.execution.largeRunThreshold;
     final needsConfirm = LargeRunGuard.needsConfirmation(
       count: count,

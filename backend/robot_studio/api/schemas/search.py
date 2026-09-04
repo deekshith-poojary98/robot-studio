@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from robot_studio.domain.interfaces.search import ContentSearchResult
 from pydantic import BaseModel, Field
+from robot_studio.domain.interfaces.search import ContentSearchResult
 
 
 class EnclosingSymbolResponse(BaseModel):

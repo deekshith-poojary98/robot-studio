@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from robot_studio.infrastructure.language.robot_parsing_worker import document_symbols
 
-
 SAMPLE = """*** Variables ***
 ${USER}    alice
 

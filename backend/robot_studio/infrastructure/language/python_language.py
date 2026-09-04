@@ -278,9 +278,10 @@ def _enclosing_class(tree: ast.AST, line: int) -> ast.ClassDef | None:
             continue
         start = getattr(node, "lineno", 1) or 1
         end = getattr(node, "end_lineno", start) or start
-        if start <= line <= end:
-            if best is None or start >= (getattr(best, "lineno", 0) or 0):
-                best = node
+        if start <= line <= end and (
+            best is None or start >= (getattr(best, "lineno", 0) or 0)
+        ):
+            best = node
     return best
 
 
@@ -294,9 +295,10 @@ def _enclosing_function(
             continue
         start = getattr(node, "lineno", 1) or 1
         end = getattr(node, "end_lineno", start) or start
-        if start <= line <= end:
-            if best is None or start >= (getattr(best, "lineno", 0) or 0):
-                best = node
+        if start <= line <= end and (
+            best is None or start >= (getattr(best, "lineno", 0) or 0)
+        ):
+            best = node
     return best
 
 
@@ -312,11 +314,12 @@ def _attribute_completions(
             return out
         for item in cls.body:
             if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                if item.name.startswith("_") and not (
-                    item.name.startswith("__") and item.name.endswith("__")
+                if (
+                    item.name.startswith("_")
+                    and not (item.name.startswith("__") and item.name.endswith("__"))
+                    and item.name != "__init__"
                 ):
-                    if item.name != "__init__":
-                        continue
+                    continue
                 out.append(
                     {
                         "label": item.name,

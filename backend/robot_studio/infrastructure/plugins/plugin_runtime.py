@@ -54,7 +54,7 @@ def load_plugin_module(plugin_dir: Path, entry: str) -> Any:
     sys.modules[module_name] = module
     try:
         spec.loader.exec_module(module)
-    except Exception as exc:  # noqa: BLE001 — plugin boundary
+    except Exception as exc:
         raise PluginLoadError(f"Plugin module failed to execute: {exc}") from exc
 
     if hasattr(module, "create_plugin") and callable(module.create_plugin):

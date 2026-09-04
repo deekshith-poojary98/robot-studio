@@ -8,23 +8,33 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from robot_studio.application.services.index_service import IndexService
 from robot_studio.application.services.language_service import LanguageFacade
 from robot_studio.application.services.workspace_context import WorkspaceContext
-from robot_studio.core.events import FileIndexed, FileRemoved, InMemoryEventBus, IndexUpdated
+from robot_studio.core.events import (
+    FileIndexed,
+    FileRemoved,
+    IndexUpdated,
+    InMemoryEventBus,
+)
 from robot_studio.domain.interfaces.indexing import SymbolKind
-from robot_studio.domain.models import Project, ProjectType, Workspace, WorkspaceSettings
+from robot_studio.domain.models import (
+    Project,
+    ProjectType,
+    Workspace,
+    WorkspaceSettings,
+)
 from robot_studio.infrastructure.indexing.file_watcher import NativeFileWatcher
 from robot_studio.infrastructure.indexing.filesystem_indexer import FilesystemIndexer
 from robot_studio.infrastructure.indexing.robot_indexer import RobotIndexer
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
 from robot_studio.infrastructure.language.builtin_keywords import BUILTIN_KEYWORDS
-from robot_studio.infrastructure.language.robot_language_service import RobotLanguageService
+from robot_studio.infrastructure.language.robot_language_service import (
+    RobotLanguageService,
+)
 from robot_studio.infrastructure.repositories.project_repository import (
     SqliteProjectRepository,
 )
-
 
 SAMPLE_ROBOT = """*** Settings ***
 Library    Collections
@@ -360,7 +370,7 @@ async def test_hover_variables_py_import_without_index(index_stack) -> None:
 
 @pytest.mark.asyncio
 async def test_incremental_indexing_skips_unchanged(index_stack) -> None:
-    service, store, _facade, suite, _lib, _bus, workspace, project = index_stack
+    service, _store, _facade, suite, _lib, _bus, workspace, project = index_stack
     count1, changed1 = await service.indexer.index_file(
         suite,
         workspace_id=workspace.id,
@@ -403,7 +413,7 @@ async def test_schedule_rebuild_returns_before_indexing_finishes(index_stack) ->
 
 @pytest.mark.asyncio
 async def test_incremental_rebuild_skips_unchanged_files(index_stack) -> None:
-    service, store, _facade, suite, _lib, _bus, workspace, project = index_stack
+    service, store, _facade, suite, _lib, _bus, _workspace, _project = index_stack
     await service.rebuild()
     before = await store.get_file_mtime(suite)
     assert before is not None
@@ -456,7 +466,7 @@ def test_discover_files_prunes_venv(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_rebuild_search_definition_references(index_stack) -> None:
-    service, store, facade, suite, lib, bus, workspace, project = index_stack
+    service, store, facade, suite, _lib, bus, workspace, project = index_stack
     events: list[object] = []
 
     async def on_updated(event: IndexUpdated) -> None:
@@ -759,7 +769,9 @@ async def test_watcher_detects_new_file(index_stack, tmp_path: Path) -> None:
 
 
 def test_parse_indexable_file_is_picklable(tmp_path: Path) -> None:
-    from robot_studio.infrastructure.indexing.filesystem_indexer import parse_indexable_file
+    from robot_studio.infrastructure.indexing.filesystem_indexer import (
+        parse_indexable_file,
+    )
 
     path = tmp_path / "demo.robot"
     path.write_text(SAMPLE_ROBOT, encoding="utf-8")

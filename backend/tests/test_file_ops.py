@@ -8,8 +8,10 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
-from robot_studio.application.services.file_service import FileService, FileValidationError
+from robot_studio.application.services.file_service import (
+    FileService,
+    FileValidationError,
+)
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.events import FilesystemChanged, InMemoryEventBus
 from robot_studio.domain.models import Workspace
@@ -67,7 +69,7 @@ async def test_create_robot_preserves_explicit_content(file_stack) -> None:
 
 @pytest.mark.asyncio
 async def test_rename_delete_duplicate(file_stack) -> None:
-    service, root, events = file_stack
+    service, root, _events = file_stack
     path = root / "a.robot"
     path.write_text("*** Test Cases ***\n")
     renamed = await service.rename_path(str(path), "b.robot")

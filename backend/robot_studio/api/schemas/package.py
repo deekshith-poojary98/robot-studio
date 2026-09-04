@@ -1,7 +1,6 @@
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-
 from robot_studio.domain.models import InstalledPackage, PackageSearchResult
 
 

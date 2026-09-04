@@ -9,7 +9,6 @@ from uuid import UUID
 
 from robot_studio.application.services.execution_service import (
     ExecutionService,
-    ExecutionValidationError,
 )
 from robot_studio.application.services.project_service import ProjectService
 from robot_studio.application.services.settings_service import SettingsService
@@ -556,7 +555,7 @@ class TestExplorerService:
             return []
         try:
             raw = document_symbols(content, str(path))
-        except Exception:
+        except Exception:  # noqa: BLE001
             return []
         return [
             {
@@ -694,27 +693,34 @@ class TestExplorerService:
                 if detail.startswith("test:"):
                     test_name = detail.split(":", 1)[1]
                     tags_by_test.setdefault(test_name, []).append(name)
-                elif detail in {"Force Tags", "Default Tags"}:
+                elif detail in {"Force Tags", "Default Tags", "Test Tags"}:
                     suite_tags.append(name)
-            elif kind == "setting":
-                if detail in {
+            elif kind == "setting" and (
+                detail
+                in {
                     "Suite Setup",
                     "Suite Teardown",
                     "Test Setup",
                     "Test Teardown",
-                } or detail.startswith("Setup:") or detail.startswith("Teardown:"):
-                    setups.append(
-                        TestNode(
-                            id=f"setting:{path_str}:{detail}:{name}:{line}",
-                            kind="setup" if "Setup" in detail else "teardown",
-                            name=f"{detail}: {name}" if ":" not in detail else f"{detail.split(':', 1)[0]}: {name}",
-                            path=path_str,
-                            line=line,
-                            project_id=project_id,
-                            detail=detail,
-                            status="not_run",
+                }
+                or detail.startswith(("Setup:", "Teardown:"))
+            ):
+                setups.append(
+                    TestNode(
+                        id=f"setting:{path_str}:{detail}:{name}:{line}",
+                        kind="setup" if "Setup" in detail else "teardown",
+                        name=(
+                            f"{detail}: {name}"
+                            if ":" not in detail
+                            else f"{detail.split(':', 1)[0]}: {name}"
                         ),
-                    )
+                        path=path_str,
+                        line=line,
+                        project_id=project_id,
+                        detail=detail,
+                        status="not_run",
+                    ),
+                )
 
         for symbol in symbols:
             kind = str(symbol.get("kind") or "")
@@ -778,9 +784,16 @@ class TestExplorerService:
             return "running"
         if "fail" in statuses:
             return "fail"
-        if statuses == {"pass"} or (statuses <= {"pass", "skip", "not_run"} and "pass" in statuses and "fail" not in statuses and "not_run" not in statuses):
-            if statuses <= {"pass", "skip"}:
-                return "pass"
+        if (
+            statuses == {"pass"}
+            or (
+                statuses <= {"pass", "skip", "not_run"}
+                and "pass" in statuses
+                and "fail" not in statuses
+                and "not_run" not in statuses
+            )
+        ) and statuses <= {"pass", "skip"}:
+            return "pass"
         if statuses <= {"skip", "not_run"} and "skip" in statuses:
             return "skip"
         if "pass" in statuses and "not_run" not in statuses and "fail" not in statuses:

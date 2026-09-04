@@ -39,7 +39,7 @@ def _emit() -> None:
     )
 
 
-def start_suite(name, attrs):  # noqa: ANN001, ARG001
+def start_suite(name, attrs):
     global _suite, _test
     _suite = name
     _test = ""
@@ -47,7 +47,7 @@ def start_suite(name, attrs):  # noqa: ANN001, ARG001
     _emit()
 
 
-def end_suite(name, attrs):  # noqa: ANN001, ARG001
+def end_suite(name, attrs):
     global _suite, _test
     _suite = ""
     _test = ""
@@ -55,21 +55,21 @@ def end_suite(name, attrs):  # noqa: ANN001, ARG001
     _emit()
 
 
-def start_test(name, attrs):  # noqa: ANN001, ARG001
+def start_test(name, attrs):
     global _test
     _test = name
     _keyword_stack.clear()
     _emit()
 
 
-def end_test(name, attrs):  # noqa: ANN001, ARG001
+def end_test(name, attrs):
     global _test
     _test = ""
     _keyword_stack.clear()
     _emit()
 
 
-def start_keyword(name, attrs):  # noqa: ANN001
+def start_keyword(name, attrs):
     attrs = attrs or {}
     kw = attrs.get("kwname") or name
     lib = attrs.get("libname") or ""
@@ -85,7 +85,7 @@ def start_keyword(name, attrs):  # noqa: ANN001
     _emit()
 
 
-def end_keyword(name, attrs):  # noqa: ANN001, ARG001
+def end_keyword(name, attrs):
     attrs = attrs or {}
     kind = str(attrs.get("type") or "").upper()
     if kind in {"FOR", "ITER", "IF", "ELSE IF", "ELSE", "TRY", "EXCEPT", "FINALLY", "WHILE"}:

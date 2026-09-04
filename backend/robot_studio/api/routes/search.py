@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Query
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.index import SearchResponse, to_symbol_response
@@ -15,14 +16,15 @@ from robot_studio.application.services.index_service import IndexValidationError
 from robot_studio.domain.interfaces.indexing import SymbolKind
 
 router = APIRouter(prefix="/search", tags=["search"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 @router.get("/symbols", response_model=SearchResponse)
 async def search_symbols(
-    q: str = Query(default=""),
-    kind: str | None = Query(default=None),
-    limit: int = Query(default=100, ge=1, le=500),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    q: Annotated[str, Query()] = "",
+    kind: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> SearchResponse:
     symbol_kind = None
     if kind:
@@ -39,10 +41,10 @@ async def search_symbols(
 
 @router.get("/content", response_model=ContentSearchResponse)
 async def search_content(
-    q: str = Query(default=""),
-    limit: int = Query(default=500, ge=1, le=2000),
-    context_lines: int = Query(default=1, ge=0, le=5),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    q: Annotated[str, Query()] = "",
+    limit: Annotated[int, Query(ge=1, le=2000)] = 500,
+    context_lines: Annotated[int, Query(ge=0, le=5)] = 1,
 ) -> ContentSearchResponse:
     try:
         result = await gateway.search_content(

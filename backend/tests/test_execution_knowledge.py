@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import shutil
 import subprocess
 import sys
@@ -12,7 +13,6 @@ from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.core.config import settings
@@ -150,10 +150,12 @@ async def test_execution_knowledge_apis(api_client) -> None:
 
     out = project_path / ".robotstudio" / "reports" / "Run-test"
     out.mkdir(parents=True, exist_ok=True)
-    proc = subprocess.run(
+    proc = await asyncio.to_thread(
+        subprocess.run,
         [str(ROBOT_BIN), "-d", str(out), str(suite)],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert proc.returncode == 0, proc.stderr
     output_xml = out / "output.xml"

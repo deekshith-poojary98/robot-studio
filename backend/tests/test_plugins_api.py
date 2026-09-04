@@ -7,14 +7,15 @@ from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.core.config import settings
 from robot_studio.core.container import Container
 from robot_studio.core.events import PluginEnabled, PluginLoaded
-from robot_studio.infrastructure.plugins.plugin_loader import PluginLoader
-from robot_studio.infrastructure.plugins.plugin_manager import PluginManager
+from robot_studio.infrastructure.plugins.plugin_loader import (
+    PluginDiscoveryError,
+    PluginLoader,
+)
 from robot_studio.main import create_app
 
 
@@ -51,7 +52,7 @@ def test_plugin_loader_validates_manifest_and_entry(tmp_path: Path) -> None:
     (plugin_dir / "plugin.json").write_text(json.dumps(manifest), encoding="utf-8")
 
     loader = PluginLoader()
-    with pytest.raises(Exception):
+    with pytest.raises(PluginDiscoveryError):
         loader.load_manifest(plugin_dir / "plugin.json")
 
     (plugin_dir / "plugin.py").write_text(
@@ -107,15 +108,11 @@ async def test_plugin_manager_loads_external_plugin(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     (plugin_dir / "plugin.py").write_text(
-        "\n".join(
-            [
-                "class Plugin:",
-                "    async def initialize(self, context): pass",
-                "    async def activate(self, context): pass",
-                "    async def deactivate(self, context): pass",
-                "    async def dispose(self, context): pass",
-            ],
-        ),
+        "class Plugin:\n"
+        "    async def initialize(self, context): pass\n"
+        "    async def activate(self, context): pass\n"
+        "    async def deactivate(self, context): pass\n"
+        "    async def dispose(self, context): pass",
         encoding="utf-8",
     )
 
@@ -144,7 +141,7 @@ async def test_plugin_manager_loads_external_plugin(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_workspace_open_discovers_plugins(api_client) -> None:
-    client, fresh, tmp_path = api_client
+    client, _fresh, tmp_path = api_client
     homes = tmp_path / "homes"
     homes.mkdir(parents=True)
 
@@ -186,7 +183,7 @@ async def test_workspace_open_discovers_plugins(api_client) -> None:
 
 @pytest.mark.asyncio
 async def test_plugins_api_lists_and_actions(api_client) -> None:
-    client, fresh, tmp_path = api_client
+    client, _fresh, _tmp_path = api_client
     response = await client.get("/api/v1/plugins")
     assert response.status_code == 200
     plugins = response.json()["plugins"]

@@ -9,10 +9,10 @@ Feature-specific Doctor checks are exposed only as inspections that return
 
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.analysis import (
@@ -24,16 +24,17 @@ from robot_studio.api.schemas.analysis import (
     EdgeRefResponse,
     EntityListResponse,
     EntityRefResponse,
-    InspectRequest,
-    InspectionListResponse,
     InspectionInfoResponse,
+    InspectionListResponse,
     InspectionReportResponse,
+    InspectRequest,
     UsageStatResponse,
     UsageStatsResponse,
 )
 from robot_studio.application.services.analysis_service import AnalysisValidationError
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 def _http(exc: AnalysisValidationError) -> HTTPException:
@@ -42,8 +43,8 @@ def _http(exc: AnalysisValidationError) -> HTTPException:
 
 @router.get("/snapshot", response_model=AnalysisSnapshotResponse)
 async def analysis_snapshot(
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> AnalysisSnapshotResponse:
     try:
         snap = await gateway.analysis_snapshot(
@@ -56,8 +57,8 @@ async def analysis_snapshot(
 
 @router.post("/rebuild", response_model=AnalysisSnapshotResponse)
 async def analysis_rebuild(
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> AnalysisSnapshotResponse:
     try:
         snap = await gateway.analysis_rebuild(
@@ -73,7 +74,7 @@ async def analysis_rebuild(
 
 @router.get("/inspections", response_model=InspectionListResponse)
 async def list_inspections(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> InspectionListResponse:
     infos = gateway.analysis_list_inspections()
     return InspectionListResponse(
@@ -84,7 +85,7 @@ async def list_inspections(
 @router.post("/inspect", response_model=InspectionReportResponse)
 async def run_inspections(
     body: InspectRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> InspectionReportResponse:
     try:
         report = await gateway.analysis_inspect(
@@ -99,8 +100,8 @@ async def run_inspections(
 @router.get("/inspect/{inspection_id}", response_model=InspectionReportResponse)
 async def run_one_inspection(
     inspection_id: str,
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> InspectionReportResponse:
     try:
         report = await gateway.analysis_inspect_one(
@@ -117,9 +118,9 @@ async def run_one_inspection(
 
 @router.get("/graph/keyword-callers", response_model=EdgeListResponse)
 async def keyword_callers(
-    keyword: str = Query(...),
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    keyword: Annotated[str, Query()],
+    project_id: Annotated[str | None, Query()] = None,
 ) -> EdgeListResponse:
     try:
         items = await gateway.analysis_keyword_callers(
@@ -133,9 +134,9 @@ async def keyword_callers(
 
 @router.get("/graph/keyword-callees", response_model=EdgeListResponse)
 async def keyword_callees(
-    keyword: str = Query(...),
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    keyword: Annotated[str, Query()],
+    project_id: Annotated[str | None, Query()] = None,
 ) -> EdgeListResponse:
     try:
         items = await gateway.analysis_keyword_callees(
@@ -149,8 +150,8 @@ async def keyword_callees(
 
 @router.get("/graph/dependency", response_model=DependencyGraphResponse)
 async def dependency_graph(
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> DependencyGraphResponse:
     try:
         nodes = await gateway.analysis_dependency_graph(
@@ -166,7 +167,7 @@ async def dependency_graph(
 @router.post("/graph/affected-tests", response_model=EntityListResponse)
 async def affected_tests(
     body: AffectedTestsRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> EntityListResponse:
     try:
         items = await gateway.analysis_affected_tests(
@@ -181,9 +182,9 @@ async def affected_tests(
 
 @router.get("/graph/variable-references", response_model=EdgeListResponse)
 async def variable_references(
-    variable: str = Query(...),
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    variable: Annotated[str, Query()],
+    project_id: Annotated[str | None, Query()] = None,
 ) -> EdgeListResponse:
     try:
         items = await gateway.analysis_variable_references(
@@ -197,9 +198,9 @@ async def variable_references(
 
 @router.get("/graph/library-usage", response_model=EdgeListResponse)
 async def library_usage(
-    library: str | None = Query(default=None),
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    library: Annotated[str | None, Query()] = None,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> EdgeListResponse:
     try:
         items = await gateway.analysis_library_usage(
@@ -213,8 +214,8 @@ async def library_usage(
 
 @router.get("/graph/keyword-usage-statistics", response_model=UsageStatsResponse)
 async def keyword_usage_statistics(
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> UsageStatsResponse:
     try:
         items = await gateway.analysis_keyword_usage_statistics(

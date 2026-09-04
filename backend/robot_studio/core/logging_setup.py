@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 DEFAULT_RETENTION_DAYS = 7
@@ -39,7 +39,7 @@ def configure_logging(
     root.mkdir(parents=True, exist_ok=True)
     purge_old_logs(root, retention_days=retention_days)
 
-    log_path = root / f"backend-{date.today().isoformat()}.log"
+    log_path = root / f"backend-{datetime.now().astimezone().date().isoformat()}.log"
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
 
@@ -52,7 +52,7 @@ def configure_logging(
             root_logger.removeHandler(handler)
             try:
                 handler.close()
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
 
     handler = logging.FileHandler(log_path, encoding="utf-8")
@@ -100,7 +100,7 @@ def purge_old_logs(
     """
     days = max(1, retention_days)
     clock = now if now is not None else time.time()
-    today = date.fromtimestamp(clock)
+    today = datetime.fromtimestamp(clock).astimezone().date()
     cutoff = today - timedelta(days=days)
     deleted: list[Path] = []
     if not directory.is_dir():
@@ -112,7 +112,7 @@ def purge_old_logs(
         stamped = _file_date(path)
         if stamped is None:
             try:
-                stamped = date.fromtimestamp(path.stat().st_mtime)
+                stamped = datetime.fromtimestamp(path.stat().st_mtime).astimezone().date()
             except OSError:
                 continue
         if stamped >= cutoff:
@@ -146,5 +146,5 @@ def _reset_for_tests() -> None:
             root.removeHandler(handler)
             try:
                 handler.close()
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass

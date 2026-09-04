@@ -146,14 +146,19 @@ class ReportService:
                 continue
             old_output = run.output_dir
 
-            def _remap(path: Path | None) -> Path | None:
+            def _remap(
+                path: Path | None,
+                *,
+                _old_output: Path = old_output,
+                _candidate: Path = candidate,
+            ) -> Path | None:
                 if path is None:
                     return None
                 try:
-                    relative = path.relative_to(old_output)
+                    relative = path.relative_to(_old_output)
                 except ValueError:
-                    return candidate / path.name
-                return candidate / relative
+                    return _candidate / path.name
+                return _candidate / relative
 
             updated = run.model_copy(
                 update={

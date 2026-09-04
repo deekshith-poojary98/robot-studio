@@ -43,12 +43,13 @@ def ruff_check_diagnostics(
         "-",
     ]
     try:
-        result = subprocess.run(  # noqa: S603 — fixed argv, interpreter from env
+        result = subprocess.run(
             args,
             input=content,
             capture_output=True,
             text=True,
             timeout=_TIMEOUT_SECONDS,
+            check=False,
             **windows_no_window_kwargs(),
         )
     except (OSError, subprocess.TimeoutExpired):

@@ -1,9 +1,9 @@
 """Run configuration CRUD — project-scoped named Robot execution contexts."""
 
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.run_configuration import (
@@ -18,6 +18,7 @@ from robot_studio.application.services.run_configuration_service import (
 )
 
 router = APIRouter(prefix="/run-configurations", tags=["run-configurations"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 def _http(exc: RunConfigurationValidationError) -> HTTPException:
@@ -27,7 +28,7 @@ def _http(exc: RunConfigurationValidationError) -> HTTPException:
 
 @router.get("", response_model=RunConfigurationListResponse)
 async def list_run_configurations(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> RunConfigurationListResponse:
     try:
         return await gateway.list_run_configurations()
@@ -38,7 +39,7 @@ async def list_run_configurations(
 @router.post("", response_model=RunConfigurationResponse)
 async def create_run_configuration(
     request: RunConfigurationWriteRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> RunConfigurationResponse:
     try:
         return await gateway.create_run_configuration(request)
@@ -50,7 +51,7 @@ async def create_run_configuration(
 async def update_run_configuration(
     configuration_id: UUID,
     request: RunConfigurationPatchRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> RunConfigurationResponse:
     try:
         return await gateway.update_run_configuration(configuration_id, request)
@@ -61,7 +62,7 @@ async def update_run_configuration(
 @router.delete("/{configuration_id}")
 async def delete_run_configuration(
     configuration_id: UUID,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> dict:
     try:
         await gateway.delete_run_configuration(configuration_id)
@@ -73,7 +74,7 @@ async def delete_run_configuration(
 @router.post("/{configuration_id}/duplicate", response_model=RunConfigurationResponse)
 async def duplicate_run_configuration(
     configuration_id: UUID,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> RunConfigurationResponse:
     try:
         return await gateway.duplicate_run_configuration(configuration_id)
@@ -84,7 +85,7 @@ async def duplicate_run_configuration(
 @router.post("/activate")
 async def activate_run_configuration(
     request: ActivateRunConfigurationRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> dict:
     try:
         active_id = await gateway.activate_run_configuration(request.configuration_id)

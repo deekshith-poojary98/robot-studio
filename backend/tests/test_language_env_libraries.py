@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 from uuid import uuid4
 
 import pytest
-
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.events import InMemoryEventBus
 from robot_studio.domain.models import Environment, Workspace
@@ -89,15 +89,15 @@ def test_resolve_library_keeps_complete_keyword_doc(
             "- First detail\n"
             "- Second detail"
         )
-        args: list[object] = []
-        tags: list[str] = []
+        args: ClassVar[list[object]] = []
+        tags: ClassVar[list[str]] = []
         deprecated = False
         lineno = 12
 
     class _Library:
         name = "FakeLibrary"
         source = "/tmp/fake_library.py"
-        keywords = [_Keyword()]
+        keywords: ClassVar[list[_Keyword]] = [_Keyword()]
 
     monkeypatch.setattr(
         "robot.libdoc.LibraryDocumentation",
@@ -126,8 +126,8 @@ def test_resolve_library_reports_doc_format(
     class _Keyword:
         name = "Add Sheet"
         doc = "Adds a **new sheet**."
-        args: list[object] = []
-        tags: list[str] = []
+        args: ClassVar[list[object]] = []
+        tags: ClassVar[list[str]] = []
         deprecated = False
         lineno = 1
 
@@ -135,7 +135,7 @@ def test_resolve_library_reports_doc_format(
         name = "MarkdownLibrary"
         source = "/tmp/markdown_library.py"
         doc_format = declared
-        keywords = [_Keyword()]
+        keywords: ClassVar[list[_Keyword]] = [_Keyword()]
 
     monkeypatch.setattr(
         "robot.libdoc.LibraryDocumentation",
@@ -694,7 +694,9 @@ async def test_discover_library_imports_resolves_custom_py_and_skips_resources(
 
         return real_resolve(name, file_path)
 
-    from robot_studio.infrastructure.language.library_catalog import LibraryCatalogService
+    from robot_studio.infrastructure.language.library_catalog import (
+        LibraryCatalogService,
+    )
 
     catalog = LibraryCatalogService(
         _resolve_raw=resolve_raw,
@@ -1246,7 +1248,7 @@ async def test_unused_library_and_resource(tmp_path: Path) -> None:
         "*** Keywords ***\nUnused Kw\n    Log    hi\n",
         encoding="utf-8",
     )
-    unused = f"""*** Settings ***
+    unused = """*** Settings ***
 Library    Collections
 Resource    helpers.resource
 
@@ -1260,7 +1262,7 @@ Demo
     assert "unused_library" in codes
     assert "unused_resource" in codes
 
-    used = f"""*** Settings ***
+    used = """*** Settings ***
 Library    Collections
 Resource    helpers.resource
 

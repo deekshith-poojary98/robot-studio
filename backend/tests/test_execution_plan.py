@@ -4,7 +4,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from robot_studio.application.services.execution_plan import (
     ExecutionPlan,
     ExecutionPlanError,

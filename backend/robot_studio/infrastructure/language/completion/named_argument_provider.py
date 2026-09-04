@@ -25,7 +25,6 @@ from robot_studio.infrastructure.language.keyword_helpers import (
     strip_keyword_qualifier,
 )
 
-
 ResolveKeyword = Callable[[SignatureHelpRequestContext], Awaitable[KeywordMetadata | None]]
 
 

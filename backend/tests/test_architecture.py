@@ -3,16 +3,14 @@
 from uuid import uuid4
 
 import pytest
-
 from robot_studio.api.gateway import RestGateway
-from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.container import Container
 from robot_studio.core.events import (
     InMemoryEventBus,
     WorkspaceClosed,
     WorkspaceOpened,
 )
-from robot_studio.core.plugins import PluginHost, REGISTERED_MODULES
+from robot_studio.core.plugins import REGISTERED_MODULES, PluginHost
 from robot_studio.domain.interfaces.plugins import Capability
 from robot_studio.domain.models import Workspace
 from robot_studio.infrastructure.plugins.builtins import register_builtin_capabilities
@@ -98,7 +96,6 @@ async def test_rest_gateway_health(container: Container) -> None:
 @pytest.mark.asyncio
 async def test_health_api_unchanged(container: Container) -> None:
     from httpx import ASGITransport, AsyncClient
-
     from robot_studio.main import create_app
 
     app = create_app()

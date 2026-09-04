@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Query
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.index import (
@@ -35,18 +36,19 @@ from robot_studio.api.schemas.language import (
 from robot_studio.application.services.language_service import LanguageValidationError
 
 router = APIRouter(prefix="/language", tags=["language"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 @router.get("/definition", response_model=SymbolResponse | None)
 async def language_definition(
-    name: str | None = Query(default=None),
-    symbol_id: str | None = Query(default=None),
-    kind: str | None = Query(default=None),
-    file: str | None = Query(default=None),
-    line: int | None = Query(default=None),
-    column: int | None = Query(default=None),
-    content: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    name: Annotated[str | None, Query()] = None,
+    symbol_id: Annotated[str | None, Query()] = None,
+    kind: Annotated[str | None, Query()] = None,
+    file: Annotated[str | None, Query()] = None,
+    line: Annotated[int | None, Query()] = None,
+    column: Annotated[int | None, Query()] = None,
+    content: Annotated[str | None, Query()] = None,
 ) -> SymbolResponse | None:
     try:
         result = await gateway.language_definition(
@@ -68,7 +70,7 @@ async def language_definition(
 @router.post("/definition", response_model=SymbolResponse | None)
 async def language_definition_at(
     body: DefinitionRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> SymbolResponse | None:
     """Go to definition with the live buffer in the body — GET cannot carry a file."""
     try:
@@ -90,14 +92,14 @@ async def language_definition_at(
 
 @router.get("/references", response_model=ReferenceListResponse)
 async def language_references(
-    name: str | None = Query(default=None),
-    symbol_id: str | None = Query(default=None),
-    kind: str | None = Query(default=None),
-    file: str | None = Query(default=None),
-    line: int | None = Query(default=None),
-    column: int | None = Query(default=None),
-    content: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    name: Annotated[str | None, Query()] = None,
+    symbol_id: Annotated[str | None, Query()] = None,
+    kind: Annotated[str | None, Query()] = None,
+    file: Annotated[str | None, Query()] = None,
+    line: Annotated[int | None, Query()] = None,
+    column: Annotated[int | None, Query()] = None,
+    content: Annotated[str | None, Query()] = None,
 ) -> ReferenceListResponse:
     try:
         refs = await gateway.language_references(
@@ -117,7 +119,7 @@ async def language_references(
 @router.post("/references", response_model=ReferenceListResponse)
 async def language_references_at(
     body: ReferencesRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> ReferenceListResponse:
     """Find references with the live buffer in the body — GET cannot carry a file."""
     try:
@@ -154,14 +156,14 @@ def _references_response(refs: list[dict]) -> ReferenceListResponse:
 
 @router.get("/hover", response_model=HoverResponse | None)
 async def language_hover(
-    name: str | None = Query(default=None),
-    symbol_id: str | None = Query(default=None),
-    kind: str | None = Query(default=None),
-    file: str | None = Query(default=None),
-    line: int | None = Query(default=None),
-    column: int | None = Query(default=None),
-    content: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    name: Annotated[str | None, Query()] = None,
+    symbol_id: Annotated[str | None, Query()] = None,
+    kind: Annotated[str | None, Query()] = None,
+    file: Annotated[str | None, Query()] = None,
+    line: Annotated[int | None, Query()] = None,
+    column: Annotated[int | None, Query()] = None,
+    content: Annotated[str | None, Query()] = None,
 ) -> HoverResponse | None:
     try:
         result = await gateway.language_hover(
@@ -183,7 +185,7 @@ async def language_hover(
 @router.post("/hover", response_model=HoverResponse | None)
 async def language_hover_at(
     body: HoverRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> HoverResponse | None:
     """Hover with the live buffer in the body — GET cannot carry a Python file."""
     try:
@@ -218,7 +220,7 @@ def _hover_response(result: dict) -> HoverResponse:
 @router.post("/rename", response_model=RenameResponse)
 async def language_rename(
     body: RenameRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> RenameResponse:
     try:
         result = await gateway.language_rename(
@@ -245,7 +247,7 @@ async def language_rename(
 @router.post("/completion", response_model=CompletionListResponse)
 async def language_completion(
     body: CompletionRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> CompletionListResponse:
     try:
         items = await gateway.language_completion(
@@ -275,7 +277,7 @@ async def language_completion(
 @router.post("/completion/usage")
 async def language_completion_usage(
     body: CompletionUsageRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> dict:
     try:
         await gateway.language_completion_usage(
@@ -290,7 +292,7 @@ async def language_completion_usage(
 @router.post("/diagnostics", response_model=DiagnosticListResponse)
 async def language_diagnostics(
     body: DiagnosticsRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> DiagnosticListResponse:
     try:
         diagnostics = await gateway.language_diagnostics(
@@ -320,7 +322,7 @@ async def language_diagnostics(
 @router.post("/format", response_model=FormatResponse)
 async def language_format(
     body: FormatRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> FormatResponse:
     try:
         formatted = await gateway.language_format(
@@ -337,7 +339,7 @@ async def language_format(
 @router.post("/signature-help", response_model=SignatureHelpResponse | None)
 async def language_signature_help(
     body: SignatureHelpRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> SignatureHelpResponse | None:
     try:
         result = await gateway.language_signature_help(
@@ -375,7 +377,7 @@ async def language_signature_help(
 
 @router.get("/libraries", response_model=LibraryListResponse)
 async def language_libraries(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> LibraryListResponse:
     try:
         items = await gateway.language_libraries()
@@ -387,7 +389,7 @@ async def language_libraries(
 @router.get("/libraries/{name}", response_model=LibraryDetailResponse | None)
 async def language_library_detail(
     name: str,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> LibraryDetailResponse | None:
     try:
         result = await gateway.language_library(name)
@@ -439,8 +441,8 @@ async def language_library_detail(
 
 @router.get("/document-symbols", response_model=SearchResponse)
 async def document_symbols(
-    file: str = Query(min_length=1),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    file: Annotated[str, Query(min_length=1)],
 ) -> SearchResponse:
     try:
         results = await gateway.document_symbols(file)
@@ -452,7 +454,7 @@ async def document_symbols(
 @router.post("/document-analysis", response_model=DocumentAnalysisResponse)
 async def document_analysis(
     body: DocumentAnalysisRequest,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> DocumentAnalysisResponse:
     try:
         result = await gateway.analyze_document(body.file_path, body.content)
@@ -463,9 +465,9 @@ async def document_analysis(
 
 @router.get("/workspace-symbols", response_model=SearchResponse)
 async def workspace_symbols(
-    q: str = Query(default=""),
-    limit: int = Query(default=200, ge=1, le=500),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    q: Annotated[str, Query()] = "",
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
 ) -> SearchResponse:
     try:
         results = await gateway.workspace_symbols(query=q, limit=limit)

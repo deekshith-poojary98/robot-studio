@@ -22,7 +22,9 @@ from robot_studio.domain.models.execution_knowledge import (
     SlowEntity,
 )
 from robot_studio.infrastructure.analysis.execution_linker import ExecutionLinker
-from robot_studio.infrastructure.analysis.execution_store import SqliteExecutionKnowledgeStore
+from robot_studio.infrastructure.analysis.execution_store import (
+    SqliteExecutionKnowledgeStore,
+)
 from robot_studio.infrastructure.execution.execution_trace import (
     iter_tests,
     parse_execution_trace,
@@ -426,7 +428,9 @@ class ExecutionKnowledgeService:
         return candidates[:limit]
 
     async def _find_keyword(self, project_id: UUID, name: str):
-        from robot_studio.infrastructure.analysis.normalize import normalize_keyword_name
+        from robot_studio.infrastructure.analysis.normalize import (
+            normalize_keyword_name,
+        )
 
         matches = await self.analysis_store.find_entities_by_normalized_name(
             normalize_keyword_name(name),
@@ -436,7 +440,9 @@ class ExecutionKnowledgeService:
         return matches[0] if matches else None
 
     async def _find_test(self, project_id: UUID, name: str):
-        from robot_studio.infrastructure.analysis.normalize import normalize_keyword_name
+        from robot_studio.infrastructure.analysis.normalize import (
+            normalize_keyword_name,
+        )
 
         matches = await self.analysis_store.find_entities_by_normalized_name(
             normalize_keyword_name(name),

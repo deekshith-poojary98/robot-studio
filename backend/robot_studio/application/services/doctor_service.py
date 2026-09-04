@@ -13,7 +13,11 @@ from robot_studio.application.services.execution_knowledge_service import (
 from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.domain.interfaces.analysis import AnalysisEngine, AnalysisStore
 from robot_studio.domain.interfaces.doctor import DoctorContext, FindingProvider
-from robot_studio.domain.models.analysis import Finding, FindingCategory, FindingSeverity
+from robot_studio.domain.models.analysis import (
+    Finding,
+    FindingCategory,
+    FindingSeverity,
+)
 from robot_studio.domain.models.doctor import (
     CategoryGroup,
     DoctorHealthSummary,

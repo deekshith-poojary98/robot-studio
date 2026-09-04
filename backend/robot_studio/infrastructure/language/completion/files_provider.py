@@ -69,6 +69,6 @@ class FilesCompletionProvider(CompletionProvider):
                         base_priority=self.base_priority,
                     ),
                 )
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
         return out

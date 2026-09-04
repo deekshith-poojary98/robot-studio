@@ -31,8 +31,12 @@ from robot_studio.infrastructure.analysis.normalize import (
     normalize_keyword_name,
     normalize_variable_name,
 )
-from robot_studio.infrastructure.analysis.semantic_extractor import extract_file_semantics
-from robot_studio.infrastructure.analysis.sqlite_analysis_store import SqliteAnalysisStore
+from robot_studio.infrastructure.analysis.semantic_extractor import (
+    extract_file_semantics,
+)
+from robot_studio.infrastructure.analysis.sqlite_analysis_store import (
+    SqliteAnalysisStore,
+)
 
 logger = logging.getLogger(__name__)
 

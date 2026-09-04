@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from robot_studio.domain.models.document_symbols import DocumentSymbolTree
 from robot_studio.infrastructure.language.document_analysis import (
     DocumentAnalysisService,
@@ -11,7 +10,6 @@ from robot_studio.infrastructure.language.document_analysis import (
 from robot_studio.infrastructure.language.robot_parsing_worker import (
     document_symbol_tree,
 )
-
 
 SAMPLE = """\
 *** Settings ***

@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
-
 from robot_studio.application.services.environment_service import EnvironmentService
 from robot_studio.application.services.package_service import (
     PackageService,

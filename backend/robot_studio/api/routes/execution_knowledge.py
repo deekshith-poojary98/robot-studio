@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.analysis import EntityRefResponse
@@ -29,6 +29,7 @@ from robot_studio.application.services.execution_knowledge_service import (
 )
 
 router = APIRouter(prefix="/analysis/execution", tags=["analysis-execution"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 def _http(exc: ExecutionKnowledgeValidationError) -> HTTPException:
@@ -37,8 +38,8 @@ def _http(exc: ExecutionKnowledgeValidationError) -> HTTPException:
 
 @router.get("/snapshot", response_model=ExecutionKnowledgeSnapshotResponse)
 async def execution_snapshot(
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> ExecutionKnowledgeSnapshotResponse:
     try:
         snap = await gateway.execution_knowledge_snapshot(
@@ -52,7 +53,7 @@ async def execution_snapshot(
 @router.post("/link/{run_id}", response_model=LinkedRunResponse | None)
 async def link_run(
     run_id: UUID,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> LinkedRunResponse | None:
     try:
         info = await gateway.execution_knowledge_link_run(run_id)
@@ -63,10 +64,10 @@ async def link_run(
 
 @router.get("/keyword-history", response_model=ExecutionHistoryListResponse)
 async def keyword_history(
-    keyword: str = Query(...),
-    limit: int = Query(default=50, ge=1, le=200),
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    keyword: Annotated[str, Query()],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> ExecutionHistoryListResponse:
     try:
         items = await gateway.execution_keyword_history(
@@ -83,10 +84,10 @@ async def keyword_history(
 
 @router.get("/test-history", response_model=ExecutionHistoryListResponse)
 async def test_history(
-    test: str = Query(...),
-    limit: int = Query(default=50, ge=1, le=200),
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    test: Annotated[str, Query()],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> ExecutionHistoryListResponse:
     try:
         items = await gateway.execution_test_history(
@@ -103,9 +104,9 @@ async def test_history(
 
 @router.get("/last-failures", response_model=ExecutionHistoryListResponse)
 async def last_failures(
-    limit: int = Query(default=50, ge=1, le=200),
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> ExecutionHistoryListResponse:
     try:
         items = await gateway.execution_last_failures(
@@ -121,8 +122,8 @@ async def last_failures(
 
 @router.get("/run-failures", response_model=RunFailuresResponse)
 async def run_failures(
-    run_id: UUID = Query(...),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    run_id: Annotated[UUID, Query()],
 ) -> RunFailuresResponse:
     """Failed tests for one run — Jump to Source / re-run consumers share this."""
     try:
@@ -137,9 +138,9 @@ async def run_failures(
 
 @router.get("/slowest-keywords", response_model=SlowListResponse)
 async def slowest_keywords(
-    limit: int = Query(default=20, ge=1, le=100),
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> SlowListResponse:
     try:
         items = await gateway.execution_slowest_keywords(
@@ -153,9 +154,9 @@ async def slowest_keywords(
 
 @router.get("/slowest-tests", response_model=SlowListResponse)
 async def slowest_tests(
-    limit: int = Query(default=20, ge=1, le=100),
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> SlowListResponse:
     try:
         items = await gateway.execution_slowest_tests(
@@ -169,9 +170,9 @@ async def slowest_tests(
 
 @router.get("/most-executed-keywords", response_model=EntityStatsListResponse)
 async def most_executed_keywords(
-    limit: int = Query(default=20, ge=1, le=100),
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> EntityStatsListResponse:
     try:
         items = await gateway.execution_most_executed_keywords(
@@ -185,8 +186,8 @@ async def most_executed_keywords(
 
 @router.get("/never-executed-keywords", response_model=NeverExecutedResponse)
 async def never_executed_keywords(
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> NeverExecutedResponse:
     try:
         items = await gateway.execution_never_executed_keywords(
@@ -199,9 +200,9 @@ async def never_executed_keywords(
 
 @router.get("/heat-map", response_model=HeatMapListResponse)
 async def heat_map(
-    limit: int = Query(default=100, ge=1, le=500),
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> HeatMapListResponse:
     try:
         items = await gateway.execution_heat_map(
@@ -215,9 +216,9 @@ async def heat_map(
 
 @router.get("/flaky-candidates", response_model=FlakyListResponse)
 async def flaky_candidates(
-    limit: int = Query(default=50, ge=1, le=200),
-    project_id: str | None = Query(default=None),
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> FlakyListResponse:
     try:
         items = await gateway.execution_flaky_candidates(

@@ -218,5 +218,9 @@ class DashboardSummary(BaseModel):
     recent_failures: list[ExecutionRun] = Field(default_factory=list)
 
 
-from robot_studio.domain.models.plugin import PluginInfo, PluginManifest, PluginState
+from robot_studio.domain.models.plugin import (  # noqa: F401
+    PluginInfo,
+    PluginManifest,
+    PluginState,
+)
 

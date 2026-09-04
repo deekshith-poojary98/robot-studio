@@ -1,7 +1,6 @@
 from datetime import datetime
 
 from pydantic import BaseModel, Field
-
 from robot_studio.domain.models import IndexStatus
 
 

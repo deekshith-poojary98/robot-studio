@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-
+from robot_studio.domain.interfaces.completion import CompletionRequestContext
 from robot_studio.domain.interfaces.signature_help import (
     SignatureHelpPipeline,
     SignatureHelpProvider,
@@ -18,7 +18,6 @@ from robot_studio.domain.models.keyword_metadata import (
 from robot_studio.infrastructure.language.completion.named_argument_provider import (
     NamedArgumentCompletionProvider,
 )
-from robot_studio.domain.interfaces.completion import CompletionRequestContext
 from robot_studio.infrastructure.language.keyword_helpers import (
     active_parameter_index,
     is_typing_argument_value,
@@ -205,7 +204,7 @@ async def test_named_argument_provider_skips_present_and_ranks() -> None:
         ),
     )
 
-    async def resolve(_ctx):  # noqa: ANN001
+    async def resolve(_ctx):
         return meta
 
     provider = NamedArgumentCompletionProvider(resolve_keyword=resolve)
@@ -239,7 +238,7 @@ async def test_named_argument_provider_skips_positional_and_boosts_active() -> N
         ),
     )
 
-    async def resolve(_ctx):  # noqa: ANN001
+    async def resolve(_ctx):
         return meta
 
     provider = NamedArgumentCompletionProvider(resolve_keyword=resolve)
@@ -302,7 +301,7 @@ async def test_named_argument_provider_silent_inside_value() -> None:
         ),
     )
 
-    async def resolve(_ctx):  # noqa: ANN001
+    async def resolve(_ctx):
         return meta
 
     provider = NamedArgumentCompletionProvider(resolve_keyword=resolve)

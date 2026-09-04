@@ -7,7 +7,6 @@ from pathlib import Path
 
 import httpx
 import pytest
-
 from robot_studio.infrastructure.packages.pypi_provider import PyPIProvider
 
 

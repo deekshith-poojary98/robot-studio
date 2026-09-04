@@ -1,6 +1,9 @@
 """Indexing infrastructure package."""
 
-from robot_studio.infrastructure.indexing.file_watcher import NativeFileWatcher, PollingFileWatcher
+from robot_studio.infrastructure.indexing.file_watcher import (
+    NativeFileWatcher,
+    PollingFileWatcher,
+)
 from robot_studio.infrastructure.indexing.filesystem_indexer import (
     FilesystemIndexer,
     ParsedIndexPayload,

@@ -153,9 +153,7 @@ def _self_attribute_names(stmt: ast.stmt) -> list[str]:
     targets: list[ast.expr] = []
     if isinstance(stmt, ast.Assign):
         targets.extend(stmt.targets)
-    elif isinstance(stmt, ast.AnnAssign) and stmt.target is not None:
-        targets.append(stmt.target)
-    elif isinstance(stmt, ast.AugAssign):
+    elif isinstance(stmt, ast.AnnAssign) and stmt.target is not None or isinstance(stmt, ast.AugAssign):
         targets.append(stmt.target)
     names: list[str] = []
     for target in targets:
@@ -181,9 +179,7 @@ def _assignment_names(stmt: ast.stmt) -> list[str]:
     if isinstance(stmt, ast.Assign):
         for target in stmt.targets:
             names.extend(_names_from_target(target))
-    elif isinstance(stmt, ast.AnnAssign) and stmt.target is not None:
-        names.extend(_names_from_target(stmt.target))
-    elif isinstance(stmt, ast.AugAssign):
+    elif isinstance(stmt, ast.AnnAssign) and stmt.target is not None or isinstance(stmt, ast.AugAssign):
         names.extend(_names_from_target(stmt.target))
     return names
 

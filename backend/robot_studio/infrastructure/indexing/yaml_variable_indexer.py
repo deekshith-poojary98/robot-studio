@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 from pathlib import Path
+from typing import ClassVar
 from uuid import UUID
 
 from robot_studio.domain.interfaces.indexing import SymbolKind
@@ -24,7 +25,7 @@ def _sid(kind: str, file_path: Path, name: str, line: int) -> str:
 class YamlVariableIndexer:
     """Extracts top-level scalar variables from ``.yaml`` / ``.yml`` files."""
 
-    INDEXABLE_SUFFIXES = {".yaml", ".yml"}
+    INDEXABLE_SUFFIXES: ClassVar[set[str]] = {".yaml", ".yml"}
 
     def index_file(
         self,

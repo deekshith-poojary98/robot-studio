@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
-
 from robot_studio.domain.interfaces.plugins import Capability, capability_from_manifest
 
 

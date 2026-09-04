@@ -38,9 +38,7 @@ def _is_skipped(path: Path) -> bool:
     if "Environments" in parts:
         return True
     # Artifact names outside studio meta (rare custom --outputdir).
-    if path.name.lower() in _RUN_ARTIFACT_NAMES:
-        return True
-    return False
+    return path.name.lower() in _RUN_ARTIFACT_NAMES
 
 
 def _is_indexable(path: Path) -> bool:
@@ -87,28 +85,28 @@ class NativeFileWatcher(FileWatcher):
             def __init__(self, watcher: NativeFileWatcher) -> None:
                 self._watcher = watcher
 
-            def on_created(self, event) -> None:  # noqa: ANN001
+            def on_created(self, event) -> None:
                 self._watcher._schedule(
                     "created",
                     Path(event.src_path),
                     is_dir=bool(getattr(event, "is_directory", False)),
                 )
 
-            def on_modified(self, event) -> None:  # noqa: ANN001
+            def on_modified(self, event) -> None:
                 self._watcher._schedule(
                     "modified",
                     Path(event.src_path),
                     is_dir=bool(getattr(event, "is_directory", False)),
                 )
 
-            def on_deleted(self, event) -> None:  # noqa: ANN001
+            def on_deleted(self, event) -> None:
                 self._watcher._schedule(
                     "deleted",
                     Path(event.src_path),
                     is_dir=bool(getattr(event, "is_directory", False)),
                 )
 
-            def on_moved(self, event) -> None:  # noqa: ANN001
+            def on_moved(self, event) -> None:
                 src = Path(event.src_path)
                 dest = Path(event.dest_path) if getattr(event, "dest_path", None) else None
                 is_dir = bool(getattr(event, "is_directory", False))
@@ -159,13 +157,18 @@ class NativeFileWatcher(FileWatcher):
         if root in self._roots:
             return
         self._roots.add(root)
-        if self._running and self._observer is not None and self._handler is not None:
-            if root.exists() and self._loop is not None:
-                # recursive schedule walks the tree synchronously — never on the loop.
-                try:
-                    self._loop.create_task(self._attach_root(root))
-                except RuntimeError:
-                    return
+        if (
+            self._running
+            and self._observer is not None
+            and self._handler is not None
+            and root.exists()
+            and self._loop is not None
+        ):
+            # recursive schedule walks the tree synchronously — never on the loop.
+            try:
+                self._loop.create_task(self._attach_root(root))
+            except RuntimeError:
+                return
 
     async def _attach_root(self, root: Path) -> None:
         def _schedule() -> None:
@@ -253,9 +256,7 @@ class NativeFileWatcher(FileWatcher):
                 continue
             if event == "renamed" and dest_path is not None:
                 await self.on_change("deleted", path)
-                if dest_path.exists() and _is_indexable(dest_path):
-                    await self.on_change("created", dest_path)
-                elif _is_indexable(dest_path) or dest_path.suffix.lower() in INDEXABLE_SUFFIXES:
+                if dest_path.exists() and _is_indexable(dest_path) or _is_indexable(dest_path) or dest_path.suffix.lower() in INDEXABLE_SUFFIXES:
                     await self.on_change("created", dest_path)
                 continue
             if event == "deleted" or _is_indexable(path):
@@ -309,7 +310,7 @@ class PollingFileWatcher(FileWatcher):
             await asyncio.sleep(self.interval_seconds)
             try:
                 await self._poll()
-            except Exception:
+            except Exception:  # noqa: BLE001, S112
                 continue
 
     async def _poll(self) -> None:

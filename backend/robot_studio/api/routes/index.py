@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.index import (
@@ -9,12 +10,13 @@ from robot_studio.api.schemas.index import (
 from robot_studio.application.services.index_service import IndexValidationError
 
 router = APIRouter(prefix="/index", tags=["index"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 @router.post("/rebuild", response_model=IndexStatusResponse)
 async def rebuild_index(
+    gateway: GatewayDep,
     wait: bool = False,
-    gateway: RestGateway = Depends(get_gateway),
 ) -> IndexStatusResponse:
     """Start a full index rebuild.
 
@@ -31,7 +33,7 @@ async def rebuild_index(
 
 @router.get("/status", response_model=IndexStatusResponse)
 async def index_status(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> IndexStatusResponse:
     try:
         status = await gateway.get_index_status()

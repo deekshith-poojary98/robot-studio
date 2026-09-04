@@ -1,6 +1,6 @@
 ---
 title: Tests
-description: Browse suites lazily, filter by status, and run tests from the tree.
+description: Browse suites lazily, filter by name, status, or tag, and run tests from the tree.
 ---
 
 **Tests** (activity bar / **View → Tests**) is the structural view of what you can run. The panel title in the UI is **Tests**.
@@ -9,7 +9,7 @@ description: Browse suites lazily, filter by status, and run tests from the tree
 
 - Suites expand on demand (children load lazily) so large projects stay responsive
 - The list is virtualized for scale
-- Live filter helps you narrow by name or status
+- Live filter helps you narrow by name, status, or tag (`Test Tags`, `Force Tags`, `Default Tags`, and `[Tags]`)
 
 ## Run from the tree
 

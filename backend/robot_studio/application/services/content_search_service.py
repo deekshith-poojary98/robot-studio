@@ -8,8 +8,8 @@ from collections.abc import Callable
 from pathlib import Path
 from uuid import UUID
 
-from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.application.services.settings_service import SettingsService
+from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.config import settings as env_settings
 from robot_studio.domain.interfaces.search import (
     ContentFileHits,
@@ -294,7 +294,7 @@ class ContentSearchService(ContentSearchProvider):
                 project_id=project_id,
                 limit=8000,
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Index decorate failed", exc_info=True)
             return result
 
@@ -313,8 +313,8 @@ class ContentSearchService(ContentSearchProvider):
                     str(item.get("name") or ""),
                 ),
             )
-        for path in by_file:
-            by_file[path].sort(key=lambda item: item[0])
+        for hits in by_file.values():
+            hits.sort(key=lambda item: item[0])
 
         decorated_files: list[ContentFileHits] = []
         for file_hits in result.files:

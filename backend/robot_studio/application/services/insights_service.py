@@ -20,12 +20,12 @@ from robot_studio.domain.models.insights import (
     InsightsSnapshot,
     RunOutcomeTotals,
 )
-from robot_studio.infrastructure.repositories.execution_repository import (
-    SqliteExecutionRepository,
-)
 from robot_studio.infrastructure.execution.output_stats import (
     load_cached_file_outcomes,
     load_or_build_file_outcomes,
+)
+from robot_studio.infrastructure.repositories.execution_repository import (
+    SqliteExecutionRepository,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ def _file_suite_key(suite: str) -> str | None:
     if not text:
         return None
     lower = text.lower()
-    if lower.startswith(("project: ", "tag: ")) or lower.startswith("selected ("):
+    if lower.startswith(("project: ", "tag: ", "selected (")):
         return None
     if lower.startswith("suite: "):
         text = text[7:].strip()
@@ -74,7 +74,7 @@ def _file_suite_key(suite: str) -> str | None:
 
 def _is_multi_file_label(suite: str) -> bool:
     label = (suite or "").strip().lower()
-    return label.startswith(("project: ", "tag: ")) or label.startswith("selected (")
+    return label.startswith(("project: ", "tag: ", "selected ("))
 
 
 def _file_status_to_outcome(status: str, *, run_outcome: str) -> str:

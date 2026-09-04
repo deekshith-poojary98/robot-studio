@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import ClassVar
 from uuid import UUID
 
 from robot_studio.domain.interfaces.indexing import SymbolKind
@@ -35,7 +36,7 @@ def _sid(kind: str, file_path: Path, name: str, line: int) -> str:
 class RobotIndexer:
     """Extracts symbols from .robot / .resource files using robot.api.parsing."""
 
-    INDEXABLE_SUFFIXES = {".robot", ".resource"}
+    INDEXABLE_SUFFIXES: ClassVar[set[str]] = {".robot", ".resource"}
 
     def index_file(
         self,

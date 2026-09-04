@@ -1,7 +1,6 @@
 """WebSocket fan-out for live workspace filesystem / domain events."""
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-
 from robot_studio.core.container import container
 
 router = APIRouter(prefix="/workspace", tags=["workspace"])

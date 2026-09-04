@@ -1,7 +1,7 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-
 from robot_studio.api.gateway import RestGateway
 from robot_studio.api.routes.health import get_gateway
 from robot_studio.api.schemas.report import (
@@ -15,11 +15,12 @@ from robot_studio.api.schemas.report import (
 from robot_studio.application.services.report_service import ReportValidationError
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+GatewayDep = Annotated[RestGateway, Depends(get_gateway)]
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
 async def get_dashboard(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> DashboardResponse:
     try:
         summary = await gateway.get_reports_dashboard()
@@ -30,7 +31,7 @@ async def get_dashboard(
 
 @router.get("", response_model=RunListResponse)
 async def list_reports(
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> RunListResponse:
     try:
         runs = await gateway.list_reports()
@@ -42,7 +43,7 @@ async def list_reports(
 @router.get("/{run_id}", response_model=RunResponse)
 async def get_report(
     run_id: UUID,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> RunResponse:
     try:
         run = await gateway.get_report(run_id)
@@ -56,7 +57,7 @@ async def get_report(
 @router.delete("/{run_id}", status_code=204)
 async def delete_report(
     run_id: UUID,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> None:
     try:
         await gateway.delete_report(run_id)
@@ -69,7 +70,7 @@ async def delete_report(
 @router.post("/{run_id}/open-log", response_model=OpenArtifactResponse)
 async def open_log(
     run_id: UUID,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> OpenArtifactResponse:
     try:
         path = await gateway.open_report_log(run_id)
@@ -81,7 +82,7 @@ async def open_log(
 @router.post("/{run_id}/open-report", response_model=OpenArtifactResponse)
 async def open_report(
     run_id: UUID,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> OpenArtifactResponse:
     try:
         path = await gateway.open_report_html(run_id)
@@ -93,7 +94,7 @@ async def open_report(
 @router.post("/{run_id}/open-xml", response_model=OpenArtifactResponse)
 async def open_xml(
     run_id: UUID,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> OpenArtifactResponse:
     try:
         path = await gateway.open_report_xml(run_id)
@@ -105,7 +106,7 @@ async def open_xml(
 @router.post("/{run_id}/reveal", response_model=OpenArtifactResponse)
 async def reveal_report(
     run_id: UUID,
-    gateway: RestGateway = Depends(get_gateway),
+    gateway: GatewayDep,
 ) -> OpenArtifactResponse:
     try:
         path = await gateway.reveal_report(run_id)

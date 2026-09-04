@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import hashlib
 from pathlib import Path
+from typing import ClassVar
 from uuid import UUID
 
 from robot_studio.domain.interfaces.indexing import SymbolKind
@@ -19,7 +20,7 @@ def _sid(kind: str, file_path: Path, name: str, line: int) -> str:
 class PythonLibraryIndexer:
     """Indexes def-level keywords from Python library modules."""
 
-    INDEXABLE_SUFFIXES = {".py"}
+    INDEXABLE_SUFFIXES: ClassVar[set[str]] = {".py"}
 
     def index_file(
         self,
@@ -28,10 +29,9 @@ class PythonLibraryIndexer:
         workspace_id: UUID | None,
         project_id: UUID | None,
     ) -> list[IndexedSymbol]:
-        if path.name.startswith("_") or path.name == "__init__.py":
-            # Still index keywords from __init__ if present; skip underscore modules.
-            if path.name.startswith("_") and path.name != "__init__.py":
-                return []
+        # Still index keywords from __init__ if present; skip underscore modules.
+        if path.name.startswith("_") and path.name != "__init__.py":
+            return []
 
         try:
             source = path.read_text(encoding="utf-8", errors="replace")

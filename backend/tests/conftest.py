@@ -10,7 +10,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from robot_studio.infrastructure.indexing.file_watcher import PollingFileWatcher
 
 

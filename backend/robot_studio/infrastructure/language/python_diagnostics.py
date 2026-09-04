@@ -149,7 +149,7 @@ def _syntax_diagnostics(
     if jedi_available() and python_executable is not None:
         try:
             return jedi_syntax_errors(content, file_path, python_executable, project_root)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Jedi syntax errors failed for %s", file_path, exc_info=True)
 
     # Fallback: one error, but better than none when Jedi is unavailable.
@@ -188,7 +188,7 @@ def _pyflakes_diagnostics(content: str, file_path: str) -> list[dict[str, Any]]:
             filename=file_path or "buffer.py",
             withDoctest=False,
         )
-    except Exception:  # noqa: BLE001 — pyflakes can trip on exotic trees
+    except Exception:
         logger.debug("pyflakes failed for %s", file_path, exc_info=True)
         return []
 
@@ -561,9 +561,7 @@ def _list_top_level(root: Path) -> set[str]:
             names.add(name)
         elif is_file:
             stem = name.split(".", 1)[0]
-            if stem and name.endswith((".py", ".pyi", ".pyc", ".pyd", ".so", ".pyw")):
-                names.add(stem)
-            elif ".so" in name or name.endswith(".pyd"):
+            if stem and name.endswith((".py", ".pyi", ".pyc", ".pyd", ".so", ".pyw")) or ".so" in name or name.endswith(".pyd"):
                 names.add(stem)
     return names
 

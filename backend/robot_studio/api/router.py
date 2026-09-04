@@ -1,5 +1,4 @@
 from fastapi import APIRouter
-
 from robot_studio.api.routes import (
     analysis,
     doctor,
@@ -7,6 +6,7 @@ from robot_studio.api.routes import (
     execution,
     execution_knowledge,
     files,
+    git,
     health,
     index,
     insights,
@@ -14,7 +14,6 @@ from robot_studio.api.routes import (
     packages,
     plugins,
     projects,
-    git,
     reports,
     run_configurations,
     search,

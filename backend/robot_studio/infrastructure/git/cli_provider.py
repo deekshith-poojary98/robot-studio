@@ -24,7 +24,10 @@ from robot_studio.domain.models.git import (
     GitRepositoryInfo,
     GitStatus,
 )
-from robot_studio.infrastructure.process_utils import run_blocking, windows_no_window_kwargs
+from robot_studio.infrastructure.process_utils import (
+    run_blocking,
+    windows_no_window_kwargs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -630,13 +633,11 @@ def _parse_unified_diff(raw: str, file_path: str | None) -> GitDiff:
     for row in raw.splitlines():
         if row.startswith("--- "):
             old_path = row[4:].strip()
-            if old_path.startswith("a/"):
-                old_path = old_path[2:]
+            old_path = old_path.removeprefix("a/")
             continue
         if row.startswith("+++ "):
             current_path = row[4:].strip()
-            if current_path.startswith("b/"):
-                current_path = current_path[2:]
+            current_path = current_path.removeprefix("b/")
             continue
         if row.startswith("@@"):
             continue
