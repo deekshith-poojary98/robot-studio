@@ -72,6 +72,7 @@ import '../workspace/new_workspace_dialog.dart';
 import '../workspace/welcome_screen.dart';
 import 'controllers/editor_shell_controller.dart';
 import 'controllers/execution_shell_controller.dart';
+import 'controllers/git_shell_controller.dart';
 import 'controllers/workspace_live_controller.dart';
 import 'controllers/workspace_shell_controller.dart';
 import 'shell_paths.dart';
@@ -128,6 +129,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late final WorkspaceShellController _workspace;
   late final ExecutionShellController _execution;
   late final EditorShellController _editor;
+  late final GitShellController _git;
   late final WorkspaceLiveController _live;
   Timer? _autoSaveTimer;
   String? _liveNotification;
@@ -164,19 +166,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   List<PluginInfo> _plugins = [];
   bool _loadingPlugins = false;
   bool _showSourceControl = false;
-  GitStatusInfo? _gitStatus;
-  List<GitBranchInfo> _gitBranches = [];
-  List<GitCommitInfo> _gitHistory = [];
-  GitCommitInfo? _selectedGitCommit;
-  GitCommitDetailInfo? _selectedGitCommitDetail;
-  GitDiffInfo? _gitDiff;
-  String? _selectedGitDiffFile;
-  final Set<String> _selectedGitFiles = {};
-  bool _loadingGit = false;
-  bool _gitBusy = false;
-  bool _loadingGitHistory = false;
-  bool _loadingGitDiff = false;
-  late final TextEditingController _gitCommitController;
   PackageInfo? _selectedPackage;
   List<PackageInfo> _packages = [];
   PackageSort _packageSort = PackageSort.name;
@@ -292,10 +281,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _gitCommitController = TextEditingController();
-    _gitCommitController.addListener(() {
-      if (mounted) setState(() {});
-    });
     _gateway = widget._gateway ?? RestTransportGateway();
     _settings = AppSettingsController(gateway: _gateway);
     _settings.addListener(_onSettingsChanged);
@@ -320,6 +305,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       isMounted: () => mounted,
       workspace: () => _workspace.activeWorkspace,
     );
+    _git = GitShellController(
+      gateway: _gateway,
+      notify: _notify,
+      isMounted: () => mounted,
+      appendLog: _appendLog,
+      showError: _showError,
+      workspace: () => _workspace.activeWorkspace,
+      backendConnected: () => _workspace.backendConnected,
+    );
 
     _libraryExplorer = LibraryExplorerController(
       listLibraries: () => _gateway.languageLibraries(),
@@ -330,7 +324,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       isMounted: () => mounted,
       appendLog: _appendLog,
       onFilesystemEvent: _handleLiveFilesystemEvent,
-      onGitChanged: _refreshGit,
+      onGitChanged: _git.refresh,
       onIndexUpdated: _handleLiveIndexUpdated,
       onTestsChanged: () => _loadTestTree(),
       onEnvironmentChanged: _loadEnvironments,
@@ -438,11 +432,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _settings.removeListener(_onSettingsChanged);
     _settings.dispose();
     _testFilterDebounce?.cancel();
-    _gitCommitController.dispose();
     _live.dispose();
     _workspace.dispose();
     _execution.dispose();
     _editor.dispose();
+    _git.dispose();
     super.dispose();
   }
 
@@ -840,97 +834,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     await _loadPlugins();
   }
 
-  Map<String, GitFileStatus> get _gitFileStatuses {
-    final statuses = <String, GitFileStatus>{};
-    for (final change in _gitStatus?.changes ?? const []) {
-      statuses[change.path] = change.status;
-    }
-    return statuses;
-  }
-
-  List<String> get _gitBranchNames => _gitBranches
-      .where((branch) => !branch.remote)
-      .map((b) => b.name)
-      .toList();
-
-  Future<void> _loadGitStatus() async {
-    if (_workspace.activeWorkspace == null || _backendStatus != 'connected') {
-      setState(() {
-        _gitStatus = null;
-        _gitBranches = [];
-        _loadingGit = false;
-      });
-      return;
-    }
-
-    // Only show the page skeleton on first load — keep content on refresh.
-    final initialLoad = _gitStatus == null;
-    if (initialLoad) {
-      setState(() => _loadingGit = true);
-    }
-    try {
-      final status = await _gateway.getGitStatus();
-      final branches = status.repository.isRepository
-          ? await _gateway.getGitBranches()
-          : <GitBranchInfo>[];
-      if (!mounted) return;
-      setState(() {
-        _gitStatus = status;
-        _gitBranches = branches;
-        _loadingGit = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _loadingGit = false);
-      _appendLog('[warn] Could not load git status: $error');
-    }
-  }
-
-  Future<void> _loadGitHistory() async {
-    if (_gitStatus?.repository.isRepository != true) return;
-    final initialLoad = _gitHistory.isEmpty;
-    if (initialLoad) {
-      setState(() => _loadingGitHistory = true);
-    }
-    try {
-      final history = await _gateway.getGitHistory(limit: 50);
-      if (!mounted) return;
-      setState(() {
-        _gitHistory = history;
-        _loadingGitHistory = false;
-        if (_selectedGitCommit != null) {
-          final match = history
-              .where((item) => item.hash == _selectedGitCommit!.hash)
-              .toList();
-          _selectedGitCommit = match.isEmpty ? null : match.first;
-        }
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _loadingGitHistory = false);
-      _appendLog('[warn] Could not load git history: $error');
-    }
-  }
-
-  Future<void> _loadGitDiff(String filePath) async {
-    setState(() {
-      _loadingGitDiff = true;
-      _selectedGitDiffFile = filePath;
-    });
-    try {
-      final diff = await _gateway.getGitDiff(filePath: filePath);
-      if (!mounted) return;
-      setState(() {
-        _gitDiff = diff;
-        _loadingGitDiff = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _loadingGitDiff = false);
-      await _showError('Git diff', error);
-    }
-  }
-
   Future<void> _handleOpenSourceControl() async {
     if (!await _ensureWorkspace(
       message: 'Open a project before using source control.',
@@ -953,118 +856,24 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _activePanel = SidebarPanel.sourceControl;
       _clearExecutionPageUnlessTests();
     });
-    await _refreshGit();
-  }
-
-  Future<void> _refreshGit() async {
-    await _loadGitStatus();
-    if (_gitStatus?.repository.isRepository == true) {
-      await _loadGitHistory();
-    }
-  }
-
-  Future<void> _handleGitInit() async {
-    setState(() => _gitBusy = true);
-    try {
-      await _gateway.initGitRepository();
-      await _refreshGit();
-      _appendLog('[info] Git repository initialized');
-    } catch (error) {
-      await _showError('Initialize Git repository', error);
-    } finally {
-      if (mounted) setState(() => _gitBusy = false);
-    }
+    await _git.refresh();
   }
 
   Future<void> _handleGitCommit({List<String>? files}) async {
-    final message = _gitCommitController.text.trim();
-    if (message.isEmpty) {
+    if (_git.commitController.text.trim().isEmpty) {
       await _showError('Commit', 'Commit message is required.');
       return;
     }
-    if (_gitStatus?.repository.isRepository != true) {
+    if (!_git.isRepository) {
       await _showError('Commit', 'Not a Git repository.');
       return;
     }
     if (!await _ensureGitIdentity()) return;
-    setState(() => _gitBusy = true);
-    try {
-      await _gateway.commitGitChanges(message: message, files: files);
-      _gitCommitController.clear();
-      _selectedGitFiles.clear();
-      _selectedGitDiffFile = null;
-      _gitDiff = null;
-      await _refreshGit();
-      _appendLog('[info] Git commit created');
-    } catch (error) {
-      await _showError('Commit', error);
-    } finally {
-      if (mounted) setState(() => _gitBusy = false);
-    }
-  }
-
-  Future<void> _handleGitCheckout(String branch) async {
-    setState(() => _gitBusy = true);
-    try {
-      await _gateway.checkoutGitBranch(branch);
-      await _refreshGit();
-      _appendLog('[info] Checked out branch "$branch"');
-    } catch (error) {
-      await _showError('Checkout branch', error);
-    } finally {
-      if (mounted) setState(() => _gitBusy = false);
-    }
-  }
-
-  Future<void> _handleGitCreateBranch(String name) async {
-    setState(() => _gitBusy = true);
-    try {
-      await _gateway.createGitBranch(name);
-      await _refreshGit();
-      _appendLog('[info] Created branch "$name"');
-    } catch (error) {
-      await _showError('Create branch', error);
-    } finally {
-      if (mounted) setState(() => _gitBusy = false);
-    }
-  }
-
-  Future<void> _handleGitDeleteBranch(String name) async {
-    setState(() => _gitBusy = true);
-    try {
-      await _gateway.deleteGitBranch(name);
-      await _refreshGit();
-      _appendLog('[info] Deleted branch "$name"');
-    } catch (error) {
-      await _showError('Delete branch', error);
-    } finally {
-      if (mounted) setState(() => _gitBusy = false);
-    }
-  }
-
-  Future<void> _handleGitRemote(
-    String action,
-    Future<GitRemoteResultInfo> Function() call,
-  ) async {
-    setState(() => _gitBusy = true);
-    try {
-      final result = await call();
-      if (!mounted) return;
-      if (result.success) {
-        await _refreshGit();
-        _appendLog('[info] Git $action completed');
-      } else {
-        await _showError('Git $action', result.message);
-      }
-    } catch (error) {
-      await _showError('Git $action', error);
-    } finally {
-      if (mounted) setState(() => _gitBusy = false);
-    }
+    await _git.commit(files: files);
   }
 
   Future<bool> _ensureGitIdentity() async {
-    final current = _gitStatus?.repository.identity;
+    final current = _git.status?.repository.identity;
     if (current != null && current.isComplete) return true;
     return _saveGitIdentity(
       identity: current,
@@ -1074,7 +883,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<void> _handleEditGitIdentity() async {
     await _saveGitIdentity(
-      identity: _gitStatus?.repository.identity,
+      identity: _git.status?.repository.identity,
       toastMessage: 'Git identity updated',
     );
   }
@@ -1086,29 +895,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (!mounted) return false;
     final result = await showGitIdentityDialog(context, identity: identity);
     if (result == null || !mounted) return false;
-    setState(() => _gitBusy = true);
-    try {
-      await _gateway.setGitIdentity(
-        name: result.name,
-        email: result.email,
-        scope: result.scope,
-      );
-      await _refreshGit();
-      if (!mounted) return true;
-      _appendLog('[info] Git identity set to ${result.name}');
-      showAppToast(context, message: toastMessage, icon: Icons.badge_outlined);
-      return true;
-    } catch (error) {
-      await _showError('Git identity', error);
-      return false;
-    } finally {
-      if (mounted) setState(() => _gitBusy = false);
-    }
+    final saved = await _git.applyIdentity(
+      name: result.name,
+      email: result.email,
+      scope: result.scope,
+    );
+    if (!saved || !mounted) return saved;
+    showAppToast(context, message: toastMessage, icon: Icons.badge_outlined);
+    return true;
   }
 
   Future<void> _handleAddGitRemote() async {
     if (!mounted) return;
-    final existing = _gitStatus?.repository.remotes ?? const [];
+    final existing = _git.status?.repository.remotes ?? const [];
     final current = existing.isEmpty
         ? null
         : existing.firstWhere(
@@ -1121,47 +920,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       initialUrl: current?.url ?? '',
     );
     if (result == null || !mounted) return;
-    setState(() => _gitBusy = true);
-    try {
-      await _gateway.addGitRemote(name: result.name, url: result.url);
-      await _refreshGit();
-      if (!mounted) return;
-      _appendLog('[info] Git remote ${result.name} configured');
-      showAppToast(
-        context,
-        message: 'Remote ${result.name} ready — you can Push',
-        icon: Icons.cloud_done_outlined,
-      );
-    } catch (error) {
-      await _showError('Add remote', error);
-    } finally {
-      if (mounted) setState(() => _gitBusy = false);
-    }
-  }
-
-  Future<void> _handleGitSelectCommit(GitCommitInfo commit) async {
-    setState(() {
-      _selectedGitCommit = commit;
-      _selectedGitDiffFile = null;
-      _gitDiff = null;
-    });
-    try {
-      final detail = await _gateway.getGitCommitDetail(commit.hash);
-      if (!mounted) return;
-      setState(() => _selectedGitCommitDetail = detail);
-    } catch (error) {
-      await _showError('Commit details', error);
-    }
-  }
-
-  void _handleGitToggleFile(String path) {
-    setState(() {
-      if (_selectedGitFiles.contains(path)) {
-        _selectedGitFiles.remove(path);
-      } else {
-        _selectedGitFiles.add(path);
-      }
-    });
+    final added = await _git.addRemote(name: result.name, url: result.url);
+    if (!added || !mounted) return;
+    showAppToast(
+      context,
+      message: 'Remote ${result.name} ready — you can Push',
+      icon: Icons.cloud_done_outlined,
+    );
   }
 
   Future<void> _handleEnablePlugin(PluginInfo plugin) async {
@@ -2111,7 +1876,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
 
     unawaited(after(const Duration(milliseconds: 500), _loadExecutionHistory));
-    unawaited(after(const Duration(milliseconds: 800), _loadGitStatus));
+    unawaited(after(const Duration(milliseconds: 800), _git.loadStatus));
   }
 
   Future<void> _applyOpenedWorkspace(
@@ -2151,15 +1916,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _editor.recentFiles = [];
       _showEditorPage = false;
       _showSourceControl = false;
-      _gitStatus = null;
-      _gitBranches = [];
-      _gitHistory = [];
-      _selectedGitCommit = null;
-      _selectedGitCommitDetail = null;
-      _gitDiff = null;
-      _selectedGitDiffFile = null;
-      _selectedGitFiles.clear();
-      _gitCommitController.clear();
+      _git.reset();
       _editor.selectedOutlineSymbol = null;
       _busy = false;
     });
@@ -4138,7 +3895,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       }
     });
     await _editor.loadFileTree();
-    await _refreshGit();
+    await _git.refresh();
     await _loadIndexStatus();
   }
 
@@ -4182,8 +3939,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _showPluginManager = false;
       _editor.reset();
       _execution.resetForWorkspaceChange();
-      _gitStatus = null;
-      _gitHistory = [];
+      _git.reset();
       _testTree = null;
       _indexStatus = null;
       _insights = null;
@@ -4743,7 +4499,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _showExecutionPage = true;
       } else if (panel == SidebarPanel.sourceControl) {
         _showSourceControl = true;
-        unawaited(_refreshGit());
+        unawaited(_git.refresh());
       } else if (panel == SidebarPanel.reports) {
         _showReportsPage = true;
         _showDoctorPage = false;
@@ -4811,7 +4567,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       });
       _appendLog('[info] Saved "$path"');
       // Don't block Save on git / language refresh — especially mid-run.
-      unawaited(_loadGitStatus());
+      unawaited(_git.loadStatus());
       unawaited(_refreshLanguageFeatures());
     } catch (error) {
       _appendLog('[error] Save failed: $error');
@@ -6267,19 +6023,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                           onOpenProject: () => unawaited(_handleOpenProject()),
                           onNewWorkspace: _handleNewWorkspace,
                           onOpenSearch: () => unawaited(_openCommandPalette()),
-                          gitBranchLabel: _gitStatus?.repository.branch,
-                          gitBranches: _gitBranchNames,
-                          onGitBranchSelected: _handleGitCheckout,
-                          onGitCreateBranch: _handleGitCreateBranch,
-                          onGitDeleteBranch: _handleGitDeleteBranch,
+                          gitBranchLabel: _git.currentBranch,
+                          gitBranches: _git.localBranchNames,
+                          onGitBranchSelected: _git.checkout,
+                          onGitCreateBranch: _git.createBranch,
+                          onGitDeleteBranch: _git.deleteBranch,
                           onGitFetch: () =>
-                              _handleGitRemote('fetch', _gateway.fetchGit),
+                              _git.runRemote('fetch', _gateway.fetchGit),
                           onGitPull: () =>
-                              _handleGitRemote('pull', _gateway.pullGit),
+                              _git.runRemote('pull', _gateway.pullGit),
                           onGitPush: () =>
-                              _handleGitRemote('push', _gateway.pushGit),
-                          showGitRemoteActions:
-                              _gitStatus?.repository.isRepository == true,
+                              _git.runRemote('push', _gateway.pushGit),
+                          showGitRemoteActions: _git.isRepository,
                         ),
                       Expanded(
                         child: Row(
@@ -6440,7 +6195,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                 onOpenFile: _openFile,
                                 onToggleDirectory: (path) =>
                                     unawaited(_editor.toggleDirectory(path)),
-                                gitFileStatuses: _gitFileStatuses,
+                                gitFileStatuses: _git.fileStatuses,
                                 fileTreeKey: _fileTreeKey,
                                 onEnsureExpanded: (path) =>
                                     _editor.ensureExpanded(path),
@@ -6713,34 +6468,34 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         ],
       ),
       _CenterView.sourceControl => SourceControlPage(
-        status: _gitStatus,
-        branches: _gitBranches,
-        history: _gitHistory,
-        selectedCommit: _selectedGitCommit,
-        commitDetail: _selectedGitCommitDetail,
-        diff: _gitDiff,
-        selectedFiles: _selectedGitFiles,
-        selectedDiffFile: _selectedGitDiffFile,
-        commitController: _gitCommitController,
-        isLoading: _loadingGit,
-        isBusy: _gitBusy,
-        isLoadingHistory: _loadingGitHistory,
-        isLoadingDiff: _loadingGitDiff,
-        onRefresh: _refreshGit,
-        onInit: _handleGitInit,
-        onToggleFile: _handleGitToggleFile,
-        onSelectDiffFile: _loadGitDiff,
+        status: _git.status,
+        branches: _git.branches,
+        history: _git.history,
+        selectedCommit: _git.selectedCommit,
+        commitDetail: _git.selectedCommitDetail,
+        diff: _git.diff,
+        selectedFiles: _git.selectedFiles,
+        selectedDiffFile: _git.selectedDiffFile,
+        commitController: _git.commitController,
+        isLoading: _git.loading,
+        isBusy: _git.busy,
+        isLoadingHistory: _git.loadingHistory,
+        isLoadingDiff: _git.loadingDiff,
+        onRefresh: _git.refresh,
+        onInit: _git.initRepository,
+        onToggleFile: _git.toggleFile,
+        onSelectDiffFile: _git.loadDiff,
         onCommitAll: () => _handleGitCommit(),
         onCommitSelected: () =>
-            _handleGitCommit(files: _selectedGitFiles.toList()),
-        onSelectCommit: _handleGitSelectCommit,
-        onRefreshHistory: _loadGitHistory,
-        onFetch: () => _handleGitRemote('fetch', _gateway.fetchGit),
-        onPull: () => _handleGitRemote('pull', _gateway.pullGit),
-        onPush: () => _handleGitRemote('push', _gateway.pushGit),
-        onCheckoutBranch: _handleGitCheckout,
-        onCreateBranch: _handleGitCreateBranch,
-        onDeleteBranch: _handleGitDeleteBranch,
+            _handleGitCommit(files: _git.selectedFiles.toList()),
+        onSelectCommit: _git.selectCommit,
+        onRefreshHistory: _git.loadHistory,
+        onFetch: () => _git.runRemote('fetch', _gateway.fetchGit),
+        onPull: () => _git.runRemote('pull', _gateway.pullGit),
+        onPush: () => _git.runRemote('push', _gateway.pushGit),
+        onCheckoutBranch: _git.checkout,
+        onCreateBranch: _git.createBranch,
+        onDeleteBranch: _git.deleteBranch,
         onAddRemote: () => unawaited(_handleAddGitRemote()),
         onEditIdentity: () => unawaited(_handleEditGitIdentity()),
       ),
