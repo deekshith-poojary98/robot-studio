@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/backend_host.dart';
@@ -149,15 +148,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _notify() {
     if (!mounted) return;
-    // Controllers may notify while CodeEditor is still mounting (re_editor
-    // fires listeners from initState). setState during build asserts.
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() {});
-      });
-      return;
-    }
+    // Editor mount no longer climbs here: RobotCodeEditor drops the
+    // re_editor delegate= echo, and EditorShellController.onContentChanged
+    // skips unchanged text. A phase-wide deferral hid real lifecycle bugs.
     setState(() {});
   }
 
