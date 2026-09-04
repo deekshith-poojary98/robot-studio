@@ -130,6 +130,10 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   late CodeChunkAnalyzer _chunkAnalyzer;
   List<DiagnosticInfo> _diagnostics = [];
   bool _listening = false;
+
+  /// Last text sent to [RobotCodeEditor.onContentChanged] — suppresses the
+  /// spurious mount notification from re_editor's controller delegate=.
+  String _lastEmittedContent = '';
   Timer? _hoverTimer;
   Timer? _hoverDismissTimer;
   Offset? _hoverLocal;
@@ -190,6 +194,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _diagnostics = widget.diagnostics;
     _chunkAnalyzer = RobotDocumentChunkAnalyzer(widget.foldingRanges);
     _createController(widget.initialContent);
+    _lastEmittedContent = widget.initialContent;
     _findController = CodeFindController(_controller);
     _scrollController = CodeScrollController();
     _promptsBuilder = RobotAutocompletePromptsBuilder(
@@ -321,12 +326,19 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     if (preserveSelection && selection != null) {
       _controller.selection = selection;
     }
+    _lastEmittedContent = content;
     _controller.addListener(_onChanged);
   }
 
   void _onChanged() {
     if (!mounted) return;
-    widget.onContentChanged(_controller.text);
+    final text = _controller.text;
+    // Mount / delegate= notifies without a real edit — avoid climbing into
+    // AppShell.setState during CodeEditor's first build.
+    if (text != _lastEmittedContent) {
+      _lastEmittedContent = text;
+      widget.onContentChanged(text);
+    }
     final sel = _controller.selection;
     widget.onCursorChanged?.call(sel.baseIndex + 1, sel.baseOffset + 1);
   }

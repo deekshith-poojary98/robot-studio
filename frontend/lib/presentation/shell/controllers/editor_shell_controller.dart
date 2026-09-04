@@ -126,6 +126,9 @@ class EditorShellController {
   void onContentChanged(String path, String content) {
     final tabIndex = tabs.indexWhere((tab) => tab.path == path);
     if (tabIndex < 0) return;
+    // re_editor notifies on mount (delegate=) with unchanged text — skip so we
+    // do not setState while the editor is still building.
+    if (tabs[tabIndex].content == content) return;
     tabs[tabIndex].content = content;
     // Keep caret signature card; refreshLanguageFeatures updates or clears it.
     notify();

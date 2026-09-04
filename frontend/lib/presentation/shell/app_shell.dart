@@ -147,7 +147,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late final LibraryExplorerController _libraryExplorer;
 
   void _notify() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // Controllers may notify while CodeEditor is still mounting (re_editor
+    // fires listeners from initState). setState during build asserts.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+    setState(() {});
   }
 
   void _appendLog(String line) => _workspace.append(line);

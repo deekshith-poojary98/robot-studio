@@ -25,6 +25,25 @@ void main() {
 
   tearDown(() => controller.dispose());
 
+  test('onContentChanged skips notify when text is unchanged', () {
+    controller.tabs = [
+      EditorTabInfo(
+        path: '/tmp/demo.robot',
+        content: 'Hello',
+        savedContent: 'Hello',
+        mtime: 1,
+      ),
+    ];
+    controller.activePath = '/tmp/demo.robot';
+
+    controller.onContentChanged('/tmp/demo.robot', 'Hello');
+    expect(notified, 0);
+
+    controller.onContentChanged('/tmp/demo.robot', 'Hello!');
+    expect(notified, 1);
+    expect(controller.tabs.first.content, 'Hello!');
+  });
+
   test('status notice expires instead of sticking above the editor', () async {
     controller.setStatusMessage(
       'Saved login.robot',
