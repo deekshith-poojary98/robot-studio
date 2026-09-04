@@ -73,11 +73,6 @@ def present_named_args(arguments: list[str]) -> set[str]:
 _VARARG_KINDS = frozenset({"var_positional", "var_named", "free_named"})
 _POSITIONAL_KINDS = frozenset({"positional_only", "positional_or_named", ""})
 
-# BuiltIn.Create Dictionary is documented as ``*items`` only, but RF also
-# accepts free ``key=value`` named args as dictionary entries. Without this,
-# ``Create Dictionary    id=1`` is a false ``unknown_argument``.
-_FREE_NAMED_DESPITE_LIBDOC = frozenset({"create dictionary"})
-
 
 def validate_keyword_arguments(
     metadata: KeywordMetadata,
@@ -97,9 +92,11 @@ def validate_keyword_arguments(
     keyword = metadata.name or "keyword"
     has_var_pos = any(p.kind == "var_positional" for p in params)
     has_var_named = any(p.kind in {"var_named", "free_named"} for p in params)
-    if keyword.casefold() in _FREE_NAMED_DESPITE_LIBDOC:
-        has_var_named = True
     bindable = [p for p in params if p.kind not in _VARARG_KINDS]
+    # RF only treats ``name=value`` as a named argument when the spec has
+    # named slots or ``**kwargs``. Varargs-only keywords (Create Dictionary,
+    # Create List, Set Variable) pack those cells into *items as positionals.
+    recognize_named = bool(bindable or has_var_named)
     by_name = {p.name.casefold(): p for p in bindable}
     pos_order = [p for p in bindable if p.kind in _POSITIONAL_KINDS]
 
@@ -113,7 +110,7 @@ def validate_keyword_arguments(
         if not text:
             continue
         name, _value = parse_argument_cell(text)
-        if name:
+        if name and recognize_named:
             saw_named = True
             key = name.casefold()
             if key in bound:

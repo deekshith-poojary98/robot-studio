@@ -74,7 +74,7 @@ def test_validate_kwargs_absorb_unknown_named() -> None:
 
 
 def test_validate_create_dictionary_accepts_free_named() -> None:
-    """Libdoc is ``*items`` only; RF still allows ``key=value`` entries."""
+    """Varargs-only specs treat ``name=value`` as *items, not named args."""
     meta = _kw(
         ParameterMetadata(name="items", required=False, kind="var_positional"),
         name="Create Dictionary",
@@ -91,6 +91,14 @@ def test_validate_create_dictionary_accepts_free_named() -> None:
         )
         == []
     )
+
+
+def test_validate_varargs_only_create_list_accepts_equals_cells() -> None:
+    meta = _kw(
+        ParameterMetadata(name="items", required=False, kind="var_positional"),
+        name="Create List",
+    )
+    assert validate_keyword_arguments(meta, ["foo=bar", "a", "b"]) == []
 
 
 def test_validate_ok_named_and_positional() -> None:
