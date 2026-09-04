@@ -10,7 +10,10 @@ from uuid import UUID
 
 from robot_studio.domain.models import IndexedSymbol
 from robot_studio.infrastructure.indexing.python_indexer import PythonLibraryIndexer
-from robot_studio.infrastructure.indexing.robot_indexer import RobotIndexer
+from robot_studio.infrastructure.indexing.robot_indexer import (
+    RobotIndexer,
+    imported_indexable_paths,
+)
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
 from robot_studio.infrastructure.indexing.yaml_variable_indexer import (
     YamlVariableIndexer,
@@ -154,6 +157,31 @@ class FilesystemIndexer:
         force: bool = False,
         analysis_rebind: bool = True,
     ) -> tuple[int, bool]:
+        count, changed = await self._index_file_once(
+            path,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            force=force,
+            analysis_rebind=analysis_rebind,
+        )
+        if changed:
+            await self._index_imported_chain(
+                path,
+                workspace_id=workspace_id,
+                project_id=project_id,
+                analysis_rebind=analysis_rebind,
+            )
+        return count, changed
+
+    async def _index_file_once(
+        self,
+        path: Path,
+        *,
+        workspace_id: UUID,
+        project_id: UUID | None,
+        force: bool = False,
+        analysis_rebind: bool = True,
+    ) -> tuple[int, bool]:
         if not path.is_file():
             removed = await self.store.remove_file(path)
             if self.analysis_engine is not None:
@@ -178,6 +206,60 @@ class FilesystemIndexer:
             workspace_id=workspace_id,
             project_id=project_id,
             analysis_rebind=analysis_rebind,
+        )
+
+    async def _index_imported_chain(
+        self,
+        path: Path,
+        *,
+        workspace_id: UUID,
+        project_id: UUID | None,
+        analysis_rebind: bool,
+        seen: set[str] | None = None,
+    ) -> None:
+        """Index Resource / Variables targets so hover can use the symbol store."""
+        if path.suffix.lower() not in RobotIndexer.INDEXABLE_SUFFIXES:
+            return
+        visited = seen if seen is not None else set()
+        try:
+            origin = str(path.expanduser().resolve())
+        except OSError:
+            return
+        visited.add(origin)
+        try:
+            imports = await asyncio.to_thread(imported_indexable_paths, path)
+        except Exception:  # noqa: BLE001 — never fail the primary file's index
+            return
+        for imported in imports:
+            if self._skip_import_target(imported):
+                continue
+            try:
+                key = str(imported.resolve())
+            except OSError:
+                continue
+            if key in visited:
+                continue
+            visited.add(key)
+            await self._index_file_once(
+                imported,
+                workspace_id=workspace_id,
+                project_id=project_id,
+                force=False,
+                analysis_rebind=analysis_rebind,
+            )
+            await self._index_imported_chain(
+                imported,
+                workspace_id=workspace_id,
+                project_id=project_id,
+                analysis_rebind=analysis_rebind,
+                seen=visited,
+            )
+
+    @staticmethod
+    def _skip_import_target(path: Path) -> bool:
+        return any(
+            part in _SKIP_DIR_NAMES or part.lower() in _SKIP_DIR_NAMES
+            for part in path.parts
         )
 
     async def commit_parsed_file(

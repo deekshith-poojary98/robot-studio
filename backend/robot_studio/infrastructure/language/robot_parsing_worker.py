@@ -791,6 +791,21 @@ def document_symbols(content: str, file_path: str) -> list[dict[str, Any]]:
     return symbols
 
 
+def extract_settings_import_paths(content: str) -> list[str]:
+    """Path tokens from ``Resource`` and ``Variables`` settings (not ``Library``)."""
+    model = _get_model(content)
+    paths: list[str] = []
+    for section in model.sections:
+        for item in getattr(section, "body", ()) or ():
+            item_type = type(item).__name__
+            if item_type not in {"ResourceImport", "VariablesImport"}:
+                continue
+            token = _node_name(item)
+            if token and "${" not in token:
+                paths.append(token)
+    return paths
+
+
 def extract_references(content: str, file_path: str) -> list[dict[str, Any]]:
     path = file_path or "file.robot"
     model = _get_model(content)

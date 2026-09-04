@@ -27,7 +27,10 @@ from robot_studio.domain.models import (
 )
 from robot_studio.infrastructure.indexing.file_watcher import NativeFileWatcher
 from robot_studio.infrastructure.indexing.filesystem_indexer import FilesystemIndexer
-from robot_studio.infrastructure.indexing.robot_indexer import RobotIndexer
+from robot_studio.infrastructure.indexing.robot_indexer import (
+    RobotIndexer,
+    imported_indexable_paths,
+)
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
 from robot_studio.infrastructure.language.builtin_keywords import BUILTIN_KEYWORDS
 from robot_studio.infrastructure.language.robot_language_service import (
@@ -367,6 +370,117 @@ async def test_hover_variables_py_import_without_index(index_stack) -> None:
     assert hover["name"] == "${KNOWN_COMMENT_ID}"
     assert Path(hover["file_path"]).name == "env.py"
     assert hover["line"] == 1
+
+
+def test_imported_indexable_paths_resolves_resource_and_variables(tmp_path: Path) -> None:
+    resource = tmp_path / "common.resource"
+    resource.write_text("*** Variables ***\n${SHARED}    hello\n", encoding="utf-8")
+    env = tmp_path / "env.py"
+    env.write_text("KNOWN_ID = 1\n", encoding="utf-8")
+    suite = tmp_path / "suite.robot"
+    suite.write_text(
+        "*** Settings ***\n"
+        "Resource    common.resource\n"
+        "Variables    env.py\n"
+        "Resource    ${DYNAMIC}.resource\n"
+        "Resource    missing.resource\n",
+        encoding="utf-8",
+    )
+    found = {path.name for path in imported_indexable_paths(suite)}
+    assert found == {"common.resource", "env.py"}
+
+
+@pytest.mark.asyncio
+async def test_index_file_follows_resource_variable_chain(index_stack) -> None:
+    """Indexing a suite must pull in imported .resource variables (no hover AST)."""
+    service, store, facade, suite, _lib, _bus, workspace, project = index_stack
+    deeper = suite.parent / "deeper.resource"
+    deeper.write_text(
+        "*** Variables ***\n${NESTED}    inner\n",
+        encoding="utf-8",
+    )
+    common = suite.parent / "common.resource"
+    common.write_text(
+        "*** Settings ***\n"
+        "Resource    deeper.resource\n"
+        "\n"
+        "*** Variables ***\n"
+        "${SHARED}    hello\n",
+        encoding="utf-8",
+    )
+    content = (
+        "*** Settings ***\n"
+        "Resource    common.resource\n"
+        "\n"
+        "*** Test Cases ***\n"
+        "Use Shared\n"
+        "    Log    ${SHARED}\n"
+        "    Log    ${NESTED}\n"
+    )
+    suite.write_text(content, encoding="utf-8")
+    await service.indexer.index_file(
+        suite,
+        workspace_id=workspace.id,
+        project_id=project.id,
+        force=True,
+    )
+
+    hits = await store.search_symbols(
+        query="SHARED",
+        workspace_id=workspace.id,
+        project_id=project.id,
+    )
+    assert any(
+        item["name"] == "${SHARED}"
+        and Path(item["file_path"]).name == "common.resource"
+        for item in hits
+    )
+    nested = await store.search_symbols(
+        query="NESTED",
+        workspace_id=workspace.id,
+        project_id=project.id,
+    )
+    assert any(
+        item["name"] == "${NESTED}"
+        and Path(item["file_path"]).name == "deeper.resource"
+        for item in nested
+    )
+
+    usage = content.splitlines()[5]
+    shared_col = usage.index("${SHARED}") + 2
+    hover = await facade.hover(
+        name="${SHARED}",
+        file_path=str(suite),
+        line=6,
+        column=shared_col,
+        content=content,
+    )
+    assert hover is not None
+    assert hover["kind"] == "variable"
+    assert hover["name"] == "${SHARED}"
+    assert Path(hover["file_path"]).name == "common.resource"
+
+
+@pytest.mark.asyncio
+async def test_index_file_follows_cyclic_resources(index_stack) -> None:
+    service, store, _facade, suite, _lib, _bus, workspace, project = index_stack
+    first = suite.parent / "a.resource"
+    second = suite.parent / "b.resource"
+    first.write_text("*** Settings ***\nResource    b.resource\n", encoding="utf-8")
+    second.write_text("*** Settings ***\nResource    a.resource\n", encoding="utf-8")
+    suite.write_text(
+        "*** Settings ***\nResource    a.resource\n",
+        encoding="utf-8",
+    )
+    await service.indexer.index_file(
+        suite,
+        workspace_id=workspace.id,
+        project_id=project.id,
+        force=True,
+    )
+    files = await store.list_indexed_files(workspace.id)
+    names = {Path(item).name for item in files}
+    assert {"a.resource", "b.resource", suite.name} <= names
 
 
 @pytest.mark.asyncio
