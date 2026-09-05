@@ -49,6 +49,7 @@ If a project-wide run would execute more than the configured threshold (default 
 ## After you stop or finish
 
 - Finishing a run does not yank you into another view; use the **View Report** toast when you want results.
+- The toolbar **Last:** chip is the outcome of that run: **Passed**, **Failed**, **No tests**, or **Error**. A keywords-only file, or a tag/filter that matches nothing, is **No tests** — not Failed.
 - **Failed Tests** lists failures with **Jump to Source** and **Re-run Test**. It only appears when tests failed. A pass, or a Robot error with no tests (for example no cases matching a tag), stays on Live Output.
 - Typical fix loop: Failed Tests → **Jump to Source** → edit → save → **Re-run Test** (or **Run** / `F5`) → **Reports** if you need the HTML log.
 - Run history is available from the reports flow — see [Reports & failed tests](/workflows/reports/).

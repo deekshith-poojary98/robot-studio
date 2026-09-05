@@ -127,9 +127,14 @@ class AppToolbar extends StatelessWidget {
               filled: isExecutionRunning,
               dotColor: isExecutionRunning
                   ? context.palette.accent
-                  : executionStatusLabel == 'Failed'
-                  ? context.palette.error
-                  : context.palette.textMuted,
+                  : switch (executionStatusLabel) {
+                      'Failed' || 'Error' => context.palette.error,
+                      'No tests' ||
+                      'Cancelled' ||
+                      'Aborted' => context.palette.warning,
+                      'Passed' => context.palette.success,
+                      _ => context.palette.textMuted,
+                    },
             ),
           ),
         ),

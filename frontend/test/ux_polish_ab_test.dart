@@ -391,6 +391,31 @@ void main() {
     expect(find.text('Last: Failed'), findsOneWidget);
   });
 
+  testWidgets('empty suite shows Last: No tests, not Failed', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppToolbar(
+            projectLabel: 'WS',
+            environmentLabel: 'robot-main',
+            backendConnected: true,
+            isExecutionRunning: false,
+            executionStatusLabel: 'No tests',
+            onRun: () {},
+            onRunProject: () {},
+            onStop: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Last: No tests'), findsOneWidget);
+    expect(find.text('Last: Failed'), findsNothing);
+  });
+
   testWidgets('sidebar panels expose descriptive tooltips', (tester) async {
     expect(SidebarPanel.reports.tooltip, contains('HTML reports'));
     expect(SidebarPanel.explorer.tooltip, contains('projects'));

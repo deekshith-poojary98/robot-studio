@@ -168,6 +168,17 @@ class ExecutionInfo {
     return 'ERROR';
   }
 
+  /// Toolbar / toast wording for [resultBadge] (title case, not FAIL/NO TESTS).
+  String get outcomeLabel => switch (resultBadge) {
+    'PASS' => 'Passed',
+    'FAIL' => 'Failed',
+    'NO TESTS' => 'No tests',
+    'ERROR' => 'Error',
+    'CANCELLED' => 'Cancelled',
+    'ABORTED' => 'Aborted',
+    final other => other,
+  };
+
   String get durationLabel {
     final ms = durationMs;
     if (ms == null) return '—';

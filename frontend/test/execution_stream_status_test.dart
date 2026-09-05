@@ -85,6 +85,29 @@ void main() {
     expect(notified, greaterThan(0));
   });
 
+  test('empty suite exit 252 is No tests, not Failed', () {
+    controller.currentExecution = ExecutionInfo(
+      id: 'run-1',
+      workspaceId: 'ws',
+      projectId: 'proj',
+      environmentId: 'env',
+      projectName: 'Amazon',
+      suite: 'pages/login_page.robot',
+      status: ExecutionStatus.running,
+      startedAt: DateTime.utc(2026, 1, 1),
+      command: 'robot',
+    );
+    controller.executionStatus = ExecutionStatus.running;
+
+    controller.handleStreamEvent(
+      const ExecutionStreamEvent(type: 'failed', runId: 'run-1', exitCode: 252),
+    );
+
+    expect(controller.executionStatus, ExecutionStatus.failed);
+    expect(controller.currentExecution?.exitCode, 252);
+    expect(controller.currentExecution?.outcomeLabel, 'No tests');
+  });
+
   test('markStopping is not overwritten by a stale running status', () {
     controller.currentExecution = ExecutionInfo(
       id: 'run-1',

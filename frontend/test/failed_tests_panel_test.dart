@@ -57,6 +57,14 @@ void main() {
       'NO TESTS',
     );
     expect(
+      run(
+        status: ExecutionStatus.failed,
+        exitCode: 252,
+        failed: 0,
+      ).outcomeLabel,
+      'No tests',
+    );
+    expect(
       ExecutionInfo(
         id: 'run',
         workspaceId: 'ws',

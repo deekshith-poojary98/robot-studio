@@ -245,6 +245,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   List<ExecutionInfo> get _executionHistory => _execution.executionHistory;
   ExecutionStatus get _executionStatus => _execution.executionStatus;
   ExecutionInfo? get _currentExecution => _execution.currentExecution;
+
+  /// Active: Starting/Running/Stopping. Afterward: Passed / Failed / No tests…
+  String get _toolbarExecutionLabel {
+    if (_executionStatus.isActive) return _executionStatus.label;
+    final run = _currentExecution;
+    if (run != null) return run.outcomeLabel;
+    return _executionStatus.label;
+  }
+
   List<RunTestFailureInfo> get _failedTests => _execution.failedTests;
   bool get _loadingFailures => _execution.loadingFailures;
   List<RunTestFailureInfo> get _reportFailedTests =>
@@ -6030,7 +6039,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                             isExecutionRunning: _executionStatus.isActive,
                             isExecutionStopping:
                                 _executionStatus == ExecutionStatus.stopping,
-                            executionStatusLabel: _executionStatus.label,
+                            executionStatusLabel: _toolbarExecutionLabel,
                             executionElapsedLabel: _elapsedLabel,
                             onExecutionStatusTap: _revealTests,
                             canRun: _canRunFile,
