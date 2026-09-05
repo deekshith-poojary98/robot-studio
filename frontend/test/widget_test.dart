@@ -1079,6 +1079,45 @@ void main() {
     expect(stopTapped, isTrue);
   });
 
+  testWidgets('Toolbar shows Stopping and disables Stop while winding down', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    var stopTapped = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppToolbar(
+            projectLabel: 'WS',
+            environmentLabel: 'robot-main',
+            environmentNames: const ['robot-main'],
+            selectedEnvironmentName: 'robot-main',
+            backendConnected: true,
+            isExecutionRunning: true,
+            isExecutionStopping: true,
+            executionStatusLabel: 'Stopping',
+            executionElapsedLabel: '47.3s',
+            onRun: () {},
+            onRunProject: () {},
+            onStop: () => stopTapped = true,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('STOPPING'), findsOneWidget);
+    expect(find.textContaining('Stopping'), findsWidgets);
+    final stopButton = tester.widget<ToolbarButton>(
+      find.byKey(const Key('toolbar.stop')),
+    );
+    expect(stopButton.onTap, isNull);
+    await tester.tap(find.byKey(const Key('toolbar.stop')));
+    await tester.pump();
+    expect(stopTapped, isFalse);
+  });
+
   testWidgets('Welcome screen shows recent runs card', (
     WidgetTester tester,
   ) async {

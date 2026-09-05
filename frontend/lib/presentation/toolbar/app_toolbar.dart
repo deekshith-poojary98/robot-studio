@@ -38,6 +38,7 @@ class AppToolbar extends StatelessWidget {
     this.executionStatusLabel,
     this.executionElapsedLabel,
     this.isExecutionRunning = false,
+    this.isExecutionStopping = false,
     this.onExecutionStatusTap,
     this.recentProjects = const [],
     this.selectedProjectId,
@@ -83,6 +84,7 @@ class AppToolbar extends StatelessWidget {
   final String? executionStatusLabel;
   final String? executionElapsedLabel;
   final bool isExecutionRunning;
+  final bool isExecutionStopping;
   final VoidCallback? onExecutionStatusTap;
   final List<ProjectInfo> recentProjects;
   final String? selectedProjectId;
@@ -182,13 +184,15 @@ class AppToolbar extends StatelessWidget {
           ToolbarButton(
             key: const Key('toolbar.stop'),
             icon: Icons.stop_rounded,
-            label: 'Stop',
+            label: isExecutionStopping ? 'Stopping' : 'Stop',
             showLabel: true,
-            danger: isExecutionRunning,
-            tooltip: isExecutionRunning
+            danger: isExecutionRunning && !isExecutionStopping,
+            tooltip: isExecutionStopping
+                ? 'Waiting for the run to stop'
+                : isExecutionRunning
                 ? 'Stop the current run'
                 : 'Nothing to stop',
-            onTap: isExecutionRunning ? onStop : null,
+            onTap: isExecutionRunning && !isExecutionStopping ? onStop : null,
           ),
         ],
       ),

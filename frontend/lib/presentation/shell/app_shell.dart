@@ -1394,6 +1394,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleStopExecution() async {
+    if (_execution.executionStatus == ExecutionStatus.stopping) return;
     if (_settings.execution.stopConfirmation) {
       final running = _execution.executionStatus.isActive;
       if (running) {
@@ -1412,6 +1413,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         }
       }
     }
+    _execution.markStopping();
     try {
       final run = await _gateway.stopExecution();
       if (!mounted) return;
@@ -5418,7 +5420,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           onSelect: () => unawaited(_handleRunProject()),
         ),
       ],
-      if (_executionStatus.isActive)
+      if (_executionStatus == ExecutionStatus.running ||
+          _executionStatus == ExecutionStatus.starting)
         PaletteItem(
           id: 'run.stop',
           title: 'Stop Execution',
@@ -5815,7 +5818,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         hasOpenTabs: _editorTabs.isNotEmpty,
         hasWorkspace: _activeWorkspace != null,
         wordWrap: _wordWrap,
-        canStop: _executionStatus.isActive,
+        canStop:
+            _executionStatus == ExecutionStatus.running ||
+            _executionStatus == ExecutionStatus.starting,
         canRun: _canRunTests,
         onNewProject: () => unawaited(_handleNewStandaloneProject()),
         onOpenProject: () => unawaited(_handleOpenProject()),
@@ -6021,6 +6026,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                           onRunProject: _handleRunProject,
                           onStop: _handleStopExecution,
                           isExecutionRunning: _executionStatus.isActive,
+                          isExecutionStopping:
+                              _executionStatus == ExecutionStatus.stopping,
                           executionStatusLabel: _executionStatus.label,
                           executionElapsedLabel: _elapsedLabel,
                           onExecutionStatusTap: _revealTests,

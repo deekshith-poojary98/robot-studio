@@ -40,7 +40,7 @@ Advanced Robot arguments are an escape hatch: one argv token per row, not a shel
 
 Logs stream into **Live Output** while a run is in progress (Robot is started with unbuffered stdout so lines are not held until the process exits). The **Now Running** panel on the right shows the live call stack — suite, test, and current keyword — plus elapsed time while the run is active. After the run ends, it keeps the last location until the next start.
 
-**Stop** cancels the run (with a confirmation that shows what is currently executing). Output so far is kept; the HTML report may be incomplete.
+**Stop** cancels the run (with a confirmation that shows what is currently executing). The toolbar and status switch to **Stopping** until Robot exits — that can take a few seconds if a keyword is blocked. Output so far is kept; the HTML report may be incomplete.
 
 ## Large runs
 

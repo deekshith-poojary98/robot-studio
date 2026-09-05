@@ -145,6 +145,7 @@ class ExecutionPage extends StatelessWidget {
                   width: 280,
                   child: _NowRunningPanel(
                     running: running,
+                    stopping: status == ExecutionStatus.stopping,
                     suite: liveSuite,
                     test: liveTest,
                     keyword: liveKeyword,
@@ -163,6 +164,7 @@ class ExecutionPage extends StatelessWidget {
 class _NowRunningPanel extends StatelessWidget {
   const _NowRunningPanel({
     required this.running,
+    this.stopping = false,
     required this.suite,
     required this.test,
     required this.keyword,
@@ -170,6 +172,7 @@ class _NowRunningPanel extends StatelessWidget {
   });
 
   final bool running;
+  final bool stopping;
   final String suite;
   final String test;
   final String keyword;
@@ -197,7 +200,9 @@ class _NowRunningPanel extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    running
+                    stopping
+                        ? 'Stopping'
+                        : running
                         ? 'Now Running'
                         : hasAny
                         ? 'Last location'

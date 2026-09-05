@@ -85,14 +85,45 @@ void main() {
     expect(notified, greaterThan(0));
   });
 
+  test('markStopping is not overwritten by a stale running status', () {
+    controller.currentExecution = ExecutionInfo(
+      id: 'run-1',
+      workspaceId: 'ws',
+      projectId: 'proj',
+      environmentId: 'env',
+      projectName: 'Amazon',
+      suite: 'suite.robot',
+      status: ExecutionStatus.running,
+      startedAt: DateTime.utc(2026, 1, 1),
+      finishedAt: null,
+      durationMs: null,
+      exitCode: null,
+      command: 'robot',
+      outputDir: null,
+      outputXml: null,
+      logHtml: null,
+      reportHtml: null,
+    );
+    controller.executionStatus = ExecutionStatus.running;
+
+    controller.markStopping();
+    expect(controller.executionStatus, ExecutionStatus.stopping);
+
+    controller.handleStreamEvent(
+      const ExecutionStreamEvent(
+        type: 'status',
+        runId: 'run-1',
+        status: 'running',
+      ),
+    );
+    expect(controller.executionStatus, ExecutionStatus.stopping);
+  });
+
   test('reconcile clears stuck Running when API already finished', () async {
     var finishedCalls = 0;
     controller = ExecutionShellController(
       gateway: _StatusGateway(
-        const ExecutionStatusInfo(
-          status: ExecutionStatus.finished,
-          run: null,
-        ),
+        const ExecutionStatusInfo(status: ExecutionStatus.finished, run: null),
       ),
       notify: () => notified++,
       isMounted: () => true,

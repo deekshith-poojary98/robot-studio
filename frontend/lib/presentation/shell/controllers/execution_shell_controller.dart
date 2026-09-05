@@ -151,6 +151,8 @@ class ExecutionShellController {
           _applyTerminalRun(status: parsed, exitCode: event.exitCode);
           return;
         }
+        // User already asked to stop — ignore stale "running" snapshots.
+        if (executionStatus == ExecutionStatus.stopping) return;
         executionStatus = parsed;
         currentExecution = ExecutionInfo(
           id: currentExecution!.id,
@@ -281,6 +283,14 @@ class ExecutionShellController {
     executionLines = [];
     _pendingOutput.clear();
     _outputDropped = false;
+    notify();
+  }
+
+  /// Optimistic UI while Robot is still tearing down (often several seconds).
+  void markStopping() {
+    if (!executionStatus.isActive) return;
+    if (executionStatus == ExecutionStatus.stopping) return;
+    executionStatus = ExecutionStatus.stopping;
     notify();
   }
 
