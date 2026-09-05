@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../../../core/gateway/execution_stream_client.dart';
 import '../../../core/gateway/transport_gateway.dart';
 import '../../execution/live_progress_markers.dart';
@@ -56,6 +58,14 @@ class ExecutionShellController {
   Timer? elapsedTimer;
   Duration elapsed = Duration.zero;
   ExecutionStreamClient? streamClient;
+
+  /// High-frequency run UI (elapsed, console, live stack).
+  ///
+  /// Listeners rebuild the toolbar / Execution page only. Calling [notify]
+  /// (AppShell setState) on this cadence orphans Tooltip and autocomplete
+  /// overlays when switching files or the Tests tab — Flutter then paints
+  /// a one-frame ErrorWidget (the red flash).
+  final ValueNotifier<int> viewEpoch = ValueNotifier(0);
   StreamSubscription<ExecutionStreamEvent>? streamSub;
   Timer? _statusReconcileTimer;
   bool _reconcilingStatus = false;
@@ -77,6 +87,10 @@ class ExecutionShellController {
     return '${seconds.toStringAsFixed(1)}s';
   }
 
+  void notifyView() {
+    viewEpoch.value++;
+  }
+
   void dispose() {
     streamSub?.cancel();
     elapsedTimer?.cancel();
@@ -85,6 +99,7 @@ class ExecutionShellController {
     _reportFailuresSkeletonTimer?.cancel();
     _liveFailuresSkeletonTimer?.cancel();
     streamClient?.disconnect();
+    viewEpoch.dispose();
   }
 
   Future<void> connectStream() async {
@@ -172,7 +187,7 @@ class ExecutionShellController {
           logHtml: currentExecution!.logHtml,
           reportHtml: currentExecution!.reportHtml,
         );
-        notify();
+        notifyView();
         return;
       case 'aborted':
       case 'finished':
@@ -238,7 +253,7 @@ class ExecutionShellController {
     liveSuite = suite;
     liveTest = test;
     liveKeyword = keyword;
-    notify();
+    notifyView();
   }
 
   void _clearLiveProgress() {
@@ -276,7 +291,7 @@ class ExecutionShellController {
     } else {
       executionLines = next;
     }
-    notify();
+    notifyView();
   }
 
   void clearExecutionLines() {
@@ -301,7 +316,7 @@ class ExecutionShellController {
     elapsedTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
       if (!isMounted()) return;
       elapsed += const Duration(milliseconds: 250);
-      notify();
+      notifyView();
     });
     _startStatusReconcile();
   }

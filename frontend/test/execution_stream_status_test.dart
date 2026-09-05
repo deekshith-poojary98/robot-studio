@@ -264,8 +264,18 @@ void main() {
     expect(controller.executionLines, isEmpty);
 
     await Future<void>.delayed(const Duration(milliseconds: 120));
-    expect(notified, 1);
+    expect(notified, 0);
+    expect(controller.viewEpoch.value, 1);
     expect(controller.executionLines.length, 20);
+  });
+
+  test('elapsed ticks update viewEpoch without shell notify', () async {
+    controller.executionStatus = ExecutionStatus.running;
+    controller.startElapsedTimer();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(notified, 0);
+    expect(controller.viewEpoch.value, greaterThan(0));
+    controller.stopElapsedTimer();
   });
 
   test('resetForWorkspaceChange clears console and run chrome', () {

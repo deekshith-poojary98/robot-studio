@@ -5985,72 +5985,77 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   Column(
                     children: [
                       if (_centerView != _CenterView.welcome)
-                        AppToolbar(
-                          projectLabel: _chromeContextLabel,
-                          recentProjects: _toolbarRecentProjects,
-                          selectedProjectId: _selectedProject?.id,
-                          onRecentProjectSelected: (project) =>
-                              unawaited(_handleOpenRecentProject(project)),
-                          onRevealProject: _selectedProject == null
-                              ? null
-                              : () {
-                                  final path = _selectedProject?.path;
-                                  if (path == null) return;
-                                  unawaited(_revealPathInOs(path));
-                                },
-                          onNewProject: () =>
-                              unawaited(_handleNewStandaloneProject()),
-                          environmentLabel:
-                              activeEnvironment?.name ?? 'No environment',
-                          environmentNames: _environments
-                              .map((item) => item.name)
-                              .toList(),
-                          selectedEnvironmentName: activeEnvironment?.name,
-                          environmentBroken:
-                              activeEnvironment?.available == false,
-                          onEnvironmentSelected: _handleActivateByName,
-                          onCreateEnvironment: _handleCreateEnvironment,
-                          onManageEnvironments: _handleManageEnvironments,
-                          runConfigurations: _runConfigurations,
-                          activeRunConfigurationId: _activeRunConfigurationId,
-                          runConfigurationsEnabled:
-                              connected && _selectedProject != null,
-                          onRunConfigurationSelected: (id) =>
-                              unawaited(_handleSelectRunConfiguration(id)),
-                          onNewRunConfiguration: () =>
-                              unawaited(_handleNewRunConfiguration()),
-                          onManageRunConfigurations: () =>
-                              unawaited(_handleManageRunConfigurations()),
-                          backendConnected: connected,
-                          onRun: _handleRunFile,
-                          onRunProject: _handleRunProject,
-                          onStop: _handleStopExecution,
-                          isExecutionRunning: _executionStatus.isActive,
-                          isExecutionStopping:
-                              _executionStatus == ExecutionStatus.stopping,
-                          executionStatusLabel: _executionStatus.label,
-                          executionElapsedLabel: _elapsedLabel,
-                          onExecutionStatusTap: _revealTests,
-                          canRun: _canRunFile,
-                          canRunProject: _canRunTests,
-                          robotFrameworkReady: _robotFrameworkReady,
-                          onOpenWorkspace: () =>
-                              unawaited(_handleOpenWorkspace()),
-                          onOpenProject: () => unawaited(_handleOpenProject()),
-                          onNewWorkspace: _handleNewWorkspace,
-                          onOpenSearch: () => unawaited(_openCommandPalette()),
-                          gitBranchLabel: _git.currentBranch,
-                          gitBranches: _git.localBranchNames,
-                          onGitBranchSelected: _git.checkout,
-                          onGitCreateBranch: _git.createBranch,
-                          onGitDeleteBranch: _git.deleteBranch,
-                          onGitFetch: () =>
-                              _git.runRemote('fetch', _gateway.fetchGit),
-                          onGitPull: () =>
-                              _git.runRemote('pull', _gateway.pullGit),
-                          onGitPush: () =>
-                              _git.runRemote('push', _gateway.pushGit),
-                          showGitRemoteActions: _git.isRepository,
+                        ValueListenableBuilder<int>(
+                          valueListenable: _execution.viewEpoch,
+                          builder: (context, _, _) => AppToolbar(
+                            projectLabel: _chromeContextLabel,
+                            recentProjects: _toolbarRecentProjects,
+                            selectedProjectId: _selectedProject?.id,
+                            onRecentProjectSelected: (project) =>
+                                unawaited(_handleOpenRecentProject(project)),
+                            onRevealProject: _selectedProject == null
+                                ? null
+                                : () {
+                                    final path = _selectedProject?.path;
+                                    if (path == null) return;
+                                    unawaited(_revealPathInOs(path));
+                                  },
+                            onNewProject: () =>
+                                unawaited(_handleNewStandaloneProject()),
+                            environmentLabel:
+                                activeEnvironment?.name ?? 'No environment',
+                            environmentNames: _environments
+                                .map((item) => item.name)
+                                .toList(),
+                            selectedEnvironmentName: activeEnvironment?.name,
+                            environmentBroken:
+                                activeEnvironment?.available == false,
+                            onEnvironmentSelected: _handleActivateByName,
+                            onCreateEnvironment: _handleCreateEnvironment,
+                            onManageEnvironments: _handleManageEnvironments,
+                            runConfigurations: _runConfigurations,
+                            activeRunConfigurationId: _activeRunConfigurationId,
+                            runConfigurationsEnabled:
+                                connected && _selectedProject != null,
+                            onRunConfigurationSelected: (id) =>
+                                unawaited(_handleSelectRunConfiguration(id)),
+                            onNewRunConfiguration: () =>
+                                unawaited(_handleNewRunConfiguration()),
+                            onManageRunConfigurations: () =>
+                                unawaited(_handleManageRunConfigurations()),
+                            backendConnected: connected,
+                            onRun: _handleRunFile,
+                            onRunProject: _handleRunProject,
+                            onStop: _handleStopExecution,
+                            isExecutionRunning: _executionStatus.isActive,
+                            isExecutionStopping:
+                                _executionStatus == ExecutionStatus.stopping,
+                            executionStatusLabel: _executionStatus.label,
+                            executionElapsedLabel: _elapsedLabel,
+                            onExecutionStatusTap: _revealTests,
+                            canRun: _canRunFile,
+                            canRunProject: _canRunTests,
+                            robotFrameworkReady: _robotFrameworkReady,
+                            onOpenWorkspace: () =>
+                                unawaited(_handleOpenWorkspace()),
+                            onOpenProject: () =>
+                                unawaited(_handleOpenProject()),
+                            onNewWorkspace: _handleNewWorkspace,
+                            onOpenSearch: () =>
+                                unawaited(_openCommandPalette()),
+                            gitBranchLabel: _git.currentBranch,
+                            gitBranches: _git.localBranchNames,
+                            onGitBranchSelected: _git.checkout,
+                            onGitCreateBranch: _git.createBranch,
+                            onGitDeleteBranch: _git.deleteBranch,
+                            onGitFetch: () =>
+                                _git.runRemote('fetch', _gateway.fetchGit),
+                            onGitPull: () =>
+                                _git.runRemote('pull', _gateway.pullGit),
+                            onGitPush: () =>
+                                _git.runRemote('push', _gateway.pushGit),
+                            showGitRemoteActions: _git.isRepository,
+                          ),
                         ),
                       Expanded(
                         child: Row(
@@ -6381,6 +6386,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Widget _buildCenter() {
     return switch (_centerView) {
+      _CenterView.editor || _CenterView.execution => _buildEditorOrExecution(),
       _CenterView.settings => PreferencesPage(
         controller: _settings,
         leaveBinding: _preferencesLeave,
@@ -6538,29 +6544,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onManage: _handleManageEnvironments,
       ),
       _CenterView.project => ProjectDetailsPanel(project: _selectedProject!),
-      _CenterView.execution => ExecutionPage(
-        consoleLines: _executionLines,
-        status: _executionStatus,
-        currentRun: _currentExecution,
-        liveSuite: _execution.liveSuite,
-        liveTest: _execution.liveTest,
-        liveKeyword: _execution.liveKeyword,
-        elapsedLabel: _elapsedLabel,
-        failedTests: _failedTests,
-        isLoadingFailures: _loadingFailures,
-        onJumpToFailedTest: (failure) {
-          unawaited(
-            _openFile(
-              failure.source,
-              line: failure.line,
-              column: failure.column,
-            ),
-          );
-        },
-        onRerunFailedTest: (failure) {
-          unawaited(_handleRerunFailedTest(failure));
-        },
-      ),
       _CenterView.reports => ReportsPage(
         isLoading: _loadingReports,
         dashboard: _reportsDashboard,
@@ -6606,61 +6589,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onRerunFile: (path) => unawaited(_rerunInsightsFile(path)),
         onLoadLastFailureName: _loadInsightsLastFailureName,
       ),
-      _CenterView.editor => EditorPage(
-        key: _editorPageKey,
-        tabs: _editorTabs,
-        activePath: _activeEditorPath,
-        wordWrap: _wordWrap,
-        hover: _editorHover,
-        references: _editorReferences,
-        statusMessage: _editorStatusMessage,
-        onDismissStatusMessage: () =>
-            setState(() => _editor.setStatusMessage(null)),
-        breadcrumb: _buildBreadcrumb(),
-        onBreadcrumbTap: _onBreadcrumbTap,
-        completionItems: _completionItems,
-        diagnostics: _editorDiagnostics,
-        hoverTooltip: _hoverTooltip,
-        peekDefinition: _peekDefinition,
-        jumpToLine: _jumpToLine,
-        jumpToColumn: _jumpToColumn,
-        onJumpApplied: () {
-          if (_editor.jumpToLine == null && _editor.jumpToColumn == null) {
-            return;
-          }
-          setState(() {
-            _editor.jumpToLine = null;
-            _editor.jumpToColumn = null;
-          });
-        },
-        foldingRanges: _editor.documentAnalysis?.foldingRanges ?? const [],
-        runnableTests: runnableTestsFromOutline(
-          _editor.documentAnalysis?.root,
-          filePath: _activeEditorPath,
-        ),
-        onRunTest: (test) {
-          final path = _activeEditorPath;
-          if (path == null) return;
-          unawaited(_handleRunSingleTest(file: path, name: test.name));
-        },
-        runTestsEnabled: _canRunTests && !_executionStatus.isActive,
-        fontSize: _settings.editor.fontSize.toDouble(),
-        fontFamily: _settings.editor.fontFamily,
-        tabWidth: _settings.editor.tabWidth,
-        onSelectTab: _selectTab,
-        onCloseTab: _closeTab,
-        onTabContextAction: _handleTabContextAction,
-        onContentChanged: _onContentChanged,
-        onSave: _saveActive,
-        onHoverRequest: (line, column) =>
-            unawaited(_editor.requestHoverTooltip(line: line, column: column)),
-        onHoverExit: _editor.clearHoverTooltip,
-        onCtrlClick: _editorCtrlClickDefinition,
-        onClosePeek: () => setState(() => _editor.peekDefinition = null),
-        onCursorChanged: _editor.onCursorChanged,
-        onViewportChanged: _editor.onViewportChanged,
-        onCompletionAccepted: _editor.recordCompletionUsage,
-      ),
       _CenterView.placeholder => _WorkspaceOpenPlaceholder(
         workspace: _activeWorkspace!,
         projects: _projects,
@@ -6669,6 +6597,102 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onManageEnvironments: _handleManageEnvironments,
       ),
     };
+  }
+
+  /// Keep editor and Tests mounted so switching during a run does not dispose
+  /// tab tooltips / autocomplete overlays (that paints a one-frame red ErrorWidget).
+  Widget _buildEditorOrExecution() {
+    return IndexedStack(
+      index: _centerView == _CenterView.execution ? 1 : 0,
+      sizing: StackFit.expand,
+      children: [
+        _buildEditorPage(),
+        ValueListenableBuilder<int>(
+          valueListenable: _execution.viewEpoch,
+          builder: (context, _, _) => _buildExecutionPage(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExecutionPage() {
+    return ExecutionPage(
+      consoleLines: _executionLines,
+      status: _executionStatus,
+      currentRun: _currentExecution,
+      liveSuite: _execution.liveSuite,
+      liveTest: _execution.liveTest,
+      liveKeyword: _execution.liveKeyword,
+      elapsedLabel: _elapsedLabel,
+      failedTests: _failedTests,
+      isLoadingFailures: _loadingFailures,
+      onJumpToFailedTest: (failure) {
+        unawaited(
+          _openFile(failure.source, line: failure.line, column: failure.column),
+        );
+      },
+      onRerunFailedTest: (failure) {
+        unawaited(_handleRerunFailedTest(failure));
+      },
+    );
+  }
+
+  Widget _buildEditorPage() {
+    return EditorPage(
+      key: _editorPageKey,
+      tabs: _editorTabs,
+      activePath: _activeEditorPath,
+      wordWrap: _wordWrap,
+      hover: _editorHover,
+      references: _editorReferences,
+      statusMessage: _editorStatusMessage,
+      onDismissStatusMessage: () =>
+          setState(() => _editor.setStatusMessage(null)),
+      breadcrumb: _buildBreadcrumb(),
+      onBreadcrumbTap: _onBreadcrumbTap,
+      completionItems: _completionItems,
+      diagnostics: _editorDiagnostics,
+      hoverTooltip: _hoverTooltip,
+      peekDefinition: _peekDefinition,
+      jumpToLine: _jumpToLine,
+      jumpToColumn: _jumpToColumn,
+      onJumpApplied: () {
+        if (_editor.jumpToLine == null && _editor.jumpToColumn == null) {
+          return;
+        }
+        setState(() {
+          _editor.jumpToLine = null;
+          _editor.jumpToColumn = null;
+        });
+      },
+      foldingRanges: _editor.documentAnalysis?.foldingRanges ?? const [],
+      runnableTests: runnableTestsFromOutline(
+        _editor.documentAnalysis?.root,
+        filePath: _activeEditorPath,
+      ),
+      onRunTest: (test) {
+        final path = _activeEditorPath;
+        if (path == null) return;
+        unawaited(_handleRunSingleTest(file: path, name: test.name));
+      },
+      runTestsEnabled: _canRunTests && !_executionStatus.isActive,
+      fontSize: _settings.editor.fontSize.toDouble(),
+      fontFamily: _settings.editor.fontFamily,
+      tabWidth: _settings.editor.tabWidth,
+      onSelectTab: _selectTab,
+      onCloseTab: _closeTab,
+      onTabContextAction: _handleTabContextAction,
+      onContentChanged: _onContentChanged,
+      onSave: _saveActive,
+      onHoverRequest: (line, column) =>
+          unawaited(_editor.requestHoverTooltip(line: line, column: column)),
+      onHoverExit: _editor.clearHoverTooltip,
+      onCtrlClick: _editorCtrlClickDefinition,
+      onClosePeek: () => setState(() => _editor.peekDefinition = null),
+      onCursorChanged: _editor.onCursorChanged,
+      onViewportChanged: _editor.onViewportChanged,
+      onCompletionAccepted: _editor.recordCompletionUsage,
+    );
   }
 }
 
