@@ -1333,3 +1333,37 @@ Login
     assert "missing_argument" in codes
     assert any("locator" in str(item["message"]) for item in diagnostics)
     assert any("selector" in str(item["message"]) for item in diagnostics)
+
+
+@pytest.mark.asyncio
+async def test_zero_arg_user_keyword_flags_unknown_named(tmp_path: Path) -> None:
+    """``press=False`` on a keyword with no [Arguments] must warn."""
+    suite = """*** Keywords ***
+Verify show password
+    No Operation
+
+*** Test Cases ***
+Toggle
+    ${status}    Verify show password    press=False
+"""
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(__import__("datetime").UTC),
+    )
+    await context.open(workspace)
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge({}),  # type: ignore[arg-type]
+    )
+    diagnostics: list[dict] = []
+    await service._append_semantic_diagnostics(suite, str(tmp_path / "login.robot"), diagnostics)
+    codes = {item.get("code") for item in diagnostics if item.get("code")}
+    assert "unknown_argument" in codes
+    assert any("press" in str(item["message"]) for item in diagnostics)

@@ -24,6 +24,26 @@ def test_validate_skips_when_signature_unknown() -> None:
     assert validate_keyword_arguments(_kw(), ["a", "b"]) == []
 
 
+def test_validate_zero_arg_user_keyword_flags_named() -> None:
+    meta = KeywordMetadata(
+        name="Verify show password",
+        source_type=KeywordSourceType.USER,
+        parameters=(),
+    )
+    issues = validate_keyword_arguments(meta, ["press=False"])
+    assert any(code == "unknown_argument" and "press" in msg for code, msg in issues)
+
+
+def test_validate_zero_arg_user_keyword_flags_positional() -> None:
+    meta = KeywordMetadata(
+        name="Verify show password",
+        source_type=KeywordSourceType.USER,
+        parameters=(),
+    )
+    issues = validate_keyword_arguments(meta, ["True"])
+    assert any(code == "extra_argument" for code, _ in issues)
+
+
 def test_validate_missing_required() -> None:
     meta = _kw(
         ParameterMetadata(name="first", required=True),

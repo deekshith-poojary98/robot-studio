@@ -90,7 +90,39 @@ def validate_keyword_arguments(
     """
     params = [p for p in metadata.parameters if (p.name or "").strip()]
     if not params:
-        return []
+        # Empty libdoc/index rows are unknown — skip. Empty [Arguments] on a
+        # user/resource keyword is a known 0-arg signature.
+        if metadata.source_type not in {
+            KeywordSourceType.USER,
+            KeywordSourceType.RESOURCE,
+        }:
+            return []
+        keyword = metadata.name or "keyword"
+        issues: list[tuple[str, str]] = []
+        extra_positional = 0
+        for cell in arguments:
+            text = (cell or "").strip()
+            if not text:
+                continue
+            name, _value = parse_argument_cell(text)
+            if name:
+                issues.append(
+                    (
+                        "unknown_argument",
+                        f"Unknown argument '{name}' for keyword '{keyword}'",
+                    ),
+                )
+            else:
+                extra_positional += 1
+        if extra_positional:
+            noun = "argument" if extra_positional == 1 else "arguments"
+            issues.append(
+                (
+                    "extra_argument",
+                    f"Keyword '{keyword}' got {extra_positional} extra {noun}",
+                ),
+            )
+        return issues
 
     keyword = metadata.name or "keyword"
     has_var_pos = any(p.kind == "var_positional" for p in params)

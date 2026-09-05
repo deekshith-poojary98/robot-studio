@@ -24,7 +24,10 @@ from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.domain.interfaces.language import LanguageService
 from robot_studio.domain.interfaces.signature_help import SignatureHelpRequestContext
 from robot_studio.domain.models.analysis import EntityKind
-from robot_studio.domain.models.keyword_metadata import KeywordMetadata
+from robot_studio.domain.models.keyword_metadata import (
+    KeywordMetadata,
+    KeywordSourceType,
+)
 from robot_studio.infrastructure.analysis.embedded_args import (
     embedded_argument_variables,
     matches_embedded_keyword,
@@ -1642,6 +1645,32 @@ class RobotLanguageService(LanguageService):
                 if keyword.name and keyword.parameters:
                     keyword_signatures[keyword.name.casefold()] = keyword
 
+        # Same-file / open-buffer user keywords, including empty [Arguments]
+        # (0-arg). Seed after libraries so a local name wins over a library one.
+        try:
+            live_symbols = document_symbols(content, file_path or "buffer.robot")
+        except Exception:  # noqa: BLE001 — parse failure must not drop diagnostics
+            live_symbols = []
+        if isinstance(live_symbols, list):
+            disk_symbol_cache[file_path] = live_symbols
+            for item in live_symbols:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("kind") or "") != SymbolKind.KEYWORD.value:
+                    continue
+                name = str(item.get("name") or "").strip()
+                if not name:
+                    continue
+                detail = str(item.get("detail") or "")
+                keyword_signatures[name.casefold()] = KeywordMetadata(
+                    name=name,
+                    source_type=KeywordSourceType.USER,
+                    parameters=parameters_from_detail_string(detail),
+                    source_path=file_path,
+                    documentation=str(item.get("documentation") or ""),
+                    detail=detail,
+                )
+
         for idx, raw in enumerate(lines, start=1):
             line = raw.strip()
             if not line or line.startswith("#"):
@@ -1922,24 +1951,24 @@ class RobotLanguageService(LanguageService):
         path = str(definition.get("file_path") or "")
         live_name = str(definition.get("name") or bare)
         live = self._keyword_fields_from_disk(path, live_name, disk_symbol_cache)
-        if live is not None and str(live.get("detail") or "").strip():
-            live_params = parameters_from_detail_string(str(live["detail"]))
-            if live_params and meta is not None:
-                meta = KeywordMetadata(
-                    name=meta.name,
-                    qualified_name=meta.qualified_name,
-                    source_type=meta.source_type,
-                    library_name=meta.library_name,
-                    documentation=str(live.get("documentation") or "") or meta.documentation,
-                    parameters=live_params,
-                    source_path=meta.source_path,
-                    source_line=meta.source_line,
-                    deprecated=meta.deprecated,
-                    tags=meta.tags,
-                    examples=meta.examples,
-                    detail=str(live["detail"]),
-                )
-        if meta is None or not meta.parameters:
+        if live is not None and meta is not None:
+            live_detail = str(live.get("detail") or "")
+            live_params = parameters_from_detail_string(live_detail)
+            meta = KeywordMetadata(
+                name=meta.name,
+                qualified_name=meta.qualified_name,
+                source_type=meta.source_type,
+                library_name=meta.library_name,
+                documentation=str(live.get("documentation") or "") or meta.documentation,
+                parameters=live_params,
+                source_path=meta.source_path,
+                source_line=meta.source_line,
+                deprecated=meta.deprecated,
+                tags=meta.tags,
+                examples=meta.examples,
+                detail=live_detail,
+            )
+        if meta is None:
             return None
         return meta
 
