@@ -1754,12 +1754,16 @@ class RobotLanguageService(LanguageService):
                     normalized = self._normalize_variable_token(var_token)
                     if self._is_known_variable(normalized, declared_variables):
                         continue
-                    definition = await self.store.find_definition(
-                        normalized,
-                        kind=SymbolKind.VARIABLE,
-                        workspace_id=self.context.workspace_id,
-                        project_id=self.context.project_id,
-                    )
+                    definition = None
+                    for candidate in self._symbol_lookup_names(normalized):
+                        definition = await self.store.find_definition(
+                            candidate,
+                            kind=SymbolKind.VARIABLE,
+                            workspace_id=self.context.workspace_id,
+                            project_id=self.context.project_id,
+                        )
+                        if definition is not None:
+                            break
                     if definition is None:
                         diagnostics.append(
                             self._diag(
@@ -2099,16 +2103,17 @@ class RobotLanguageService(LanguageService):
         lines: list[str],
         *,
         file_path: str = "",
+        _seen: set[str] | None = None,
     ) -> set[str]:
-        declared: set[str] = set()
+        declared = cls._collect_file_scope_variables(
+            lines,
+            file_path=file_path,
+            seen=_seen,
+        )
         for raw in lines:
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
-
-            if line.lower().startswith("variables ") and file_path:
-                token = first_robot_cell(line.split(None, 1)[1].strip()).strip("'\"")
-                declared.update(cls._variables_from_import_file(file_path, token))
 
             cells = cls._robot_cells(line)
             if not cells:
@@ -2161,6 +2166,85 @@ class RobotLanguageService(LanguageService):
         for keyword_name in cls._collect_local_keyword_names(lines):
             declared.update(embedded_argument_variables(keyword_name))
         return declared
+
+    @classmethod
+    def _collect_file_scope_variables(
+        cls,
+        lines: list[str],
+        *,
+        file_path: str,
+        seen: set[str] | None,
+    ) -> set[str]:
+        """Variables section + ``Variables`` / ``Resource`` imports (RF suite scope)."""
+        names: set[str] = set()
+        if file_path:
+            try:
+                key = str(Path(file_path).expanduser().resolve())
+            except OSError:
+                key = file_path
+            walked = seen if seen is not None else set()
+            if key in walked:
+                return names
+            walked.add(key)
+            seen = walked
+        else:
+            seen = seen if seen is not None else set()
+
+        in_variables = False
+        for raw in lines:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("*"):
+                in_variables = bool(re.search(r"variables?", line, re.I))
+                continue
+            if line.lower().startswith("variables ") and file_path:
+                token = first_robot_cell(line.split(None, 1)[1].strip()).strip("'\"")
+                names.update(cls._variables_from_import_file(file_path, token))
+                continue
+            if line.lower().startswith("resource ") and file_path:
+                token = first_robot_cell(line.split(None, 1)[1].strip()).strip("'\"")
+                names.update(cls._variables_from_resource_scope(file_path, token, seen))
+                continue
+            if not in_variables:
+                continue
+            cells = cls._robot_cells(line)
+            if not cells:
+                continue
+            bare = cells[0][:-1].rstrip() if cells[0].endswith("=") else cells[0]
+            match = re.match(r"^([\$@&%]\{[^}]+\})$", bare)
+            if match:
+                names.add(match.group(1))
+        return names
+
+    @classmethod
+    def _variables_from_resource_scope(
+        cls,
+        file_path: str,
+        token: str,
+        seen: set[str],
+    ) -> set[str]:
+        """Exported variables from a Resource (not keyword-local assigns)."""
+        if not token or "${" in token:
+            return set()
+        candidate = Path(token).expanduser()
+        if not candidate.is_file():
+            candidate = cls._path_beside_file(file_path, token)
+        try:
+            if not candidate.is_file():
+                return set()
+            resolved = candidate.resolve()
+        except OSError:
+            return set()
+        try:
+            text = resolved.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return set()
+        return cls._collect_file_scope_variables(
+            text.splitlines(),
+            file_path=str(resolved),
+            seen=seen,
+        )
 
     @classmethod
     def _variables_from_import_file(cls, file_path: str, token: str) -> set[str]:
@@ -2255,6 +2339,10 @@ class RobotLanguageService(LanguageService):
             base = cls._extended_variable_base(body)
             if base != body:
                 _add(f"{sigil}{{{base}}}")
+            # Robot treats ${list} / @{list} / &{list} as the same assignment.
+            for other in ("$", "@", "&"):
+                if other != sigil:
+                    _add(f"{other}{{{base}}}")
         else:
             prefix = re.match(r"^([\$@&%]\{[^}]+\})", stripped)
             if prefix:
