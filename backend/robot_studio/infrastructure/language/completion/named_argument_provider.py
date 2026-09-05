@@ -18,6 +18,7 @@ from robot_studio.domain.interfaces.signature_help import (
 )
 from robot_studio.domain.models.keyword_metadata import KeywordMetadata
 from robot_studio.infrastructure.language.keyword_helpers import (
+    is_signature_separator,
     is_typing_argument_value,
     parameter_completion_score,
     parse_argument_cell,
@@ -85,6 +86,8 @@ class NamedArgumentCompletionProvider(CompletionProvider):
         items: list[CompletionCandidate] = []
         for index, param in enumerate(meta.parameters):
             if param.kind in {"var_positional"}:
+                continue
+            if is_signature_separator(name=param.name, kind=param.kind):
                 continue
             if param.name.casefold() in already:
                 continue

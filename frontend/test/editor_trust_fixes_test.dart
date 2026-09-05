@@ -381,6 +381,42 @@ void main() {
     );
   });
 
+  test('namedArgsFromSignature skips / and * signature markers', () {
+    const signature = SignatureHelpInfo(
+      keyword: 'Run Keyword If',
+      activeParameter: 1,
+      parameters: [
+        SignatureParameterInfo(
+          label: 'condition',
+          name: 'condition',
+          kind: 'positional_only',
+        ),
+        SignatureParameterInfo(
+          label: 'name',
+          name: 'name',
+          kind: 'positional_only',
+        ),
+        SignatureParameterInfo(
+          label: '/',
+          name: '/',
+          kind: 'positional_only_marker',
+        ),
+        SignatureParameterInfo(
+          label: '*args',
+          name: 'args',
+          kind: 'var_positional',
+        ),
+      ],
+    );
+    const line = '    Run Keyword If    \${press}    ';
+    final items = RobotAutocompletePromptsBuilder.namedArgsFromSignature(
+      line,
+      line.length,
+      signature,
+    );
+    expect(items.map((i) => i.label), ['name=']);
+  });
+
   test('indentMultilineInsert nests body under current line indent', () {
     expect(
       RobotAutocompletePromptsBuilder.indentMultilineInsert(

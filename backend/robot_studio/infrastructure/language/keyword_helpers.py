@@ -75,6 +75,17 @@ def present_named_args(arguments: list[str]) -> set[str]:
 
 _VARARG_KINDS = frozenset({"var_positional", "var_named", "free_named"})
 _POSITIONAL_KINDS = frozenset({"positional_only", "positional_or_named", ""})
+_SIGNATURE_SEPARATOR_KINDS = frozenset(
+    {"positional_only_marker", "named_only_marker"},
+)
+_SIGNATURE_SEPARATOR_NAMES = frozenset({"/", "*"})
+
+
+def is_signature_separator(*, name: str = "", kind: str = "") -> bool:
+    """True for RF/Python ``/`` and ``*`` argument-list markers, not real params."""
+    if (kind or "").strip().lower() in _SIGNATURE_SEPARATOR_KINDS:
+        return True
+    return (name or "").strip() in _SIGNATURE_SEPARATOR_NAMES
 
 
 def validate_keyword_arguments(
@@ -319,6 +330,8 @@ def parameters_from_detail_string(detail: str) -> tuple[ParameterMetadata, ...]:
             label = left.strip()
             default = right.strip()
         name = bare_parameter_name(label)
+        if is_signature_separator(name=name):
+            continue
         type_name = ""
         if ":" in label:
             type_name = label.split(":", 1)[1].strip()
@@ -352,9 +365,11 @@ def keyword_metadata_from_index_row(
     raw_params = definition.get("parameters")
     if isinstance(raw_params, list) and raw_params:
         params = tuple(
-            ParameterMetadata.from_transport(item)
+            param
             for item in raw_params
             if isinstance(item, dict)
+            for param in (ParameterMetadata.from_transport(item),)
+            if not is_signature_separator(name=param.name, kind=param.kind)
         )
     else:
         params = parameters_from_detail_string(detail)

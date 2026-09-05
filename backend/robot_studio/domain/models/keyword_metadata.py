@@ -227,9 +227,12 @@ class KeywordMetadata:
             source_type = KeywordSourceType.LIBRARY
         params_raw = raw.get("parameters") or []
         parameters = tuple(
-            ParameterMetadata.from_transport(item)
+            param
             for item in params_raw
             if isinstance(item, dict)
+            for param in (ParameterMetadata.from_transport(item),)
+            if param.name not in {"/", "*"}
+            and param.kind not in {"positional_only_marker", "named_only_marker"}
         )
         line = raw.get("source_line")
         return KeywordMetadata(

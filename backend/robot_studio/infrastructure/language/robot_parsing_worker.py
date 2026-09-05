@@ -1410,7 +1410,9 @@ def _libdoc_to_resolve_payload(
         keywords.append(kw_name)
         parameters: list[dict] = []
         for arg in getattr(kw, "args", []) or []:
-            parameters.append(_arginfo_to_transport(arg))
+            item = _arginfo_to_transport(arg)
+            if item is not None:
+                parameters.append(item)
         tags = tuple(str(t) for t in (getattr(kw, "tags", None) or []))
         deprecated = bool(getattr(kw, "deprecated", False))
         keyword_info[kw_name.casefold()] = {
@@ -1512,7 +1514,7 @@ def resolve_library(name: str, file_path: str = "") -> dict:
         }
 
 
-def _arginfo_to_transport(arg: object) -> dict:
+def _arginfo_to_transport(arg: object) -> dict | None:
     """Map Robot ArgInfo → transport dict for ParameterMetadata.from_transport."""
     name = str(getattr(arg, "name", None) or str(arg)).strip()
     default = getattr(arg, "default", None)
@@ -1545,6 +1547,9 @@ def _arginfo_to_transport(arg: object) -> dict:
     # Prefer structured name when label is the full ArgInfo repr
     if not name or name == label:
         name = label.split("=", 1)[0].split(":", 1)[0].strip()
+    # `/` and `*` are ArgumentSpec markers, not completable parameters.
+    if kind in {"positional_only_marker", "named_only_marker"} or name in {"/", "*"}:
+        return None
     return {
         "name": name,
         "label": label,

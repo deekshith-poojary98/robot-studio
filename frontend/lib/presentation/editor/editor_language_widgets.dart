@@ -32,9 +32,7 @@ class RobotAutocompletePromptsBuilder
 
   List<CompletionItemInfo> get _effectiveItems {
     if (!_isPython) return items;
-    return items
-        .where((item) => item.provider.startsWith('python_'))
-        .toList();
+    return items.where((item) => item.provider.startsWith('python_')).toList();
   }
 
   @override
@@ -286,6 +284,7 @@ class RobotAutocompletePromptsBuilder
     var skippedPositional = 0;
     for (final param in signature.parameters) {
       if (param.kind == 'var_positional') continue;
+      if (_isSignatureSeparator(param)) continue;
       final name = _parameterName(param);
       if (name.isEmpty) continue;
       if (consumed.contains(name.toLowerCase())) continue;
@@ -306,6 +305,7 @@ class RobotAutocompletePromptsBuilder
     final out = <CompletionItemInfo>[];
     for (final param in ranked) {
       if (param.kind == 'var_positional') continue;
+      if (_isSignatureSeparator(param)) continue;
       final name = _parameterName(param);
       if (name.isEmpty || consumed.contains(name.toLowerCase())) continue;
       out.add(
@@ -348,6 +348,16 @@ class RobotAutocompletePromptsBuilder
     final name = text.split('=').first.trim();
     if (name.isEmpty || name.contains(' ')) return null;
     return name;
+  }
+
+  /// RF/Python ``/`` and ``*`` argument-list markers are not named args.
+  static bool _isSignatureSeparator(SignatureParameterInfo param) {
+    final kind = param.kind.trim().toLowerCase();
+    if (kind == 'positional_only_marker' || kind == 'named_only_marker') {
+      return true;
+    }
+    final name = _parameterName(param);
+    return name == '/' || name == '*';
   }
 
   static String _parameterName(SignatureParameterInfo param) {

@@ -20,6 +20,7 @@ from robot_studio.infrastructure.language.completion.named_argument_provider imp
 )
 from robot_studio.infrastructure.language.keyword_helpers import (
     active_parameter_index,
+    is_signature_separator,
     is_typing_argument_value,
     keyword_metadata_from_index_row,
     parameter_completion_score,
@@ -28,6 +29,7 @@ from robot_studio.infrastructure.language.keyword_helpers import (
     strip_keyword_qualifier,
 )
 from robot_studio.infrastructure.language.robot_parsing_worker import (
+    _arginfo_to_transport,
     completion_context,
     signature_help,
 )
@@ -52,6 +54,28 @@ def test_parameter_and_keyword_round_trip() -> None:
     assert api["active_parameter"] == 1
     assert api["parameters"][0]["name"] == "url"
     assert api["parameters"][0]["required"] is True
+
+
+def test_signature_separators_are_not_parameters() -> None:
+    assert is_signature_separator(name="/")
+    assert is_signature_separator(name="*")
+    assert is_signature_separator(kind="positional_only_marker")
+    assert is_signature_separator(kind="NAMED_ONLY_MARKER")
+    assert not is_signature_separator(name="name")
+    params = parameters_from_detail_string("condition, name, /, *args")
+    assert [p.name for p in params] == ["condition", "name", "*args"]
+
+
+def test_arginfo_drops_positional_only_marker() -> None:
+    from robot.libdoc import LibraryDocumentation
+
+    doc = LibraryDocumentation("BuiltIn")
+    kw = next(k for k in doc.keywords if k.name == "Run Keyword If")
+    transported = [_arginfo_to_transport(arg) for arg in kw.args]
+    names = [item["name"] for item in transported if item is not None]
+    assert "/" not in names
+    assert "name" in names
+    assert all(item is None or item["kind"] != "positional_only_marker" for item in transported)
 
 
 def test_resource_arguments_look_like_python_parameters() -> None:
@@ -333,6 +357,40 @@ async def test_named_argument_provider_skips_positional_and_boosts_active() -> N
     assert "expression=" not in labels
     assert labels[0] == "modules="
     assert "namespace=" in labels
+
+
+@pytest.mark.asyncio
+async def test_named_argument_provider_skips_slash_marker() -> None:
+    meta = KeywordMetadata(
+        name="Run Keyword If",
+        parameters=(
+            ParameterMetadata(name="condition", required=True, kind="positional_only"),
+            ParameterMetadata(name="name", required=True, kind="positional_only"),
+            ParameterMetadata(name="/", required=True, kind="positional_only_marker"),
+            ParameterMetadata(name="args", required=False, kind="var_positional"),
+        ),
+    )
+
+    async def resolve(_ctx):
+        return meta
+
+    provider = NamedArgumentCompletionProvider(resolve_keyword=resolve)
+    items = await provider.complete(
+        CompletionRequestContext(
+            file_path="x.robot",
+            content="",
+            line=1,
+            column=1,
+            prefix="",
+            context="argument",
+            keyword="Run Keyword If",
+            arguments=("${press}",),
+        ),
+    )
+    labels = [i.label for i in items]
+    assert "/=" not in labels
+    assert "args=" not in labels
+    assert "name=" in labels
 
 
 def test_signature_stays_on_named_value_being_typed() -> None:
