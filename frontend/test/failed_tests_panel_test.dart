@@ -86,6 +86,29 @@ void main() {
       'ERROR',
       reason: 'Robot framework crash is ERROR, not a test FAIL',
     );
+    expect(
+      run(status: ExecutionStatus.finished, exitCode: 0).resultBadge,
+      'PASS',
+      reason: 'Exit 0 before stats are indexed is a pass, not No tests',
+    );
+    expect(
+      ExecutionInfo(
+        id: 'run',
+        workspaceId: 'ws',
+        projectId: 'p1',
+        environmentId: 'e1',
+        projectName: 'Demo',
+        suite: 'suite.robot',
+        status: ExecutionStatus.finished,
+        startedAt: DateTime.utc(2026, 7, 19),
+        exitCode: 0,
+        totalTests: 5,
+        passed: 4,
+        failed: 0,
+        skipped: 1,
+      ).outcomeLabel,
+      'Passed',
+    );
   });
 
   const failure = RunTestFailureInfo(

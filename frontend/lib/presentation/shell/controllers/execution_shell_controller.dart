@@ -186,6 +186,14 @@ class ExecutionShellController {
           outputXml: currentExecution!.outputXml,
           logHtml: currentExecution!.logHtml,
           reportHtml: currentExecution!.reportHtml,
+          environmentName: currentExecution!.environmentName,
+          robotVersion: currentExecution!.robotVersion,
+          totalTests: currentExecution!.totalTests,
+          passed: currentExecution!.passed,
+          failed: currentExecution!.failed,
+          skipped: currentExecution!.skipped,
+          configurationId: currentExecution!.configurationId,
+          configurationName: currentExecution!.configurationName,
         );
         notifyView();
         return;

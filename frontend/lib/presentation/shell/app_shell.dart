@@ -2878,6 +2878,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       unawaited(_editor.refreshParentOf(outputDir));
     }
     if (latest != null) {
+      final current = _currentExecution;
+      if (current != null && current.id == latest.id) {
+        _execution.currentExecution = latest;
+      }
       if (latest.resultBadge == 'FAIL' &&
           _settings.execution.autoOpenReportOnFailure) {
         unawaited(_selectReport(latest));

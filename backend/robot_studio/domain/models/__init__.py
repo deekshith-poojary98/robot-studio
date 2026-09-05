@@ -191,11 +191,13 @@ class ExecutionRun(BaseModel):
         # Empty selection / suite with nothing executed — before the
         # ``failed is None`` exit-code heuristic, which would otherwise mark
         # exit 1..250 with missing stats as FAIL and tank Insights pass rate.
+        # Exit 0 is a Robot pass; missing stats (not yet indexed) must stay PASS.
         empty = (
             self.status in {ExecutionStatus.FINISHED, ExecutionStatus.FAILED}
             and (self.total_tests or 0) == 0
             and (self.passed or 0) == 0
             and (self.failed or 0) == 0
+            and code != 0
             and code != 255
         )
         if empty:

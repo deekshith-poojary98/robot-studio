@@ -313,6 +313,24 @@ async def test_dashboard_empty_with_missing_failed_stats_is_not_fail(report_stac
     assert crash.result_badge() == "ERROR"
 
 
+def test_result_badge_exit_zero_without_stats_is_pass() -> None:
+    """Stream finish often lands before output.xml stats are indexed."""
+    run = ExecutionRun(
+        id=uuid4(),
+        workspace_id=uuid4(),
+        project_id=uuid4(),
+        environment_id=uuid4(),
+        project_name="Demo",
+        suite="tests/reset_password_test.robot",
+        status=ExecutionStatus.FINISHED,
+        started_at=datetime.now(UTC),
+        finished_at=datetime.now(UTC),
+        exit_code=0,
+        command="python -m robot",
+    )
+    assert run.result_badge() == "PASS"
+
+
 @pytest.mark.asyncio
 async def test_reopen_purges_missing_run_artifacts(report_stack) -> None:
     """Recreating a project at the same path must not revive ghost reports."""

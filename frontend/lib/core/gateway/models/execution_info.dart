@@ -152,12 +152,15 @@ class ExecutionInfo {
     final code = exitCode ?? 0;
     if (code == 252) return 'NO TESTS';
     // Empty suites before the exit-code FAIL heuristic (see backend result_badge).
+    // Exit 0 is a Robot pass — do not treat missing stats (stream finish
+    // before output.xml is indexed) as NO TESTS.
     final emptySelection =
         (status == ExecutionStatus.finished ||
             status == ExecutionStatus.failed) &&
         (totalTests ?? 0) == 0 &&
         (passed ?? 0) == 0 &&
         (failed ?? 0) == 0 &&
+        code != 0 &&
         code != 255;
     if (emptySelection) return 'NO TESTS';
     if (failed == null && code >= 1 && code <= 250) return 'FAIL';

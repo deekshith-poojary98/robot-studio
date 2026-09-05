@@ -108,6 +108,29 @@ void main() {
     expect(controller.currentExecution?.outcomeLabel, 'No tests');
   });
 
+  test('finished exit 0 without stats is Passed, not No tests', () {
+    controller.currentExecution = ExecutionInfo(
+      id: 'run-1',
+      workspaceId: 'ws',
+      projectId: 'proj',
+      environmentId: 'env',
+      projectName: 'Amazon',
+      suite: 'tests/reset_password_test.robot',
+      status: ExecutionStatus.running,
+      startedAt: DateTime.utc(2026, 1, 1),
+      command: 'robot',
+    );
+    controller.executionStatus = ExecutionStatus.running;
+
+    controller.handleStreamEvent(
+      const ExecutionStreamEvent(type: 'finished', runId: 'run-1', exitCode: 0),
+    );
+
+    expect(controller.executionStatus, ExecutionStatus.finished);
+    expect(controller.currentExecution?.exitCode, 0);
+    expect(controller.currentExecution?.outcomeLabel, 'Passed');
+  });
+
   test('markStopping is not overwritten by a stale running status', () {
     controller.currentExecution = ExecutionInfo(
       id: 'run-1',
