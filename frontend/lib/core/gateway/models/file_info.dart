@@ -153,6 +153,8 @@ class EditorTabInfo {
     required this.mtime,
     this.cursorLine = 1,
     this.cursorColumn = 1,
+    this.scrollOffsetX = 0,
+    this.scrollOffsetY = 0,
   });
 
   final String path;
@@ -161,6 +163,8 @@ class EditorTabInfo {
   double mtime;
   int cursorLine;
   int cursorColumn;
+  double scrollOffsetX;
+  double scrollOffsetY;
 
   bool get isDirty => content != savedContent;
 

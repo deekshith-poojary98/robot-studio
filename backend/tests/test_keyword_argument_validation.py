@@ -101,6 +101,38 @@ def test_validate_varargs_only_create_list_accepts_equals_cells() -> None:
     assert validate_keyword_arguments(meta, ["foo=bar", "a", "b"]) == []
 
 
+def test_validate_run_keyword_forwards_named_args() -> None:
+    """Wrapper keywords with *args pass ``selector=`` through to the inner call."""
+    meta = _kw(
+        ParameterMetadata(name="name", required=True),
+        ParameterMetadata(name="args", required=False, kind="var_positional"),
+        name="Run Keyword And Return Status",
+    )
+    assert (
+        validate_keyword_arguments(
+            meta,
+            [
+                "name=Wait For Elements State",
+                "selector=${welcome_message}",
+                "state=visible",
+                "timeout=20",
+            ],
+        )
+        == []
+    )
+    assert (
+        validate_keyword_arguments(
+            meta,
+            [
+                "Wait For Elements State",
+                "selector=${welcome_message}",
+                "state=visible",
+            ],
+        )
+        == []
+    )
+
+
 def test_validate_ok_named_and_positional() -> None:
     meta = _kw(
         ParameterMetadata(name="first", required=True),

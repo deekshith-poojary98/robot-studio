@@ -3532,6 +3532,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     setState(() {
       _editor.activePath = path;
       _enterEditor();
+      _editor.restoreCaretFromTab(path);
       _editor.jumpToLine = null;
       _editor.jumpToColumn = null;
       _editorHover = null;
@@ -6642,6 +6643,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onCtrlClick: _editorCtrlClickDefinition,
         onClosePeek: () => setState(() => _editor.peekDefinition = null),
         onCursorChanged: _editor.onCursorChanged,
+        onViewportChanged: _editor.onViewportChanged,
         onCompletionAccepted: _editor.recordCompletionUsage,
       ),
       _CenterView.placeholder => _WorkspaceOpenPlaceholder(

@@ -25,6 +25,10 @@ from robot_studio.domain.interfaces.language import LanguageService
 from robot_studio.domain.interfaces.signature_help import SignatureHelpRequestContext
 from robot_studio.domain.models.analysis import EntityKind
 from robot_studio.domain.models.keyword_metadata import KeywordMetadata
+from robot_studio.infrastructure.analysis.embedded_args import (
+    embedded_argument_variables,
+    matches_embedded_keyword,
+)
 from robot_studio.infrastructure.analysis.engine import RobotAnalysisEngine
 from robot_studio.infrastructure.analysis.normalize import (
     normalize_keyword_name,
@@ -1185,6 +1189,10 @@ class RobotLanguageService(LanguageService):
             if symbols:
                 matched_candidate = candidate
                 break
+        if not symbols:
+            symbols = await self._definitions_from_embedded_keyword(lookup_names)
+            if symbols:
+                return symbols
         if caret_kind == SymbolKind.TAG:
             tag_hits = [
                 item for item in symbols if item.get("kind") == SymbolKind.TAG.value
@@ -1247,6 +1255,29 @@ class RobotLanguageService(LanguageService):
             analysis_hits = await self._definitions_from_analysis(candidate)
             if analysis_hits:
                 return analysis_hits
+        return []
+
+    async def _definitions_from_embedded_keyword(
+        self,
+        lookup_names: list[str],
+    ) -> list[dict]:
+        """Resolve ``Select 5 items`` to a keyword named ``Select ${n} items``."""
+        workspace = self.context.workspace
+        try:
+            keywords = await self.store.search_symbols(
+                "",
+                kind=SymbolKind.KEYWORD,
+                limit=500,
+                workspace_id=workspace.id if workspace is not None else None,
+                project_id=self.context.project_id,
+            )
+        except Exception:  # noqa: BLE001
+            return []
+        for candidate in lookup_names:
+            for item in keywords:
+                name = str(item.get("name") or "")
+                if matches_embedded_keyword(name, candidate):
+                    return [item]
         return []
 
     async def _jedi_hover(
@@ -2106,6 +2137,8 @@ class RobotLanguageService(LanguageService):
                 break
             if consumed_assign:
                 continue
+        for keyword_name in cls._collect_local_keyword_names(lines):
+            declared.update(embedded_argument_variables(keyword_name))
         return declared
 
     @classmethod
@@ -2423,7 +2456,18 @@ class RobotLanguageService(LanguageService):
                 candidates.add(strip_bdd_prefix(normalize_keyword_name(lib_free)))
         known_normalized = {normalize_keyword_name(name) for name in known_keywords}
         known_normalized.update(known_keywords)
-        return any(item in known_normalized for item in candidates if item)
+        if any(item in known_normalized for item in candidates if item):
+            return True
+        embedded = [name for name in known_keywords if "${" in name]
+        if not embedded:
+            return False
+        for candidate in candidates:
+            if not candidate:
+                continue
+            for pattern in embedded:
+                if matches_embedded_keyword(pattern, candidate):
+                    return True
+        return False
 
     @staticmethod
     def _keyword_cell(raw: str) -> str:

@@ -36,6 +36,7 @@ class EditorPage extends StatefulWidget {
     required this.onCtrlClick,
     required this.onClosePeek,
     required this.onCursorChanged,
+    this.onViewportChanged,
     this.jumpToLine,
     this.jumpToColumn,
     this.onJumpApplied,
@@ -75,6 +76,8 @@ class EditorPage extends StatefulWidget {
   final VoidCallback onCtrlClick;
   final VoidCallback onClosePeek;
   final void Function(int line, int column) onCursorChanged;
+  final void Function(String path, double offsetX, double offsetY)?
+  onViewportChanged;
   final int? jumpToLine;
   final int? jumpToColumn;
   final VoidCallback? onJumpApplied;
@@ -201,6 +204,17 @@ class EditorPageState extends State<EditorPage> {
                           onContentChanged: (content) =>
                               widget.onContentChanged(active.path, content),
                           onCursorChanged: widget.onCursorChanged,
+                          onViewportChanged: widget.onViewportChanged == null
+                              ? null
+                              : (offsetX, offsetY) => widget.onViewportChanged!(
+                                  active.path,
+                                  offsetX,
+                                  offsetY,
+                                ),
+                          initialScrollOffsetX: active.scrollOffsetX,
+                          initialScrollOffsetY: active.scrollOffsetY,
+                          initialCaretLine: active.cursorLine,
+                          initialCaretColumn: active.cursorColumn,
                           onCompletionAccepted: widget.onCompletionAccepted,
                           foldingRanges: widget.foldingRanges,
                           runnableTests: widget.runnableTests,

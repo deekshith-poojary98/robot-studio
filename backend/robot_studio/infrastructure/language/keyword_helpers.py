@@ -114,20 +114,25 @@ def validate_keyword_arguments(
             continue
         name, _value = parse_argument_cell(text)
         if name and recognize_named:
-            saw_named = True
             key = name.casefold()
-            if key in bound:
-                issues.append(
-                    (
-                        "duplicate_argument",
-                        f"Multiple values for argument '{name}' in '{keyword}'",
-                    ),
-                )
-                continue
             if key in by_name:
+                saw_named = True
+                if key in bound:
+                    issues.append(
+                        (
+                            "duplicate_argument",
+                            f"Multiple values for argument '{name}' in '{keyword}'",
+                        ),
+                    )
+                    continue
                 bound.add(key)
                 continue
             if has_var_named:
+                saw_named = True
+                continue
+            # ``Run Keyword And Return Status    name=Foo    selector=x`` —
+            # unmatched ``name=value`` is forwarded through *args, same as RF.
+            if has_var_pos:
                 continue
             issues.append(
                 (

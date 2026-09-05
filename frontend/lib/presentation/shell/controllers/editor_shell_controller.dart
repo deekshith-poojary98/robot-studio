@@ -148,6 +148,22 @@ class EditorShellController {
     _scheduleCursorUiNotify();
   }
 
+  /// Viewport for a tab — no notify; used when remounting after a tab switch.
+  void onViewportChanged(String path, double offsetX, double offsetY) {
+    final tabIndex = tabs.indexWhere((tab) => tab.path == path);
+    if (tabIndex < 0) return;
+    tabs[tabIndex].scrollOffsetX = offsetX;
+    tabs[tabIndex].scrollOffsetY = offsetY;
+  }
+
+  /// Status bar / language refresh should follow the file we just switched to.
+  void restoreCaretFromTab(String path) {
+    final tabIndex = tabs.indexWhere((tab) => tab.path == path);
+    if (tabIndex < 0) return;
+    cursorLine = tabs[tabIndex].cursorLine;
+    cursorColumn = tabs[tabIndex].cursorColumn;
+  }
+
   /// Status bar / outline chrome — debounced so fast typing does not rebuild
   /// the whole shell (and re-enter parent→controller content sync) per key.
   void _scheduleCursorUiNotify() {

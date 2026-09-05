@@ -7,6 +7,9 @@ from uuid import UUID
 
 from robot_studio.domain.interfaces.analysis import AnalysisStore
 from robot_studio.domain.models.analysis import BindingConfidence, EdgeKind, EntityKind
+from robot_studio.infrastructure.analysis.embedded_args import (
+    matches_embedded_keyword,
+)
 from robot_studio.infrastructure.analysis.normalize import (
     normalize_keyword_name,
     normalize_variable_name,
@@ -177,6 +180,32 @@ class SemanticBinder:
             if len(matches) > 1:
                 # Ambiguous — Safe Rename must treat as LOW
                 return matches[0], BindingConfidence.LOW
+        call_names = [raw_name]
+        without_lib = strip_library_prefix(raw_name)
+        if without_lib and without_lib != raw_name:
+            call_names.append(without_lib)
+        for source in list(call_names):
+            for prefix in ("Given ", "When ", "Then ", "And ", "But "):
+                if source.lower().startswith(prefix.lower()):
+                    rest = source[len(prefix) :].lstrip()
+                    if rest and rest not in call_names:
+                        call_names.append(rest)
+                    break
+        hits: list = []
+        seen_ids: set[str] = set()
+        for group in kw_by_norm.values():
+            for kw in group:
+                if "${" not in (kw.name or ""):
+                    continue
+                if kw.id in seen_ids:
+                    continue
+                if any(matches_embedded_keyword(kw.name, call) for call in call_names):
+                    seen_ids.add(kw.id)
+                    hits.append(kw)
+        if len(hits) == 1:
+            return hits[0], BindingConfidence.HIGH
+        if len(hits) > 1:
+            return hits[0], BindingConfidence.LOW
         return None, BindingConfidence.LOW
 
     def _resolve_import_path(

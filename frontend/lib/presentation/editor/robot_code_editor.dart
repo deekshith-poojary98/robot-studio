@@ -46,6 +46,11 @@ class RobotCodeEditor extends StatefulWidget {
     this.fontFamily = 'Menlo',
     this.tabWidth = 4,
     this.onBindState,
+    this.initialScrollOffsetX = 0,
+    this.initialScrollOffsetY = 0,
+    this.initialCaretLine = 1,
+    this.initialCaretColumn = 1,
+    this.onViewportChanged,
   });
 
   final String path;
@@ -88,6 +93,15 @@ class RobotCodeEditor extends StatefulWidget {
   /// Lets [EditorPage] call find/format without a [GlobalKey] (avoids duplicate-key crashes).
   final ValueChanged<RobotCodeEditorState?>? onBindState;
 
+  /// Last viewport for this path — applied on remount after a tab switch.
+  final double initialScrollOffsetX;
+  final double initialScrollOffsetY;
+  final int initialCaretLine;
+  final int initialCaretColumn;
+
+  /// Fired from [dispose] so the shell can restore this file later.
+  final void Function(double offsetX, double offsetY)? onViewportChanged;
+
   @override
   State<RobotCodeEditor> createState() => RobotCodeEditorState();
 }
@@ -125,7 +139,11 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
   late CodeLineEditingController _controller;
   late CodeFindController _findController;
+  late ScrollController _verticalScroll;
+  late ScrollController _horizontalScroll;
   late CodeScrollController _scrollController;
+  double _lastVerticalOffset = 0;
+  double _lastHorizontalOffset = 0;
   late final RobotAutocompletePromptsBuilder _promptsBuilder;
   late CodeChunkAnalyzer _chunkAnalyzer;
   List<DiagnosticInfo> _diagnostics = [];
@@ -196,7 +214,26 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _createController(widget.initialContent);
     _lastEmittedContent = widget.initialContent;
     _findController = CodeFindController(_controller);
-    _scrollController = CodeScrollController();
+    final restoreViewport = widget.jumpToLine == null;
+    _lastVerticalOffset = restoreViewport
+        ? math.max(0.0, widget.initialScrollOffsetY)
+        : 0;
+    _lastHorizontalOffset = restoreViewport
+        ? math.max(0.0, widget.initialScrollOffsetX)
+        : 0;
+    _verticalScroll = ScrollController(initialScrollOffset: _lastVerticalOffset);
+    _horizontalScroll = ScrollController(
+      initialScrollOffset: _lastHorizontalOffset,
+    );
+    _verticalScroll.addListener(_onVerticalScroll);
+    _horizontalScroll.addListener(_onHorizontalScroll);
+    _scrollController = CodeScrollController(
+      verticalScroller: _verticalScroll,
+      horizontalScroller: _horizontalScroll,
+    );
+    if (restoreViewport) {
+      _restoreCaret(widget.initialCaretLine, widget.initialCaretColumn);
+    }
     _promptsBuilder = RobotAutocompletePromptsBuilder(
       widget.completionItems,
       signature: widget.hoverTooltip,
@@ -297,10 +334,42 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     if (_listening) {
       _controller.removeListener(_onChanged);
     }
+    _persistViewport();
+    _verticalScroll.removeListener(_onVerticalScroll);
+    _horizontalScroll.removeListener(_onHorizontalScroll);
     _findController.dispose();
     _scrollController.dispose();
+    _verticalScroll.dispose();
+    _horizontalScroll.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onVerticalScroll() {
+    if (_verticalScroll.hasClients) {
+      _lastVerticalOffset = _verticalScroll.offset;
+    }
+  }
+
+  void _onHorizontalScroll() {
+    if (_horizontalScroll.hasClients) {
+      _lastHorizontalOffset = _horizontalScroll.offset;
+    }
+  }
+
+  void _persistViewport() {
+    widget.onViewportChanged?.call(_lastHorizontalOffset, _lastVerticalOffset);
+  }
+
+  void _restoreCaret(int line, int column) {
+    if (_controller.lineCount < 1) return;
+    final index = (line - 1).clamp(0, _controller.lineCount - 1);
+    final row = _controller.codeLines[index];
+    final offset = (column - 1).clamp(0, row.length);
+    _controller.selection = CodeLineSelection.collapsed(
+      index: index,
+      offset: offset,
+    );
   }
 
   /// When to push [initialContent] from the shell into the live controller.
@@ -387,6 +456,20 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     // Selection alone does not scroll — Outline / Go to Definition need this.
     _scrollController.makeCenterIfInvisible(position);
     widget.onJumpApplied?.call();
+  }
+
+  @visibleForTesting
+  double get debugVerticalScrollOffset => _verticalScroll.hasClients
+      ? _verticalScroll.offset
+      : _verticalScroll.initialScrollOffset;
+
+  @visibleForTesting
+  void debugJumpVerticalScroll(double offset) {
+    if (!_verticalScroll.hasClients) return;
+    final position = _verticalScroll.position;
+    _verticalScroll.jumpTo(
+      offset.clamp(position.minScrollExtent, position.maxScrollExtent),
+    );
   }
 
   void showFind({bool replace = false}) {

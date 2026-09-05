@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:robot_studio/core/gateway/transport_gateway.dart';
 import 'package:robot_studio/presentation/editor/editor_page.dart';
+import 'package:robot_studio/presentation/editor/robot_code_editor.dart';
 import 'package:robot_studio/presentation/shell/controllers/editor_shell_controller.dart';
 
 class _FakeGateway implements TransportGateway {
@@ -148,6 +149,41 @@ void main() {
     expect(controller.cursorLine, 1);
   });
 
+  test('onViewportChanged stores offsets without notify', () {
+    controller.tabs = [
+      EditorTabInfo(
+        path: '/tmp/demo.robot',
+        content: 'Hello',
+        savedContent: 'Hello',
+        mtime: 1,
+      ),
+    ];
+
+    controller.onViewportChanged('/tmp/demo.robot', 12, 80);
+
+    expect(controller.tabs.first.scrollOffsetX, 12);
+    expect(controller.tabs.first.scrollOffsetY, 80);
+    expect(notified, 0);
+  });
+
+  test('restoreCaretFromTab copies the tab caret into the shell', () {
+    controller.tabs = [
+      EditorTabInfo(
+        path: '/tmp/demo.robot',
+        content: 'Hello',
+        savedContent: 'Hello',
+        mtime: 1,
+        cursorLine: 18,
+        cursorColumn: 4,
+      ),
+    ];
+
+    controller.restoreCaretFromTab('/tmp/demo.robot');
+
+    expect(controller.cursorLine, 18);
+    expect(controller.cursorColumn, 4);
+  });
+
   testWidgets('editor notice can be dismissed early', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1000, 600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -245,5 +281,87 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(ValueKey(data.path)), findsNothing);
     expect(find.byKey(ValueKey(actions.path)), findsOneWidget);
+  });
+
+  testWidgets('switching tabs restores the previous scroll offset', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final long = List.generate(80, (i) => 'Line $i of the suite').join('\n');
+    final first = EditorTabInfo(
+      path: '/ws/long.robot',
+      content: long,
+      savedContent: long,
+      mtime: 1,
+    );
+    final second = EditorTabInfo(
+      path: '/ws/short.robot',
+      content: '*** Settings ***\n',
+      savedContent: '*** Settings ***\n',
+      mtime: 1,
+    );
+    var activePath = first.path;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              return EditorPage(
+                tabs: [first, second],
+                activePath: activePath,
+                wordWrap: true,
+                hover: null,
+                references: const [],
+                statusMessage: null,
+                breadcrumb: const EditorBreadcrumbInfo(),
+                completionItems: const [],
+                diagnostics: const [],
+                hoverTooltip: null,
+                peekDefinition: null,
+                onSelectTab: (path) => setState(() => activePath = path),
+                onCloseTab: (_) {},
+                onContentChanged: (_, _) {},
+                onSave: () {},
+                onHoverRequest: (_, _) {},
+                onHoverExit: () {},
+                onCtrlClick: () {},
+                onClosePeek: () {},
+                onCursorChanged: (_, _) {},
+                onViewportChanged: (path, x, y) {
+                  final tab = path == first.path ? first : second;
+                  tab.scrollOffsetX = x;
+                  tab.scrollOffsetY = y;
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final editor = tester.state<RobotCodeEditorState>(
+      find.byType(RobotCodeEditor),
+    );
+    editor.debugJumpVerticalScroll(240);
+    await tester.pumpAndSettle();
+    final scrolled = editor.debugVerticalScrollOffset;
+    expect(scrolled, greaterThan(50));
+
+    await tester.tap(find.text(second.fileName));
+    await tester.pumpAndSettle();
+    expect(first.scrollOffsetY, closeTo(scrolled, 1));
+    expect(find.byKey(ValueKey(second.path)), findsOneWidget);
+
+    await tester.tap(find.text(first.fileName));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey(first.path)), findsOneWidget);
+    final restored = tester.state<RobotCodeEditorState>(
+      find.byType(RobotCodeEditor),
+    );
+    expect(restored.debugVerticalScrollOffset, closeTo(scrolled, 1));
   });
 }

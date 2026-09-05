@@ -12,7 +12,8 @@ description: Short definitions for Robot Studio and Robot Framework terms used i
 | **Environment** | A Python virtualenv used for analysis, packages, and runs |
 | **Active environment** | The environment currently selected for the project |
 | **Run configuration** | Named execution context (tags, variables, optional per-run environment pin) selected next to **Run / Project / Stop**. Does not switch the active environment. Stored in `.robotstudio/run-configurations.json` |
-| **Index** | Background database of keywords, variables (Variables section, `VAR`, arguments, assignments, FOR), and files for search and navigation |
+| **Index** | Background database of keywords, variables (Variables section, `VAR`, arguments, assignments, FOR, embedded arguments), and files for search and navigation |
+| **Embedded arguments** | Variables in a keyword **name**, such as `Login with ${type} credential`. A call like `Login with valid credential` binds `valid` to `${type}` |
 | **Tests** | Activity-bar tree of suites and tests you can run |
 | **Failed Tests** | List of failures after a run (Execution / Reports) with Jump to Source and Re-run Test |
 | **Find in Files** | Text search across the project (Search rail / `⌘⇧F`) |
