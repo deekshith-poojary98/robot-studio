@@ -179,7 +179,9 @@ class EditorShellController {
     completionItems = [];
     hoverTooltip = null;
     _hoverFromPointer = false;
+    peekDefinition = null;
     languageDebounce?.cancel();
+    hoverDebounce?.cancel();
     scheduleLanguageRefresh();
     notify();
   }

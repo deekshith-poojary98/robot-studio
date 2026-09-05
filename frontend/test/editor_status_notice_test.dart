@@ -86,6 +86,29 @@ void main() {
     expect(notified, 0);
   });
 
+  test(
+    'switching tabs drops peek and hover leftover from the previous file',
+    () {
+      controller.peekDefinition = const IndexedSymbolInfo(
+        id: 'v1',
+        name: 'AUT_URL',
+        kind: SymbolKind.variable,
+        filePath: '/ws/data.py',
+        line: 1,
+      );
+      controller.hoverTooltip = const SignatureHelpInfo(keyword: 'Input Text');
+      controller.completionItems = const [
+        CompletionItemInfo(label: 'Click Element', kind: 'keyword'),
+      ];
+
+      controller.onActiveTabChanged();
+
+      expect(controller.peekDefinition, isNull);
+      expect(controller.hoverTooltip, isNull);
+      expect(controller.completionItems, isEmpty);
+    },
+  );
+
   test('clearActiveDocument drops the outline tree, not just the flat list', () {
     // Outline renders from documentAnalysis; clearing only documentOutline left
     // the last file's tree on screen after every tab was closed.
@@ -164,5 +187,63 @@ void main() {
     await tester.tap(find.byIcon(Icons.close));
     await tester.pump();
     expect(dismissed, 1);
+  });
+
+  testWidgets('switching the active tab remounts the editor on the new file', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final data = EditorTabInfo(
+      path: '/ws/data.py',
+      content: 'AUT_URL = "https://example.test"\n',
+      savedContent: 'AUT_URL = "https://example.test"\n',
+      mtime: 1,
+    );
+    final actions = EditorTabInfo(
+      path: '/ws/helper/actions.robot',
+      content: '*** Settings ***\nLibrary    Browser\n',
+      savedContent: '*** Settings ***\nLibrary    Browser\n',
+      mtime: 1,
+    );
+
+    Widget page(String activePath) {
+      return MaterialApp(
+        home: Scaffold(
+          body: EditorPage(
+            tabs: [data, actions],
+            activePath: activePath,
+            wordWrap: true,
+            hover: null,
+            references: const [],
+            statusMessage: null,
+            breadcrumb: const EditorBreadcrumbInfo(),
+            completionItems: const [],
+            diagnostics: const [],
+            hoverTooltip: null,
+            peekDefinition: null,
+            onSelectTab: (_) {},
+            onCloseTab: (_) {},
+            onContentChanged: (_, _) {},
+            onSave: () {},
+            onHoverRequest: (_, _) {},
+            onHoverExit: () {},
+            onCtrlClick: () {},
+            onClosePeek: () {},
+            onCursorChanged: (_, _) {},
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(page(data.path));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey(data.path)), findsOneWidget);
+
+    await tester.pumpWidget(page(actions.path));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey(data.path)), findsNothing);
+    expect(find.byKey(ValueKey(actions.path)), findsOneWidget);
   });
 }

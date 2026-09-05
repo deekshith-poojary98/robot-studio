@@ -293,6 +293,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     widget.onBindState?.call(null);
     _hoverTimer?.cancel();
     _hoverDismissTimer?.cancel();
+    _dismissAutocompleteOverlay();
     if (_listening) {
       _controller.removeListener(_onChanged);
     }
@@ -520,10 +521,16 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   }
 
   bool _isPointerOverTooltip(Offset localInEditor) {
-    final box =
-        _hoverTooltipKey.currentContext?.findRenderObject() as RenderBox?;
+    // State.mounted stays true after deactivate(); context.mounted does not.
+    // Hover still arrives on the old Listener during a tab/view swap.
+    if (!context.mounted) return false;
+    final tooltipContext = _hoverTooltipKey.currentContext;
+    if (tooltipContext == null || !tooltipContext.mounted) return false;
+    final box = tooltipContext.findRenderObject() as RenderBox?;
     final editorBox = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize || editorBox == null) return false;
+    if (box == null || !box.hasSize || editorBox == null || !editorBox.hasSize) {
+      return false;
+    }
     final global = editorBox.localToGlobal(localInEditor);
     final tooltipLocal = box.globalToLocal(global);
     // Slightly inflate so the gap between caret and card is still "sticky".
@@ -632,6 +639,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   }
 
   void _onPointerHover(PointerHoverEvent event) {
+    if (!context.mounted) return;
     final local = event.localPosition;
     _hoverDismissTimer?.cancel();
 
@@ -1004,9 +1012,10 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     double? lineHeight,
     double maxHeight = EditorHoverTooltip.maxHeight,
   }) {
-    if (!mounted || widget.hoverTooltip == null) return;
-    final box =
-        _hoverTooltipKey.currentContext?.findRenderObject() as RenderBox?;
+    if (!context.mounted || widget.hoverTooltip == null) return;
+    final tooltipContext = _hoverTooltipKey.currentContext;
+    if (tooltipContext == null || !tooltipContext.mounted) return;
+    final box = tooltipContext.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
     if ((box.size.width - _hoverTooltipSize.width).abs() > 0.5 ||
         (box.size.height - _hoverTooltipSize.height).abs() > 0.5) {

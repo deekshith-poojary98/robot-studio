@@ -182,6 +182,7 @@ class EditorPageState extends State<EditorPage> {
                     children: [
                       Expanded(
                         child: RobotCodeEditor(
+                          key: ValueKey<String>(active.path),
                           path: active.path,
                           initialContent: active.content,
                           wordWrap: widget.wordWrap,
