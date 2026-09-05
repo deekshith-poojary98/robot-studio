@@ -1029,6 +1029,44 @@ class RobotLanguageService(LanguageService):
                 entries.append((lib_name, alias))
         return entries
 
+    @classmethod
+    def _iter_imported_resource_files(
+        cls,
+        content: str,
+        file_path: str = "",
+        *,
+        max_depth: int = 8,
+    ) -> list[tuple[str, str]]:
+        """On-disk ``Resource`` targets (and nested resources) with file text."""
+        found: list[tuple[str, str]] = []
+        visited: set[str] = set()
+
+        def _walk(text: str, path: str, depth: int) -> None:
+            if depth >= max_depth or not path:
+                return
+            for token in cls._imported_resource_paths(text):
+                candidate = Path(token).expanduser()
+                if not candidate.is_file():
+                    candidate = cls._path_beside_file(path, token)
+                try:
+                    if not candidate.is_file():
+                        continue
+                    resolved = str(candidate.resolve())
+                except OSError:
+                    continue
+                if resolved in visited:
+                    continue
+                visited.add(resolved)
+                try:
+                    child = candidate.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                found.append((resolved, child))
+                _walk(child, resolved, depth + 1)
+
+        _walk(content, file_path, 0)
+        return found
+
     @staticmethod
     def _imported_resource_paths(content: str) -> list[str]:
         """Parse ``Resource`` settings → import path tokens."""
@@ -1615,6 +1653,39 @@ class RobotLanguageService(LanguageService):
         resolved_libraries: set[str] = set()
         keyword_signatures: dict[str, KeywordMetadata] = {}
         disk_symbol_cache: dict[str, list[dict]] = {}
+
+        # User keywords from imported Resource files (RF suite scope). Do not
+        # rely on the workspace index — an empty query is capped and may omit
+        # them when library keywords fill the result set.
+        for resource_path, resource_text in self._iter_imported_resource_files(
+            content,
+            file_path,
+        ):
+            resource_names = self._collect_local_keyword_names(resource_text.splitlines())
+            known_keywords.update(name.casefold() for name in resource_names)
+            try:
+                resource_symbols = document_symbols(resource_text, resource_path)
+            except Exception:  # noqa: BLE001 — parse failure must not drop diagnostics
+                resource_symbols = []
+            if isinstance(resource_symbols, list):
+                disk_symbol_cache[resource_path] = resource_symbols
+                for item in resource_symbols:
+                    if not isinstance(item, dict):
+                        continue
+                    if str(item.get("kind") or "") != SymbolKind.KEYWORD.value:
+                        continue
+                    name = str(item.get("name") or "").strip()
+                    if not name:
+                        continue
+                    detail = str(item.get("detail") or "")
+                    keyword_signatures[name.casefold()] = KeywordMetadata(
+                        name=name,
+                        source_type=KeywordSourceType.RESOURCE,
+                        parameters=parameters_from_detail_string(detail),
+                        source_path=resource_path,
+                        documentation=str(item.get("documentation") or ""),
+                        detail=detail,
+                    )
 
         builtin_lib = await self.library_catalog().get_library("BuiltIn")
         if builtin_lib is not None:
