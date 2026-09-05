@@ -478,6 +478,38 @@ void main() {
       expect(html.toLowerCase(), contains('hljs-attr'));
     });
 
+    test('does not paint aria-label= inside a locator as a named arg', () {
+      final html = highlight
+          .highlight(
+            code:
+                '\${show_password_button}    //button[@aria-label="Show password"]\n',
+            language: 'robot',
+          )
+          .toHtml();
+      expect(html.contains('hljs-attr'), isFalse, reason: html);
+      expect(html, contains('hljs-variable'), reason: html);
+      expect(html, contains('hljs-string'), reason: html);
+    });
+
+    test('still highlights a real name= argument cell', () {
+      final html = highlight
+          .highlight(
+            code: '    Click    selector=//button[@aria-label="x"]\n',
+            language: 'robot',
+          )
+          .toHtml();
+      expect(
+        html.toLowerCase(),
+        contains('hljs-attr">selector='),
+        reason: html,
+      );
+      expect(
+        html.toLowerCase().contains('hljs-attr">label='),
+        isFalse,
+        reason: html,
+      );
+    });
+
     test('still highlights FOR / IN RANGE / AS as their own cells', () {
       final html = highlight
           .highlight(

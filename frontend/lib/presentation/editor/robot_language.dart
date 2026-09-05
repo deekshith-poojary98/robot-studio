@@ -100,8 +100,14 @@ final Mode langRobot = Mode(
       relevance: 8,
     ),
 
-    // Named arguments: user=
-    Mode(className: 'attr', begin: r'\b[A-Za-z_][\w]*=', relevance: 0),
+    // Named arguments as their own Robot cell (`locator=`, `reason=`).
+    // Word-boundary-only matching painted `-label=` inside XPath/CSS
+    // (`//button[@aria-label="…"]`).
+    Mode(
+      className: 'attr',
+      begin: r'(?<=^|[ \t]{2,}|\t)[A-Za-z_][\w]*=',
+      relevance: 0,
+    ),
 
     // Indented library / user keyword *calls* (BuiltIn + others).
     // Indent/separator classes are `[ \t]`, never `\s`: `\s` matches newlines,
