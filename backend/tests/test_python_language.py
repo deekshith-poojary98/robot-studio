@@ -7,7 +7,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from robot_studio.domain.interfaces.completion import CompletionRequestContext
 from robot_studio.domain.interfaces.indexing import SymbolKind
 from robot_studio.infrastructure.indexing.python_indexer import PythonLibraryIndexer

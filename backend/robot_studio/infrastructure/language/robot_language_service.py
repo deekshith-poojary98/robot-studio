@@ -2267,7 +2267,7 @@ class RobotLanguageService(LanguageService):
             if not line or line.startswith("#"):
                 continue
             if line.startswith("*"):
-                in_variables = bool(re.search(r"variables?", line, re.I))
+                in_variables = bool(re.search(r"variables?", line, re.IGNORECASE))
                 continue
             if line.lower().startswith("variables ") and file_path:
                 token = first_robot_cell(line.split(None, 1)[1].strip()).strip("'\"")

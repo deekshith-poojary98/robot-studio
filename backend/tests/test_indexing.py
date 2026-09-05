@@ -8,7 +8,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from robot_studio.application.services.index_service import IndexService
 from robot_studio.application.services.language_service import LanguageFacade
 from robot_studio.application.services.workspace_context import WorkspaceContext
