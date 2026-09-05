@@ -9,8 +9,8 @@ import 'package:re_highlight/re_highlight.dart';
 /// - section: `*** Settings ***` (language)
 /// - keyword / meta: suite settings, local `[…]` settings, control-flow DSL
 /// - built_in: library keyword *calls* (Log, Create Dictionary, user libs)
-/// - variable: `${}` `@{}` `&{}` `%{}`
-/// - title: test / user-keyword names
+/// - variable: `${}` `@{}` `&{}` `%{}` (including embedded args in names)
+/// - title: test / user-keyword names (embedded `${}` stay variable)
 /// - comment / string / number / attr / continuation
 ///
 /// Documentation lines are consumed as strings so words like `for` / `if`
@@ -108,6 +108,7 @@ final Mode langRobot = Mode(
     // so a whitespace-only line would swallow the next column-0 keyword name.
     // Embedded-argument names (`Fill ${e_type} email`) are one cell; `${x}=`
     // / `${x}    Keyword` stay assignments, not the start of a call.
+    // begin is indent only so `${}` inside the name can nest as `variable`.
     Mode(
       className: 'built_in',
       begin:
@@ -116,9 +117,13 @@ final Mode langRobot = Mode(
           r'(?!IF\b|ELSE IF\b|ELSE\b|END\b|FOR\b|WHILE\b|BREAK\b|CONTINUE\b|'
           r'RETURN\b|TRY\b|EXCEPT\b|FINALLY\b|GROUP\b|VAR\b|'
           r'IN RANGE\b|IN ENUMERATE\b|IN ZIP\b|IN\b|WITH NAME\b|AS\b|AND\b)'
-          r'(?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\})'
+          r'(?=(?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\})'
           r'(?: (?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\}))*'
-          r'(?=[ \t]{2,}|\t|[ \t]*$)',
+          r'(?:[ \t]{2,}|\t|[ \t]*$))',
+      end: r'(?=[ \t]{2,}|\t|[ \t]*$)',
+      contains: <Mode>[
+        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
+      ],
       relevance: 0,
     ),
 
@@ -133,13 +138,18 @@ final Mode langRobot = Mode(
           r'(?!\[|#)'
           r'(?!IF\b|ELSE IF\b|ELSE\b|END\b|FOR\b|WHILE\b|BREAK\b|CONTINUE\b|'
           r'RETURN\b|TRY\b|EXCEPT\b|FINALLY\b|GROUP\b|VAR\b)'
-          r'(?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\})'
+          r'(?=(?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\})'
           r'(?: (?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\}))*'
-          r'(?=[ \t]{2,}|\t|[ \t]*$)',
+          r'(?:[ \t]{2,}|\t|[ \t]*$))',
+      end: r'(?=[ \t]{2,}|\t|[ \t]*$)',
+      contains: <Mode>[
+        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
+      ],
       relevance: 0,
     ),
 
-    // Test case / user-keyword *names* at column 0
+    // Test case / user-keyword *names* at column 0.
+    // End-of-line mode so embedded `${e_type}` keeps the variable colour.
     Mode(
       className: 'title',
       begin:
@@ -149,7 +159,11 @@ final Mode langRobot = Mode(
           r'Test Timeout\b|Test Template\b|Force Tags\b|Default Tags\b|'
           r'Test Tags\b|Keyword Tags\b|'
           r'Task Setup\b|Task Teardown\b|Task Template\b|Task Timeout\b)'
-          r'[A-Za-z_].*$',
+          r'(?=[A-Za-z_]|[\$@&%])',
+      end: r'$',
+      contains: <Mode>[
+        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
+      ],
       relevance: 0,
     ),
 

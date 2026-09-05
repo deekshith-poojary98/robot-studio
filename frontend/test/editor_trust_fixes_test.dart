@@ -520,16 +520,23 @@ void main() {
       expect(html, contains('\${posts}'));
     });
 
+    test('embedded args in a keyword definition stay variables', () {
+      final html = render(
+        'Login to the application with \${e_type} email and \${p_type} password\n',
+      );
+      expect(html, contains('hljs-title'), reason: html);
+      expect(html, contains('hljs-variable">\${e_type}</span>'), reason: html);
+      expect(html, contains('hljs-variable">\${p_type}</span>'), reason: html);
+    });
+
     test('embedded-argument keyword call is built_in', () {
       final html = render(
         '    Fill \${e_type} email and \${p_type} password\n',
       );
       expect(html, contains('hljs-built_in'), reason: html);
-      expect(
-        html.toLowerCase(),
-        contains('fill \${e_type} email and \${p_type} password'),
-        reason: html,
-      );
+      expect(html.toLowerCase(), contains('fill'), reason: html);
+      expect(html, contains('hljs-variable">\${e_type}</span>'), reason: html);
+      expect(html, contains('hljs-variable">\${p_type}</span>'), reason: html);
     });
 
     test('embedded-argument keyword after assignment is built_in', () {
@@ -537,25 +544,24 @@ void main() {
         '    \${status}    Fill \${e_type} email and \${p_type} password\n',
       );
       expect(html, contains('hljs-built_in'), reason: html);
-      expect(
-        html.toLowerCase(),
-        contains('fill \${e_type} email and \${p_type} password'),
-        reason: html,
-      );
-      expect(html, contains('hljs-variable'), reason: html);
-      expect(html, contains('\${status}'), reason: html);
+      expect(html.toLowerCase(), contains('fill'), reason: html);
+      expect(html, contains('hljs-variable">\${status}</span>'), reason: html);
+      expect(html, contains('hljs-variable">\${e_type}</span>'), reason: html);
+      expect(html, contains('hljs-variable">\${p_type}</span>'), reason: html);
     });
 
     test('embedded-argument call does not swallow the next cell', () {
       final html = render(
         '    Fill \${e_type} email and \${p_type} password    leftover\n',
       );
+      expect(html, contains('hljs-built_in'), reason: html);
+      expect(html, contains('hljs-variable">\${e_type}</span>'), reason: html);
+      expect(html.contains('leftover'), isTrue, reason: html);
       expect(
-        html.toLowerCase(),
-        contains('hljs-built_in">    fill \${e_type} email and \${p_type} password<'),
+        RegExp('hljs-built_in">[^<]*leftover').hasMatch(html),
+        isFalse,
         reason: html,
       );
-      expect(html.toLowerCase(), isNot(contains('leftover<')), reason: html);
     });
   });
 }
