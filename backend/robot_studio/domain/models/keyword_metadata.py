@@ -13,6 +13,56 @@ from enum import Enum
 from typing import Any
 
 
+def bare_parameter_name(raw: str) -> str:
+    """RF ``${locator}`` / ``@{items}`` → ``locator`` / ``items`` (libdoc style)."""
+    text = (raw or "").strip()
+    if not text:
+        return ""
+    if "=" in text:
+        text = text.split("=", 1)[0].strip()
+    if ":" in text:
+        text = text.split(":", 1)[0].strip()
+    if len(text) >= 4 and text[0] in "$@&%" and text[1] == "{" and text.endswith("}"):
+        inner = text[2:-1].strip()
+        if inner:
+            return inner
+    return text
+
+
+def python_style_parameter_label(
+    raw: str = "",
+    *,
+    name: str = "",
+    default: str | None = None,
+    type_name: str = "",
+) -> str:
+    """Rebuild a parameter label without ``${}`` wrappers."""
+    text = (raw or "").strip()
+    parsed_default = default
+    parsed_type = type_name
+    parsed_name = name
+    if text:
+        rest = text
+        if "=" in rest:
+            left, _, right = rest.partition("=")
+            rest = left.strip()
+            if parsed_default is None:
+                parsed_default = right.strip()
+        if ":" in rest:
+            left, _, right = rest.partition(":")
+            rest = left.strip()
+            if not parsed_type:
+                parsed_type = right.strip()
+        parsed_name = bare_parameter_name(rest) or parsed_name
+    parsed_name = bare_parameter_name(parsed_name) or parsed_name
+    if not parsed_name:
+        return text
+    base = f"{parsed_name}: {parsed_type}" if parsed_type else parsed_name
+    if parsed_default is not None:
+        return f"{base}={parsed_default}"
+    return base
+
+
 class KeywordSourceType(str, Enum):
     BUILTIN = "builtin"
     LIBRARY = "library"
@@ -35,8 +85,22 @@ class ParameterMetadata:
     documentation: str = ""
 
     def __post_init__(self) -> None:
-        if not self.label:
-            object.__setattr__(self, "label", self._default_label())
+        bare = bare_parameter_name(self.name)
+        if bare and bare != self.name:
+            object.__setattr__(self, "name", bare)
+        label = self.label
+        if not label or "${" in label or "@{" in label or "&{" in label or "%{" in label:
+            object.__setattr__(
+                self,
+                "label",
+                python_style_parameter_label(
+                    label,
+                    name=bare or self.name,
+                    default=self.default,
+                    type_name=self.type_name,
+                )
+                or self._default_label(),
+            )
 
     def _default_label(self) -> str:
         base = self.name
@@ -117,11 +181,9 @@ class KeywordMetadata:
         return self.qualified_name or self.name
 
     def signature_detail(self) -> str:
-        if self.detail:
-            return self.detail
-        if not self.parameters:
-            return ""
-        return ", ".join(p.label or p.name for p in self.parameters)
+        if self.parameters:
+            return ", ".join(p.label or p.name for p in self.parameters)
+        return self.detail
 
     def to_transport(self) -> dict[str, Any]:
         return {

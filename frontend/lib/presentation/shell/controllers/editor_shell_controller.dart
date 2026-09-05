@@ -850,15 +850,14 @@ class EditorShellController {
         .map((part) => part.trim())
         .where((part) => part.isNotEmpty)
         .map((part) {
-          var label = part;
           var documentation = '';
           final eq = part.indexOf('=');
           if (eq > 0) {
-            label = part.substring(0, eq).trim();
             documentation = 'default: ${part.substring(eq + 1).trim()}';
           }
           return SignatureParameterInfo(
-            label: label,
+            label: SignatureParameterInfo.pythonStyleParameterLabel(part),
+            name: SignatureParameterInfo.bareParameterName(part),
             documentation: documentation,
           );
         })

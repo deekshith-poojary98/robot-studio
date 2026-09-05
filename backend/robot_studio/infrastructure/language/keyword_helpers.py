@@ -7,6 +7,8 @@ import re
 from robot_studio.domain.models.keyword_metadata import (
     KeywordMetadata,
     ParameterMetadata,
+    bare_parameter_name,
+    python_style_parameter_label,
 )
 
 # Prefer these names when ranking named-arg completions for common keywords.
@@ -278,14 +280,19 @@ def parameters_from_detail_string(detail: str) -> tuple[ParameterMetadata, ...]:
             left, _, right = arg.partition("=")
             label = left.strip()
             default = right.strip()
-        name = label.split(":", 1)[0].strip()
+        name = bare_parameter_name(label)
         type_name = ""
         if ":" in label:
             type_name = label.split(":", 1)[1].strip()
         params.append(
             ParameterMetadata(
                 name=name,
-                label=arg,
+                label=python_style_parameter_label(
+                    arg,
+                    name=name,
+                    default=default,
+                    type_name=type_name,
+                ),
                 default=default,
                 required=default is None,
                 type_name=type_name,

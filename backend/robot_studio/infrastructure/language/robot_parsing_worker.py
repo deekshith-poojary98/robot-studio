@@ -304,9 +304,26 @@ def _collect_arguments(item: Any) -> list[str]:
     return []
 
 
+def _bare_argument_name(cell: str) -> str:
+    """``${locator}`` / ``${timeout}=10`` → ``locator`` / ``timeout=10``."""
+    raw = (cell or "").strip()
+    if not raw:
+        return ""
+    name, sep, default = raw.partition("=")
+    name = name.strip()
+    if len(name) >= 4 and name[0] in "$@&%" and name[1] == "{" and name.endswith("}"):
+        inner = name[2:-1].strip()
+        if inner:
+            name = inner
+    if sep:
+        return f"{name}={default.strip()}" if default.strip() else name
+    return name
+
+
 def _arguments_detail(item: Any) -> str:
     """Comma-separated argument labels for index / hover / signature help."""
-    return ", ".join(_collect_arguments(item))
+    labels = [_bare_argument_name(cell) for cell in _collect_arguments(item)]
+    return ", ".join(label for label in labels if label)
 
 
 def _end_line(node: Any) -> int:

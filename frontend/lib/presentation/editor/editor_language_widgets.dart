@@ -351,10 +351,12 @@ class RobotAutocompletePromptsBuilder
   }
 
   static String _parameterName(SignatureParameterInfo param) {
-    if (param.name.trim().isNotEmpty) return param.name.trim();
+    if (param.name.trim().isNotEmpty) {
+      return SignatureParameterInfo.bareParameterName(param.name);
+    }
     final label = param.label.trim();
     if (label.isEmpty) return '';
-    return label.split('=').first.split(':').first.trim();
+    return SignatureParameterInfo.bareParameterName(label);
   }
 }
 

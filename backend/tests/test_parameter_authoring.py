@@ -22,6 +22,7 @@ from robot_studio.infrastructure.language.keyword_helpers import (
     active_parameter_index,
     is_typing_argument_value,
     parameter_completion_score,
+    parameters_from_detail_string,
     present_named_args,
     strip_keyword_qualifier,
 )
@@ -50,6 +51,23 @@ def test_parameter_and_keyword_round_trip() -> None:
     assert api["active_parameter"] == 1
     assert api["parameters"][0]["name"] == "url"
     assert api["parameters"][0]["required"] is True
+
+
+def test_resource_arguments_look_like_python_parameters() -> None:
+    params = parameters_from_detail_string(r"${locator}, ${text}, ${timeout}=10")
+    assert [p.name for p in params] == ["locator", "text", "timeout"]
+    assert [p.label for p in params] == ["locator", "text", "timeout=10"]
+    wrapped = ParameterMetadata(name="${locator}", label=r"${locator}")
+    assert wrapped.name == "locator"
+    assert wrapped.label == "locator"
+    api = KeywordMetadata(
+        name="Input Text",
+        source_type=KeywordSourceType.RESOURCE,
+        parameters=params,
+        detail=r"${locator}, ${text}, ${timeout}=10",
+    ).to_signature_api()
+    assert [p["name"] for p in api["parameters"]] == ["locator", "text", "timeout"]
+    assert api["detail"] == "locator, text, timeout=10"
 
 
 def test_merge_keyword_metadata_composes_providers() -> None:
@@ -238,6 +256,34 @@ async def test_named_argument_provider_skips_present_and_ranks() -> None:
     assert "url=" in labels
     assert labels[0] == "url="
     assert present_named_args(["browser=firefox"]) == {"browser"}
+
+
+@pytest.mark.asyncio
+async def test_named_argument_provider_strips_resource_variable_wrappers() -> None:
+    meta = KeywordMetadata(
+        name="Input Text",
+        source_type=KeywordSourceType.RESOURCE,
+        parameters=parameters_from_detail_string(r"${locator}, ${text}, ${timeout}=10"),
+    )
+
+    async def resolve(_ctx):
+        return meta
+
+    provider = NamedArgumentCompletionProvider(resolve_keyword=resolve)
+    items = await provider.complete(
+        CompletionRequestContext(
+            file_path="actions.robot",
+            content="",
+            line=1,
+            column=1,
+            prefix="loc",
+            context="argument",
+            keyword="Input Text",
+            arguments=(),
+        ),
+    )
+    assert [i.insert_text for i in items] == ["locator="]
+    assert all("${" not in i.label for i in items)
 
 
 @pytest.mark.asyncio

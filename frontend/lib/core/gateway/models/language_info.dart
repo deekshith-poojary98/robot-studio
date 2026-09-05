@@ -166,10 +166,73 @@ class SignatureParameterInfo {
   final String kind;
 
   String get displayLabel {
-    if (label.isNotEmpty) return label;
+    if (label.isNotEmpty) {
+      return _hasRobotVariableWrapper(label)
+          ? pythonStyleParameterLabel(label)
+          : label;
+    }
     if (name.isEmpty) return '';
-    if (defaultValue != null) return '$name=$defaultValue';
-    return name;
+    final bare = bareParameterName(name);
+    if (defaultValue != null) return '$bare=$defaultValue';
+    return bare;
+  }
+
+  /// RF ``${locator}`` / ``@{items}`` → ``locator`` / ``items``.
+  static String bareParameterName(String raw) {
+    var text = raw.trim();
+    if (text.isEmpty) return '';
+    final eq = text.indexOf('=');
+    if (eq > 0) text = text.substring(0, eq).trim();
+    final colon = text.indexOf(':');
+    if (colon > 0) text = text.substring(0, colon).trim();
+    return _unwrapRobotVariable(text);
+  }
+
+  static bool _hasRobotVariableWrapper(String text) {
+    return text.contains(r'${') ||
+        text.contains('@{') ||
+        text.contains('&{') ||
+        text.contains('%{');
+  }
+
+  static String pythonStyleParameterLabel(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return '';
+    if (!_hasRobotVariableWrapper(trimmed)) return trimmed;
+    var head = trimmed;
+    String? defaultPart;
+    final eq = trimmed.indexOf('=');
+    if (eq > 0) {
+      head = trimmed.substring(0, eq).trim();
+      defaultPart = trimmed.substring(eq + 1);
+    }
+    var namePart = head;
+    String? typePart;
+    final colon = head.indexOf(':');
+    if (colon > 0) {
+      namePart = head.substring(0, colon).trim();
+      typePart = head.substring(colon + 1).trim();
+    }
+    final name = _unwrapRobotVariable(namePart);
+    final out = StringBuffer(name);
+    if (typePart != null && typePart.isNotEmpty) {
+      out.write(': $typePart');
+    }
+    if (defaultPart != null) {
+      out.write('=$defaultPart');
+    }
+    return out.toString();
+  }
+
+  static String _unwrapRobotVariable(String text) {
+    if (text.length >= 4 &&
+        r'$@&%'.contains(text[0]) &&
+        text[1] == '{' &&
+        text.endsWith('}')) {
+      final inner = text.substring(2, text.length - 1).trim();
+      if (inner.isNotEmpty) return inner;
+    }
+    return text;
   }
 }
 

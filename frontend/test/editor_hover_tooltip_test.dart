@@ -252,6 +252,22 @@ void main() {
     expect(param.displayLabel, 'browser=chrome');
   });
 
+  test('resource argument chips drop RF variable wrappers', () {
+    const wrapped = SignatureParameterInfo(
+      label: r'${locator}',
+      name: r'${locator}',
+    );
+    expect(wrapped.displayLabel, 'locator');
+    expect(
+      SignatureParameterInfo.bareParameterName(r'${timeout}=10'),
+      'timeout',
+    );
+    expect(
+      SignatureParameterInfo.pythonStyleParameterLabel(r'${timeout}=10'),
+      'timeout=10',
+    );
+  });
+
   test('hover section details are not parsed as argument chips', () {
     expect(
       EditorShellController.argumentChipsFromHoverDetail('test cases'),
@@ -274,10 +290,23 @@ void main() {
     );
     expect(
       EditorShellController.argumentChipsFromHoverDetail(
+        r'${path}',
+      ).single.displayLabel,
+      'path',
+    );
+    expect(
+      EditorShellController.argumentChipsFromHoverDetail(
         r'${username}, ${password}=secret',
         detailKind: 'signature',
       ),
       hasLength(2),
+    );
+    expect(
+      EditorShellController.argumentChipsFromHoverDetail(
+        r'${username}, ${password}=secret',
+        detailKind: 'signature',
+      ).map((item) => item.displayLabel),
+      ['username', 'password=secret'],
     );
     expect(
       EditorShellController.argumentChipsFromHoverDetail(
