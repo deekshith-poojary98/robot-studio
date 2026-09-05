@@ -25,7 +25,7 @@ from robot_studio.domain.models import (
     Workspace,
     WorkspaceSettings,
 )
-from robot_studio.infrastructure.indexing.file_watcher import NativeFileWatcher
+from robot_studio.infrastructure.indexing.file_watcher import PollingFileWatcher
 from robot_studio.infrastructure.indexing.filesystem_indexer import FilesystemIndexer
 from robot_studio.infrastructure.indexing.robot_indexer import (
     RobotIndexer,
@@ -112,7 +112,7 @@ async def index_stack(tmp_path: Path):
     await projects.create(project)
 
     indexer = FilesystemIndexer(store=store)
-    watcher = NativeFileWatcher(debounce_seconds=0.2)
+    watcher = PollingFileWatcher(interval_seconds=0.05)
     service = IndexService(
         context=context,
         event_bus=bus,
@@ -972,8 +972,13 @@ async def test_watcher_detects_new_file(index_stack, tmp_path: Path) -> None:
 
     new_file = root / "extra.robot"
     new_file.write_text("*** Test Cases ***\nExtra\n    Log    x\n", encoding="utf-8")
-    await asyncio.sleep(0.6)
-    assert await store.get_file_mtime(new_file) is not None
+    mtime = None
+    for _ in range(40):
+        mtime = await store.get_file_mtime(new_file)
+        if mtime is not None:
+            break
+        await asyncio.sleep(0.05)
+    assert mtime is not None
     await service.watcher.stop()
 
 
