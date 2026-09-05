@@ -9,23 +9,12 @@ from robot_studio.infrastructure.analysis.normalize import (
     strip_library_prefix,
 )
 from robot_studio.infrastructure.language.robot_parsing_worker import (
+    SETTING_KEYWORD_HEADS,
     is_robot_cell_separator,
     split_robot_row,
 )
 
 _BDD_PREFIXES = ("Given ", "When ", "Then ", "And ", "But ")
-_SETTING_KEYWORD_HEADS = frozenset(
-    {
-        "suite setup",
-        "suite teardown",
-        "test setup",
-        "test teardown",
-        "test template",
-        "task setup",
-        "task teardown",
-        "task template",
-    },
-)
 
 
 def is_robot_keyword_name(name: str) -> bool:
@@ -93,7 +82,7 @@ def _rewrite_line(raw: str, old_norm: str, new_name: str, *, in_keywords: bool) 
             is_keyword_cell = True
         elif (not leading) and cell_index == 1:
             head = _first_token(parts).strip().casefold()
-            if head in _SETTING_KEYWORD_HEADS:
+            if head in SETTING_KEYWORD_HEADS:
                 is_keyword_cell = True
         rewritten = _rewrite_cell(part, old_norm, new_name) if is_keyword_cell else part
         parts.append(rewritten)

@@ -63,6 +63,116 @@ def robot_cell_spans(row: str) -> list[tuple[int, int, str]]:
     return cells
 
 
+# Suite / task settings whose first value cell is a keyword name.
+SETTING_KEYWORD_HEADS = frozenset(
+    {
+        "suite setup",
+        "suite teardown",
+        "test setup",
+        "test teardown",
+        "test template",
+        "task setup",
+        "task teardown",
+        "task template",
+    },
+)
+
+
+def is_local_keyword_setting(token: str) -> bool:
+    """True for ``[Setup]`` / ``[Teardown]`` / ``[Template]`` (optional ``]``)."""
+    folded = (token or "").casefold().strip()
+    if not folded.startswith("["):
+        return False
+    return folded.strip("[]").strip() in {"setup", "teardown", "template"}
+
+
+def _caret_past_first_cell(row: str, column: int) -> bool:
+    """True when the caret is in the separator or a later cell after cell 0."""
+    spans = robot_cell_spans(row)
+    if not spans:
+        return False
+    _start, end, _token = spans[0]
+    if column <= end:
+        return False
+    after = row[end:]
+    return bool(re.match(r"(?:[ \t]{2,}|\t)", after))
+
+
+def _prefix_at_column(row: str, column: int) -> str:
+    """Cell text up to the caret, or empty when the caret is in a separator."""
+    for start, end, _token in robot_cell_spans(row):
+        if start <= column <= end + 1:
+            if column <= start:
+                return ""
+            return row[start - 1 : min(column - 1, end)]
+    return ""
+
+
+def _mask_leading_setting(row: str) -> str | None:
+    """Blank the setting cell that names a keyword, preserving columns."""
+    cells = split_robot_cells(row)
+    if not cells:
+        return None
+    head = cells[0]
+    if head.casefold() not in SETTING_KEYWORD_HEADS and not is_local_keyword_setting(head):
+        return None
+    idx = row.find(head)
+    if idx < 0:
+        return None
+    return f"{row[:idx]}{' ' * len(head)}{row[idx + len(head) :]}"
+
+
+def _setting_keyword_head_row(lines: list[str], line: int) -> str | None:
+    """Head row of a keyword-taking setting, walking through ``...`` continuations."""
+    idx = line - 1
+    while idx >= 0:
+        cells = split_robot_cells(lines[idx])
+        if cells and cells[0] == "...":
+            idx -= 1
+            continue
+        if not cells:
+            return None
+        head = cells[0]
+        if head.casefold() in SETTING_KEYWORD_HEADS or is_local_keyword_setting(head):
+            return lines[idx]
+        return None
+    return None
+
+
+def _on_setting_keyword_value(lines: list[str], line: int, column: int) -> bool:
+    """True when the caret is in the keyword/args of a setup/teardown/template."""
+    row = lines[line - 1]
+    cells = split_robot_cells(row)
+    if cells and cells[0] == "...":
+        return _setting_keyword_head_row(lines, line) is not None
+    if _mask_leading_setting(row) is None:
+        return False
+    return _caret_past_first_cell(row, column)
+
+
+def _masked_setting_keyword_lines(lines: list[str]) -> list[str]:
+    return [_mask_leading_setting(row) or row for row in lines]
+
+
+def _completion_from_call(
+    prefix: str,
+    section: str,
+    call: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if call is not None and call.get("in_arguments"):
+        return {
+            "prefix": prefix,
+            "context": "argument",
+            "section": section,
+            "keyword": call["keyword"],
+            "arguments": call["arguments"],
+            "active_parameter": call["active_parameter"],
+            "current_argument": call.get("current_argument") or "",
+            "arguments_completed": call.get("arguments_completed") or [],
+        }
+    return {"prefix": prefix, "context": "keyword_call", "section": section}
+
+
 def _line_col_at_offset(text: str, offset: int) -> tuple[int, int]:
     offset = max(offset, 0)
     line = text.count("\n", 0, offset) + 1
@@ -953,11 +1063,18 @@ def completion_context(
     if local_setting and (row.startswith((" ", "\t"))):
         bracket_prefix = local_setting.group(2)
         if bracket_prefix.startswith("["):
-            return {
-                "prefix": bracket_prefix if column > len(local_setting.group(1)) else prefix,
-                "context": "local_setting",
-                "section": section,
-            }
+            if _on_setting_keyword_value(lines, line, column):
+                call = _keyword_call_at(_masked_setting_keyword_lines(lines), line, column)
+                return _completion_from_call(_prefix_at_column(row, column), section, call)
+            if not _caret_past_first_cell(row, column):
+                return {
+                    "prefix": (
+                        bracket_prefix if column > len(local_setting.group(1)) else prefix
+                    ),
+                    "context": "local_setting",
+                    "section": section,
+                }
+            return {"prefix": prefix, "context": "local_setting", "section": section}
 
     if stripped.startswith("***") or (not stripped and prefix.startswith("*")):
         return {"prefix": prefix or stripped, "context": "section", "section": section}
@@ -970,6 +1087,9 @@ def completion_context(
         # Documentation suite setting — not argument authoring.
         if stripped.lower().startswith("documentation"):
             return {"prefix": prefix, "context": "setting", "section": section}
+        if _on_setting_keyword_value(lines, line, column):
+            call = _keyword_call_at(_masked_setting_keyword_lines(lines), line, column)
+            return _completion_from_call(_prefix_at_column(row, column), section, call)
         return {"prefix": prefix, "context": "setting", "section": section}
     if section == "variables" or prefix.startswith(("${", "@{", "&{")):
         return {"prefix": prefix, "context": "variable", "section": section}
@@ -1005,20 +1125,25 @@ def _keyword_call_at(
     if line < 1 or line > len(lines):
         return None
     row = lines[line - 1]
-    if not (row.startswith((" ", "\t"))):
+    cells_now = _robot_cells(row)
+    is_continuation = bool(cells_now and cells_now[0] == "...")
+    if not (row.startswith((" ", "\t")) or is_continuation):
         return None
     if row.strip().startswith("#"):
         return None
-    if row.strip().startswith("["):
+    if row.strip().startswith("[") and not is_continuation:
         return None
 
     # Walk up through continuation rows to the keyword row.
     start = line - 1
     while start > 0:
         prev = lines[start - 1]
-        if not (prev.startswith((" ", "\t"))):
-            break
         prev_cells = _robot_cells(prev)
+        if not (prev.startswith((" ", "\t"))):
+            if prev_cells and prev_cells[0] == "...":
+                start -= 1
+                continue
+            break
         if prev_cells and prev_cells[0] == "...":
             start -= 1
             continue
@@ -1154,6 +1279,33 @@ def _looks_like_keyword_token(text: str) -> bool:
     return not token.endswith("=")
 
 
+def _hover_payload(keyword: str) -> dict[str, Any]:
+    return {
+        "keyword": keyword,
+        "arguments": [],
+        "active_parameter": 0,
+        "in_arguments": False,
+        "arguments_through_caret": [],
+        "arguments_completed": [],
+        "current_argument": "",
+    }
+
+
+def _hover_setting_keyword_cell(row: str, column: int) -> dict[str, Any] | None:
+    """Hover the keyword cell after Suite/Test/Task Setup or ``[Setup]``."""
+    cells = split_robot_cells(row)
+    if not cells or len(cells) < 2:
+        return None
+    head = cells[0]
+    if head.casefold() not in SETTING_KEYWORD_HEADS and not is_local_keyword_setting(head):
+        return None
+    keyword = cells[1]
+    for text, start, end in _robot_cell_spans(row):
+        if start <= column <= end and text == keyword and _looks_like_keyword_token(text):
+            return _hover_payload(text)
+    return None
+
+
 def _hover_keyword_at(
     lines: list[str],
     line: int,
@@ -1168,23 +1320,20 @@ def _hover_keyword_at(
     if line < 1 or line > len(lines):
         return None
     row = lines[line - 1]
+    if row.strip().startswith("#"):
+        return None
+    setting_hover = _hover_setting_keyword_cell(row, column)
+    if setting_hover is not None:
+        return setting_hover
     if not (row.startswith((" ", "\t"))):
         return None
-    if row.strip().startswith(("#", "[")):
+    if row.strip().startswith("["):
         return None
     for text, start, end in _robot_cell_spans(row):
         if start <= column <= end:
             if not _looks_like_keyword_token(text):
                 return None
-            return {
-                "keyword": text,
-                "arguments": [],
-                "active_parameter": 0,
-                "in_arguments": False,
-                "arguments_through_caret": [],
-                "arguments_completed": [],
-                "current_argument": "",
-            }
+            return _hover_payload(text)
     return None
 
 
@@ -1201,13 +1350,15 @@ def signature_help(
     if line < 1 or line > len(lines):
         return None
     row = lines[line - 1]
-    if not (row.startswith((" ", "\t"))):
-        return None
-    if row.strip().startswith(("#", "[")):
+    if row.strip().startswith("#"):
         return None
     if hover:
         return _hover_keyword_at(lines, line, column)
-    call = _keyword_call_at(lines, line, column)
+    call = None
+    if _on_setting_keyword_value(lines, line, column):
+        call = _keyword_call_at(_masked_setting_keyword_lines(lines), line, column)
+    elif row.startswith((" ", "\t")) and not row.strip().startswith("["):
+        call = _keyword_call_at(lines, line, column)
     if call is None or not call.get("keyword"):
         return None
     return {

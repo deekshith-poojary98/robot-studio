@@ -101,6 +101,7 @@ from robot_studio.infrastructure.language.robot_parsing_bridge import (
     RobotParsingError,
 )
 from robot_studio.infrastructure.language.robot_parsing_worker import (
+    SETTING_KEYWORD_HEADS,
     document_symbols,
     first_robot_cell,
     robot_cell_spans,
@@ -1833,16 +1834,7 @@ class RobotLanguageService(LanguageService):
         """Bare keyword names and library/alias qualifiers referenced in this file."""
         bare: set[str] = set()
         qualifiers: set[str] = set()
-        setting_heads = {
-            "suite setup",
-            "suite teardown",
-            "test setup",
-            "test teardown",
-            "test template",
-            "task setup",
-            "task teardown",
-            "task template",
-        }
+        setting_heads = SETTING_KEYWORD_HEADS
         for raw in lines:
             stripped = raw.strip()
             if not stripped or stripped.startswith(("#", "*")):

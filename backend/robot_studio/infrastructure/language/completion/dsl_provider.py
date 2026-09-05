@@ -98,7 +98,7 @@ class SettingCompletionProvider(CompletionProvider):
                             base_priority=self.base_priority,
                         ),
                     )
-        if ctx.context in {"setting", "library", "resource"} or ctx.section == "settings":
+        if ctx.context in {"setting", "library", "resource"}:
             for name in SETTING_NAMES:
                 if matches_prefix(name, ctx.prefix):
                     out.append(
