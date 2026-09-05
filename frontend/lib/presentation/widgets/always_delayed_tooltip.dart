@@ -34,6 +34,13 @@ class _AlwaysDelayedTooltipState extends State<AlwaysDelayedTooltip> {
   OverlayEntry? _entry;
 
   @override
+  void deactivate() {
+    _timer?.cancel();
+    _removeEntry();
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     _timer?.cancel();
     _removeEntry();
@@ -61,7 +68,7 @@ class _AlwaysDelayedTooltipState extends State<AlwaysDelayedTooltip> {
 
   void _show() {
     if (!mounted || _entry != null) return;
-    final overlay = Overlay.maybeOf(context);
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
     if (overlay == null) return;
     _entry = OverlayEntry(builder: _buildTip);
     overlay.insert(_entry!);
@@ -72,8 +79,9 @@ class _AlwaysDelayedTooltipState extends State<AlwaysDelayedTooltip> {
     _entry = null;
   }
 
-  Widget _buildTip(BuildContext context) {
-    final theme = Theme.of(context);
+  Widget _buildTip(BuildContext overlayContext) {
+    if (!mounted) return const SizedBox.shrink();
+    final theme = Theme.of(overlayContext);
     return UnconstrainedBox(
       child: CompositedTransformFollower(
         link: _link,
@@ -84,7 +92,7 @@ class _AlwaysDelayedTooltipState extends State<AlwaysDelayedTooltip> {
         child: IgnorePointer(
           child: Material(
             elevation: 4,
-            color: context.palette.surfaceElevated,
+            color: overlayContext.palette.surfaceElevated,
             borderRadius: BorderRadius.circular(AppRadii.sm),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
@@ -96,7 +104,7 @@ class _AlwaysDelayedTooltipState extends State<AlwaysDelayedTooltip> {
                 child: Text(
                   widget.message,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: context.palette.textPrimary,
+                    color: overlayContext.palette.textPrimary,
                     fontFamily: 'Menlo',
                     fontSize: 11,
                     height: 1.3,

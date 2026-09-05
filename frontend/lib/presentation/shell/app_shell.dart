@@ -150,9 +150,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _notify() {
     if (!mounted) return;
-    // Editor mount no longer climbs here: RobotCodeEditor drops the
-    // re_editor delegate= echo, and EditorShellController.onContentChanged
-    // skips unchanged text. A phase-wide deferral hid real lifecycle bugs.
+    // A modal (Stop execution, errors, …) lives in the navigator overlay.
+    // Rebuilding the shell under it — elapsed ticks and console lines fire
+    // every few hundred ms during a run — leaves Tooltip / Overlay entries
+    // registered on InheritedWidgets they are no longer descendants of
+    // (framework.dart notifyClients assertion).
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
     setState(() {});
   }
 
@@ -1401,7 +1405,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           liveTest: _execution.liveTest,
           liveKeyword: _execution.liveKeyword,
         );
-        if (!confirmed) return;
+        if (!mounted) return;
+        if (!confirmed) {
+          setState(() {});
+          return;
+        }
       }
     }
     try {

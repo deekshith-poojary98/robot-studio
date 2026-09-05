@@ -11,6 +11,7 @@ Future<bool> showStopExecutionDialog(
   String? liveTest,
   String? liveKeyword,
 }) async {
+  Tooltip.dismissAllToolTips();
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) {

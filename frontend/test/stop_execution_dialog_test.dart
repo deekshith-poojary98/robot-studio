@@ -73,4 +73,45 @@ void main() {
     await tester.pumpAndSettle();
     expect(await result, isFalse);
   });
+
+  testWidgets('parent rebuilds while the stop dialog is open', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    late StateSetter rebuild;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return Scaffold(
+              body: Tooltip(
+                message: 'Stop the run',
+                child: TextButton(
+                  onPressed: () {
+                    showStopExecutionDialog(context);
+                  },
+                  child: const Text('Open'),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Stop execution?'), findsOneWidget);
+
+    rebuild(() {});
+    await tester.pump();
+    rebuild(() {});
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Stop execution?'), findsOneWidget);
+    await tester.tap(find.text('Keep running'));
+    await tester.pumpAndSettle();
+  });
 }
