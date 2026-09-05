@@ -66,6 +66,7 @@ from robot_studio.infrastructure.language.document_analysis import (
 )
 from robot_studio.infrastructure.language.keyword_helpers import (
     active_parameter_index,
+    keyword_metadata_from_index_row,
     parameters_from_detail_string,
     strip_keyword_qualifier,
     validate_keyword_arguments,
@@ -96,6 +97,7 @@ from robot_studio.infrastructure.language.robot_parsing_bridge import (
     RobotParsingError,
 )
 from robot_studio.infrastructure.language.robot_parsing_worker import (
+    document_symbols,
     first_robot_cell,
     robot_cell_spans,
     split_robot_cells,
@@ -1577,6 +1579,7 @@ class RobotLanguageService(LanguageService):
         imported_libraries = self._imported_libraries(content, file_path)
         resolved_libraries: set[str] = set()
         keyword_signatures: dict[str, KeywordMetadata] = {}
+        disk_symbol_cache: dict[str, list[dict]] = {}
 
         builtin_lib = await self.library_catalog().get_library("BuiltIn")
         if builtin_lib is not None:
@@ -1677,13 +1680,14 @@ class RobotLanguageService(LanguageService):
                         ),
                     )
                 elif keyword and self._is_known_keyword_call(keyword, known_keywords):
-                    self._append_keyword_argument_diagnostics(
+                    await self._append_keyword_argument_diagnostics(
                         file_path,
                         idx,
                         keyword,
                         lines,
                         keyword_signatures,
                         diagnostics,
+                        disk_symbol_cache,
                     )
                 for var_token in re.findall(r"\$\{[^}]+\}|@\{[^}]+\}|&\{[^}]+\}|%\{[^}]+\}", raw):
                     normalized = self._normalize_variable_token(var_token)
@@ -1837,7 +1841,7 @@ class RobotLanguageService(LanguageService):
             bare.add(normalize_keyword_name(rest))
         return bare, qualifiers
 
-    def _append_keyword_argument_diagnostics(
+    async def _append_keyword_argument_diagnostics(
         self,
         file_path: str,
         line: int,
@@ -1845,6 +1849,7 @@ class RobotLanguageService(LanguageService):
         lines: list[str],
         signatures: dict[str, KeywordMetadata],
         diagnostics: list[dict],
+        disk_symbol_cache: dict[str, list[dict]],
     ) -> None:
         if keyword.startswith("[") and keyword.endswith("]"):
             return
@@ -1853,12 +1858,101 @@ class RobotLanguageService(LanguageService):
         bare = strip_keyword_qualifier(keyword)
         meta = signatures.get(keyword.casefold()) or signatures.get(bare.casefold())
         if meta is None:
+            meta = await self._resolve_user_keyword_signature(
+                keyword,
+                disk_symbol_cache,
+            )
+            if meta is not None:
+                signatures[bare.casefold()] = meta
+                signatures[keyword.casefold()] = meta
+        if meta is None:
             return
         args = self._call_argument_cells(lines, line)
         for code, message in validate_keyword_arguments(meta, args):
             diagnostics.append(
                 self._diag(file_path, line, message, "warning", code=code),
             )
+
+    async def _resolve_user_keyword_signature(
+        self,
+        keyword: str,
+        disk_symbol_cache: dict[str, list[dict]],
+    ) -> KeywordMetadata | None:
+        """Resource / user-keyword args from the index, preferring the on-disk file."""
+        bare = strip_keyword_qualifier(keyword)
+        definition = await self.store.find_definition(
+            bare,
+            kind=SymbolKind.KEYWORD,
+            workspace_id=self.context.workspace_id,
+            project_id=self.context.project_id,
+        )
+        if definition is None and bare != keyword:
+            definition = await self.store.find_definition(
+                keyword,
+                kind=SymbolKind.KEYWORD,
+                workspace_id=self.context.workspace_id,
+                project_id=self.context.project_id,
+            )
+        if definition is None:
+            return None
+        meta = keyword_metadata_from_index_row(definition, fallback_name=bare)
+        path = str(definition.get("file_path") or "")
+        live_name = str(definition.get("name") or bare)
+        live = self._keyword_fields_from_disk(path, live_name, disk_symbol_cache)
+        if live is not None and str(live.get("detail") or "").strip():
+            live_params = parameters_from_detail_string(str(live["detail"]))
+            if live_params and meta is not None:
+                meta = KeywordMetadata(
+                    name=meta.name,
+                    qualified_name=meta.qualified_name,
+                    source_type=meta.source_type,
+                    library_name=meta.library_name,
+                    documentation=str(live.get("documentation") or "") or meta.documentation,
+                    parameters=live_params,
+                    source_path=meta.source_path,
+                    source_line=meta.source_line,
+                    deprecated=meta.deprecated,
+                    tags=meta.tags,
+                    examples=meta.examples,
+                    detail=str(live["detail"]),
+                )
+        if meta is None or not meta.parameters:
+            return None
+        return meta
+
+    def _keyword_fields_from_disk(
+        self,
+        file_path: str,
+        name: str,
+        cache: dict[str, list[dict]],
+    ) -> dict | None:
+        path = (file_path or "").strip()
+        if not path:
+            return None
+        if path not in cache:
+            source = Path(path)
+            if not source.is_file():
+                cache[path] = []
+            else:
+                try:
+                    text = source.read_text(encoding="utf-8")
+                    symbols = document_symbols(text, path)
+                    cache[path] = symbols if isinstance(symbols, list) else []
+                except (OSError, ValueError, TypeError):
+                    cache[path] = []
+        needle = (name or "").casefold()
+        for item in cache[path]:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("kind") or "") != SymbolKind.KEYWORD.value:
+                continue
+            if str(item.get("name") or "").casefold() != needle:
+                continue
+            return {
+                "detail": str(item.get("detail") or ""),
+                "documentation": str(item.get("documentation") or ""),
+            }
+        return None
 
     def _call_argument_cells(self, lines: list[str], line: int) -> list[str]:
         """Argument cells on *line* (1-based) plus following ``...`` continuations."""

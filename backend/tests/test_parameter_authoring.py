@@ -21,6 +21,7 @@ from robot_studio.infrastructure.language.completion.named_argument_provider imp
 from robot_studio.infrastructure.language.keyword_helpers import (
     active_parameter_index,
     is_typing_argument_value,
+    keyword_metadata_from_index_row,
     parameter_completion_score,
     parameters_from_detail_string,
     present_named_args,
@@ -68,6 +69,20 @@ def test_resource_arguments_look_like_python_parameters() -> None:
     ).to_signature_api()
     assert [p["name"] for p in api["parameters"]] == ["locator", "text", "timeout"]
     assert api["detail"] == "locator, text, timeout=10"
+
+
+def test_keyword_metadata_from_index_row_unwraps_resource_args() -> None:
+    meta = keyword_metadata_from_index_row(
+        {
+            "name": "Input Text",
+            "file_path": "/proj/actions.resource",
+            "line": 4,
+            "detail": r"${selector}, ${text}",
+        },
+    )
+    assert meta is not None
+    assert meta.source_type == KeywordSourceType.RESOURCE
+    assert [p.name for p in meta.parameters] == ["selector", "text"]
 
 
 def test_merge_keyword_metadata_composes_providers() -> None:

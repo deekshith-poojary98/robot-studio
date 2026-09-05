@@ -1276,3 +1276,60 @@ Demo
     codes = {item.get("code") for item in diagnostics}
     assert "unused_library" not in codes
     assert "unused_resource" not in codes
+
+
+@pytest.mark.asyncio
+async def test_resource_keyword_renamed_argument_is_unknown(tmp_path: Path) -> None:
+    """Calls still using ``locator=`` after the resource renamed it must warn."""
+    resource = tmp_path / "actions.resource"
+    resource.write_text(
+        "*** Keywords ***\n"
+        "Input Text\n"
+        "    [Arguments]    ${selector}    ${text}\n"
+        "    No Operation\n",
+        encoding="utf-8",
+    )
+    suite = """*** Settings ***
+Resource    actions.resource
+
+*** Test Cases ***
+Login
+    Input Text    locator=${email}    text=hi
+"""
+    bus = InMemoryEventBus()
+    context = WorkspaceContext(bus)
+    store = SqliteIndexStore(tmp_path / "index.db")
+    await store.initialize()
+    workspace = Workspace(
+        id=uuid4(),
+        name="WS",
+        path=tmp_path,
+        created_at=__import__("datetime").datetime.now(__import__("datetime").UTC),
+    )
+    await context.open(workspace)
+    # Stale index row (pre-rename) — on-disk [Arguments] is the source of truth.
+    await store.upsert_symbols(
+        [
+            {
+                "id": "kw-input-text",
+                "name": "Input Text",
+                "kind": "keyword",
+                "file_path": str(resource),
+                "line": 2,
+                "detail": "locator, text",
+                "workspace_id": workspace.id,
+            },
+        ],
+    )
+    service = RobotLanguageService(
+        store=store,
+        context=context,
+        parsing=_FakeBridge({}),  # type: ignore[arg-type]
+    )
+    diagnostics: list[dict] = []
+    await service._append_semantic_diagnostics(suite, str(tmp_path / "login.robot"), diagnostics)
+    codes = {item.get("code") for item in diagnostics if item.get("code")}
+    assert "unknown_argument" in codes
+    assert "missing_argument" in codes
+    assert any("locator" in str(item["message"]) for item in diagnostics)
+    assert any("selector" in str(item["message"]) for item in diagnostics)

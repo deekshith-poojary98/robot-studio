@@ -6,6 +6,7 @@ import re
 
 from robot_studio.domain.models.keyword_metadata import (
     KeywordMetadata,
+    KeywordSourceType,
     ParameterMetadata,
     bare_parameter_name,
     python_style_parameter_label,
@@ -299,3 +300,42 @@ def parameters_from_detail_string(detail: str) -> tuple[ParameterMetadata, ...]:
             ),
         )
     return tuple(params)
+
+
+def keyword_metadata_from_index_row(
+    definition: dict,
+    *,
+    fallback_name: str = "",
+) -> KeywordMetadata | None:
+    """Build keyword metadata from an index / find_definition row."""
+    name = str(definition.get("name") or fallback_name or "").strip()
+    if not name:
+        return None
+    detail = str(definition.get("detail") or "")
+    raw_params = definition.get("parameters")
+    if isinstance(raw_params, list) and raw_params:
+        params = tuple(
+            ParameterMetadata.from_transport(item)
+            for item in raw_params
+            if isinstance(item, dict)
+        )
+    else:
+        params = parameters_from_detail_string(detail)
+    path = str(definition.get("file_path") or definition.get("source_path") or "")
+    source_type = (
+        KeywordSourceType.RESOURCE if path.endswith(".resource") else KeywordSourceType.USER
+    )
+    line = definition.get("line")
+    if line is None:
+        line = definition.get("source_line")
+    return KeywordMetadata(
+        name=name,
+        qualified_name=name,
+        source_type=source_type,
+        library_name="",
+        documentation=str(definition.get("documentation") or ""),
+        parameters=params,
+        source_path=path,
+        source_line=int(line) if line is not None else None,
+        detail=detail,
+    )

@@ -10,13 +10,9 @@ from robot_studio.domain.interfaces.signature_help import (
     SignatureHelpProvider,
     SignatureHelpRequestContext,
 )
-from robot_studio.domain.models.keyword_metadata import (
-    KeywordMetadata,
-    KeywordSourceType,
-    ParameterMetadata,
-)
+from robot_studio.domain.models.keyword_metadata import KeywordMetadata
 from robot_studio.infrastructure.language.keyword_helpers import (
-    parameters_from_detail_string,
+    keyword_metadata_from_index_row,
     strip_keyword_qualifier,
 )
 from robot_studio.infrastructure.language.library_catalog import LibraryCatalogService
@@ -72,28 +68,4 @@ class IndexSignatureHelpProvider(SignatureHelpProvider):
             definition = await self.find_definition(ctx.keyword, kind=SymbolKind.KEYWORD)
         if not definition:
             return None
-        detail = str(definition.get("detail") or "")
-        params = parameters_from_detail_string(detail)
-        raw_params = definition.get("parameters")
-        if isinstance(raw_params, list) and raw_params:
-            params = tuple(
-                ParameterMetadata.from_transport(item)
-                for item in raw_params
-                if isinstance(item, dict)
-            )
-        path = str(definition.get("file_path") or "")
-        source_type = KeywordSourceType.USER
-        if path.endswith(".resource"):
-            source_type = KeywordSourceType.RESOURCE
-        line = definition.get("line")
-        return KeywordMetadata(
-            name=str(definition.get("name") or bare),
-            qualified_name=str(definition.get("name") or bare),
-            source_type=source_type,
-            library_name="",
-            documentation=str(definition.get("documentation") or ""),
-            parameters=params,
-            source_path=path,
-            source_line=int(line) if line is not None else None,
-            detail=detail,
-        )
+        return keyword_metadata_from_index_row(definition, fallback_name=bare)
