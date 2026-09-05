@@ -48,14 +48,41 @@ class AppPopupMenuItem<T> extends PopupMenuItem<T> {
   }
 }
 
-class AppCheckedPopupMenuItem<T> extends CheckedPopupMenuItem<T> {
-  const AppCheckedPopupMenuItem({
+/// Compact checked row for project / environment / run-config menus.
+///
+/// Material [CheckedPopupMenuItem] builds a [ListTile], which keeps a 48px+
+/// tap target and ignores [kAppMenuItemHeight].
+class AppCheckedPopupMenuItem<T> extends AppPopupMenuItem<T> {
+  AppCheckedPopupMenuItem({
     super.key,
     super.value,
-    required super.checked,
-    required super.child,
+    required bool checked,
+    required Widget child,
     super.enabled = true,
-  }) : super(height: kAppMenuItemHeight, padding: kAppMenuItemPadding);
+  }) : super(
+         child: _CheckedMenuRow(checked: checked, child: child),
+       );
+}
+
+class _CheckedMenuRow extends StatelessWidget {
+  const _CheckedMenuRow({required this.checked, required this.child});
+
+  final bool checked;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 16,
+          child: checked ? const Icon(Icons.check, size: 14) : null,
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(child: child),
+      ],
+    );
+  }
 }
 
 /// Visible hairline between menu groups (not empty vertical padding).
