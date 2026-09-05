@@ -106,14 +106,18 @@ final Mode langRobot = Mode(
     // Indented library / user keyword *calls* (BuiltIn + others).
     // Indent/separator classes are `[ \t]`, never `\s`: `\s` matches newlines,
     // so a whitespace-only line would swallow the next column-0 keyword name.
+    // Embedded-argument names (`Fill ${e_type} email`) are one cell; `${x}=`
+    // / `${x}    Keyword` stay assignments, not the start of a call.
     Mode(
       className: 'built_in',
       begin:
-          r'^[ \t]{2,}(?!\[|#|[\$@&%])'
+          r'^[ \t]{2,}(?!\[|#)'
+          r'(?![\$@&%]\{[^{}\n]+\}(?:=|[ \t]{2,}|\t))'
           r'(?!IF\b|ELSE IF\b|ELSE\b|END\b|FOR\b|WHILE\b|BREAK\b|CONTINUE\b|'
           r'RETURN\b|TRY\b|EXCEPT\b|FINALLY\b|GROUP\b|VAR\b|'
           r'IN RANGE\b|IN ENUMERATE\b|IN ZIP\b|IN\b|WITH NAME\b|AS\b|AND\b)'
-          r'[A-Za-z_][\w]*(?: [A-Za-z_][\w]*)*'
+          r'(?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\})'
+          r'(?: (?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\}))*'
           r'(?=[ \t]{2,}|\t|[ \t]*$)',
       relevance: 0,
     ),
@@ -121,6 +125,7 @@ final Mode langRobot = Mode(
     // Keyword after one or more assignment cells, e.g.
     //   ${x}=    Keyword
     //   ${a}    ${b}=    Get All Posts
+    //   ${status}    Fill ${e_type} email
     Mode(
       className: 'built_in',
       begin:
@@ -128,7 +133,8 @@ final Mode langRobot = Mode(
           r'(?!\[|#)'
           r'(?!IF\b|ELSE IF\b|ELSE\b|END\b|FOR\b|WHILE\b|BREAK\b|CONTINUE\b|'
           r'RETURN\b|TRY\b|EXCEPT\b|FINALLY\b|GROUP\b|VAR\b)'
-          r'[A-Za-z_][\w]*(?: [A-Za-z_][\w]*)*'
+          r'(?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\})'
+          r'(?: (?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\}))*'
           r'(?=[ \t]{2,}|\t|[ \t]*$)',
       relevance: 0,
     ),

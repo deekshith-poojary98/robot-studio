@@ -519,5 +519,43 @@ void main() {
       expect(html, contains('hljs-variable'));
       expect(html, contains('\${posts}'));
     });
+
+    test('embedded-argument keyword call is built_in', () {
+      final html = render(
+        '    Fill \${e_type} email and \${p_type} password\n',
+      );
+      expect(html, contains('hljs-built_in'), reason: html);
+      expect(
+        html.toLowerCase(),
+        contains('fill \${e_type} email and \${p_type} password'),
+        reason: html,
+      );
+    });
+
+    test('embedded-argument keyword after assignment is built_in', () {
+      final html = render(
+        '    \${status}    Fill \${e_type} email and \${p_type} password\n',
+      );
+      expect(html, contains('hljs-built_in'), reason: html);
+      expect(
+        html.toLowerCase(),
+        contains('fill \${e_type} email and \${p_type} password'),
+        reason: html,
+      );
+      expect(html, contains('hljs-variable'), reason: html);
+      expect(html, contains('\${status}'), reason: html);
+    });
+
+    test('embedded-argument call does not swallow the next cell', () {
+      final html = render(
+        '    Fill \${e_type} email and \${p_type} password    leftover\n',
+      );
+      expect(
+        html.toLowerCase(),
+        contains('hljs-built_in">    fill \${e_type} email and \${p_type} password<'),
+        reason: html,
+      );
+      expect(html.toLowerCase(), isNot(contains('leftover<')), reason: html);
+    });
   });
 }
