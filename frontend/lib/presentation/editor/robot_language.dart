@@ -11,11 +11,12 @@ import 'package:re_highlight/re_highlight.dart';
 /// - built_in: library keyword *calls* (Log, Create Dictionary, user libs)
 /// - variable: `${}` `@{}` `&{}` `%{}` (including embedded args in names)
 /// - title: test / user-keyword names (embedded `${}` stay variable)
-/// - comment / string / number / attr / continuation
+/// - comment / string / number / attr / tag / continuation
 ///
 /// Documentation lines (including Robot `...` continuations) are consumed as
 /// strings so words like `for` / `if` inside `[Documentation]` are not painted
 /// as control-flow keywords.
+/// Tag values under `[Tags]` / Force Tags get a dedicated amber colour.
 /// Control-flow tokens only match at a Robot cell boundary, so `reason=as for
 /// if` stays plain argument text.
 final Mode langRobot = Mode(
@@ -73,8 +74,38 @@ final Mode langRobot = Mode(
       relevance: 10,
     ),
 
-    // Local settings that do not take a keyword name.
-    Mode(className: 'meta', begin: r'\[(Tags|Timeout|Arguments|Return)\]'),
+    // Local settings that do not take a keyword name (Tags handled below).
+    Mode(className: 'meta', begin: r'\[(Timeout|Arguments|Return)\]'),
+
+    // [Tags] plus `...` continuations — each tag cell gets its own colour.
+    Mode(
+      begin: r'\[Tags\]',
+      end: r'(?=\n(?![ \t]*\.\.\.))',
+      returnBegin: true,
+      contains: <Mode>[
+        Mode(className: 'meta', begin: r'\[Tags\]', relevance: 10),
+        Mode(className: 'meta', begin: r'^[ \t]*\.\.\.', relevance: 5),
+        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
+        Mode(
+          className: 'keyword',
+          begin: r'(?<=[ \t]{2,}|\t)(?:AND|OR|NOT)\b',
+          relevance: 8,
+        ),
+        Mode(
+          className: 'tag',
+          begin:
+              r'(?<=[ \t]{2,}|\t)'
+              r'(?!AND\b|OR\b|NOT\b)'
+              r'(?=[^\s#])',
+          end: r'(?=[ \t]{2,}|\t|[ \t]*$)',
+          contains: <Mode>[
+            Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
+          ],
+          relevance: 0,
+        ),
+      ],
+      relevance: 10,
+    ),
 
     // [Setup] / [Teardown] / [Template] — setting chrome, then the keyword cell.
     Mode(
@@ -122,13 +153,46 @@ final Mode langRobot = Mode(
       relevance: 0,
     ),
 
-    // Suite / import settings at column 0 (Documentation + Setup/Teardown above)
+    // Force/Default/Test/Keyword Tags — setting name + coloured tag cells.
+    Mode(
+      begin: r'^(?:Force Tags|Default Tags|Test Tags|Keyword Tags)\b',
+      end: r'(?=\n(?![ \t]*\.\.\.))',
+      returnBegin: true,
+      contains: <Mode>[
+        Mode(
+          className: 'keyword',
+          begin: r'^(?:Force Tags|Default Tags|Test Tags|Keyword Tags)\b',
+          relevance: 10,
+        ),
+        Mode(className: 'meta', begin: r'^[ \t]*\.\.\.', relevance: 5),
+        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
+        Mode(
+          className: 'keyword',
+          begin: r'(?<=[ \t]{2,}|\t)(?:AND|OR|NOT)\b',
+          relevance: 8,
+        ),
+        Mode(
+          className: 'tag',
+          begin:
+              r'(?<=[ \t]{2,}|\t)'
+              r'(?!AND\b|OR\b|NOT\b)'
+              r'(?=[^\s#])',
+          end: r'(?=[ \t]{2,}|\t|[ \t]*$)',
+          contains: <Mode>[
+            Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
+          ],
+          relevance: 0,
+        ),
+      ],
+      relevance: 10,
+    ),
+
+    // Suite / import settings at column 0 (Documentation + Setup/Teardown/Tags above)
     Mode(
       className: 'keyword',
       begin:
           r'^(Library|Resource|Variables|Metadata|Name|'
-          r'Test Timeout|Test Tags|Force Tags|Default Tags|'
-          r'Keyword Tags|Task Timeout)\b',
+          r'Test Timeout|Task Timeout)\b',
     ),
 
     // Control-flow DSL as its own Robot cell (after indent or 2+ spaces / tab).
@@ -285,6 +349,8 @@ final Map<String, TextStyle> robotStudioHighlightThemeDark = {
   'template-variable': const TextStyle(color: Color(0xFF9CDCFE)),
   // user= — yellow
   'attr': const TextStyle(color: Color(0xFFDCDCAA)),
+  // smoke / regression — amber (distinct from titles and strings)
+  'tag': const TextStyle(color: Color(0xFFD7BA7D)),
   'string': const TextStyle(color: Color(0xFFCE9178)),
   'number': const TextStyle(color: Color(0xFFB5CEA8)),
   'params': const TextStyle(color: Color(0xFFD4D4D4)),
@@ -324,6 +390,8 @@ final Map<String, TextStyle> robotStudioHighlightThemeLight = {
   'variable': const TextStyle(color: Color(0xFF001080)),
   'template-variable': const TextStyle(color: Color(0xFF001080)),
   'attr': const TextStyle(color: Color(0xFF795E26)),
+  // smoke / regression — amber
+  'tag': const TextStyle(color: Color(0xFF9A6700)),
   'string': const TextStyle(color: Color(0xFFA31515)),
   'number': const TextStyle(color: Color(0xFF098658)),
   'params': const TextStyle(color: Color(0xFF1F1F1F)),

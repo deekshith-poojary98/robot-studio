@@ -655,6 +655,40 @@ void main() {
         reason: html,
       );
     });
+
+    test('colours tag values under [Tags] distinctly', () {
+      final html = highlight
+          .highlight(
+            code:
+                '    [Tags]    smoke    regression    api\n'
+                '    ...    positive\n'
+                '    Log    hi\n',
+            language: 'robot',
+          )
+          .toHtml();
+      expect(html, contains('hljs-meta'), reason: html);
+      expect(html, contains('hljs-tag'), reason: html);
+      expect(html, contains('smoke'), reason: html);
+      expect(html, contains('regression'), reason: html);
+      expect(html, contains('positive'), reason: html);
+      expect(html.toLowerCase(), contains('hljs-built_in'), reason: html);
+    });
+
+    test('colours Force Tags values and keeps AND as keyword', () {
+      final html = highlight
+          .highlight(
+            code:
+                '*** Settings ***\n'
+                'Force Tags    smoke    AND    regression\n'
+                'Library    Collections\n',
+            language: 'robot',
+          )
+          .toHtml();
+      expect(html, contains('hljs-keyword">Force Tags'), reason: html);
+      expect(html, contains('hljs-tag'), reason: html);
+      expect(html.toLowerCase(), contains('>and<'), reason: html);
+      expect(html, contains('hljs-keyword">Library'), reason: html);
+    });
   });
 
   group('Keyword name highlighting', () {
