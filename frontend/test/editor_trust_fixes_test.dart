@@ -454,6 +454,68 @@ void main() {
       expect(html.contains('hljs-meta'), isTrue);
     });
 
+    test('highlights multiline [Documentation] continuation lines as string', () {
+      final html = highlight
+          .highlight(
+            code:
+                '    [Documentation]    Clear alone must restore the full list\n'
+                '    ...    Module: All Employees\n'
+                '    ...    Tags: positive, regression\n'
+                '    ...    Fails if Clear only unchecks options\n'
+                '    Click Element    locator=x\n',
+            language: 'robot',
+          )
+          .toHtml();
+      expect(html, contains('hljs-string'), reason: html);
+      expect(html, contains('Module: All Employees'), reason: html);
+      expect(html, contains('Tags: positive, regression'), reason: html);
+      // Continuation markers stay meta; doc prose is not keyword-painted.
+      expect(html, contains('hljs-meta'), reason: html);
+      expect(html.contains('hljs-keyword">if'), isFalse, reason: html);
+      // Next statement is not swallowed by the doc block.
+      expect(html.toLowerCase(), contains('hljs-built_in'), reason: html);
+      expect(html.toLowerCase(), contains('click element'), reason: html);
+    });
+
+    test('highlights suite Documentation continuations as string', () {
+      final html = highlight
+          .highlight(
+            code:
+                '*** Settings ***\n'
+                'Documentation    Suite overview for if users\n'
+                '...    More suite docs\n'
+                'Library    Collections\n',
+            language: 'robot',
+          )
+          .toHtml();
+      expect(html, contains('hljs-string'), reason: html);
+      expect(html, contains('More suite docs'), reason: html);
+      expect(html.contains('hljs-keyword">if'), isFalse, reason: html);
+      expect(html, contains('hljs-keyword">Library'), reason: html);
+    });
+
+    test('does not paint keyword-arg continuations as documentation', () {
+      final html = highlight
+          .highlight(
+            code:
+                '    Click Element    locator=x\n'
+                '    ...    timeout=5s\n',
+            language: 'robot',
+          )
+          .toHtml();
+      expect(html, contains('hljs-meta'), reason: html);
+      expect(html, contains('hljs-attr'), reason: html);
+      // Argument continuation text is not wrapped as a documentation string.
+      expect(
+        RegExp(
+          r'hljs-string[^>]*>[^<]*timeout',
+          caseSensitive: false,
+        ).hasMatch(html),
+        isFalse,
+        reason: html,
+      );
+    });
+
     test('still highlights IF in executable lines', () {
       final html = highlight
           .highlight(code: '    IF    \${ok}\n', language: 'robot')

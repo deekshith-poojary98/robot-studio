@@ -13,8 +13,9 @@ import 'package:re_highlight/re_highlight.dart';
 /// - title: test / user-keyword names (embedded `${}` stay variable)
 /// - comment / string / number / attr / continuation
 ///
-/// Documentation lines are consumed as strings so words like `for` / `if`
-/// inside `[Documentation]` are not painted as control-flow keywords.
+/// Documentation lines (including Robot `...` continuations) are consumed as
+/// strings so words like `for` / `if` inside `[Documentation]` are not painted
+/// as control-flow keywords.
 /// Control-flow tokens only match at a Robot cell boundary, so `reason=as for
 /// if` stays plain argument text.
 final Mode langRobot = Mode(
@@ -24,7 +25,41 @@ final Mode langRobot = Mode(
   contains: <Mode>[
     Mode(className: 'comment', begin: '#', end: r'$'),
 
-    // Continuation `...`
+    // ${x} @{x} &{x} %{x} — match early so keyword rules never swallow
+    // assignment cells like `${source}    Create Dictionary`.
+    Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}', relevance: 10),
+
+    // Local [Documentation] plus Robot `...` continuation lines. End before
+    // the next non-continuation line so IF/FOR inside docs stay string-scoped
+    // and argument continuations (Click … / ... timeout=) stay untouched.
+    Mode(
+      className: 'string',
+      begin: r'\[Documentation\]',
+      end: r'(?=\n(?![ \t]*\.\.\.))',
+      returnBegin: true,
+      contains: <Mode>[
+        Mode(className: 'meta', begin: r'\[Documentation\]', relevance: 10),
+        Mode(className: 'meta', begin: r'^[ \t]*\.\.\.', relevance: 5),
+        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
+      ],
+      relevance: 10,
+    ),
+
+    // Suite-level Documentation setting — same multiline rule.
+    Mode(
+      className: 'string',
+      begin: r'^Documentation\b',
+      end: r'(?=\n(?![ \t]*\.\.\.))',
+      returnBegin: true,
+      contains: <Mode>[
+        Mode(className: 'keyword', begin: r'^Documentation\b', relevance: 10),
+        Mode(className: 'meta', begin: r'^[ \t]*\.\.\.', relevance: 5),
+        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
+      ],
+      relevance: 10,
+    ),
+
+    // Continuation `...` for non-documentation cells (keyword args, etc.).
     Mode(className: 'meta', begin: r'^[ \t]*\.\.\.', relevance: 5),
 
     // *** Settings *** / legacy singular / Comments
@@ -35,37 +70,6 @@ final Mode langRobot = Mode(
           r'Settings?|Variables?|Test Cases?|Tasks?|Keywords?|Comments?'
           r')\s*\*{3}',
       end: r'$',
-      relevance: 10,
-    ),
-
-    // ${x} @{x} &{x} %{x} — match early so keyword rules never swallow
-    // assignment cells like `${source}    Create Dictionary`.
-    Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}', relevance: 10),
-
-    // Local [Documentation] … rest of line — exclusive mode so IF/FOR/IN
-    // inside doc text are not painted as control-flow keywords.
-    Mode(
-      className: 'string',
-      begin: r'\[Documentation\]',
-      end: r'$',
-      returnBegin: true,
-      contains: <Mode>[
-        Mode(className: 'meta', begin: r'\[Documentation\]', relevance: 10),
-        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
-      ],
-      relevance: 10,
-    ),
-
-    // Suite-level Documentation setting — same idea.
-    Mode(
-      className: 'string',
-      begin: r'^Documentation\b',
-      end: r'$',
-      returnBegin: true,
-      contains: <Mode>[
-        Mode(className: 'keyword', begin: r'^Documentation\b', relevance: 10),
-        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
-      ],
       relevance: 10,
     ),
 
