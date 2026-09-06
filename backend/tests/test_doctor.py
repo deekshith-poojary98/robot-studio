@@ -175,6 +175,91 @@ async def test_doctor_report_not_found(api_client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_doctor_imported_robot_resource_not_flagged_unused(api_client) -> None:
+    """``.robot`` resources (no tests) must not look unused when imported.
+
+    Binder used to overwrite RESOURCE bindings with FILE ids, so
+    find_unused_resources never saw the import targets.
+    """
+    client, _fresh, tmp_path = api_client
+    location = tmp_path / "homes"
+    location.mkdir(exist_ok=True)
+    ws = await client.post(
+        "/api/v1/workspaces",
+        json={"name": "WS", "location": str(location)},
+    )
+    assert ws.status_code in (200, 201), ws.text
+    project = await client.post("/api/v1/projects", json={"name": "Demo"})
+    assert project.status_code in (200, 201), project.text
+    project_path = Path(project.json()["path"])
+
+    page = project_path / "pages" / "login_page.robot"
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text(
+        textwrap.dedent(
+            """\
+            *** Keywords ***
+            Open Login
+                Log    open
+            """,
+        ),
+        encoding="utf-8",
+    )
+    workflow = project_path / "workflow" / "login_workflow.robot"
+    workflow.parent.mkdir(parents=True, exist_ok=True)
+    workflow.write_text(
+        textwrap.dedent(
+            """\
+            *** Settings ***
+            Resource    ../pages/login_page.robot
+
+            *** Keywords ***
+            Do Login
+                Open Login
+            """,
+        ),
+        encoding="utf-8",
+    )
+    suite = project_path / "tests" / "login_test.robot"
+    suite.parent.mkdir(parents=True, exist_ok=True)
+    suite.write_text(
+        textwrap.dedent(
+            """\
+            *** Settings ***
+            Resource    ../workflow/login_workflow.robot
+
+            *** Test Cases ***
+            Can Login
+                Do Login
+            """,
+        ),
+        encoding="utf-8",
+    )
+
+    rebuilt = await client.post("/api/v1/index/rebuild?wait=true")
+    assert rebuilt.status_code == 200, rebuilt.text
+    analysis = await client.post("/api/v1/analysis/rebuild")
+    assert analysis.status_code == 200, analysis.text
+
+    run = await client.post("/api/v1/doctor/run", json={"profile": "default"})
+    assert run.status_code == 200, run.text
+    unused_resources = [
+        f["message"]
+        for f in run.json()["findings"]
+        if f["inspection_id"] == "unused_resource"
+    ]
+    assert not any("login_page" in m for m in unused_resources), unused_resources
+    assert not any("login_workflow" in m for m in unused_resources), unused_resources
+
+    callers = await client.get(
+        "/api/v1/analysis/graph/keyword-callers",
+        params={"keyword": "Open Login"},
+    )
+    assert callers.status_code == 200, callers.text
+    assert callers.json()["items"], callers.json()
+
+
+@pytest.mark.asyncio
 async def test_doctor_rescan_drops_findings_for_deleted_file(api_client) -> None:
     client, _fresh, tmp_path = api_client
     await _seed_project(client, tmp_path)

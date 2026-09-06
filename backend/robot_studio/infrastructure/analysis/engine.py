@@ -286,14 +286,29 @@ class RobotAnalysisEngine(AnalysisEngine):
                 project_id=project_id,
                 kind=EntityKind.RESOURCE.value,
             )
+            files = await self.store.list_entities(
+                project_id=project_id,
+                kind=EntityKind.FILE.value,
+            )
             import_edges = await self.store.list_edges(
                 project_id=project_id,
                 edge_kind=EdgeKind.IMPORTS_RESOURCE.value,
             )
+            file_by_id = {f.id: f for f in files}
+            resource_id_by_path = {
+                str(res.file_path.resolve()): res.id for res in resources
+            }
             used: set[str] = set()
             for edge in import_edges:
-                if edge.target_id:
-                    used.add(edge.target_id)
+                if not edge.target_id:
+                    continue
+                used.add(edge.target_id)
+                # Legacy / fallback bindings may point at FILE; map to RESOURCE.
+                file_ent = file_by_id.get(edge.target_id)
+                if file_ent is not None:
+                    rid = resource_id_by_path.get(str(file_ent.file_path.resolve()))
+                    if rid:
+                        used.add(rid)
             return [_entity_ref(res) for res in resources if res.id not in used]
 
         return await self._cached_models(project_id, "unused_resources", build, EntityRef)

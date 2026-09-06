@@ -44,3 +44,28 @@ def test_document_symbols_indexes_all_variable_forms() -> None:
     assert by_name["${result}"] == "Assignment"
 
     assert len(variables) == 9
+
+
+def test_document_symbols_handles_if_elseif_orelse_chain() -> None:
+    """Robot stores ELSE IF/ELSE as linked ``If.orelse`` nodes, not a list."""
+    source = """*** Keywords ***
+Visibility Check
+    [Arguments]    ${toggle}=${NONE}
+    IF    '${toggle}'=='new'
+        ${x}=    Set Variable    new
+    ELSE IF    '${toggle}'=='confirm'
+        ${y}=    Set Variable    confirm
+    ELSE
+        ${z}=    Set Variable    none
+    END
+"""
+    symbols = document_symbols(source, "reset_flow.robot")
+    names = {item["name"] for item in symbols}
+    assert "Visibility Check" in names
+    variables = {
+        item["name"] for item in symbols if item.get("kind") == "variable"
+    }
+    assert "${toggle}" in variables
+    assert "${x}" in variables
+    assert "${y}" in variables
+    assert "${z}" in variables

@@ -269,6 +269,19 @@ def _variable_symbol(name: str, *, line: int, detail: str) -> dict[str, Any] | N
     }
 
 
+def _as_node_list(value: Any) -> list[Any]:
+    """Normalize Robot AST child attrs that may be a list or a single node.
+
+    ``If.orelse`` is a linked ``If`` node (ELSE IF / ELSE), not an iterable.
+    Treating it like a list raises ``TypeError: 'If' object is not iterable``.
+    """
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return [value]
+
+
 def _collect_body_variables(entries: Any) -> list[dict[str, Any]]:
     """User-declared variables outside ``*** Variables ***`` (VAR, assign, args, FOR)."""
     symbols: list[dict[str, Any]] = []
@@ -306,9 +319,10 @@ def _collect_body_variables(entries: Any) -> list[dict[str, Any]]:
             symbols.extend(_collect_body_variables(getattr(entry, "body", None)))
         elif item_type in {"If", "ElseIf"}:
             symbols.extend(_collect_body_variables(getattr(entry, "body", None)))
-            if item_type == "If":
-                for branch in getattr(entry, "orelse", None) or ():
-                    symbols.extend(_collect_body_variables([branch]))
+            # Linked ELSE IF / ELSE branch (single node, not a list).
+            symbols.extend(
+                _collect_body_variables(_as_node_list(getattr(entry, "orelse", None))),
+            )
         elif item_type == "Try":
             symbols.extend(_collect_body_variables(getattr(entry, "body", None)))
             for branch in getattr(entry, "except_branches", None) or ():
@@ -443,8 +457,7 @@ def _end_line(node: Any) -> int:
     # Fall back: deepest child end / self line.
     deepest = _line_number(node)
     for attr in ("body", "orelse", "except_branches", "finally_body", "try_body"):
-        children = getattr(node, attr, None) or ()
-        for child in children:
+        for child in _as_node_list(getattr(node, attr, None)):
             deepest = max(deepest, _end_line(child))
     return deepest
 
@@ -550,9 +563,11 @@ def _walk_body(entries: Any) -> list[dict[str, Any]]:
                 title = _node_name(entry) or "VAR"
             children = _walk_body(getattr(entry, "body", None))
             # If / Try nest branches as siblings under the control node.
+            # ``If.orelse`` is a linked If node (not a list).
             if item_type == "If":
-                for branch in getattr(entry, "orelse", None) or ():
-                    children.extend(_walk_body([branch]))
+                children.extend(
+                    _walk_body(_as_node_list(getattr(entry, "orelse", None))),
+                )
             if item_type == "Try":
                 for branch in getattr(entry, "except_branches", None) or ():
                     children.extend(_walk_body([branch]))

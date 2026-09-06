@@ -74,9 +74,16 @@ class SemanticBinder:
             resource_by_name[normalize_keyword_name(res.file_path.name)] = res
             resource_by_name[normalize_keyword_name(res.name)] = res
         for f in files:
-            # Suites, resources, and (when present) variable/library files.
-            resource_by_path[str(f.file_path.resolve())] = f
-            resource_by_name[normalize_keyword_name(f.file_path.name)] = f
+            # Prefer RESOURCE entities for Resource imports. FILE rows are only
+            # a fallback (e.g. variables .py/.yaml that have no RESOURCE entity).
+            # Overwriting RESOURCE with FILE made every imported .robot resource
+            # look unused to find_unused_resources().
+            path_key = str(f.file_path.resolve())
+            if path_key not in resource_by_path:
+                resource_by_path[path_key] = f
+            name_key = normalize_keyword_name(f.file_path.name)
+            if name_key not in resource_by_name:
+                resource_by_name[name_key] = f
 
         edges = await self._store.list_edges(project_id=project_id)
         updated = 0
