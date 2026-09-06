@@ -43,3 +43,22 @@ def strip_bdd_prefix(normalized_name: str, prefixes: set[str] | None = None) -> 
         if normalized_name.startswith(prefix) and len(normalized_name) > len(prefix):
             return normalized_name[len(prefix) :]
     return normalized_name
+
+
+def keyword_lookup_keys(raw_name: str, normalized: str | None = None) -> list[str]:
+    """Normalized name variants used when matching calls to keyword definitions."""
+    raw = raw_name or ""
+    norm = normalized if normalized is not None else normalize_keyword_name(raw)
+    keys = [
+        norm,
+        normalize_keyword_name(strip_library_prefix(raw)),
+        strip_bdd_prefix(norm),
+        strip_bdd_prefix(normalize_keyword_name(strip_library_prefix(raw))),
+    ]
+    seen: set[str] = set()
+    out: list[str] = []
+    for key in keys:
+        if key and key not in seen:
+            seen.add(key)
+            out.append(key)
+    return out

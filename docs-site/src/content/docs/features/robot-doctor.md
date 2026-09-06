@@ -36,4 +36,4 @@ Expand a finding to see:
 - **Affected files** — click a row to open it
 - **Open source** — jump to the primary location
 
-Unused findings are deliberately conservative. Shared libraries, dynamic keyword names (`Run Keyword If`, `Wait Until Keyword Succeeds`, keyword names passed as arguments), and reserved helpers can look unused to the static graph.
+Unused findings are deliberately conservative. Shared libraries and fully dynamic names (`Run Keyword    ${name}`) can still look unused. Common static patterns — `Run Keyword If`, `Wait Until Keyword Succeeds`, and arguments named like `${open_keyword}` — are counted as uses when the argument is a literal keyword name.

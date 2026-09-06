@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,67 @@ from robot_studio.infrastructure.analysis.normalize import (
     normalize_keyword_name,
     normalize_variable_name,
 )
+
+# Skip timeout/retry tokens commonly passed before an inner keyword name.
+_DURATION_LIKE = re.compile(
+    r"^\d+(\.\d+)?(ms|s|m|h|d|sec|secs|second|seconds|min|mins|minute|minutes)?$",
+    re.IGNORECASE,
+)
+
+
+def encode_call_context(args: tuple[str, ...] | list[str]) -> str:
+    """Serialize CALLS edge args for unused-keyword / keyword-as-arg analysis."""
+    if not args:
+        return "call"
+    return "call:" + json.dumps([str(a) for a in args], ensure_ascii=False)
+
+
+def decode_call_context(context: str) -> list[str]:
+    """Parse args stored by :func:`encode_call_context`."""
+    if not context or context == "call":
+        return []
+    if not context.startswith("call:"):
+        return []
+    try:
+        data = json.loads(context[5:])
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [str(item) for item in data]
+
+
+def parse_keyword_arg_names(detail: str) -> list[str]:
+    """Return normalized argument names from a Keyword entity ``detail`` field."""
+    if not detail or not detail.startswith("args:"):
+        return []
+    payload = detail[5:]
+    if not payload:
+        return []
+    return [part for part in payload.split(",") if part]
+
+
+def split_named_argument(arg: str) -> tuple[str | None, str]:
+    """Split ``name=value``; return ``(None, arg)`` when not a named argument."""
+    if "=" not in (arg or ""):
+        return None, arg or ""
+    name, value = arg.split("=", 1)
+    if not name.strip():
+        return None, arg
+    return name.strip(), value
+
+
+def looks_like_keyword_literal(arg_val: str) -> bool:
+    """True when *arg_val* might be a static keyword name (not a pure variable/timeout)."""
+    text = (arg_val or "").strip()
+    if not text:
+        return False
+    if _DURATION_LIKE.match(text):
+        return False
+    # Pure variable reference — dynamic dispatch, not a static keyword name.
+    if re.fullmatch(r"[$@&%]\{[^{}]+\}", text):
+        return False
+    return any(ch.isalpha() for ch in text)
 
 
 def stable_entity_id(kind: str, file_path: Path, name_normalized: str) -> str:
@@ -56,6 +119,22 @@ def _documentation(item: Any) -> str:
         if values:
             docs.append(" ".join(str(v) for v in values))
     return "\n".join(docs).strip()
+
+
+def _keyword_argument_names(node: Any) -> list[str]:
+    """Normalized ``[Arguments]`` names for keyword-as-arg unused detection."""
+    names: list[str] = []
+    for entry in getattr(node, "body", None) or []:
+        if type(entry).__name__ != "Arguments":
+            continue
+        for value in getattr(entry, "values", ()) or ():
+            raw = str(value).strip()
+            if not raw:
+                continue
+            if "=" in raw:
+                raw = raw.split("=", 1)[0].strip()
+            names.append(normalize_variable_name(raw))
+    return names
 
 
 def _variables_in_string(text: str) -> list[str]:
@@ -295,6 +374,7 @@ class _SemanticVisitor(ModelVisitor):
         line, col = _line_col(node)
         norm = normalize_keyword_name(name)
         kw_id = stable_entity_id(EntityKind.KEYWORD.value, self.path, norm)
+        arg_names = _keyword_argument_names(node)
         self.entities.append(
             SemanticEntity(
                 id=kw_id,
@@ -305,6 +385,7 @@ class _SemanticVisitor(ModelVisitor):
                 line=line,
                 column=col,
                 documentation=_documentation(node),
+                detail=("args:" + ",".join(arg_names)) if arg_names else "",
                 project_id=self.project_id,
                 workspace_id=self.workspace_id,
                 qualified_name=f"{self.path.as_posix()}::{name}",
@@ -471,6 +552,7 @@ class _SemanticVisitor(ModelVisitor):
             return
         line, col = _line_col(node)
         source_id = self._current_owner_id or self._suite_id or self._file_id
+        arg_tuple = tuple(str(a) for a in args)
         if count_as_call:
             self.edges.append(
                 SemanticEdge(
@@ -484,11 +566,28 @@ class _SemanticVisitor(ModelVisitor):
                     target_name_normalized=normalize_keyword_name(keyword),
                     confidence=BindingConfidence.LOW,
                     project_id=self.project_id,
-                    context="call",
+                    context=encode_call_context(arg_tuple),
                 ),
             )
-        for arg in args:
+            # Mirror robotframework-find-unused: when the outer name mentions
+            # "keyword", treat plausible arg literals as nested calls.
+            if "keyword" in normalize_keyword_name(keyword):
+                self._emit_keyword_arg_calls(arg_tuple, node)
+        for arg in arg_tuple:
             self._emit_variable_refs(arg, source_id, line, col)
+
+    def _emit_keyword_arg_calls(
+        self,
+        args: tuple[str, ...],
+        node: Any,
+    ) -> None:
+        """Emit CALLS for static keyword names passed as arguments."""
+        for index, arg in enumerate(args):
+            _arg_name, arg_val = split_named_argument(arg)
+            if not looks_like_keyword_literal(arg_val):
+                continue
+            remaining = args[index + 1 :]
+            self._emit_call(arg_val, remaining, node, count_as_call=True)
 
     def _emit_variable_refs(
         self,

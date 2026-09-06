@@ -28,11 +28,16 @@ from robot_studio.infrastructure.analysis.binder import (
     import_path_exists_on_disk,
 )
 from robot_studio.infrastructure.analysis.normalize import (
+    keyword_lookup_keys,
     normalize_keyword_name,
     normalize_variable_name,
 )
 from robot_studio.infrastructure.analysis.semantic_extractor import (
+    decode_call_context,
     extract_file_semantics,
+    looks_like_keyword_literal,
+    parse_keyword_arg_names,
+    split_named_argument,
 )
 from robot_studio.infrastructure.analysis.sqlite_analysis_store import (
     SqliteAnalysisStore,
@@ -272,10 +277,62 @@ class RobotAnalysisEngine(AnalysisEngine):
                 project_id=project_id,
                 edge_kind=EdgeKind.CALLS.value,
             )
+            kw_by_norm: dict[str, list[SemanticEntity]] = defaultdict(list)
+            arg_names_by_id: dict[str, list[str]] = {}
+            for kw in keywords:
+                kw_by_norm[kw.name_normalized].append(kw)
+                arg_names_by_id[kw.id] = parse_keyword_arg_names(kw.detail)
+
             used: set[str] = set()
+
+            def mark_by_name(raw_name: str, normalized: str | None = None) -> None:
+                for key in keyword_lookup_keys(raw_name, normalized):
+                    for match in kw_by_norm.get(key, []):
+                        used.add(match.id)
+
+            def resolve_arg_names(edge) -> list[str]:
+                if edge.target_id and edge.target_id in arg_names_by_id:
+                    return arg_names_by_id[edge.target_id]
+                # Unbound call — use a unique definition's Arguments when unambiguous.
+                for key in keyword_lookup_keys(
+                    edge.target_name,
+                    edge.target_name_normalized or None,
+                ):
+                    matches = kw_by_norm.get(key, [])
+                    if len(matches) == 1:
+                        return arg_names_by_id.get(matches[0].id, [])
+                return []
+
             for edge in call_edges:
                 if edge.target_id:
                     used.add(edge.target_id)
+                if edge.target_name:
+                    mark_by_name(edge.target_name, edge.target_name_normalized or None)
+
+                args = decode_call_context(edge.context)
+                if not args:
+                    continue
+                outer_norm = (
+                    edge.target_name_normalized
+                    or normalize_keyword_name(edge.target_name)
+                )
+                outer_has_keyword = "keyword" in outer_norm
+                positional_arg_names = resolve_arg_names(edge)
+
+                for index, arg in enumerate(args):
+                    arg_name, arg_val = split_named_argument(arg)
+                    if not looks_like_keyword_literal(arg_val):
+                        continue
+                    # Same heuristic as robotframework-find-unused:
+                    # count when outer name or the formal/named arg mentions "keyword".
+                    if not outer_has_keyword:
+                        formal = arg_name
+                        if formal is None and index < len(positional_arg_names):
+                            formal = positional_arg_names[index]
+                        if formal is None or "keyword" not in formal.casefold():
+                            continue
+                    mark_by_name(arg_val)
+
             return [_entity_ref(kw) for kw in keywords if kw.id not in used]
 
         return await self._cached_models(project_id, "unused_keywords", build, EntityRef)

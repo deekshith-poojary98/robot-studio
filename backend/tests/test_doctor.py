@@ -260,6 +260,79 @@ async def test_doctor_imported_robot_resource_not_flagged_unused(api_client) -> 
 
 
 @pytest.mark.asyncio
+async def test_doctor_counts_keyword_passed_as_argument(api_client) -> None:
+    """Match robotframework-find-unused: literal keyword args count as uses."""
+    client, _fresh, tmp_path = api_client
+    location = tmp_path / "homes"
+    location.mkdir(exist_ok=True)
+    ws = await client.post(
+        "/api/v1/workspaces",
+        json={"name": "WS", "location": str(location)},
+    )
+    assert ws.status_code in (200, 201), ws.text
+    project = await client.post("/api/v1/projects", json={"name": "KWArgs"})
+    assert project.status_code in (200, 201), project.text
+    project_path = Path(project.json()["path"])
+
+    resource = project_path / "keywords.resource"
+    resource.write_text(
+        textwrap.dedent(
+            """\
+            *** Keywords ***
+            Holiday Should Not Be Visible
+                [Arguments]    ${name}
+                No Operation
+
+            Open Date Of Birth Picker
+                No Operation
+
+            Orphan Helper
+                No Operation
+
+            Pick Calendar Date
+                [Arguments]    ${open_keyword}    ${year}    ${day_fragment}
+                Run Keyword    ${open_keyword}
+
+            Drive Tests
+                Wait Until Keyword Succeeds    5s    200ms    Holiday Should Not Be Visible    x
+                Pick Calendar Date    Open Date Of Birth Picker    2000    1
+            """,
+        ),
+        encoding="utf-8",
+    )
+    suite = project_path / "suite.robot"
+    suite.write_text(
+        textwrap.dedent(
+            """\
+            *** Settings ***
+            Resource    keywords.resource
+
+            *** Test Cases ***
+            Smoke
+                Drive Tests
+            """,
+        ),
+        encoding="utf-8",
+    )
+
+    rebuilt = await client.post("/api/v1/index/rebuild?wait=true")
+    assert rebuilt.status_code == 200, rebuilt.text
+    analysis = await client.post("/api/v1/analysis/rebuild")
+    assert analysis.status_code == 200, analysis.text
+
+    run = await client.post("/api/v1/doctor/run", json={"profile": "default"})
+    assert run.status_code == 200, run.text
+    unused_msgs = [
+        f["message"]
+        for f in run.json()["findings"]
+        if f["inspection_id"] == "unused_keyword"
+    ]
+    assert not any("Holiday Should Not Be Visible" in m for m in unused_msgs), unused_msgs
+    assert not any("Open Date Of Birth Picker" in m for m in unused_msgs), unused_msgs
+    assert any("Orphan Helper" in m for m in unused_msgs), unused_msgs
+
+
+@pytest.mark.asyncio
 async def test_doctor_rescan_drops_findings_for_deleted_file(api_client) -> None:
     client, _fresh, tmp_path = api_client
     await _seed_project(client, tmp_path)

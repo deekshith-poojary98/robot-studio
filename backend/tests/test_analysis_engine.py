@@ -11,11 +11,16 @@ from robot_studio.api.routes.health import get_gateway
 from robot_studio.core.config import settings
 from robot_studio.core.container import Container
 from robot_studio.infrastructure.analysis.normalize import (
+    keyword_lookup_keys,
     normalize_keyword_name,
     normalize_variable_name,
 )
 from robot_studio.infrastructure.analysis.semantic_extractor import (
+    decode_call_context,
+    encode_call_context,
     extract_file_semantics,
+    looks_like_keyword_literal,
+    parse_keyword_arg_names,
 )
 from robot_studio.main import create_app
 
@@ -25,6 +30,48 @@ def test_normalize_keyword_and_variable() -> None:
     assert normalize_keyword_name("Hello_World") == "helloworld"
     assert normalize_variable_name("${BASE_URL}") == "baseurl"
     assert normalize_variable_name("${obj.attr}") == "obj"
+    assert "helloworld" in keyword_lookup_keys("Lib.Hello World")
+    assert encode_call_context(("a", "b")).startswith("call:")
+    assert decode_call_context(encode_call_context(("a", "b"))) == ["a", "b"]
+    assert parse_keyword_arg_names("args:open_keyword,year") == ["open_keyword", "year"]
+    assert looks_like_keyword_literal("Holiday Should Not Be Visible")
+    assert not looks_like_keyword_literal("5s")
+    assert not looks_like_keyword_literal("${open_keyword}")
+
+
+def test_extract_emits_nested_calls_for_keyword_dispatch(tmp_path: Path) -> None:
+    suite = tmp_path / "suite.robot"
+    suite.write_text(
+        "*** Keywords ***\n"
+        "Inner Keyword\n"
+        "    No Operation\n"
+        "\n"
+        "Outer\n"
+        "    Wait Until Keyword Succeeds    5s    200ms    Inner Keyword\n",
+        encoding="utf-8",
+    )
+    facts = extract_file_semantics(suite)
+    call_names = {
+        e.target_name
+        for e in facts.edges
+        if e.edge_kind.value == "calls"
+    }
+    assert "Wait Until Keyword Succeeds" in call_names
+    assert "Inner Keyword" in call_names
+    kw = next(e for e in facts.entities if e.name == "Outer")
+    # Outer has no [Arguments]
+    assert kw.detail == ""
+    picker = tmp_path / "picker.robot"
+    picker.write_text(
+        "*** Keywords ***\n"
+        "Pick Calendar Date\n"
+        "    [Arguments]    ${open_keyword}    ${year}\n"
+        "    Run Keyword    ${open_keyword}\n",
+        encoding="utf-8",
+    )
+    picker_facts = extract_file_semantics(picker)
+    pick = next(e for e in picker_facts.entities if e.name == "Pick Calendar Date")
+    assert pick.detail == "args:openkeyword,year"
 
 
 def test_extract_file_semantics_calls_and_imports(tmp_path: Path) -> None:
