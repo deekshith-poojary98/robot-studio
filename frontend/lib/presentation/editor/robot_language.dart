@@ -73,20 +73,62 @@ final Mode langRobot = Mode(
       relevance: 10,
     ),
 
-    // Other local settings: [Tags] / [Setup] / …
+    // Local settings that do not take a keyword name.
+    Mode(className: 'meta', begin: r'\[(Tags|Timeout|Arguments|Return)\]'),
+
+    // [Setup] / [Teardown] / [Template] — setting chrome, then the keyword cell.
     Mode(
       className: 'meta',
-      begin: r'\[(Tags|Setup|Teardown|Timeout|Arguments|Template|Return)\]',
+      begin: r'\[(?:Setup|Teardown|Template)\]',
+      relevance: 10,
+    ),
+    Mode(
+      className: 'built_in',
+      begin:
+          r'(?<=\[(?:Setup|Teardown|Template)\](?:[ \t]{2,}|\t))'
+          r'(?!NONE\b)'
+          r'(?=(?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\})'
+          r'(?: (?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\}))*'
+          r'(?:[ \t]{2,}|\t|[ \t]*$))',
+      end: r'(?=[ \t]{2,}|\t|[ \t]*$)',
+      contains: <Mode>[
+        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
+      ],
+      relevance: 0,
     ),
 
-    // Suite / import settings at column 0 (Documentation handled above)
+    // Suite / test / task Setup|Teardown|Template — keyword in the next cell.
+    Mode(
+      className: 'keyword',
+      begin:
+          r'^(?:Suite Setup|Suite Teardown|Test Setup|Test Teardown|'
+          r'Test Template|Task Setup|Task Teardown|Task Template)\b',
+      relevance: 10,
+    ),
+    Mode(
+      className: 'built_in',
+      begin:
+          r'(?<=^(?:Suite Setup|Suite Teardown|Test Setup|Test Teardown|'
+          r'Test Template|Task Setup|Task Teardown|Task Template)'
+          r'(?:[ \t]{2,}|\t))'
+          r'(?!NONE\b)'
+          r'(?=(?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\})'
+          r'(?: (?:[A-Za-z_][\w]*|[\$@&%]\{[^{}\n]+\}))*'
+          r'(?:[ \t]{2,}|\t|[ \t]*$))',
+      end: r'(?=[ \t]{2,}|\t|[ \t]*$)',
+      contains: <Mode>[
+        Mode(className: 'variable', begin: r'[\$@&%]\{[^{}\n]+\}'),
+      ],
+      relevance: 0,
+    ),
+
+    // Suite / import settings at column 0 (Documentation + Setup/Teardown above)
     Mode(
       className: 'keyword',
       begin:
           r'^(Library|Resource|Variables|Metadata|Name|'
-          r'Suite Setup|Suite Teardown|Test Setup|Test Teardown|'
-          r'Test Timeout|Test Template|Test Tags|Force Tags|Default Tags|'
-          r'Keyword Tags|Task Setup|Task Teardown|Task Template|Task Timeout)\b',
+          r'Test Timeout|Test Tags|Force Tags|Default Tags|'
+          r'Keyword Tags|Task Timeout)\b',
     ),
 
     // Control-flow DSL as its own Robot cell (after indent or 2+ spaces / tab).

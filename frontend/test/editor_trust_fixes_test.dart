@@ -587,6 +587,74 @@ void main() {
       expect(lower, contains('>in range<'));
       expect(lower, contains('>as<'));
     });
+
+    test('highlights keyword after [Setup] and [Teardown]', () {
+      final html = highlight
+          .highlight(
+            code:
+                '    [Setup]    Open Browser    url=\${URL}\n'
+                '    [Teardown]    Close All Browsers\n'
+                '    [Template]    Login With User\n',
+            language: 'robot',
+          )
+          .toHtml();
+      final lower = html.toLowerCase();
+      expect(html, contains('hljs-meta'), reason: html);
+      expect(lower, contains('hljs-built_in'), reason: html);
+      expect(lower, contains('open browser'), reason: html);
+      expect(lower, contains('close all browsers'), reason: html);
+      expect(lower, contains('login with user'), reason: html);
+      expect(html, contains('hljs-attr'), reason: html);
+      // Arguments after the keyword stay out of built_in.
+      expect(
+        RegExp(
+          r'hljs-built_in[^>]*>[^<]*url',
+          caseSensitive: false,
+        ).hasMatch(html),
+        isFalse,
+        reason: html,
+      );
+    });
+
+    test('highlights keyword after Suite Setup / Test Teardown', () {
+      final html = highlight
+          .highlight(
+            code:
+                '*** Settings ***\n'
+                'Suite Setup    Run Keywords    Log    hi\n'
+                'Test Teardown    Close Browser\n'
+                'Library    Collections\n',
+            language: 'robot',
+          )
+          .toHtml();
+      final lower = html.toLowerCase();
+      expect(html, contains('hljs-keyword">Suite Setup'), reason: html);
+      expect(html, contains('hljs-keyword">Test Teardown'), reason: html);
+      expect(lower, contains('hljs-built_in'), reason: html);
+      expect(lower, contains('run keywords'), reason: html);
+      expect(lower, contains('close browser'), reason: html);
+      // Nested arg "Log" is not the Setup keyword cell.
+      expect(
+        RegExp(
+          r'hljs-built_in[^>]*>[^<]*\blog\b',
+          caseSensitive: false,
+        ).hasMatch(html),
+        isFalse,
+        reason: html,
+      );
+    });
+
+    test('does not paint NONE after [Teardown] as a keyword call', () {
+      final html = highlight
+          .highlight(code: '    [Teardown]    NONE\n', language: 'robot')
+          .toHtml();
+      expect(html, contains('hljs-meta'), reason: html);
+      expect(
+        html.toLowerCase().contains('hljs-built_in'),
+        isFalse,
+        reason: html,
+      );
+    });
   });
 
   group('Keyword name highlighting', () {
