@@ -19,6 +19,7 @@ from robot_studio.application.services.execution_plan import (
     ExecutionPlanError,
     plan_to_robot_args,
     resolve_variable_files,
+    validate_extra_robot_args,
 )
 from robot_studio.application.services.run_configuration_service import (
     RunConfigurationService,
@@ -253,6 +254,8 @@ class ExecutionService:
                 project.path,
                 list(config.variable_files) if config else [],
             )
+            extra_robot_args = list(config.extra_robot_args) if config else []
+            validate_extra_robot_args(extra_robot_args)
             return ExecutionPlan(
                 suite=suite,
                 environment=environment,
@@ -260,7 +263,7 @@ class ExecutionService:
                 exclude_tags=list(config.exclude_tags) if config else [],
                 variables=list(config.variables) if config else [],
                 variable_files=variable_files,
-                extra_robot_args=list(config.extra_robot_args) if config else [],
+                extra_robot_args=extra_robot_args,
                 target_robot_args=list(target_robot_args or []),
                 configuration_id=config.id if config else None,
                 configuration_name=config.name if config else None,
@@ -299,6 +302,13 @@ class ExecutionService:
                 code="robot_missing",
             )
 
+    @staticmethod
+    def _robot_args_for_plan(plan: ExecutionPlan) -> list[str]:
+        try:
+            return plan_to_robot_args(plan)
+        except ExecutionPlanError as exc:
+            raise ExecutionValidationError(str(exc), code=exc.code) from exc
+
     async def run_file(
         self,
         file_path: str | None = None,
@@ -324,7 +334,7 @@ class ExecutionService:
             python_executable=plan.environment.python_executable,
             suite=str(expanded.data_source),
             workspace_path=workspace.path,
-            robot_args=plan_to_robot_args(plan),
+            robot_args=self._robot_args_for_plan(plan),
             run_label=suite,
             configuration_id=plan.configuration_id,
             configuration_name=plan.configuration_name,
@@ -354,7 +364,7 @@ class ExecutionService:
             python_executable=plan.environment.python_executable,
             suite=str(project.path),
             workspace_path=workspace.path,
-            robot_args=plan_to_robot_args(plan),
+            robot_args=self._robot_args_for_plan(plan),
             run_label=label,
             configuration_id=plan.configuration_id,
             configuration_name=plan.configuration_name,
@@ -394,7 +404,7 @@ class ExecutionService:
             python_executable=plan.environment.python_executable,
             suite=str(expanded.data_source),
             workspace_path=workspace.path,
-            robot_args=plan_to_robot_args(plan),
+            robot_args=self._robot_args_for_plan(plan),
             run_label=run_label,
             configuration_id=plan.configuration_id,
             configuration_name=plan.configuration_name,

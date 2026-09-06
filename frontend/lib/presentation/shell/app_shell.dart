@@ -1745,6 +1745,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<void> _handleExecutionError(Object error) async {
     if (!mounted) return;
+    // prepareNewRun() marks Running before the start HTTP call; if that call
+    // fails, clear optimistic UI so toolbar / Now Running do not stick.
+    setState(() {
+      _execution.cancelPreparedRun();
+    });
     if (_isRobotMissingError(error)) {
       await showGuidanceDialog(
         context: context,

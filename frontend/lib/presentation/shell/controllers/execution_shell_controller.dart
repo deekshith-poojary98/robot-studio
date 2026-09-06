@@ -545,6 +545,19 @@ class ExecutionShellController {
     executionStatus = ExecutionStatus.running;
   }
 
+  /// Undo [prepareNewRun] when start HTTP fails before a run id is assigned.
+  ///
+  /// Without this, the toolbar stays on Running / STOP after dismissing the
+  /// execution error dialog even though nothing is running on the backend.
+  void cancelPreparedRun() {
+    if (currentExecution != null) return;
+    if (!executionStatus.isActive) return;
+    executionStatus = ExecutionStatus.idle;
+    _clearLiveProgress();
+    stopElapsedTimer();
+    notifyView();
+  }
+
   Future<void> loadFailedTests(String runId) async {
     await _loadFailedTestsFor(
       runId,

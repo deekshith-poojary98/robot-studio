@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/transport_gateway.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/error_dialog.dart';
+import '../widgets/status_badge.dart';
 import 'run_configuration_edit_dialog.dart';
 
 Future<void> showManageRunConfigurationsDialog(
@@ -142,10 +143,12 @@ class _ManageRunConfigurationsDialogState
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
+            style: _textActionStyle,
             child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
+            style: _filledActionStyle,
             child: const Text('Delete'),
           ),
         ],
@@ -179,6 +182,15 @@ class _ManageRunConfigurationsDialogState
     }
   }
 
+  String? _environmentLabel(RunConfigurationInfo item) {
+    final id = item.environmentId;
+    if (id == null || id.isEmpty) return null;
+    for (final env in widget.environments) {
+      if (env.id == id) return env.name;
+    }
+    return 'Pinned env';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -186,10 +198,7 @@ class _ManageRunConfigurationsDialogState
       titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
       contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-      title: Text(
-        'Manage Run Configurations',
-        style: theme.textTheme.titleLarge,
-      ),
+      title: Text('Run Configurations', style: theme.textTheme.titleLarge),
       content: SizedBox(
         width: AppDialogWidth.wide,
         height: 360,
@@ -197,70 +206,56 @@ class _ManageRunConfigurationsDialogState
             ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
             : _bundle.configurations.isEmpty
             ? Center(
-                child: Text(
-                  'No run configurations yet.\nCreate one to pin tags, variables, '
-                  'or an environment for a run.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: context.palette.textSecondary,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xl,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.playlist_add_check_rounded,
+                        size: 28,
+                        color: context.palette.textMuted,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'No run configurations yet',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        'Create one to pin tags, variables, or an environment '
+                        'for the next run.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: context.palette.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               )
             : ListView.separated(
                 itemCount: _bundle.configurations.length,
                 separatorBuilder: (_, _) =>
-                    Divider(height: 1, color: context.palette.borderSubtle),
+                    const SizedBox(height: AppSpacing.sm),
                 itemBuilder: (context, index) {
                   final item = _bundle.configurations[index];
                   final active = item.id == _bundle.activeId;
                   final busy = _busyId == item.id;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item.name, style: theme.textTheme.bodyMedium),
-                        const SizedBox(height: 2),
-                        Text(
-                          _subtitle(item, active: active),
-                          style: theme.textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 4,
-                          children: [
-                            TextButton(
-                              onPressed: busy
-                                  ? null
-                                  : () => unawaited(_use(item)),
-                              child: Text(active ? 'Selected' : 'Use'),
-                            ),
-                            TextButton(
-                              key: Key('run-config.duplicate.${item.id}'),
-                              onPressed: busy
-                                  ? null
-                                  : () => unawaited(_duplicate(item)),
-                              child: const Text('Duplicate'),
-                            ),
-                            TextButton(
-                              onPressed: busy
-                                  ? null
-                                  : () => unawaited(_edit(item)),
-                              child: const Text('Edit'),
-                            ),
-                            TextButton(
-                              onPressed: busy
-                                  ? null
-                                  : () => unawaited(_delete(item)),
-                              style: TextButton.styleFrom(
-                                foregroundColor: context.palette.error,
-                              ),
-                              child: const Text('Delete'),
-                            ),
-                          ],
-                        ),
-                      ],
+                  return _ConfigurationRow(
+                    item: item,
+                    active: active,
+                    busy: busy,
+                    subtitle: _subtitle(
+                      item,
+                      environmentLabel: _environmentLabel(item),
                     ),
+                    onUse: () => unawaited(_use(item)),
+                    onDuplicate: () => unawaited(_duplicate(item)),
+                    onEdit: () => unawaited(_edit(item)),
+                    onDelete: () => unawaited(_delete(item)),
                   );
                 },
               ),
@@ -268,36 +263,183 @@ class _ManageRunConfigurationsDialogState
       actions: [
         TextButton(
           onPressed: () => unawaited(_create()),
-          style: TextButton.styleFrom(
-            textStyle: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          style: _textActionStyle,
           child: const Text('New Configuration…'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(76, 36),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            textStyle: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          style: _filledActionStyle,
           child: const Text('Done'),
         ),
       ],
     );
   }
 
-  String _subtitle(RunConfigurationInfo item, {required bool active}) {
+  String _subtitle(
+    RunConfigurationInfo item, {
+    required String? environmentLabel,
+  }) {
     final bits = <String>[
-      if (active) 'Selected',
-      if (item.includeTags.isNotEmpty) 'include ${item.includeTags.join(', ')}',
-      if (item.excludeTags.isNotEmpty) 'exclude ${item.excludeTags.join(', ')}',
+      ?environmentLabel,
+      if (item.includeTags.isNotEmpty) '+${item.includeTags.join(', ')}',
+      if (item.excludeTags.isNotEmpty) '−${item.excludeTags.join(', ')}',
+      if (item.variables.isNotEmpty)
+        '${item.variables.length} '
+            '${item.variables.length == 1 ? 'variable' : 'variables'}',
+      if (item.variableFiles.isNotEmpty)
+        '${item.variableFiles.length} '
+            '${item.variableFiles.length == 1 ? 'var file' : 'var files'}',
+      if (item.extraRobotArgs.isNotEmpty) 'advanced args',
     ];
-    return bits.isEmpty ? 'No filters' : bits.join(' · ');
+    return bits.isEmpty ? 'Default · no filters' : bits.join(' · ');
+  }
+
+  static final _textActionStyle = TextButton.styleFrom(
+    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+  );
+
+  static final _filledActionStyle = FilledButton.styleFrom(
+    minimumSize: const Size(76, 36),
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+  );
+}
+
+class _ConfigurationRow extends StatefulWidget {
+  const _ConfigurationRow({
+    required this.item,
+    required this.active,
+    required this.busy,
+    required this.subtitle,
+    required this.onUse,
+    required this.onDuplicate,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final RunConfigurationInfo item;
+  final bool active;
+  final bool busy;
+  final String subtitle;
+  final VoidCallback onUse;
+  final VoidCallback onDuplicate;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  State<_ConfigurationRow> createState() => _ConfigurationRowState();
+}
+
+class _ConfigurationRowState extends State<_ConfigurationRow> {
+  bool _hovered = false;
+
+  static final _actionStyle = TextButton.styleFrom(
+    minimumSize: const Size(0, 28),
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    visualDensity: VisualDensity.compact,
+    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final active = widget.active;
+    final busy = widget.busy;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.sm,
+          AppSpacing.sm,
+          AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: active
+              ? palette.accentSoft
+              : _hovered
+              ? palette.surfaceHover
+              : palette.surfaceElevated,
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          border: Border.all(
+            color: active
+                ? palette.accent.withValues(alpha: 0.45)
+                : palette.border,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          widget.item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (active) ...[
+                        const SizedBox(width: AppSpacing.sm),
+                        StatusBadge(
+                          label: 'Selected',
+                          filled: true,
+                          dotColor: palette.accent,
+                          height: 20,
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    widget.subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: palette.textMuted, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            if (!active)
+              TextButton(
+                onPressed: busy ? null : widget.onUse,
+                style: _actionStyle,
+                child: const Text('Use'),
+              ),
+            TextButton(
+              key: Key('run-config.duplicate.${widget.item.id}'),
+              onPressed: busy ? null : widget.onDuplicate,
+              style: _actionStyle,
+              child: const Text('Duplicate'),
+            ),
+            TextButton(
+              onPressed: busy ? null : widget.onEdit,
+              style: _actionStyle,
+              child: const Text('Edit'),
+            ),
+            TextButton(
+              onPressed: busy ? null : widget.onDelete,
+              style: _actionStyle.copyWith(
+                foregroundColor: WidgetStatePropertyAll(palette.error),
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -156,7 +156,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Manage Run Configurations'), findsOneWidget);
+    expect(find.text('Run Configurations'), findsOneWidget);
     expect(find.text('Duplicate'), findsOneWidget);
     await tester.tap(find.text('Duplicate'));
     await tester.pumpAndSettle();

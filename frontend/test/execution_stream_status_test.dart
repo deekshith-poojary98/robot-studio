@@ -370,4 +370,46 @@ void main() {
     expect(controller.liveSuite, isEmpty);
     expect(controller.liveTest, isEmpty);
   });
+
+  test(
+    'cancelPreparedRun clears optimistic Running when start never assigned a run',
+    () {
+      controller.prepareNewRun();
+      controller.liveSuite = 'suite.robot';
+      expect(controller.executionStatus, ExecutionStatus.running);
+      expect(controller.currentExecution, isNull);
+
+      controller.cancelPreparedRun();
+
+      expect(controller.executionStatus, ExecutionStatus.idle);
+      expect(controller.liveSuite, isEmpty);
+    },
+  );
+
+  test('cancelPreparedRun leaves an assigned run alone', () {
+    controller.currentExecution = ExecutionInfo(
+      id: 'run-1',
+      workspaceId: 'ws',
+      projectId: 'proj',
+      environmentId: 'env',
+      projectName: 'Amazon',
+      suite: 'suite.robot',
+      status: ExecutionStatus.running,
+      startedAt: DateTime.utc(2026, 1, 1),
+      finishedAt: null,
+      durationMs: null,
+      exitCode: null,
+      command: 'robot',
+      outputDir: null,
+      outputXml: null,
+      logHtml: null,
+      reportHtml: null,
+    );
+    controller.executionStatus = ExecutionStatus.running;
+
+    controller.cancelPreparedRun();
+
+    expect(controller.executionStatus, ExecutionStatus.running);
+    expect(controller.currentExecution?.id, 'run-1');
+  });
 }
