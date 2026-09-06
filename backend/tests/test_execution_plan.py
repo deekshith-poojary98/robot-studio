@@ -78,19 +78,44 @@ def test_plan_merges_config_then_target_args() -> None:
     [
         ["--outputdir", "/tmp"],
         ["-d", "/tmp"],
-        ["--listener", "x.py"],
-        ["--listener=x.py"],
         ["--outputdir=/tmp"],
         ["--output", "x.xml"],
         ["--log", "x.html"],
         ["--report", "x.html"],
         ["suite.robot"],
+        ["--listener helper.qase_listener.QaseListener"],
     ],
 )
 def test_validate_rejects_studio_owned_args(args: list[str]) -> None:
     with pytest.raises(ExecutionPlanError) as exc:
         validate_extra_robot_args(args)
     assert exc.value.code == "invalid_robot_args"
+
+
+def test_validate_allows_extra_listeners() -> None:
+    """Studio prepends its progress listener; projects may add more."""
+    validate_extra_robot_args(
+        ["--listener", "helper.qase_listener.QaseListener"],
+    )
+    validate_extra_robot_args(["--listener=helper.qase_listener.QaseListener"])
+    args = config_to_robot_args(
+        include_tags=[],
+        exclude_tags=[],
+        variables=[],
+        variable_files=[],
+        extra_robot_args=[
+            "--listener",
+            "helper.qase_listener.QaseListener",
+            "--pythonpath",
+            ".",
+        ],
+    )
+    assert args == [
+        "--listener",
+        "helper.qase_listener.QaseListener",
+        "--pythonpath",
+        ".",
+    ]
 
 
 def test_variable_file_must_exist_inside_project(tmp_path: Path) -> None:

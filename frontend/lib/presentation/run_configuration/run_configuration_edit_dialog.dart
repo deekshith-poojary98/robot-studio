@@ -333,7 +333,8 @@ class _RunConfigurationEditDialogState
                     style: theme.textTheme.titleMedium,
                   ),
                   subtitle: Text(
-                    'Escape hatch. One argv token per row — not a shell command.',
+                    'One argv token per row. Example: --listener then helper.qase_listener.QaseListener. '
+                    'Studio keeps its progress listener; --outputdir / --log / --report are blocked.',
                     style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
                   ),
                   children: [

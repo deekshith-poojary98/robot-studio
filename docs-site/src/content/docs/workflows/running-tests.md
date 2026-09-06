@@ -36,7 +36,13 @@ From the selector: **New Configuration…** or **Manage Configurations…** (dia
 
 Configurations are stored with the project at `.robotstudio/run-configurations.json` (same Studio metadata folder as environments and reports).
 
-Advanced Robot arguments are an escape hatch: one argv token per row, not a shell command. Studio-owned options such as `--outputdir` and `--listener` are rejected.
+Advanced Robot arguments are an escape hatch: **one argv token per row**, not a shell command.
+
+| Allowed | Blocked (Studio-owned) |
+|---------|------------------------|
+| `--listener` + class/module (two rows), `--pythonpath`, `--loglevel`, … | `--outputdir`, `--output`, `--log`, `--report` (and short forms) |
+
+Studio always attaches its own progress listener first. Your `--listener` rows run in addition. Put the flag and value on **separate** rows — a single cell like `--listener helper.Foo` is rejected.
 
 Logs stream into **Live Output** while a run is in progress (Robot is started with unbuffered stdout so lines are not held until the process exits). The **Now Running** panel on the right shows the live call stack — suite, test, and current keyword — plus elapsed time while the run is active. After the run ends, it keeps the last location until the next start.
 

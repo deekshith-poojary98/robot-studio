@@ -13,6 +13,8 @@ from robot_studio.domain.models import Environment
 from robot_studio.domain.models.run_configuration import RunVariable
 
 #: Flags owned by SubprocessRunner — extra args must not override these.
+#: ``--listener`` is allowed so projects can add their own listeners; Studio
+#: always prepends its progress listener first (see SubprocessRunner.start).
 STUDIO_OWNED_FLAGS = frozenset(
     {
         "--outputdir",
@@ -23,7 +25,6 @@ STUDIO_OWNED_FLAGS = frozenset(
         "-l",
         "--report",
         "-r",
-        "--listener",
     },
 )
 
@@ -71,6 +72,15 @@ def validate_extra_robot_args(args: list[str]) -> None:
         if not tok:
             raise ExecutionPlanError(
                 "Advanced Robot arguments cannot include empty tokens.",
+                code="invalid_robot_args",
+            )
+        # One argv token per row — ``--listener pkg.Class`` as a single cell
+        # becomes one unknown Robot option (spaces included).
+        if tok.startswith("-") and " " in tok and "=" not in tok.split(" ", 1)[0]:
+            flag_guess = tok.split(" ", 1)[0]
+            raise ExecutionPlanError(
+                f"Put '{flag_guess}' and its value on separate rows "
+                "(one argv token per row), not in a single cell.",
                 code="invalid_robot_args",
             )
         flag = tok.split("=", 1)[0]
