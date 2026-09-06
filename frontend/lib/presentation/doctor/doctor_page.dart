@@ -35,11 +35,58 @@ class DoctorPageState extends State<DoctorPage> {
   String? _categoryFilter;
   _SortMode _sort = _SortMode.priority;
   String? _expandedFindingId;
+  final Map<String, GlobalKey> _findingKeys = {};
 
   @override
   void initState() {
     super.initState();
     unawaited(_bootstrap());
+  }
+
+  GlobalKey _keyForFinding(String id) =>
+      _findingKeys.putIfAbsent(id, GlobalKey.new);
+
+  /// Expands a finding from Fix first and scrolls it into view.
+  void selectRecommendation(String findingId) {
+    final report = _report;
+    final known =
+        report?.findings.any((finding) => finding.id == findingId) ?? false;
+    if (!known) return;
+
+    setState(() {
+      // Reveal the finding if search/filters currently hide it.
+      if (!_visibleFindings.any((finding) => finding.id == findingId)) {
+        _search = '';
+        _severityFilter = null;
+        _categoryFilter = null;
+      }
+      _expandedFindingId = findingId;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollToFinding(findingId);
+    });
+  }
+
+  void _scrollToFinding(String findingId, {int attempt = 0}) {
+    final target = _findingKeys[findingId]?.currentContext;
+    if (target != null) {
+      unawaited(
+        Scrollable.ensureVisible(
+          target,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          alignment: 0.08,
+        ),
+      );
+      return;
+    }
+    // Category may not be mounted yet on the first frame after expand.
+    if (attempt >= 8) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollToFinding(findingId, attempt: attempt + 1);
+    });
   }
 
   Future<void> _bootstrap() async {
@@ -91,6 +138,7 @@ class DoctorPageState extends State<DoctorPage> {
       if (!mounted) return;
       setState(() {
         _report = report;
+        _findingKeys.clear();
         _running = false;
         _loading = false;
         _expandedFindingId = null;
@@ -206,7 +254,7 @@ class DoctorPageState extends State<DoctorPage> {
               ),
               child: _RecommendationsStrip(
                 recommendations: _report!.topRecommendations,
-                onSelect: (id) => setState(() => _expandedFindingId = id),
+                onSelect: selectRecommendation,
               ),
             ),
           Padding(
@@ -257,6 +305,7 @@ class DoctorPageState extends State<DoctorPage> {
                 : _FindingsList(
                     grouped: _groupedVisible,
                     expandedId: _expandedFindingId,
+                    findingKeyFor: _keyForFinding,
                     onToggle: (id) => setState(() {
                       _expandedFindingId = _expandedFindingId == id ? null : id;
                     }),
@@ -434,6 +483,7 @@ class _RecommendationsStrip extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.xs),
             child: InkWell(
+              key: Key('doctor-fix-first-${r.findingId}'),
               onTap: () => onSelect(r.findingId),
               borderRadius: BorderRadius.circular(AppRadii.sm),
               child: Container(
@@ -622,12 +672,14 @@ class _FindingsList extends StatelessWidget {
   const _FindingsList({
     required this.grouped,
     required this.expandedId,
+    required this.findingKeyFor,
     required this.onToggle,
     this.onJump,
   });
 
   final Map<String, List<DoctorFinding>> grouped;
   final String? expandedId;
+  final GlobalKey Function(String id) findingKeyFor;
   final ValueChanged<String> onToggle;
   final DoctorJumpToSource? onJump;
 
@@ -635,48 +687,53 @@ class _FindingsList extends StatelessWidget {
   Widget build(BuildContext context) {
     final keys = grouped.keys.toList()
       ..sort((a, b) => _categoryRank(a).compareTo(_categoryRank(b)));
-    return ListView.builder(
+    // Eager layout so Fix-first scroll targets exist even when off-screen.
+    // ListView/SliverChildListDelegate still builds children lazily by viewport.
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.xl,
         AppSpacing.md,
         AppSpacing.xl,
         AppSpacing.xl,
       ),
-      itemCount: keys.length,
-      itemBuilder: (context, index) {
-        final category = keys[index];
-        final findings = grouped[category]!;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${_categoryLabel(category)} (${findings.length})',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              if (_categoryHint(category) != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  _categoryHint(category)!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: context.palette.textMuted,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final category in keys)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${_categoryLabel(category)} (${grouped[category]!.length})',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                ),
-              ],
-              const SizedBox(height: AppSpacing.sm),
-              ...findings.map(
-                (f) => _FindingTile(
-                  finding: f,
-                  expanded: expandedId == f.id,
-                  onToggle: () => onToggle(f.id),
-                  onJump: onJump,
-                ),
+                  if (_categoryHint(category) != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      _categoryHint(category)!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.palette.textMuted,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.sm),
+                  for (final f in grouped[category]!)
+                    KeyedSubtree(
+                      key: findingKeyFor(f.id),
+                      child: _FindingTile(
+                        finding: f,
+                        expanded: expandedId == f.id,
+                        onToggle: () => onToggle(f.id),
+                        onJump: onJump,
+                      ),
+                    ),
+                ],
               ),
-            ],
-          ),
-        );
-      },
+            ),
+        ],
+      ),
     );
   }
 }

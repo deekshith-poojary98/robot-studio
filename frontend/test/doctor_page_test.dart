@@ -156,6 +156,72 @@ class _DoctorGatewayWithTrend extends _DoctorGateway {
   }
 }
 
+class _DoctorGatewayScrollTarget extends _DoctorGateway {
+  @override
+  Future<DoctorReport> runDoctor({
+    String profile = 'default',
+    String? projectId,
+    List<String>? providerIds,
+  }) async {
+    final circular = List.generate(
+      8,
+      (i) => DoctorFinding(
+        id: 'dep-$i',
+        inspectionId: 'circular_dependency',
+        severity: 'error',
+        message: 'Circular Resource import filler $i',
+        confidence: 'high',
+        category: 'dependencies',
+        rationale: 'Cycle filler $i',
+        filePath: 'resources/filler_$i.resource',
+        line: i + 1,
+      ),
+    );
+    const unused = DoctorFinding(
+      id: 'unused-cleanup',
+      inspectionId: 'unused_keyword',
+      severity: 'info',
+      message: 'Potentially unused keyword: Cleanup',
+      confidence: 'medium',
+      category: 'maintainability',
+      rationale:
+          'No static callers found for Cleanup — confirm before deleting.',
+      filePath: 'resources/helpers.resource',
+      line: 40,
+    );
+    final findings = [...circular, unused];
+    return DoctorReport(
+      id: 'r-scroll',
+      projectId: 'p1',
+      profile: profile,
+      createdAt: DateTime.utc(2026, 8, 3),
+      graphVersion: 'scroll',
+      summary: DoctorHealthSummary(
+        totalFindings: findings.length,
+        bySeverity: {'error': circular.length, 'info': 1},
+        byCategory: {'dependencies': circular.length, 'maintainability': 1},
+        criticalIssues: circular.length,
+      ),
+      findings: findings,
+      grouped: [
+        DoctorCategoryGroup(category: 'dependencies', findings: circular),
+        const DoctorCategoryGroup(
+          category: 'maintainability',
+          findings: [unused],
+        ),
+      ],
+      topRecommendations: const [
+        DoctorRecommendation(
+          rank: 1,
+          findingId: 'unused-cleanup',
+          reason: 'Confirm and remove if truly unused.',
+          finding: unused,
+        ),
+      ],
+    );
+  }
+}
+
 void main() {
   testWidgets('Doctor page shows structural finding details', (tester) async {
     String? jumped;
@@ -211,6 +277,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(jumped, 'resources/login.resource');
     expect(jumpedLine, 12);
+  });
+
+  testWidgets('Fix first expands and scrolls to the matching finding', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 520));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: DoctorPage(gateway: _DoctorGatewayScrollTarget())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Fix first'), findsOneWidget);
+    expect(find.text('Why this matters'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('doctor-fix-first-unused-cleanup')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Why this matters'), findsOneWidget);
+    expect(
+      find.textContaining('No static callers found for Cleanup'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Potentially unused (1)'), findsOneWidget);
   });
 
   testWidgets('Doctor summary uses plain-language trend', (tester) async {

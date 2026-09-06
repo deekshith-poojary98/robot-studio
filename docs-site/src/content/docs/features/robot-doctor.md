@@ -27,6 +27,8 @@ Open it from the activity bar (**Doctor**), **View → Robot Doctor**, `⌘⇧D`
 
 ## Finding details
 
+Use **Fix first** to jump to the highest-priority items — click a row to expand that finding in the list below (and scroll to it).
+
 Expand a finding to see:
 
 - **Why this matters** — plain-language explanation
