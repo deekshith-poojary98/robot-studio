@@ -42,6 +42,12 @@ class _TerminalPanelState extends State<TerminalPanel> {
     return Platform.isMacOS || Platform.isLinux || Platform.isWindows;
   }
 
+  // Packaged Windows runners can fail to attach xterm's text-input/IME client
+  // ("view ID is null"), while the focused hardware-keyboard path remains
+  // reliable. Keep the IME-capable path on macOS/Linux for composed input.
+  static bool get _usesHardwareKeyboardOnly =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
   static bool get _canStartShell =>
       _isDesktop && !Platform.environment.containsKey('FLUTTER_TEST');
 
@@ -280,7 +286,7 @@ class _TerminalPanelState extends State<TerminalPanel> {
               controller: _controller,
               focusNode: _focusNode,
               autofocus: widget.isVisible,
-              hardwareKeyboardOnly: true,
+              hardwareKeyboardOnly: _usesHardwareKeyboardOnly,
               backgroundOpacity: 1,
               theme: _studioTheme(context.palette),
               textStyle: const TerminalStyle(fontSize: 12, fontFamily: 'Menlo'),

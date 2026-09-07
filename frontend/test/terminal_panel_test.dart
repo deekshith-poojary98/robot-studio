@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,36 +46,69 @@ void main() {
     expect(find.byType(TerminalPanel), findsOneWidget);
   });
 
-  testWidgets('uses the focused desktop hardware keyboard path', (
+  testWidgets('Windows uses the focused hardware keyboard path', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(900, 700));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final previousPlatform = debugDefaultTargetPlatformOverride;
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    try {
+      await tester.binding.setSurfaceSize(const Size(900, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildAppTheme(),
-        home: const Scaffold(
-          body: SizedBox(
-            height: 240,
-            child: TerminalPanel(workingDirectory: 'C:\\project'),
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: const Scaffold(
+            body: SizedBox(
+              height: 240,
+              child: TerminalPanel(workingDirectory: 'C:\\project'),
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    final view = tester.widget<TerminalView>(find.byType(TerminalView));
-    expect(view.hardwareKeyboardOnly, isTrue);
-    expect(view.autofocus, isTrue);
-    expect(view.focusNode, isNotNull);
-    expect(view.focusNode!.hasFocus, isTrue);
+      final view = tester.widget<TerminalView>(find.byType(TerminalView));
+      expect(view.hardwareKeyboardOnly, isTrue);
+      expect(view.autofocus, isTrue);
+      expect(view.focusNode, isNotNull);
+      expect(view.focusNode!.hasFocus, isTrue);
 
-    final output = <String>[];
-    view.terminal.onOutput = output.add;
-    await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+      final output = <String>[];
+      view.terminal.onOutput = output.add;
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
 
-    expect(output.join(), 'a');
+      expect(output.join(), 'a');
+    } finally {
+      debugDefaultTargetPlatformOverride = previousPlatform;
+    }
+  });
+
+  testWidgets('macOS keeps the IME-capable text input path', (tester) async {
+    final previousPlatform = debugDefaultTargetPlatformOverride;
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      await tester.binding.setSurfaceSize(const Size(900, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: const Scaffold(
+            body: SizedBox(
+              height: 240,
+              child: TerminalPanel(workingDirectory: '/project'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final view = tester.widget<TerminalView>(find.byType(TerminalView));
+      expect(view.hardwareKeyboardOnly, isFalse);
+    } finally {
+      debugDefaultTargetPlatformOverride = previousPlatform;
+    }
   });
 
   testWidgets('clicking the terminal restores keyboard focus', (tester) async {
