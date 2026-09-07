@@ -35,7 +35,7 @@ class _TerminalPanelState extends State<TerminalPanel> {
   StreamSubscription<List<int>>? _outputSub;
   String? _startedIn;
   String? _error;
-  bool _sawOutput = false;
+  int _ptyGeneration = 0;
 
   static bool get _isDesktop {
     if (kIsWeb) return false;
@@ -93,6 +93,10 @@ class _TerminalPanelState extends State<TerminalPanel> {
   }
 
   void _tearDownPty() {
+    // Invalidate output/exit callbacks before killing the process. On Windows,
+    // ConPTY reports an intentional kill as 0xFFFFFFFF after a short delay;
+    // that stale callback must not be presented as a startup failure.
+    _ptyGeneration++;
     _outputSub?.cancel();
     _outputSub = null;
     try {
@@ -100,7 +104,6 @@ class _TerminalPanelState extends State<TerminalPanel> {
     } catch (_) {}
     _pty = null;
     _startedIn = null;
-    _sawOutput = false;
   }
 
   Future<void> _restartShell() async {
@@ -131,15 +134,20 @@ class _TerminalPanelState extends State<TerminalPanel> {
       );
       _pty = pty;
       _startedIn = cwd;
+      final generation = _ptyGeneration;
+      var sawOutput = false;
       _outputSub = pty.output.listen((data) {
-        _sawOutput = true;
+        if (generation != _ptyGeneration || !identical(_pty, pty)) return;
+        sawOutput = true;
         _terminal.write(utf8.decode(data, allowMalformed: true));
       });
       pty.exitCode.then((code) {
-        if (!mounted) return;
+        if (!mounted || generation != _ptyGeneration || !identical(_pty, pty)) {
+          return;
+        }
         _terminal.write('\r\n[process exited with code $code]\r\n');
         // A shell that dies before printing anything never really started.
-        if (!_sawOutput && code != 0) {
+        if (!sawOutput && code != 0) {
           _terminal.write(
             'Could not start $_shellExecutable in $cwd.\r\n'
             'Check that the shell exists and the folder is readable.\r\n',

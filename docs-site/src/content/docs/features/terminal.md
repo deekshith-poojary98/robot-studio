@@ -6,7 +6,8 @@ description: Use the built-in project-rooted terminal for shell work beside your
 The bottom panel includes a **PTY terminal** rooted at the project folder (desktop builds only).
 
 - Starts a login shell in the project directory
-- Restart or kill from the tab chrome
+- Restart or kill from the tab chrome. **Kill** ends the current shell; choose
+  **Restart** before entering more commands.
 - Toggle with `⌘\`` / `Ctrl+\`` (**Terminal → Toggle Terminal**)
 - Handy for one-off `robot`, `pip`, or script commands when you want the raw shell
 - Opening the Terminal tab focuses the prompt. After using another control or
