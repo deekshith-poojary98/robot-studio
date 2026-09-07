@@ -98,6 +98,12 @@ class BackendHost {
         AppLogger.debug(line, tag: 'Backend');
       }
     });
+    // Uvicorn access logs use stdout. Process.start pipes stdout even when the
+    // child is a windowed PyInstaller executable; if nobody consumes that
+    // pipe, it fills and blocks the backend event loop in logging.flush().
+    // Backend access logs are already persisted by the sidecar, so discard
+    // this copy while keeping the pipe drained.
+    process.stdout.listen((_) {}, onError: (_) {});
 
     writePidFile(process.pid);
 
