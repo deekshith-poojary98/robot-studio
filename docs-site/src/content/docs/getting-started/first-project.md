@@ -7,7 +7,8 @@ Robot Studio is project-first. Environments, packages, runs, and Git all scope t
 
 ## Create a new project
 
-1. On the welcome screen, choose **New Project** (or use the File menu).
+1. On the welcome screen, choose **New Project**. On Windows, the in-window
+   File / Edit menu bar appears after a project is open.
 2. Pick a folder location and name.
 3. Robot Studio seeds empty `tests/`, `resources/`, and `variables/` folders plus a sensible `.gitignore`.
 4. Studio metadata lives in `.robotstudio/` inside the project (ignored by the seeded gitignore).
