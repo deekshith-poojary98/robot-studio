@@ -116,10 +116,12 @@ class RobotStudioMenuBar extends StatelessWidget {
     super.key,
     required this.actions,
     required this.child,
+    this.showInWindowMenu = true,
   });
 
   final AppMenuBarActions actions;
   final Widget child;
+  final bool showInWindowMenu;
 
   static bool get isMac =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
@@ -136,6 +138,9 @@ class RobotStudioMenuBar extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isMac) {
       return PlatformMenuBar(menus: _platformMenus(actions), child: child);
+    }
+    if (!showInWindowMenu) {
+      return child;
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

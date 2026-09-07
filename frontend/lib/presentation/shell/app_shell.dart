@@ -5831,6 +5831,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     // Theme lives on MaterialApp (see main.dart) so this State's own context —
     // and every dialog route — resolves the active palette.
     return RobotStudioMenuBar(
+      showInWindowMenu:
+          !Platform.isWindows || _centerView != _CenterView.welcome,
       actions: AppMenuBarActions(
         hasActiveFile: _activeEditorPath != null,
         hasOpenTabs: _editorTabs.isNotEmpty,
