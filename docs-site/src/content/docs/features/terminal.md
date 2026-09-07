@@ -9,6 +9,8 @@ The bottom panel includes a **PTY terminal** rooted at the project folder (deskt
 - Restart or kill from the tab chrome
 - Toggle with `⌘\`` / `Ctrl+\`` (**Terminal → Toggle Terminal**)
 - Handy for one-off `robot`, `pip`, or script commands when you want the raw shell
+- Opening the Terminal tab focuses the prompt. After using another control or
+  menu, click inside the terminal to return keyboard input to the shell.
 
 Open a project first — without one, the tab asks you to open a project before starting a shell.
 

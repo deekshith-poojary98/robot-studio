@@ -13,9 +13,14 @@ import '../widgets/empty_state.dart';
 
 /// Interactive shell in the bottom panel (workspace cwd when a project is open).
 class TerminalPanel extends StatefulWidget {
-  const TerminalPanel({super.key, this.workingDirectory});
+  const TerminalPanel({
+    super.key,
+    this.workingDirectory,
+    this.isVisible = true,
+  });
 
   final String? workingDirectory;
+  final bool isVisible;
 
   @override
   State<TerminalPanel> createState() => _TerminalPanelState();
@@ -24,6 +29,7 @@ class TerminalPanel extends StatefulWidget {
 class _TerminalPanelState extends State<TerminalPanel> {
   final Terminal _terminal = Terminal(maxLines: 10000);
   final TerminalController _controller = TerminalController();
+  final FocusNode _focusNode = FocusNode(debugLabel: 'terminal-input');
 
   Pty? _pty;
   StreamSubscription<List<int>>? _outputSub;
@@ -31,17 +37,21 @@ class _TerminalPanelState extends State<TerminalPanel> {
   String? _error;
   bool _sawOutput = false;
 
-  static bool get _canStartShell {
+  static bool get _isDesktop {
     if (kIsWeb) return false;
-    if (Platform.environment.containsKey('FLUTTER_TEST')) return false;
     return Platform.isMacOS || Platform.isLinux || Platform.isWindows;
   }
+
+  static bool get _canStartShell =>
+      _isDesktop && !Platform.environment.containsKey('FLUTTER_TEST');
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _ensureShell();
+      if (!mounted) return;
+      _ensureShell();
+      _requestTerminalFocus();
     });
   }
 
@@ -51,12 +61,29 @@ class _TerminalPanelState extends State<TerminalPanel> {
     if (widget.workingDirectory != oldWidget.workingDirectory) {
       _restartShell();
     }
+    if (widget.isVisible && !oldWidget.isVisible) {
+      _requestTerminalFocus();
+    } else if (!widget.isVisible &&
+        oldWidget.isVisible &&
+        _focusNode.hasFocus) {
+      _focusNode.unfocus();
+    }
   }
 
   @override
   void dispose() {
     _tearDownPty();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  void _requestTerminalFocus() {
+    if (!widget.isVisible) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.isVisible && _focusNode.canRequestFocus) {
+        _focusNode.requestFocus();
+      }
+    });
   }
 
   void _tearDownPty() {
@@ -76,6 +103,7 @@ class _TerminalPanelState extends State<TerminalPanel> {
     _terminal.setCursor(0, 0);
     if (mounted) setState(() => _error = null);
     _ensureShell();
+    _requestTerminalFocus();
   }
 
   void _ensureShell() {
@@ -119,6 +147,7 @@ class _TerminalPanelState extends State<TerminalPanel> {
         _pty?.resize(h, w);
       };
       if (mounted) setState(() => _error = null);
+      _requestTerminalFocus();
     } catch (error) {
       if (mounted) {
         setState(() => _error = '$error');
@@ -149,7 +178,7 @@ class _TerminalPanelState extends State<TerminalPanel> {
       );
     }
 
-    if (!_canStartShell) {
+    if (!_isDesktop) {
       return ColoredBox(
         color: context.palette.rail,
         child: Center(
@@ -249,10 +278,13 @@ class _TerminalPanelState extends State<TerminalPanel> {
             child: TerminalView(
               _terminal,
               controller: _controller,
-              autofocus: false,
+              focusNode: _focusNode,
+              autofocus: widget.isVisible,
+              hardwareKeyboardOnly: true,
               backgroundOpacity: 1,
               theme: _studioTheme(context.palette),
               textStyle: const TerminalStyle(fontSize: 12, fontFamily: 'Menlo'),
+              onTapUp: (_, _) => _requestTerminalFocus(),
               onSecondaryTapDown: (details, offset) async {
                 final selection = _controller.selection;
                 if (selection != null) {
