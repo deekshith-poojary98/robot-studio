@@ -217,7 +217,6 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _lastEmittedContent = widget.initialContent;
     _findController = CodeFindController(_controller);
     _editorFocusNode = FocusNode(debugLabel: 'RobotCodeEditor');
-    _editorFocusNode.addListener(_onEditorFocusChanged);
     final restoreViewport = widget.jumpToLine == null;
     _lastVerticalOffset = restoreViewport
         ? math.max(0.0, widget.initialScrollOffsetY)
@@ -251,6 +250,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     widget.onBindState?.call(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _jumpIfNeeded(widget.jumpToLine, widget.jumpToColumn);
+      _requestWindowsEditorFocus();
     });
   }
 
@@ -344,7 +344,6 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _verticalScroll.removeListener(_onVerticalScroll);
     _horizontalScroll.removeListener(_onHorizontalScroll);
     _findController.dispose();
-    _editorFocusNode.removeListener(_onEditorFocusChanged);
     _editorFocusNode.dispose();
     _scrollController.dispose();
     _verticalScroll.dispose();
@@ -365,22 +364,13 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     }
   }
 
-  void _onEditorFocusChanged() {
-    if (!_editorFocusNode.hasFocus ||
-        defaultTargetPlatform != TargetPlatform.windows) {
+  void _requestWindowsEditorFocus() {
+    if (!mounted || defaultTargetPlatform != TargetPlatform.windows) {
       return;
     }
-    // re_editor can retain a hidden initial blink state when its desktop
-    // editor gains focus on Windows. Notify it through a selection-only
-    // change so the caret is painted before the first character is entered.
-    final selection = _controller.selection;
-    final affinity = selection.baseAffinity == TextAffinity.downstream
-        ? TextAffinity.upstream
-        : TextAffinity.downstream;
-    _controller.selection = selection.copyWith(
-      baseAffinity: affinity,
-      extentAffinity: affinity,
-    );
+    // CodeEditor.autofocus is off on Windows so re_editor can attach its
+    // blink listener before focus arrives. Request focus only after that.
+    _editorFocusNode.requestFocus();
   }
 
   void _persistViewport() {
@@ -812,6 +802,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     final editor = CodeEditor(
       controller: _controller,
       focusNode: _editorFocusNode,
+      autofocus: defaultTargetPlatform != TargetPlatform.windows,
       findController: _findController,
       scrollController: _scrollController,
       wordWrap: widget.wordWrap,
@@ -1023,6 +1014,9 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
           child: Listener(
             onPointerHover: _onPointerHover,
             onPointerDown: (event) {
+              if (defaultTargetPlatform == TargetPlatform.windows) {
+                _editorFocusNode.requestFocus();
+              }
               _suppressHoverOrigin = event.localPosition;
               _dismissHover(immediate: true);
               final pressed = HardwareKeyboard.instance.logicalKeysPressed;

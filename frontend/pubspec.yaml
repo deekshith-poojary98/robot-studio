@@ -39,7 +39,8 @@ dependencies:
   # cannot kill the process (common on Windows ARM / VMware). Keep <11:
   # 11+ switches to static FilePicker.pickFiles() APIs.
   file_picker: ^9.2.3
-  re_editor: ^0.10.0
+  re_editor:
+    path: packages/re_editor
   re_highlight: ^0.0.3
   vscode_material_icon_theme: ^5.26.0
   vector_graphics: ^1.2.2
