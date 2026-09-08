@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -139,6 +140,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
   late CodeLineEditingController _controller;
   late CodeFindController _findController;
+  late FocusNode _editorFocusNode;
   late ScrollController _verticalScroll;
   late ScrollController _horizontalScroll;
   late CodeScrollController _scrollController;
@@ -214,6 +216,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _createController(widget.initialContent);
     _lastEmittedContent = widget.initialContent;
     _findController = CodeFindController(_controller);
+    _editorFocusNode = FocusNode(debugLabel: 'RobotCodeEditor');
+    _editorFocusNode.addListener(_onEditorFocusChanged);
     final restoreViewport = widget.jumpToLine == null;
     _lastVerticalOffset = restoreViewport
         ? math.max(0.0, widget.initialScrollOffsetY)
@@ -340,6 +344,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _verticalScroll.removeListener(_onVerticalScroll);
     _horizontalScroll.removeListener(_onHorizontalScroll);
     _findController.dispose();
+    _editorFocusNode.removeListener(_onEditorFocusChanged);
+    _editorFocusNode.dispose();
     _scrollController.dispose();
     _verticalScroll.dispose();
     _horizontalScroll.dispose();
@@ -357,6 +363,24 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     if (_horizontalScroll.hasClients) {
       _lastHorizontalOffset = _horizontalScroll.offset;
     }
+  }
+
+  void _onEditorFocusChanged() {
+    if (!_editorFocusNode.hasFocus ||
+        defaultTargetPlatform != TargetPlatform.windows) {
+      return;
+    }
+    // re_editor can retain a hidden initial blink state when its desktop
+    // editor gains focus on Windows. Notify it through a selection-only
+    // change so the caret is painted before the first character is entered.
+    final selection = _controller.selection;
+    final affinity = selection.baseAffinity == TextAffinity.downstream
+        ? TextAffinity.upstream
+        : TextAffinity.downstream;
+    _controller.selection = selection.copyWith(
+      baseAffinity: affinity,
+      extentAffinity: affinity,
+    );
   }
 
   void _persistViewport() {
@@ -787,6 +811,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
     final editor = CodeEditor(
       controller: _controller,
+      focusNode: _editorFocusNode,
       findController: _findController,
       scrollController: _scrollController,
       wordWrap: widget.wordWrap,
