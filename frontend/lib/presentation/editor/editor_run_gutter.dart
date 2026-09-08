@@ -65,11 +65,12 @@ Map<int, EditorRunnableTest> runnableTestsByLine(
 }
 
 /// Play control on each visible test-case row — VS Code-style run-this-test.
-class RobotTestRunGutter extends StatelessWidget {
+class RobotTestRunGutter extends StatefulWidget {
   const RobotTestRunGutter({
     super.key,
     required this.notifier,
     required this.tests,
+    this.scrollController,
     this.onRun,
     this.enabled = true,
     this.width = editorRunGutterWidth,
@@ -77,46 +78,105 @@ class RobotTestRunGutter extends StatelessWidget {
 
   final CodeIndicatorValueNotifier notifier;
   final List<EditorRunnableTest> tests;
+  final ScrollController? scrollController;
   final ValueChanged<EditorRunnableTest>? onRun;
   final bool enabled;
   final double width;
 
   @override
+  State<RobotTestRunGutter> createState() => _RobotTestRunGutterState();
+}
+
+class _RobotTestRunGutterState extends State<RobotTestRunGutter> {
+  CodeIndicatorValue? _geometry;
+  double _geometryScrollOffset = 0;
+
+  double get _scrollOffset {
+    final controller = widget.scrollController;
+    return controller != null && controller.hasClients ? controller.offset : 0;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _geometry = widget.notifier.value;
+    _geometryScrollOffset = _scrollOffset;
+    widget.notifier.addListener(_onGeometryChanged);
+    widget.scrollController?.addListener(_onScroll);
+  }
+
+  @override
+  void didUpdateWidget(covariant RobotTestRunGutter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.notifier != oldWidget.notifier) {
+      oldWidget.notifier.removeListener(_onGeometryChanged);
+      widget.notifier.addListener(_onGeometryChanged);
+      _geometry = widget.notifier.value;
+      _geometryScrollOffset = _scrollOffset;
+    }
+    if (widget.scrollController != oldWidget.scrollController) {
+      oldWidget.scrollController?.removeListener(_onScroll);
+      widget.scrollController?.addListener(_onScroll);
+      _geometryScrollOffset = _scrollOffset;
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.notifier.removeListener(_onGeometryChanged);
+    widget.scrollController?.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  void _onGeometryChanged() {
+    if (!mounted) return;
+    setState(() {
+      _geometry = widget.notifier.value;
+      _geometryScrollOffset = _scrollOffset;
+    });
+  }
+
+  void _onScroll() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final byLine = runnableTestsByLine(tests);
-    return ValueListenableBuilder<CodeIndicatorValue?>(
-      valueListenable: notifier,
-      builder: (context, value, _) {
-        final paragraphs = value?.paragraphs ?? const [];
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final height = constraints.maxHeight.isFinite
-                ? constraints.maxHeight
-                : 0.0;
-            return SizedBox(
-              width: width,
-              height: height,
-              child: Stack(
-                clipBehavior: Clip.hardEdge,
-                children: [
-                  for (final row in paragraphs)
-                    if (byLine[row.index + 1] case final test?)
-                      Positioned(
-                        key: Key('run-test-gutter-${row.index + 1}'),
-                        top: row.top,
-                        left: 0,
-                        width: width,
-                        height: math.max(row.preferredLineHeight, 16),
-                        child: _RunTestGutterButton(
-                          name: test.name,
-                          enabled: enabled && onRun != null,
-                          onPressed: onRun == null ? null : () => onRun!(test),
-                        ),
-                      ),
-                ],
-              ),
-            );
-          },
+    final byLine = runnableTestsByLine(widget.tests);
+    final paragraphs = _geometry?.paragraphs ?? const [];
+    // Paragraph tops are relative to the scroll position at which re_editor
+    // published them. Apply any newer scroll delta directly so Windows wheel
+    // scrolling cannot leave this widget overlay behind the painted text.
+    final scrollDelta = _scrollOffset - _geometryScrollOffset;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 0.0;
+        return SizedBox(
+          width: widget.width,
+          height: height,
+          child: Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              for (final row in paragraphs)
+                if (byLine[row.index + 1] case final test?)
+                  Positioned(
+                    key: Key('run-test-gutter-${row.index + 1}'),
+                    top: row.top - scrollDelta,
+                    left: 0,
+                    width: widget.width,
+                    height: math.max(row.preferredLineHeight, 16),
+                    child: _RunTestGutterButton(
+                      name: test.name,
+                      enabled: widget.enabled && widget.onRun != null,
+                      onPressed: widget.onRun == null
+                          ? null
+                          : () => widget.onRun!(test),
+                    ),
+                  ),
+            ],
+          ),
         );
       },
     );

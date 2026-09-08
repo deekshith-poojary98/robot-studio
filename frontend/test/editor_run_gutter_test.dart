@@ -163,6 +163,125 @@ void main() {
     expect(launched?.name, 'Valid Login');
   });
 
+  testWidgets('gutter play control follows viewport row geometry', (
+    tester,
+  ) async {
+    final notifier = ValueNotifier<CodeIndicatorValue?>(
+      CodeIndicatorValue(
+        paragraphs: [
+          CodeLineRenderParagraph(
+            index: 19,
+            paragraph: _FakeParagraph(),
+            offset: const Offset(0, 48),
+            chunkParent: false,
+            chunkLongText: false,
+          ),
+        ],
+      ),
+    );
+    addTearDown(notifier.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            height: 100,
+            child: RobotTestRunGutter(
+              notifier: notifier,
+              tests: const [
+                EditorRunnableTest(line: 20, endLine: 28, name: 'Valid Login'),
+              ],
+              onRun: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Positioned button() =>
+        tester.widget<Positioned>(find.byKey(const Key('run-test-gutter-20')));
+
+    expect(button().top, 48);
+
+    notifier.value = CodeIndicatorValue(
+      paragraphs: [
+        CodeLineRenderParagraph(
+          index: 19,
+          paragraph: _FakeParagraph(),
+          offset: const Offset(0, 12),
+          chunkParent: false,
+          chunkLongText: false,
+        ),
+      ],
+    );
+    await tester.pump();
+
+    expect(button().top, 12);
+  });
+
+  testWidgets('gutter play control follows scroll before geometry refresh', (
+    tester,
+  ) async {
+    final scrollController = ScrollController();
+    final notifier = ValueNotifier<CodeIndicatorValue?>(
+      CodeIndicatorValue(
+        paragraphs: [
+          CodeLineRenderParagraph(
+            index: 19,
+            paragraph: _FakeParagraph(),
+            offset: const Offset(0, 48),
+            chunkParent: false,
+            chunkLongText: false,
+          ),
+        ],
+      ),
+    );
+    addTearDown(scrollController.dispose);
+    addTearDown(notifier.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            height: 100,
+            child: Row(
+              children: [
+                RobotTestRunGutter(
+                  notifier: notifier,
+                  scrollController: scrollController,
+                  tests: const [
+                    EditorRunnableTest(
+                      line: 20,
+                      endLine: 28,
+                      name: 'Valid Login',
+                    ),
+                  ],
+                  onRun: (_) {},
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: scrollController,
+                    child: const SizedBox(height: 300),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Positioned button() =>
+        tester.widget<Positioned>(find.byKey(const Key('run-test-gutter-20')));
+
+    expect(button().top, 48);
+    scrollController.jumpTo(20);
+    await tester.pump();
+    expect(button().top, 28);
+  });
+
   testWidgets('gutter play control is inert while a run is in progress', (
     tester,
   ) async {

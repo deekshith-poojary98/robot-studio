@@ -221,7 +221,9 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _lastHorizontalOffset = restoreViewport
         ? math.max(0.0, widget.initialScrollOffsetX)
         : 0;
-    _verticalScroll = ScrollController(initialScrollOffset: _lastVerticalOffset);
+    _verticalScroll = ScrollController(
+      initialScrollOffset: _lastVerticalOffset,
+    );
     _horizontalScroll = ScrollController(
       initialScrollOffset: _lastHorizontalOffset,
     );
@@ -611,7 +613,10 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     if (tooltipContext == null || !tooltipContext.mounted) return false;
     final box = tooltipContext.findRenderObject() as RenderBox?;
     final editorBox = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize || editorBox == null || !editorBox.hasSize) {
+    if (box == null ||
+        !box.hasSize ||
+        editorBox == null ||
+        !editorBox.hasSize) {
       return false;
     }
     final global = editorBox.localToGlobal(localInEditor);
@@ -847,6 +852,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
                   RobotTestRunGutter(
                     notifier: notifier,
                     tests: widget.runnableTests,
+                    scrollController: _verticalScroll,
                     onRun: widget.onRunTest,
                     enabled: widget.runTestsEnabled,
                   ),
