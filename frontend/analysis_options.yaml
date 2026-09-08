@@ -10,12 +10,6 @@
 analyzer:
   exclude:
     - build/**
-    - android/**
-    - ios/**
-    - web/**
-    - windows/**
-    - macos/**
-    - linux/**
     - packages/re_editor/**
 include: package:flutter_lints/flutter.yaml
 
