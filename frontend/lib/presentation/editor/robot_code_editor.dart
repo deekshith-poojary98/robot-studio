@@ -17,6 +17,7 @@ import 'editor_navigation_widgets.dart';
 import 'editor_run_gutter.dart';
 import 'editor_syntax.dart';
 import 'robot_code_shortcuts.dart';
+import 'windows_modifier_keys.dart';
 
 class RobotCodeEditor extends StatefulWidget {
   const RobotCodeEditor({
@@ -1017,16 +1018,13 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
             onPointerDown: (event) {
               _suppressHoverOrigin = event.localPosition;
               _dismissHover(immediate: true);
-              final keyboard = HardwareKeyboard.instance;
-              // macOS: ⌘-click. Windows/Linux: Ctrl-click only — never treat the
-              // Windows key (meta) as go-to-definition (sticky Win → every click).
-              final goToDefinitionModifier =
-                  defaultTargetPlatform == TargetPlatform.macOS
-                  ? keyboard.isMetaPressed
-                  : keyboard.isControlPressed;
-              // Some Windows hosts remap Ctrl+left-click to a secondary button;
-              // Ctrl+Shift+click stays primary. Accept either when the modifier
-              // is held so plain Ctrl+click still goes to definition.
+              // macOS: ⌘-click. Windows: Ctrl via GetAsyncKeyState (Flutter's
+              // HardwareKeyboard desyncs on Windows — Ctrl+click can look like
+              // no modifier while Ctrl+Shift+click "works" after Shift refreshes
+              // key state). Never treat the Windows key as a modifier.
+              final goToDefinitionModifier = isGoToDefinitionModifierPressed();
+              // Ctrl+left-click is often remapped to secondary on Windows;
+              // Ctrl+Shift+click stays primary.
               final goToDefinitionButton =
                   event.buttons == kPrimaryMouseButton ||
                   event.buttons == kSecondaryMouseButton;
@@ -1034,7 +1032,6 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
                 final hit = _lineColumnAt(event.localPosition);
                 if (hit != null) {
                   final (line, column) = hit;
-                  // Resolve at the click, not the pre-click caret.
                   widget.onCtrlClick?.call(line, column);
                 }
               }

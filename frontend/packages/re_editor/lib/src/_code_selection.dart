@@ -301,6 +301,11 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
     if (!render.size.contains(render.globalToLocal(details.globalPosition))) {
       return;
     }
+    // Ctrl/Cmd+click is often delivered as a secondary button on Windows.
+    // Skip the selection toolbar so go-to-definition (handled by the app) wins.
+    if (_isDefinitionModifierPressed()) {
+      return;
+    }
     widget.controller.clearComposing();
     widget.selectionOverlayController.showToolbar(context, details.globalPosition);
   }

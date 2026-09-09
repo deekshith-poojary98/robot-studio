@@ -1,9 +1,11 @@
 library re_editor;
 
 import 'dart:async';
+import 'dart:collection';
+import 'dart:ffi' hide Size;
+import 'dart:io';
 import 'dart:math';
 import 'dart:ui' as ui;
-import 'dart:collection';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -13,8 +15,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
-import 'package:re_highlight/re_highlight.dart';
 import 'package:isolate_manager/isolate_manager.dart';
+import 'package:re_highlight/re_highlight.dart';
 
 part '_code_floating_cursor.dart';
 part '_code_autocomplete.dart';
@@ -35,6 +37,7 @@ part '_code_shortcuts.dart';
 part '_code_span.dart';
 part '_consts.dart';
 part '_isolate.dart';
+part '_windows_keys.dart';
 part 'code_autocomplete.dart';
 part 'code_chunk.dart';
 part 'code_editor.dart';
