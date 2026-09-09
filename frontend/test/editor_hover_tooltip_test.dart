@@ -339,7 +339,7 @@ Demo
     expect(token, 'Open Workbook');
   });
 
-  test('extractRobotTokenAt ignores caret past end of keyword cell', () {
+  test('extractRobotTokenAt allows trailing-edge column only', () {
     const content = '''*** Test Cases ***
 Demo
     Open Browser
@@ -352,6 +352,10 @@ Demo
     );
     expect(
       EditorShellController.extractRobotTokenAt(content, 3, lastCharCol + 1),
+      'Open Browser',
+    );
+    expect(
+      EditorShellController.extractRobotTokenAt(content, 3, lastCharCol + 2),
       isNull,
     );
   });

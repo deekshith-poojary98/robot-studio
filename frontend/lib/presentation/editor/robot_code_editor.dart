@@ -1015,29 +1015,31 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
           child: Listener(
             onPointerHover: _onPointerHover,
             onPointerDown: (event) {
-              if (defaultTargetPlatform == TargetPlatform.windows) {
-                _editorFocusNode.requestFocus();
-              }
               _suppressHoverOrigin = event.localPosition;
               _dismissHover(immediate: true);
-              final pressed = HardwareKeyboard.instance.logicalKeysPressed;
-              // macOS: ⌘-click. Windows/Linux: Ctrl-click only — do NOT treat the
-              // Windows key (meta) as a go-to-definition modifier; a sticky Win
-              // key would otherwise navigate on every plain click.
+              final keyboard = HardwareKeyboard.instance;
+              // macOS: ⌘-click. Windows/Linux: Ctrl-click only — never treat the
+              // Windows key (meta) as go-to-definition (sticky Win → every click).
               final goToDefinitionModifier =
                   defaultTargetPlatform == TargetPlatform.macOS
-                  ? pressed.contains(LogicalKeyboardKey.metaLeft) ||
-                        pressed.contains(LogicalKeyboardKey.metaRight)
-                  : pressed.contains(LogicalKeyboardKey.controlLeft) ||
-                        pressed.contains(LogicalKeyboardKey.controlRight);
-              if (goToDefinitionModifier &&
-                  event.buttons == kPrimaryMouseButton) {
+                  ? keyboard.isMetaPressed
+                  : keyboard.isControlPressed;
+              // Some Windows hosts remap Ctrl+left-click to a secondary button;
+              // Ctrl+Shift+click stays primary. Accept either when the modifier
+              // is held so plain Ctrl+click still goes to definition.
+              final goToDefinitionButton =
+                  event.buttons == kPrimaryMouseButton ||
+                  event.buttons == kSecondaryMouseButton;
+              if (goToDefinitionModifier && goToDefinitionButton) {
                 final hit = _lineColumnAt(event.localPosition);
                 if (hit != null) {
                   final (line, column) = hit;
                   // Resolve at the click, not the pre-click caret.
                   widget.onCtrlClick?.call(line, column);
                 }
+              }
+              if (defaultTargetPlatform == TargetPlatform.windows) {
+                _editorFocusNode.requestFocus();
               }
             },
             child: LayoutBuilder(
