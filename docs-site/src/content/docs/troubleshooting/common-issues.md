@@ -114,6 +114,16 @@ The zip is fine — the VM is missing the Microsoft C++ runtime Flutter needs.
 
 You only need this once per machine. Many full Windows installs already have it; clean VMs often do not.
 
+## Windows: editor caret missing until first keystroke
+
+On some Windows hosts the default Impeller renderer (`OpenGLESSDF`) does not show the blinking caret after a click until you type. Current Windows builds fall back to Skia for this reason.
+
+If you are on an older zip, update/rebuild, or run debug with:
+
+```bash
+flutter run -d windows --no-enable-impeller
+```
+
 ## Windows: env toast takes ~1–2 minutes / APIs time out
 
 Usually the sidecar stalled after open: console subprocesses (`git`, Python probes, etc.) spawned from the packaged GUI app can freeze the asyncio loop when they allocate a console or when indexing + git/env probes compete for the small default thread pool. Current builds use `CREATE_NO_WINDOW`, a larger blocking thread pool, and non-blocking file-watcher setup — re-run **Actions → Package Desktop**.
