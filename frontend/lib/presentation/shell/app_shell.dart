@@ -4334,17 +4334,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _editorCtrlClickDefinition() async {
+  Future<void> _editorCtrlClickDefinition(int line, int column) async {
     final tab = _activeEditorTab;
     if (tab == null) return;
-    final token = _editorCursorToken();
+    final token = _editorTokenAt(line: line, column: column);
     if (token == null) return;
     try {
       final definition = await _gateway.languageDefinition(
         name: token,
         filePath: tab.path,
-        line: _cursorLine,
-        column: _cursorColumn,
+        line: line,
+        column: column,
         content: tab.content,
       );
       if (!mounted) return;
@@ -4633,17 +4633,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   /// two spaces, which is the wrong model for Python — on `    return  x` it
   /// would hand back a cell instead of the identifier being pointed at.
   String? _editorCursorToken() {
+    return _editorTokenAt(line: _cursorLine, column: _cursorColumn);
+  }
+
+  String? _editorTokenAt({required int line, required int column}) {
     final tab = _activeEditorTab;
     if (tab == null) return null;
     if (EditorShellController.isPythonPath(tab.path)) {
-      return _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn);
+      return _extractWordAtCursor(tab.content, line, column);
     }
-    return EditorShellController.extractRobotTokenAt(
-          tab.content,
-          _cursorLine,
-          _cursorColumn,
-        ) ??
-        _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn);
+    return EditorShellController.extractRobotTokenAt(tab.content, line, column);
   }
 
   Future<void> _editorGoToDefinition() async {

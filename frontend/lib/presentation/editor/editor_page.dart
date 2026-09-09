@@ -73,7 +73,7 @@ class EditorPage extends StatefulWidget {
   final VoidCallback onSave;
   final void Function(int line, int column) onHoverRequest;
   final VoidCallback onHoverExit;
-  final VoidCallback onCtrlClick;
+  final void Function(int line, int column) onCtrlClick;
   final VoidCallback onClosePeek;
   final void Function(int line, int column) onCursorChanged;
   final void Function(String path, double offsetX, double offsetY)?

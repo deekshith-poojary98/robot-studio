@@ -58,7 +58,7 @@ class RobotCodeEditor extends StatefulWidget {
   final String initialContent;
   final ValueChanged<String> onContentChanged;
   final void Function(int line, int column)? onCursorChanged;
-  final VoidCallback? onCtrlClick;
+  final void Function(int line, int column)? onCtrlClick;
 
   /// Fired after the pointer rests over a code position (VS Code-style hover).
   final void Function(int line, int column)? onHoverRequest;
@@ -989,7 +989,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
           ),
           _DefinitionIntent: CallbackAction<_DefinitionIntent>(
             onInvoke: (_) {
-              widget.onCtrlClick?.call();
+              final sel = _controller.selection;
+              widget.onCtrlClick?.call(sel.baseIndex + 1, sel.baseOffset + 1);
               return null;
             },
           ),
@@ -1020,13 +1021,23 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
               _suppressHoverOrigin = event.localPosition;
               _dismissHover(immediate: true);
               final pressed = HardwareKeyboard.instance.logicalKeysPressed;
-              final ctrl =
-                  pressed.contains(LogicalKeyboardKey.controlLeft) ||
-                  pressed.contains(LogicalKeyboardKey.controlRight) ||
-                  pressed.contains(LogicalKeyboardKey.metaLeft) ||
-                  pressed.contains(LogicalKeyboardKey.metaRight);
-              if (ctrl && event.buttons == kPrimaryMouseButton) {
-                widget.onCtrlClick?.call();
+              // macOS: ⌘-click. Windows/Linux: Ctrl-click only — do NOT treat the
+              // Windows key (meta) as a go-to-definition modifier; a sticky Win
+              // key would otherwise navigate on every plain click.
+              final goToDefinitionModifier =
+                  defaultTargetPlatform == TargetPlatform.macOS
+                  ? pressed.contains(LogicalKeyboardKey.metaLeft) ||
+                        pressed.contains(LogicalKeyboardKey.metaRight)
+                  : pressed.contains(LogicalKeyboardKey.controlLeft) ||
+                        pressed.contains(LogicalKeyboardKey.controlRight);
+              if (goToDefinitionModifier &&
+                  event.buttons == kPrimaryMouseButton) {
+                final hit = _lineColumnAt(event.localPosition);
+                if (hit != null) {
+                  final (line, column) = hit;
+                  // Resolve at the click, not the pre-click caret.
+                  widget.onCtrlClick?.call(line, column);
+                }
               }
             },
             child: LayoutBuilder(
@@ -1097,7 +1108,13 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
                         bottom: 0,
                         child: PeekDefinitionPanel(
                           symbol: widget.peekDefinition!,
-                          onOpen: widget.onCtrlClick ?? () {},
+                          onOpen: () {
+                            final sel = controller.selection;
+                            (widget.onCtrlClick ?? (_, __) {})(
+                              sel.baseIndex + 1,
+                              sel.baseOffset + 1,
+                            );
+                          },
                           onClose: widget.onClosePeek ?? () {},
                         ),
                       ),
