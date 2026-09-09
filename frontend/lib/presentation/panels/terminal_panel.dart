@@ -9,6 +9,7 @@ import 'package:flutter_pty/flutter_pty.dart';
 import 'package:xterm/xterm.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../preferences/editor_font_families.dart';
 import '../widgets/empty_state.dart';
 
 /// Interactive shell in the bottom panel (workspace cwd when a project is open).
@@ -180,6 +181,19 @@ class _TerminalPanelState extends State<TerminalPanel> {
   static List<String> get _shellArguments =>
       Platform.isWindows ? const [] : const ['-l'];
 
+  /// Prefer a real OS mono face. Menlo is missing on Windows; bad metrics there
+  /// make xterm map clicks to the last cell (selection starts bottom-right).
+  static TerminalStyle get _terminalTextStyle {
+    final family = defaultTargetPlatform == TargetPlatform.windows
+        ? 'Consolas'
+        : 'Menlo';
+    return TerminalStyle(
+      fontSize: 12,
+      fontFamily: family,
+      fontFamilyFallback: editorFontFamilyFallback(family),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cwd = widget.workingDirectory;
@@ -239,6 +253,15 @@ class _TerminalPanelState extends State<TerminalPanel> {
       );
     }
 
+    // xterm maps pointer → cell using MediaQuery padding + textScaler. On
+    // Windows those can skew hit-testing so drag-select anchors at the last
+    // cell. Zero them for the terminal subtree only.
+    final terminalMedia = MediaQuery.of(context).copyWith(
+      textScaler: TextScaler.noScaling,
+      padding: EdgeInsets.zero,
+      viewPadding: EdgeInsets.zero,
+    );
+
     return ColoredBox(
       color: context.palette.rail,
       child: Column(
@@ -289,30 +312,35 @@ class _TerminalPanelState extends State<TerminalPanel> {
             ),
           ),
           Expanded(
-            child: TerminalView(
-              _terminal,
-              controller: _controller,
-              focusNode: _focusNode,
-              autofocus: widget.isVisible,
-              hardwareKeyboardOnly: _usesHardwareKeyboardOnly,
-              backgroundOpacity: 1,
-              theme: _studioTheme(context.palette),
-              textStyle: const TerminalStyle(fontSize: 12, fontFamily: 'Menlo'),
-              onTapUp: (_, _) => _requestTerminalFocus(),
-              onSecondaryTapDown: (details, offset) async {
-                final selection = _controller.selection;
-                if (selection != null) {
-                  final text = _terminal.buffer.getText(selection);
-                  _controller.clearSelection();
-                  await Clipboard.setData(ClipboardData(text: text));
-                } else {
-                  final data = await Clipboard.getData(Clipboard.kTextPlain);
-                  final text = data?.text;
-                  if (text != null) {
-                    _terminal.paste(text);
+            child: MediaQuery(
+              data: terminalMedia,
+              child: TerminalView(
+                _terminal,
+                controller: _controller,
+                focusNode: _focusNode,
+                autofocus: widget.isVisible,
+                hardwareKeyboardOnly: _usesHardwareKeyboardOnly,
+                backgroundOpacity: 1,
+                padding: EdgeInsets.zero,
+                theme: _studioTheme(context.palette),
+                textStyle: _terminalTextStyle,
+                textScaler: TextScaler.noScaling,
+                onTapUp: (_, _) => _requestTerminalFocus(),
+                onSecondaryTapDown: (details, offset) async {
+                  final selection = _controller.selection;
+                  if (selection != null) {
+                    final text = _terminal.buffer.getText(selection);
+                    _controller.clearSelection();
+                    await Clipboard.setData(ClipboardData(text: text));
+                  } else {
+                    final data = await Clipboard.getData(Clipboard.kTextPlain);
+                    final text = data?.text;
+                    if (text != null) {
+                      _terminal.paste(text);
+                    }
                   }
-                }
-              },
+                },
+              ),
             ),
           ),
         ],

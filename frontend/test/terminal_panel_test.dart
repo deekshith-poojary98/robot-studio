@@ -73,6 +73,9 @@ void main() {
       expect(view.autofocus, isTrue);
       expect(view.focusNode, isNotNull);
       expect(view.focusNode!.hasFocus, isTrue);
+      expect(view.textStyle.fontFamily, 'Consolas');
+      expect(view.textScaler, TextScaler.noScaling);
+      expect(view.padding, EdgeInsets.zero);
 
       final output = <String>[];
       view.terminal.onOutput = output.add;
