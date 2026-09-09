@@ -90,6 +90,7 @@ class RobotTestRunGutter extends StatefulWidget {
 class _RobotTestRunGutterState extends State<RobotTestRunGutter> {
   CodeIndicatorValue? _geometry;
   double _geometryScrollOffset = 0;
+  bool _geometryUpdateScheduled = false;
 
   double get _scrollOffset {
     final controller = widget.scrollController;
@@ -129,10 +130,18 @@ class _RobotTestRunGutterState extends State<RobotTestRunGutter> {
   }
 
   void _onGeometryChanged() {
-    if (!mounted) return;
-    setState(() {
-      _geometry = widget.notifier.value;
-      _geometryScrollOffset = _scrollOffset;
+    // re_editor updates CodeIndicatorValueNotifier during performLayout.
+    // setState there schedules a build mid-frame and Flutter logs
+    // "Build scheduled during frame". Defer to the next frame.
+    if (!mounted || _geometryUpdateScheduled) return;
+    _geometryUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _geometryUpdateScheduled = false;
+      if (!mounted) return;
+      setState(() {
+        _geometry = widget.notifier.value;
+        _geometryScrollOffset = _scrollOffset;
+      });
     });
   }
 
