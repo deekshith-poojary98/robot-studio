@@ -105,6 +105,18 @@ The language tools run a small worker script from the packaged backend. Older Li
 ls backend/_internal/robot_studio/infrastructure/language/robot_parsing_worker.py
 ```
 
+## Windows: `node` / `npm` not found in the in-app terminal
+
+The system `cmd` works, but Robot Studio’s terminal does not. GUI apps keep the
+`PATH` from when they started; a new Explorer terminal does not.
+
+Current builds re-read User+System `PATH` when the shell starts. Click **Restart**
+in the Terminal tab after installing Node (or other PATH tools), then run
+`node -v` again.
+
+On older builds: fully quit Robot Studio (and Cursor/`flutter run` if you launched
+from there), open a fresh session, and try again.
+
 ## Windows: missing `MSVCP140.dll` / `VCRUNTIME140.dll`
 
 The zip is fine — the VM is missing the Microsoft C++ runtime Flutter needs.

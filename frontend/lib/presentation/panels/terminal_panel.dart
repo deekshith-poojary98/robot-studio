@@ -11,6 +11,7 @@ import 'package:xterm/xterm.dart';
 import '../../core/theme/app_theme.dart';
 import '../preferences/editor_font_families.dart';
 import '../widgets/empty_state.dart';
+import 'windows_shell_path.dart';
 
 /// Interactive shell in the bottom panel (workspace cwd when a project is open).
 class TerminalPanel extends StatefulWidget {
@@ -130,6 +131,7 @@ class _TerminalPanelState extends State<TerminalPanel> {
         _shellExecutable,
         arguments: _shellArguments,
         workingDirectory: cwd,
+        environment: shellEnvironmentForPty(),
         rows: rows,
         columns: cols,
       );
