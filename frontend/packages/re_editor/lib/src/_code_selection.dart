@@ -37,6 +37,23 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
   _CodeFieldRender get render => widget.editorKey.currentContext?.findRenderObject() as _CodeFieldRender;
 
   bool _tapping = false;
+  Timer? _ctrlPoll;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!kIsWeb && Platform.isWindows) {
+      _ctrlPoll = Timer.periodic(const Duration(milliseconds: 50), (_) {
+        _pollWindowsControl();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrlPoll?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -309,9 +326,10 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
     if (!render.size.contains(render.globalToLocal(details.globalPosition))) {
       return;
     }
-    // Ctrl/Cmd+click is often delivered as a secondary button on Windows.
-    // Skip the selection toolbar so go-to-definition (handled by the app) wins.
-    if (_isDefinitionModifierPressed()) {
+    // Ctrl/Cmd+click is often delivered as a secondary button on Windows,
+    // sometimes with Ctrl already cleared. Skip the toolbar so go-to-definition
+    // (handled by the app) wins.
+    if (_isRemappedDefinitionClick()) {
       return;
     }
     widget.controller.clearComposing();

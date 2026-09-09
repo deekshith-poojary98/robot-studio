@@ -164,6 +164,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   double _charWidth = 7.8;
   bool _pointerOverTooltip = false;
   bool _definitionClickHandled = false;
+  Timer? _ctrlPoll;
   final GlobalKey _hoverTooltipKey = GlobalKey();
   Size _hoverTooltipSize = const Size(360, 88);
   _AutocompletePopup? _popup;
@@ -250,6 +251,11 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _listening = true;
     _measureCharWidth();
     widget.onBindState?.call(this);
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      _ctrlPoll = Timer.periodic(const Duration(milliseconds: 50), (_) {
+        pollWindowsControlForDefinition();
+      });
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _jumpIfNeeded(widget.jumpToLine, widget.jumpToColumn);
       _requestWindowsEditorFocus();
@@ -336,6 +342,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   @override
   void dispose() {
     widget.onBindState?.call(null);
+    _ctrlPoll?.cancel();
     _hoverTimer?.cancel();
     _hoverDismissTimer?.cancel();
     _dismissAutocompleteOverlay();
@@ -743,8 +750,10 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   }
 
   void _handleGoToDefinitionPointer(PointerEvent event) {
+    pollWindowsControlForDefinition();
     final goToDefinitionModifier = isGoToDefinitionModifierPressed();
-    final goToDefinitionButton = isGoToDefinitionPointerButtons(event.buttons);
+    final recentCtrl = windowsControlPressedOrRecentlyHeld();
+    final goToDefinition = shouldGoToDefinitionOnPointerDown(event.buttons);
     final hit = _lineColumnAt(event.localPosition);
     if (kDebugMode) {
       debugPrint(
@@ -753,12 +762,13 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
         'flutterCtrl=${HardwareKeyboard.instance.isControlPressed} '
         'flutterShift=${HardwareKeyboard.instance.isShiftPressed} '
         'osCtrl=${windowsControlPressed()} '
+        'recentCtrl=$recentCtrl '
         'mod=$goToDefinitionModifier '
-        'btnOk=$goToDefinitionButton '
+        'go=$goToDefinition '
         'hit=$hit',
       );
     }
-    if (!goToDefinitionModifier || !goToDefinitionButton) return;
+    if (!goToDefinition) return;
     if (hit == null) return;
     final (line, column) = hit;
     _definitionClickHandled = true;
@@ -767,6 +777,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
   void _onPointerHover(PointerHoverEvent event) {
     if (!context.mounted) return;
+    pollWindowsControlForDefinition();
     final local = event.localPosition;
     _hoverDismissTimer?.cancel();
 

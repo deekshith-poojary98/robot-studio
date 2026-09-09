@@ -27,4 +27,22 @@ void main() {
     expect(isGoToDefinitionPointerButtons(0), isTrue);
     expect(isGoToDefinitionPointerButtons(kMiddleMouseButton), isFalse);
   });
+
+  test('shouldGoToDefinitionOnPointerDown treats remapped secondary after recent Ctrl', () {
+    debugClearWindowsControlSeen();
+    addTearDown(debugClearWindowsControlSeen);
+    expect(
+      shouldGoToDefinitionOnPointerDown(kSecondaryMouseButton),
+      isFalse,
+    );
+    debugMarkWindowsControlSeen();
+    expect(
+      shouldGoToDefinitionOnPointerDown(kSecondaryMouseButton),
+      isTrue,
+    );
+    expect(
+      shouldGoToDefinitionOnPointerDown(kPrimaryMouseButton),
+      isFalse,
+    );
+  });
 }
