@@ -139,6 +139,11 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
         },
         child: Listener(
           onPointerDown: (event) {
+            if (_isDefinitionModifierPressed()) {
+              _tapping = false;
+              Future(widget.inputController.ensureInput);
+              return;
+            }
             _tapping = render.isValidPointer2(event.position);
             // A trick, delay the focus request here to avoid loss.
             Future(widget.inputController.ensureInput);
@@ -273,6 +278,9 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
   void _onDrag(DragUpdateDetails details) {
     if (!_tapping) {
       // https://github.com/flutter/flutter/issues/114889
+      return;
+    }
+    if (_isDefinitionModifierPressed()) {
       return;
     }
     if (widget.controller.isComposing) {

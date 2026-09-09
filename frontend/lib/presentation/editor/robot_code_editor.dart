@@ -163,6 +163,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   Offset? _suppressHoverOrigin;
   double _charWidth = 7.8;
   bool _pointerOverTooltip = false;
+  bool _definitionClickHandled = false;
   final GlobalKey _hoverTooltipKey = GlobalKey();
   Size _hoverTooltipSize = const Size(360, 88);
   _AutocompletePopup? _popup;
@@ -741,6 +742,29 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     return (lineIndex + 1, column);
   }
 
+  void _handleGoToDefinitionPointer(PointerEvent event) {
+    final goToDefinitionModifier = isGoToDefinitionModifierPressed();
+    final goToDefinitionButton = isGoToDefinitionPointerButtons(event.buttons);
+    final hit = _lineColumnAt(event.localPosition);
+    if (kDebugMode) {
+      debugPrint(
+        'DEFCLICK down '
+        'buttons=${event.buttons} kind=${event.kind} '
+        'flutterCtrl=${HardwareKeyboard.instance.isControlPressed} '
+        'flutterShift=${HardwareKeyboard.instance.isShiftPressed} '
+        'osCtrl=${windowsControlPressed()} '
+        'mod=$goToDefinitionModifier '
+        'btnOk=$goToDefinitionButton '
+        'hit=$hit',
+      );
+    }
+    if (!goToDefinitionModifier || !goToDefinitionButton) return;
+    if (hit == null) return;
+    final (line, column) = hit;
+    _definitionClickHandled = true;
+    widget.onCtrlClick?.call(line, column);
+  }
+
   void _onPointerHover(PointerHoverEvent event) {
     if (!context.mounted) return;
     final local = event.localPosition;
@@ -1014,30 +1038,30 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
             _scheduleDismissHover();
           },
           child: Listener(
+            behavior: HitTestBehavior.translucent,
             onPointerHover: _onPointerHover,
             onPointerDown: (event) {
               _suppressHoverOrigin = event.localPosition;
               _dismissHover(immediate: true);
-              // macOS: ⌘-click. Windows: Ctrl via GetAsyncKeyState (Flutter's
-              // HardwareKeyboard desyncs on Windows — Ctrl+click can look like
-              // no modifier while Ctrl+Shift+click "works" after Shift refreshes
-              // key state). Never treat the Windows key as a modifier.
-              final goToDefinitionModifier = isGoToDefinitionModifierPressed();
-              // Ctrl+left-click is often remapped to secondary on Windows;
-              // Ctrl+Shift+click stays primary.
-              final goToDefinitionButton =
-                  event.buttons == kPrimaryMouseButton ||
-                  event.buttons == kSecondaryMouseButton;
-              if (goToDefinitionModifier && goToDefinitionButton) {
-                final hit = _lineColumnAt(event.localPosition);
-                if (hit != null) {
-                  final (line, column) = hit;
-                  widget.onCtrlClick?.call(line, column);
-                }
-              }
+              _handleGoToDefinitionPointer(event);
               if (defaultTargetPlatform == TargetPlatform.windows) {
                 _editorFocusNode.requestFocus();
               }
+            },
+            onPointerUp: (event) {
+              if (kDebugMode) {
+                debugPrint(
+                  'DEFCLICK up '
+                  'buttons=${event.buttons} kind=${event.kind} '
+                  'flutterCtrl=${HardwareKeyboard.instance.isControlPressed} '
+                  'flutterShift=${HardwareKeyboard.instance.isShiftPressed} '
+                  'osCtrl=${windowsControlPressed()} '
+                  'mod=${isGoToDefinitionModifierPressed()} '
+                  'handled=$_definitionClickHandled '
+                  'hit=${_lineColumnAt(event.localPosition)}',
+                );
+              }
+              _definitionClickHandled = false;
             },
             child: LayoutBuilder(
               builder: (context, constraints) {

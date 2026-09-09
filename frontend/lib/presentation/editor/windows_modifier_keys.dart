@@ -2,29 +2,45 @@ import 'dart:ffi';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
-/// VK_CONTROL — either Ctrl key down (high bit set while pressed).
+/// VK_CONTROL / VK_LCONTROL / VK_RCONTROL
 const int _vkControl = 0x11;
+const int _vkLControl = 0xA2;
+const int _vkRControl = 0xA3;
 
-typedef _GetAsyncKeyStateNative = Int16 Function(Int32 vKey);
-typedef _GetAsyncKeyStateDart = int Function(int vKey);
+/// Win32 SHORT-returning key APIs are read as [Int32] so ARM64/x64 leftover
+/// bits in the register cannot zero a 16-bit FFI decode.
+typedef _KeyStateNative = Int32 Function(Int32 vKey);
+typedef _KeyStateDart = int Function(int vKey);
 
-_GetAsyncKeyStateDart? _getAsyncKeyState;
+_KeyStateDart? _getAsyncKeyState;
+_KeyStateDart? _getKeyState;
 
-_GetAsyncKeyStateDart? get _asyncKeyState {
-  if (_getAsyncKeyState != null) return _getAsyncKeyState;
-  if (kIsWeb || !Platform.isWindows) return null;
+void _ensureUser32() {
+  if (_getAsyncKeyState != null || kIsWeb || !Platform.isWindows) return;
   try {
     final user32 = DynamicLibrary.open('user32.dll');
-    _getAsyncKeyState = user32
-        .lookupFunction<_GetAsyncKeyStateNative, _GetAsyncKeyStateDart>(
-          'GetAsyncKeyState',
-        );
+    _getAsyncKeyState = user32.lookupFunction<_KeyStateNative, _KeyStateDart>(
+      'GetAsyncKeyState',
+    );
+    _getKeyState = user32.lookupFunction<_KeyStateNative, _KeyStateDart>(
+      'GetKeyState',
+    );
   } catch (_) {
     _getAsyncKeyState = null;
+    _getKeyState = null;
   }
-  return _getAsyncKeyState;
+}
+
+bool _winKeyDown(int vKey) {
+  _ensureUser32();
+  final asyncFn = _getAsyncKeyState;
+  if (asyncFn != null && (asyncFn(vKey) & 0x8000) != 0) return true;
+  final keyFn = _getKeyState;
+  if (keyFn != null && (keyFn(vKey) & 0x8000) != 0) return true;
+  return false;
 }
 
 /// Whether Ctrl is physically held, per the OS (not Flutter's key cache).
@@ -34,9 +50,17 @@ _GetAsyncKeyStateDart? get _asyncKeyState {
 /// (plain click → go to definition) or missing (Ctrl+click does nothing while
 /// Ctrl+Shift+click still works once another key event refreshes state).
 bool windowsControlPressed() {
-  final fn = _asyncKeyState;
-  if (fn == null) return false;
-  return (fn(_vkControl) & 0x8000) != 0;
+  if (kIsWeb || !Platform.isWindows) return false;
+  return _winKeyDown(_vkControl) ||
+      _winKeyDown(_vkLControl) ||
+      _winKeyDown(_vkRControl);
+}
+
+/// True when this pointer-down should be treated as a go-to-definition click
+/// (primary, remapped-secondary, or a synthesized 0-button down).
+bool isGoToDefinitionPointerButtons(int buttons) {
+  if (buttons == 0) return true;
+  return (buttons & (kPrimaryMouseButton | kSecondaryMouseButton)) != 0;
 }
 
 /// Modifier for go-to-definition click (⌘ on macOS, Ctrl elsewhere).

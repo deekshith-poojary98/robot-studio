@@ -4336,8 +4336,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<void> _editorCtrlClickDefinition(int line, int column) async {
     final tab = _activeEditorTab;
+    final token = tab == null
+        ? null
+        : _editorTokenAt(line: line, column: column);
+    if (kDebugMode) {
+      debugPrint(
+        'DEFCLICK definition line=$line column=$column '
+        'token=${token ?? 'null'} path=${tab?.path}',
+      );
+    }
     if (tab == null) return;
-    final token = _editorTokenAt(line: line, column: column);
     if (token == null) return;
     try {
       final definition = await _gateway.languageDefinition(
