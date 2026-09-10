@@ -116,7 +116,7 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
         onVerticalDragUpdate: _onDrag,
         onHorizontalDragUpdate: _onDrag,
         onVerticalDragStart: (details) {
-          if (!_tapping) {
+          if (!_tapping || _isDefinitionModifierPressed()) {
             return;
           }
           _dragPosition = details.globalPosition;
@@ -132,7 +132,7 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
           _dragging = false;
         },
         onHorizontalDragStart: (details) {
-          if (!_tapping) {
+          if (!_tapping || _isDefinitionModifierPressed()) {
             return;
           }
           _dragPosition = details.globalPosition;
