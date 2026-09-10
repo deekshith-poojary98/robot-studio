@@ -142,6 +142,11 @@ class WorkspaceLiveController {
         unawaited(onIndexUpdated(event));
         _scheduleTestsFlush();
         return;
+      case 'TESTS_UPDATED':
+        // Pass/fail from the last run — refresh so beaker / status dots match
+        // the toolbar StatusBadge colors (success / error).
+        _scheduleTestsFlush();
+        return;
       case 'ENVIRONMENT_CHANGED':
         unawaited(onEnvironmentChanged());
         return;

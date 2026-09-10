@@ -22,6 +22,7 @@ from robot_studio.core.events import (
     ExecutionFinished,
     ExecutionStarted,
     IndexUpdated,
+    TestExplorerUpdated,
     WorkspaceOpened,
 )
 from robot_studio.domain.interfaces.indexing import SymbolKind
@@ -172,8 +173,8 @@ class TestExplorerService:
         self._tree = None
 
     async def _on_execution_finished(self, event: ExecutionFinished) -> None:
-        # Drop spinners immediately — per-test XML apply can take a long time
-        # on huge project runs and must not keep the tree in "running".
+        # Drop spinners immediately — UI must not stay on "running" while XML
+        # is parsed. Await apply so pass/fail is ready, then notify the tree.
         logger.info(
             "test-explorer finished run=%s clearing keys=%s",
             event.run_id,
@@ -181,10 +182,8 @@ class TestExplorerService:
         )
         self._running_keys.clear()
         self._tree = None
-        asyncio.create_task(
-            self._apply_run_results(event.run_id),
-            name=f"test-explorer-apply-{event.run_id}",
-        )
+        await self._apply_run_results(event.run_id)
+        await self.event_bus.publish(TestExplorerUpdated(run_id=event.run_id))
 
     async def _on_execution_failed(self, event: ExecutionFailed) -> None:
         logger.info(

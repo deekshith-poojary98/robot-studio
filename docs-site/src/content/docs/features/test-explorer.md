@@ -21,6 +21,7 @@ From the Tests panel you can run:
 - The current file
 - Failed tests from the last relevant run
 
+After a run finishes, each test’s beaker icon and status dot use the same colors as the toolbar run chip: green for pass, red for fail, amber for skip.
 Toolbar **Run** still targets only the open `.robot` editor suite — not a text selection. To run **one** test from the editor, click the play control left of that test’s name, or use **Run → Run Test at Cursor**. Use the Tests tree when you need a suite node, failed tests, or a file that is not open. Tree Run / Run Failed / Re-run use the run configuration selected in the toolbar (see [Run configurations](/workflows/running-tests/#run-configurations)).
 
 For very large estimated runs, Robot Studio asks for confirmation before starting (**Settings → Execution → Large Run Threshold**).

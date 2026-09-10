@@ -181,6 +181,13 @@ class ExecutionFailed(DomainEvent):
 
 
 @dataclass(frozen=True)
+class TestExplorerUpdated(DomainEvent):
+    """Pass/fail statuses in the Tests tree were refreshed from a run."""
+
+    run_id: UUID | None = None
+
+
+@dataclass(frozen=True)
 class RunIndexed(DomainEvent):
     run_id: UUID
     workspace_id: UUID | None = None

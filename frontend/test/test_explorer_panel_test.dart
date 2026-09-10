@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:robot_studio/core/gateway/models/test_explorer_info.dart';
+import 'package:robot_studio/core/theme/app_theme.dart';
 import 'package:robot_studio/presentation/tests/test_explorer_panel.dart';
 
 void main() {
@@ -134,6 +135,32 @@ void main() {
     expect(find.text('Pay'), findsOneWidget);
   });
 
+  testWidgets('pass status colors the beaker like the toolbar chip', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            height: 600,
+            child: TestExplorerPanel(
+              tree: sampleTree(status: TestNodeStatus.pass),
+            ),
+          ),
+        ),
+      ),
+    );
+    final beaker = tester.widget<Icon>(
+      find.descendant(
+        of: find.widgetWithText(InkWell, 'Pay'),
+        matching: find.byIcon(Icons.science),
+      ),
+    );
+    expect(beaker.color, AppColors.success);
+  });
+
   testWidgets('status updates render running indicator', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -150,6 +177,8 @@ void main() {
     );
 
     expect(find.byType(CircularProgressIndicator), findsWidgets);
+    // Play is hidden on the running test row (spinner replaces it).
+    expect(find.byKey(const Key('test-run-test:1')), findsNothing);
   });
 
   testWidgets('lazy suite shells are expandable', (tester) async {

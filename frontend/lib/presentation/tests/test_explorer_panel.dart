@@ -500,7 +500,7 @@ class _TestTreeNodeTile extends StatelessWidget {
                     : const SizedBox.shrink(),
               ),
               Icon(
-                _kindIcon(node.kind),
+                _kindIcon(node.kind, node.status),
                 size: 14,
                 color: _kindColor(context.palette, node),
               ),
@@ -531,7 +531,8 @@ class _TestTreeNodeTile extends StatelessWidget {
                   ),
                 ),
               _StatusDot(status: node.status),
-              if (node.isRunnable)
+              // Hide play while this node is running — spinner takes its place.
+              if (node.isRunnable && node.status != TestNodeStatus.running)
                 IconButton(
                   key: Key('test-run-${node.id}'),
                   onPressed: onRunNode == null ? null : () => onRunNode!(node),
@@ -582,19 +583,25 @@ class _TestTreeNodeTile extends StatelessWidget {
     }
   }
 
-  IconData _kindIcon(String kind) {
+  IconData _kindIcon(String kind, TestNodeStatus status) {
     return switch (kind) {
       'workspace' => Icons.work_outline,
       'project' => Icons.folder_special_outlined,
       'directory' => Icons.folder_outlined,
       'suite' => Icons.description_outlined,
-      'test' || 'task' => Icons.science_outlined,
+      'test' || 'task' => switch (status) {
+        TestNodeStatus.pass ||
+        TestNodeStatus.fail ||
+        TestNodeStatus.skip => Icons.science,
+        _ => Icons.science_outlined,
+      },
       'setup' || 'teardown' => Icons.settings_outlined,
       _ => Icons.circle_outlined,
     };
   }
 
   Color _kindColor(AppPalette palette, TestNodeInfo node) {
+    // Same success / error / warning tokens as the toolbar StatusBadge chip.
     return switch (node.status) {
       TestNodeStatus.pass => palette.success,
       TestNodeStatus.fail => palette.error,
@@ -613,15 +620,19 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (status == TestNodeStatus.running) {
-      return const Padding(
-        padding: EdgeInsets.only(right: 2),
+      return Padding(
+        padding: const EdgeInsets.only(right: 2),
         child: SizedBox(
           width: 10,
           height: 10,
-          child: CircularProgressIndicator(strokeWidth: 1.5),
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            color: context.palette.info,
+          ),
         ),
       );
     }
+    // Match toolbar StatusBadge dotColor for Passed / Failed / etc.
     final color = switch (status) {
       TestNodeStatus.pass => context.palette.success,
       TestNodeStatus.fail => context.palette.error,
