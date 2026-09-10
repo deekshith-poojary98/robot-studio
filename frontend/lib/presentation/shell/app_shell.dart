@@ -200,6 +200,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   final _preferencesLeave = PreferencesLeaveBinding();
   List<IndexedSymbolInfo> _testSuites = [];
   TestNodeInfo? _testTree;
+  int _testTreeLoadId = 0;
   bool _loadingTestTree = false;
   String _testFilter = '';
   Timer? _testFilterDebounce;
@@ -2872,7 +2873,35 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  String _testTreeStatusSummary(TestNodeInfo? root) {
+    if (root == null) return '(null)';
+    final counts = <String, int>{};
+    void walk(TestNodeInfo node) {
+      if (node.kind == 'test' || node.kind == 'task') {
+        final key = node.status.name;
+        counts[key] = (counts[key] ?? 0) + 1;
+      }
+      for (final child in node.children) {
+        walk(child);
+      }
+    }
+
+    walk(root);
+    if (counts.isEmpty) return '(no cases loaded)';
+    return counts.entries.map((e) => '${e.key}:${e.value}').join(',');
+  }
+
+  void _testex(String message) {
+    if (kDebugMode) {
+      _appendLog('[TESTEX] $message');
+    }
+  }
+
   Future<void> _handleRunFinished() async {
+    _testex(
+      'onRunFinished status=${_execution.executionStatus.name} '
+      'tree=${_testTreeStatusSummary(_testTree)}',
+    );
     // Clear explorer spinners immediately — lazy retain can keep stale
     // `running` children until suite expand completes.
     if (_testTree != null) {
@@ -2880,8 +2909,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _testTree = TestNodeInfo.withoutRunningStatuses(_testTree!);
       });
     }
-    await _loadExecutionHistory();
+    _testex(
+      'after withoutRunningStatuses tree=${_testTreeStatusSummary(_testTree)}',
+    );
+    // Reload the tree before history so expand cannot sit behind a slow
+    // reports fetch while INDEX_UPDATED re-applies stale running.
     await _loadTestTree();
+    await _loadExecutionHistory();
     if (!mounted) return;
     final latest = _executionHistory.isNotEmpty
         ? _executionHistory.first
@@ -3037,12 +3071,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return;
     }
     if (!mounted) return;
+    final loadId = ++_testTreeLoadId;
     setState(() => _loadingTestTree = true);
     try {
       final q = query ?? _testFilter;
       final lazy = q.trim().isEmpty;
-      final previous = _testTree;
       var tree = await _gateway.getTestTree(query: q, lazy: lazy);
+      if (!mounted || loadId != _testTreeLoadId) return;
+      // Capture previous AFTER the await so a concurrent
+      // withoutRunningStatuses is not overwritten by a stale snapshot.
+      final previous = _testTree;
       var refresh = const <TestNodeInfo>[];
       // Lazy reloads replace hydrated suites with empty shells. Keep children
       // for nodes the user already expanded so the tree does not go blank.
@@ -3051,6 +3089,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         tree = retained.tree;
         refresh = retained.refresh;
       }
+      if (!_execution.executionStatus.isActive) {
+        tree = TestNodeInfo.withoutRunningStatuses(tree);
+      }
       List<IndexedSymbolInfo> suites = const [];
       try {
         suites = await _gateway.searchSymbols(
@@ -3058,7 +3099,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           kind: SymbolKind.testSuite,
         );
       } catch (_) {}
-      if (!mounted) return;
+      if (!mounted || loadId != _testTreeLoadId) return;
+      _testex(
+        'loadTestTree load=$loadId active=${_execution.executionStatus.isActive} '
+        'refresh=${refresh.length} tree=${_testTreeStatusSummary(tree)}',
+      );
       setState(() {
         _testTree = tree;
         _testSuites = suites;
@@ -3069,7 +3114,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       }
     } catch (error) {
       if (!mounted) return;
-      setState(() => _loadingTestTree = false);
+      if (loadId == _testTreeLoadId) {
+        setState(() => _loadingTestTree = false);
+      }
       _appendLog('[warn] Could not load test tree: $error');
     }
   }
@@ -3085,8 +3132,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Future<void> _expandTestNode(TestNodeInfo node) async {
     if (node.path == null || node.path!.isEmpty) return;
     try {
-      final children = await _gateway.getTestsForFile(node.path!);
+      var children = await _gateway.getTestsForFile(node.path!);
       if (!mounted || _testTree == null) return;
+      final active = _execution.executionStatus.isActive;
+      if (!active) {
+        children = [
+          for (final child in children)
+            TestNodeInfo.withoutRunningStatuses(child),
+        ];
+      }
+      _testex(
+        'expand ${node.name} active=$active '
+        'children=${children.map((c) => '${c.name}:${c.status.name}').join(',')}',
+      );
       final refreshed = node.copyWith(children: children, detail: '');
       setState(() {
         _testTree = _testTree!.replaceChild(node.id, refreshed);
@@ -3111,8 +3169,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
     await _maybeSaveBeforeRun();
     if (!mounted) return;
+    _testex('runSingleTest POST /tests/run file=$file name=$name');
     setState(() {
       _revealExecutionCenter();
+      if (_testTree != null) {
+        _testTree = TestNodeInfo.withOnlyTestRunning(
+          _testTree!,
+          filePath: file,
+          testName: name,
+        );
+      }
     });
     await _connectExecutionStream();
     try {
@@ -3163,6 +3229,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleRunTestNode(TestNodeInfo node) async {
+    _testex('runTestNode kind=${node.kind} name=${node.name} path=${node.path}');
     if (node.kind == 'test' || node.kind == 'task') {
       if (node.path == null || node.path!.isEmpty) return;
       await _handleRunSingleTest(file: node.path!, name: node.name);
@@ -3178,6 +3245,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
     setState(() {
       _revealExecutionCenter();
+      if (_testTree != null &&
+          node.kind == 'suite' &&
+          node.path != null &&
+          node.path!.isNotEmpty) {
+        _testTree = TestNodeInfo.withFileRunning(_testTree!, node.path!);
+      }
     });
     await _connectExecutionStream();
     try {

@@ -12,6 +12,7 @@ from robot_studio.core.events import (
     ExecutionCancelled,
     ExecutionStarted,
 )
+from robot_studio.domain.models import ExecutionStatus
 
 
 def _bare_service() -> TestExplorerService:
@@ -80,3 +81,35 @@ def test_status_for_single_case_key_does_not_mark_siblings() -> None:
     assert (
         TestExplorerService._status_for(svc, sibling, "TC-DASH-002", path) == "not_run"
     )
+
+
+class _FakeExecution:
+    def __init__(self, status: ExecutionStatus) -> None:
+        self._current = type("Run", (), {"status": status})()
+
+
+def test_status_for_ignores_stale_keys_when_execution_finished() -> None:
+    svc = _bare_service()
+    svc.execution_service = _FakeExecution(ExecutionStatus.FINISHED)
+    svc._running_keys = {"*"}
+    path = str(Path("/tmp/dashboard_test.robot").resolve())
+    key = TestExplorerService._case_key(path, "TC-DASH-001")
+    assert TestExplorerService._status_for(svc, key, "TC-DASH-001", path) == "not_run"
+
+
+def test_prune_stale_running_keys_when_execution_inactive() -> None:
+    svc = _bare_service()
+    svc.execution_service = _FakeExecution(ExecutionStatus.FINISHED)
+    svc._running_keys = {"*"}
+    TestExplorerService._prune_stale_running_keys(svc)
+    assert svc._running_keys == set()
+    assert svc._tree is None
+
+
+def test_status_for_keeps_running_while_execution_active() -> None:
+    svc = _bare_service()
+    svc.execution_service = _FakeExecution(ExecutionStatus.RUNNING)
+    svc._running_keys = {"*"}
+    path = str(Path("/tmp/dashboard_test.robot").resolve())
+    key = TestExplorerService._case_key(path, "TC-DASH-001")
+    assert TestExplorerService._status_for(svc, key, "TC-DASH-001", path) == "running"

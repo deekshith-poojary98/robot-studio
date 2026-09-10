@@ -315,6 +315,53 @@ void main() {
     );
   });
 
+  test('withOnlyTestRunning marks one case and clears sibling spinners', () {
+    final tree = sampleTree(status: TestNodeStatus.running);
+    final focused = TestNodeInfo.withOnlyTestRunning(
+      tree,
+      filePath: '/tmp/checkout.robot',
+      testName: 'Pay',
+    );
+    final suite = focused.children.single.children.single;
+    expect(suite.children[0].status, TestNodeStatus.running);
+    expect(suite.children[1].status, isNot(TestNodeStatus.running));
+  });
+
+  test('retain then strip running does not keep spinners after finish', () {
+    final hydrated = sampleTree(status: TestNodeStatus.running);
+    final lazyReload = TestNodeInfo(
+      id: 'workspace:1',
+      kind: 'workspace',
+      name: 'Demo WS',
+      children: [
+        TestNodeInfo(
+          id: 'project:1',
+          kind: 'project',
+          name: 'Shop',
+          children: [
+            const TestNodeInfo(
+              id: 'suite:1',
+              kind: 'suite',
+              name: 'checkout',
+              path: '/tmp/checkout.robot',
+              detail: 'expand',
+            ),
+          ],
+        ),
+      ],
+    );
+    final retained = TestNodeInfo.retainHydratedChildren(hydrated, lazyReload);
+    final stripped = TestNodeInfo.withoutRunningStatuses(retained.tree);
+    void expectNoRunning(TestNodeInfo node) {
+      expect(node.status, isNot(TestNodeStatus.running));
+      for (final child in node.children) {
+        expectNoRunning(child);
+      }
+    }
+
+    expectNoRunning(stripped);
+  });
+
   testWidgets('expanded lazy suite rehydrates after tree reload', (
     tester,
   ) async {
