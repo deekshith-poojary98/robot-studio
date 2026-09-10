@@ -155,7 +155,7 @@ void main() {
     final beaker = tester.widget<Icon>(
       find.descendant(
         of: find.widgetWithText(InkWell, 'Pay'),
-        matching: find.byIcon(Icons.science),
+        matching: find.byIcon(Icons.science_outlined),
       ),
     );
     expect(beaker.color, AppColors.success);

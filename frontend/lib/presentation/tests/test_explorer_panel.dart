@@ -500,7 +500,7 @@ class _TestTreeNodeTile extends StatelessWidget {
                     : const SizedBox.shrink(),
               ),
               Icon(
-                _kindIcon(node.kind, node.status),
+                _kindIcon(node.kind),
                 size: 14,
                 color: _kindColor(context.palette, node),
               ),
@@ -583,18 +583,15 @@ class _TestTreeNodeTile extends StatelessWidget {
     }
   }
 
-  IconData _kindIcon(String kind, TestNodeStatus status) {
+  IconData _kindIcon(String kind) {
     return switch (kind) {
       'workspace' => Icons.work_outline,
       'project' => Icons.folder_special_outlined,
       'directory' => Icons.folder_outlined,
       'suite' => Icons.description_outlined,
-      'test' || 'task' => switch (status) {
-        TestNodeStatus.pass ||
-        TestNodeStatus.fail ||
-        TestNodeStatus.skip => Icons.science,
-        _ => Icons.science_outlined,
-      },
+      // Always outlined — filled Icons.science is missing in some desktop
+      // glyph sets and renders blank on pass/fail rows.
+      'test' || 'task' => Icons.science_outlined,
       'setup' || 'teardown' => Icons.settings_outlined,
       _ => Icons.circle_outlined,
     };
