@@ -91,6 +91,18 @@ async def open_report(
     return OpenArtifactResponse(path=str(path))
 
 
+@router.post("/{run_id}/open-reportlens", response_model=OpenArtifactResponse)
+async def open_reportlens(
+    run_id: UUID,
+    gateway: GatewayDep,
+) -> OpenArtifactResponse:
+    try:
+        path = await gateway.open_report_lens(run_id)
+    except ReportValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return OpenArtifactResponse(path=str(path))
+
+
 @router.post("/{run_id}/open-xml", response_model=OpenArtifactResponse)
 async def open_xml(
     run_id: UUID,

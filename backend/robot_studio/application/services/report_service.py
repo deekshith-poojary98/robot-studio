@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from robot_studio.application.services.workspace_context import WorkspaceContext
@@ -17,14 +20,23 @@ from robot_studio.core.events import (
     ExecutionFinished,
     RunDeleted,
     RunIndexed,
+    SettingsUpdated,
     WorkspaceOpened,
 )
 from robot_studio.domain.interfaces.runner import ResultsStore
 from robot_studio.domain.models import DashboardSummary, ExecutionRun
+from robot_studio.infrastructure.execution.reportlens import (
+    REPORTLENS_HTML_NAME,
+    generate_reportlens_html,
+    reportlens_needs_rebuild,
+)
 from robot_studio.infrastructure.execution.results_store import FilesystemResultsStore
 from robot_studio.infrastructure.repositories.execution_repository import (
     SqliteExecutionRepository,
 )
+
+if TYPE_CHECKING:
+    from robot_studio.application.services.settings_service import SettingsService
 
 
 class ReportValidationError(Exception):
@@ -37,6 +49,7 @@ class ReportService:
     event_bus: EventBus
     results_store: ResultsStore
     repository: SqliteExecutionRepository
+    settings_service: SettingsService | None = None
     _subscribed: bool = field(default=False, init=False)
 
     def start(self) -> None:
@@ -46,6 +59,7 @@ class ReportService:
         self.event_bus.subscribe(ExecutionFailed, self._on_execution_failed)
         self.event_bus.subscribe(ExecutionCancelled, self._on_execution_cancelled)
         self.event_bus.subscribe(WorkspaceOpened, self._on_workspace_opened)
+        self.event_bus.subscribe(SettingsUpdated, self._on_settings_updated)
         self._subscribed = True
 
     async def _on_workspace_opened(self, event: WorkspaceOpened) -> None:
@@ -53,6 +67,13 @@ class ReportService:
         if workspace is not None and workspace.id == event.workspace_id:
             await self.relocate_run_paths(workspace.id, workspace.path)
         await self.purge_missing_runs(event.workspace_id)
+        await self.purge_expired_runs(event.workspace_id)
+
+    async def _on_settings_updated(self, _event: SettingsUpdated) -> None:
+        workspace = self.context.workspace
+        if workspace is None:
+            return
+        await self.purge_expired_runs(workspace.id)
 
     async def _on_execution_finished(self, event: ExecutionFinished) -> None:
         await self.index_run(event.run_id)
@@ -119,12 +140,34 @@ class ReportService:
         for run in runs:
             if run.output_dir is not None and run.output_dir.is_dir():
                 continue
-            await self.results_store.delete_run(run.id, run.output_dir)
-            await self.repository.delete(run.id)
+            await self._erase_run(run)
             removed.append(run.id)
-            await self.event_bus.publish(
-                RunDeleted(run_id=run.id, workspace_id=workspace_id),
-            )
+        return removed
+
+    async def purge_expired_runs(self, workspace_id: UUID) -> list[UUID]:
+        """Delete runs older than Settings → Execution → Report Retention Days.
+
+        ``report_retention_days <= 0`` disables auto-delete. Removed runs leave
+        Insights / analytics history as well (same path as manual Delete Run).
+        """
+        if self.settings_service is None:
+            return []
+        days = int(self.settings_service.get().execution.report_retention_days)
+        if days <= 0:
+            return []
+        cutoff = datetime.now(UTC) - timedelta(days=days)
+        removed: list[UUID] = []
+        runs = await self.repository.list_by_workspace(workspace_id, limit=10_000)
+        for run in runs:
+            anchor = run.finished_at or run.started_at
+            if anchor.tzinfo is None:
+                anchor = anchor.replace(tzinfo=UTC)
+            else:
+                anchor = anchor.astimezone(UTC)
+            if anchor >= cutoff:
+                continue
+            await self._erase_run(run)
+            removed.append(run.id)
         return removed
 
     async def relocate_run_paths(
@@ -198,6 +241,13 @@ class ReportService:
                 return refreshed
         return run
 
+    async def _erase_run(self, run: ExecutionRun) -> None:
+        await self.results_store.delete_run(run.id, run.output_dir)
+        await self.repository.delete(run.id)
+        await self.event_bus.publish(
+            RunDeleted(run_id=run.id, workspace_id=run.workspace_id),
+        )
+
     async def delete_run(self, run_id: UUID) -> None:
         workspace = self._require_workspace()
         run = await self.repository.get(run_id)
@@ -205,11 +255,7 @@ class ReportService:
             raise ReportValidationError(f"Run not found: {run_id}")
         if run.workspace_id != workspace.id:
             raise ReportValidationError("Run does not belong to the active workspace")
-        await self.results_store.delete_run(run_id, run.output_dir)
-        await self.repository.delete(run_id)
-        await self.event_bus.publish(
-            RunDeleted(run_id=run_id, workspace_id=workspace.id),
-        )
+        await self._erase_run(run)
 
     async def open_log(self, run_id: UUID) -> Path:
         run = await self.get_run(run_id)
@@ -234,6 +280,31 @@ class ReportService:
             raise ReportValidationError("output.xml is not available for this run")
         _open_path(Path(path))
         return Path(path)
+
+    async def open_reportlens(self, run_id: UUID) -> Path:
+        """Generate ReportLens HTML from output.xml (if needed) and open it."""
+        run = await self.get_run(run_id)
+        xml = run.output_xml
+        if xml is None or not Path(xml).is_file():
+            raise ReportValidationError(
+                "output.xml is not available — cannot generate ReportLens",
+            )
+        xml_path = Path(xml)
+        out_dir = Path(run.output_dir) if run.output_dir is not None else xml_path.parent
+        html_path = out_dir / REPORTLENS_HTML_NAME
+        try:
+            if reportlens_needs_rebuild(xml_path, html_path):
+                await asyncio.to_thread(generate_reportlens_html, xml_path, html_path)
+        except ReportValidationError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — surface as user-facing validation
+            raise ReportValidationError(
+                f"ReportLens generation failed: {exc}",
+            ) from exc
+        if not html_path.is_file():
+            raise ReportValidationError("ReportLens HTML was not created")
+        _open_path(html_path)
+        return html_path
 
     async def reveal(self, run_id: UUID) -> Path:
         run = await self.get_run(run_id)

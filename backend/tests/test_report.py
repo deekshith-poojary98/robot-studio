@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -33,7 +33,6 @@ from robot_studio.infrastructure.execution.results_store import FilesystemResult
 from robot_studio.infrastructure.repositories.execution_repository import (
     SqliteExecutionRepository,
 )
-
 SAMPLE_OUTPUT_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <robot generator="Robot 7.0.1 (Python 3.12.0 on darwin)" generated="20260719 12:00:00.000000" rpa="false" schemaversion="5">
 <suite id="s1" name="Demo" source="demo.robot">
@@ -383,3 +382,121 @@ async def test_get_missing_run_raises(report_stack) -> None:
     service, *_ = report_stack
     with pytest.raises(ReportValidationError):
         await service.get_run(uuid4())
+
+
+class _RetentionSettings:
+    def __init__(self, days: int) -> None:
+        from robot_studio.domain.models.app_settings import (
+            AppSettings,
+            ExecutionSettings,
+        )
+
+        self._settings = AppSettings(
+            execution=ExecutionSettings(report_retention_days=days),
+        )
+
+    def get(self):
+        return self._settings
+
+
+@pytest.mark.asyncio
+async def test_purge_expired_runs_respects_retention_days(report_stack) -> None:
+    service, repository, store, workspace, bus = report_stack
+    service.settings_service = _RetentionSettings(7)
+
+    old_dir = workspace.path / ".robotstudio" / "reports" / "Run-old"
+    new_dir = workspace.path / ".robotstudio" / "reports" / "Run-new"
+    old_dir.mkdir(parents=True)
+    new_dir.mkdir(parents=True)
+    (old_dir / "report.html").write_text("<html/>", encoding="utf-8")
+    (new_dir / "report.html").write_text("<html/>", encoding="utf-8")
+
+    old_started = datetime.now(UTC) - timedelta(days=30)
+    new_started = datetime.now(UTC) - timedelta(days=1)
+    old_run = _run(workspace).model_copy(
+        update={
+            "output_dir": old_dir,
+            "report_html": old_dir / "report.html",
+            "started_at": old_started,
+            "finished_at": old_started,
+        },
+    )
+    new_run = _run(workspace).model_copy(
+        update={
+            "output_dir": new_dir,
+            "report_html": new_dir / "report.html",
+            "started_at": new_started,
+            "finished_at": new_started,
+        },
+    )
+    await repository.create(old_run)
+    await repository.create(new_run)
+    await store.discover_run(old_run.id, old_dir)
+    await store.discover_run(new_run.id, new_dir)
+
+    deleted: list[RunDeleted] = []
+
+    async def on_deleted(event: RunDeleted) -> None:
+        deleted.append(event)
+
+    bus.subscribe(RunDeleted, on_deleted)
+
+    removed = await service.purge_expired_runs(workspace.id)
+    assert removed == [old_run.id]
+    assert await repository.get(old_run.id) is None
+    assert not old_dir.exists()
+    assert await repository.get(new_run.id) is not None
+    assert new_dir.exists()
+    assert len(deleted) == 1
+
+
+@pytest.mark.asyncio
+async def test_purge_expired_runs_disabled_when_zero(report_stack) -> None:
+    service, repository, _store, workspace, _bus = report_stack
+    service.settings_service = _RetentionSettings(0)
+    run_dir = workspace.path / ".robotstudio" / "reports" / "Run-keep"
+    run_dir.mkdir(parents=True)
+    old = datetime.now(UTC) - timedelta(days=400)
+    run = _run(workspace).model_copy(
+        update={
+            "output_dir": run_dir,
+            "started_at": old,
+            "finished_at": old,
+        },
+    )
+    await repository.create(run)
+    assert await service.purge_expired_runs(workspace.id) == []
+    assert await repository.get(run.id) is not None
+
+
+@pytest.mark.asyncio
+async def test_open_reportlens_generates_and_opens(report_stack, monkeypatch) -> None:
+    service, repository, _store, workspace, _bus = report_stack
+    run_dir = workspace.path / ".robotstudio" / "reports" / "Run-lens"
+    run_dir.mkdir(parents=True)
+    xml = run_dir / "output.xml"
+    xml.write_text(SAMPLE_OUTPUT_XML, encoding="utf-8")
+    run = _run(workspace).model_copy(
+        update={"output_dir": run_dir, "output_xml": xml},
+    )
+    await repository.create(run)
+
+    opened: list[Path] = []
+
+    def fake_open(path: Path) -> None:
+        opened.append(path)
+
+    monkeypatch.setattr(
+        "robot_studio.application.services.report_service._open_path",
+        fake_open,
+    )
+
+    path = await service.open_reportlens(run.id)
+    assert path.name == "reportlens.html"
+    assert path.is_file()
+    assert opened == [path]
+
+    # Second call reuses existing HTML (no error).
+    path2 = await service.open_reportlens(run.id)
+    assert path2 == path
+    assert len(opened) == 2

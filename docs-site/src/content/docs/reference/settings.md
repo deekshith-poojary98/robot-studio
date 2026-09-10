@@ -28,6 +28,7 @@ Settings are stored in `~/.robot-studio/settings.json`. Use **Save** to apply ch
 | **Reveal Execution On Run** | On | Bring the execution monitor forward when a run starts |
 | **Auto Open Report On Failure** | Off | Open Reports when tests failed. Empty selection (**NO TESTS**) does not count as a failure. |
 | **Stop Confirmation** | On | Confirm before stopping a running suite |
+| **Report Retention Days** | `0` | Auto-delete runs older than this many days (`0` = keep forever). Runs when you open a workspace or save Settings. **Deleted reports also leave Insights analytics** (pass rate, streaks, file triage). See [Reports](/workflows/reports/#auto-delete-old-reports). |
 
 ## Search
 

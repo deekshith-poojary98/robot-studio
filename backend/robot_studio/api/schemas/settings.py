@@ -21,6 +21,7 @@ class ExecutionSettingsResponse(BaseModel):
     reveal_execution_on_run: bool = True
     auto_open_report_on_failure: bool = False
     stop_confirmation: bool = True
+    report_retention_days: int = 0
 
 
 class SearchSettingsResponse(BaseModel):
@@ -62,6 +63,7 @@ class ExecutionSettingsPatch(BaseModel):
     reveal_execution_on_run: bool | None = None
     auto_open_report_on_failure: bool | None = None
     stop_confirmation: bool | None = None
+    report_retention_days: int | None = None
 
 
 class SearchSettingsPatch(BaseModel):

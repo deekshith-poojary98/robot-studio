@@ -13,14 +13,24 @@ Each run entry shows stats and links to the artifacts Robot Framework produced. 
 - `log.html`
 - `output.xml`
 
+## ReportLens
+
+**Generate ReportLens** in the Reports header (next to **Refresh**) builds a modern interactive HTML report from the selected run’s `output.xml` (on demand — not after every run) and opens it in your default browser. The file is written as `reportlens.html` beside the other artifacts and reused until `output.xml` changes. The button stays disabled until a run with `output.xml` is selected.
+
 ## Delete a run
 
 **Delete Run** on the details panel asks for confirmation, then removes:
 
-- The `.robotstudio/reports/Run-*` folder (`report.html`, `log.html`, `output.xml`)
+- The `.robotstudio/reports/Run-*` folder (`report.html`, `log.html`, `output.xml`, and any `reportlens.html`)
 - That run’s history row from Studio’s database (`~/.robot-studio/robot-studio.db`)
 
 [Insights](/features/insights/) uses the same history, so the run drops out of pass rate, last run, streaks, and per-file stats on the next Insights load. If Insights is already open, use **Refresh**.
+
+## Auto-delete old reports
+
+Under **Settings → Execution → Report Retention Days**, set how long to keep run folders. `0` keeps them forever. A positive value deletes runs older than that many days when you open a workspace or save Settings.
+
+**Important:** Auto-deleted runs are removed from Insights analytics as well (same effect as **Delete Run**). Use retention only when you are comfortable losing that history to reclaim disk space.
 
 ## Failed tests
 

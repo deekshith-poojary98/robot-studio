@@ -248,6 +248,9 @@ class ApiClient implements TransportGateway {
   Future<String> openReportHtml(String runId) => _gateway.openReportHtml(runId);
 
   @override
+  Future<String> openReportLens(String runId) => _gateway.openReportLens(runId);
+
+  @override
   Future<String> openReportXml(String runId) => _gateway.openReportXml(runId);
 
   @override

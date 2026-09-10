@@ -194,6 +194,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   bool _sidePanelCollapsed = false;
   final List<String> _recentlyClosedPaths = [];
   bool _showReportsPage = false;
+  bool _generatingReportLens = false;
   bool _showDoctorPage = false;
   bool _showInsightsPage = false;
   bool _showSettingsPage = false;
@@ -1231,6 +1232,29 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     } catch (error) {
       if (!mounted) return;
       await _showError('Open report', error);
+    }
+  }
+
+  Future<void> _openReportLens() async {
+    final run = _selectedReport;
+    if (run == null || _generatingReportLens) return;
+    setState(() => _generatingReportLens = true);
+    try {
+      await _gateway.openReportLens(run.id);
+      if (!mounted) return;
+      showAppToast(
+        context,
+        message: 'Opened ReportLens',
+        icon: Icons.auto_graph_outlined,
+        duration: const Duration(seconds: 2),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      await _showError('Generate ReportLens', error);
+    } finally {
+      if (mounted) {
+        setState(() => _generatingReportLens = false);
+      }
     }
   }
 
@@ -6676,6 +6700,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onOpenXml: _openReportXml,
         onOpenLog: _openReportLog,
         onOpenReport: _openReportHtml,
+        onOpenReportLens: () => unawaited(_openReportLens()),
+        isGeneratingReportLens: _generatingReportLens,
         onReveal: _revealReport,
         onDelete: _deleteSelectedReport,
       ),

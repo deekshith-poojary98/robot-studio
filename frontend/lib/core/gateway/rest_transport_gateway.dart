@@ -525,6 +525,16 @@ class RestTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<String> openReportLens(String runId) async {
+    final response = await _post(
+      '/reports/$runId/open-reportlens',
+      body: {},
+      timeout: const Duration(minutes: 5),
+    );
+    return response['path'] as String? ?? '';
+  }
+
+  @override
   Future<String> openReportXml(String runId) async {
     final response = await _post('/reports/$runId/open-xml', body: {});
     return response['path'] as String? ?? '';

@@ -2338,6 +2338,9 @@ class _FakeTransportGateway implements TransportGateway {
   Future<String> openReportHtml(String runId) async => '/tmp/report.html';
 
   @override
+  Future<String> openReportLens(String runId) async => '/tmp/reportlens.html';
+
+  @override
   Future<String> openReportXml(String runId) async => '/tmp/output.xml';
 
   @override

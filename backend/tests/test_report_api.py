@@ -130,12 +130,15 @@ async def test_reports_api_list_get_dashboard_delete(api_client, monkeypatch) ->
 
     log = await client.post(f"/api/v1/reports/{run.id}/open-log")
     report = await client.post(f"/api/v1/reports/{run.id}/open-report")
+    lens = await client.post(f"/api/v1/reports/{run.id}/open-reportlens")
     xml = await client.post(f"/api/v1/reports/{run.id}/open-xml")
     reveal = await client.post(f"/api/v1/reports/{run.id}/reveal")
     assert log.status_code == 200
     assert report.status_code == 200
+    assert lens.status_code == 200
     assert xml.status_code == 200
     assert reveal.status_code == 200
+    assert (run_dir / "reportlens.html").is_file()
     assert any(item.startswith("open:") for item in opened)
     assert any(item.startswith("reveal:") for item in opened)
 

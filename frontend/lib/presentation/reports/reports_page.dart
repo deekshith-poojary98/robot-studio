@@ -23,6 +23,8 @@ class ReportsPage extends StatelessWidget {
     this.onOpenXml,
     this.onOpenLog,
     this.onOpenReport,
+    this.onOpenReportLens,
+    this.isGeneratingReportLens = false,
     this.onReveal,
     this.onDelete,
   });
@@ -40,6 +42,8 @@ class ReportsPage extends StatelessWidget {
   final VoidCallback? onOpenXml;
   final VoidCallback? onOpenLog;
   final VoidCallback? onOpenReport;
+  final VoidCallback? onOpenReportLens;
+  final bool isGeneratingReportLens;
   final VoidCallback? onReveal;
   final VoidCallback? onDelete;
 
@@ -78,6 +82,28 @@ class ReportsPage extends StatelessWidget {
                     ],
                   ),
                 ),
+                OutlinedButton.icon(
+                  onPressed:
+                      (selected?.outputXml == null || isGeneratingReportLens)
+                      ? null
+                      : onOpenReportLens,
+                  icon: isGeneratingReportLens
+                      ? SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: context.palette.accent,
+                          ),
+                        )
+                      : const Icon(Icons.auto_graph_outlined, size: 16),
+                  label: Text(
+                    isGeneratingReportLens
+                        ? 'Generating…'
+                        : 'Generate ReportLens',
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
                 OutlinedButton.icon(
                   onPressed: onRefresh,
                   icon: const Icon(Icons.refresh, size: 16),

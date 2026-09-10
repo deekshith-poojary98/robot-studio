@@ -7,7 +7,7 @@ Insights is a triage starting point for run health — not a metrics dashboard. 
 
 Use it when you want to know **where the project is hurting** and jump straight into Failed Tests, source, Reports, or a rerun.
 
-Run health is computed from the same run history as [Reports](/workflows/reports/). [Deleting a run](/workflows/reports/#delete-a-run) removes it from that history (database row and `Run-*` folder), so Insights no longer counts it. If Insights is already open, use **Refresh**.
+Run health is computed from the same run history as [Reports](/workflows/reports/). [Deleting a run](/workflows/reports/#delete-a-run) removes it from that history (database row and `Run-*` folder), so Insights no longer counts it. The same applies when [Report Retention Days](/workflows/reports/#auto-delete-old-reports) auto-deletes old runs. If Insights is already open, use **Refresh**.
 
 ## Run health
 

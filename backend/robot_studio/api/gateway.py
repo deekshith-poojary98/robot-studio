@@ -595,6 +595,9 @@ class RestGateway:
     async def open_report_html(self, run_id: UUID):
         return await self._report_service.open_report(run_id)
 
+    async def open_report_lens(self, run_id: UUID):
+        return await self._report_service.open_reportlens(run_id)
+
     async def open_report_xml(self, run_id: UUID):
         return await self._report_service.open_xml(run_id)
 
