@@ -96,3 +96,37 @@ def test_extended_variable_access_is_known_when_base_declared() -> None:
     assert not RobotLanguageService._is_known_variable("${other.json()}", declared)
     # Number literals with a decimal must not be treated as attribute access.
     assert RobotLanguageService._is_known_variable("${3.14}", set())
+
+
+def test_set_suite_variable_declares_name() -> None:
+    """BuiltIn Set * Variable first arg is a definition, not an unknown read."""
+    lines = [
+        "*** Test Cases ***",
+        "Create Holiday",
+        "    ${name}=    Set Variable    Holiday A",
+        "    Set Suite Variable    ${CREATED_HOLIDAY_NAME}    ${name}",
+        "    Log    ${CREATED_HOLIDAY_NAME}",
+        "*** Settings ***",
+        "Suite Setup    Set Global Variable    ${SESSION}    api",
+    ]
+    declared = RobotLanguageService._collect_declared_variables(lines)
+    assert "${name}" in declared
+    assert "${CREATED_HOLIDAY_NAME}" in declared
+    assert "${SESSION}" in declared
+
+
+def test_inline_python_evaluation_is_not_unknown_variable() -> None:
+    """``${{ $a + $b }}`` is RF inline Python eval, not a variable name."""
+    line = "    VAR    ${total}    ${{ $a + $b }}"
+    tokens = RobotLanguageService._variable_tokens_in_text(line)
+    assert "${total}" in tokens
+    assert not any(t.startswith("${{") for t in tokens)
+    assert "${{ $a + $b }}" not in tokens
+    # Nested normal ${x} inside expressions should also be ignored here —
+    # RF docs prefer $x shorthand inside ${{ }}.
+    nested = "    Log    ${{ '${x}' + str($y) }}"
+    nested_tokens = RobotLanguageService._variable_tokens_in_text(nested)
+    assert nested_tokens == []
+    # Nested Python braces must still mask the whole expression.
+    dict_expr = "    ${d}=    Set Variable    ${{ {'a': $a, 'b': $b} }}"
+    assert RobotLanguageService._variable_tokens_in_text(dict_expr) == ["${d}"]
