@@ -87,6 +87,18 @@ class TestNodeInfo {
     );
   }
 
+  /// Drop [TestNodeStatus.running] after a run ends so retained lazy children
+  /// do not keep spinners while the tree re-fetches pass/fail.
+  static TestNodeInfo withoutRunningStatuses(TestNodeInfo node) {
+    final kids = [
+      for (final child in node.children) withoutRunningStatuses(child),
+    ];
+    final status = node.status == TestNodeStatus.running
+        ? TestNodeStatus.notRun
+        : node.status;
+    return node.copyWith(status: status, children: kids);
+  }
+
   /// After a lazy tree reload, keep previously expanded suite/dir children so
   /// the UI does not flash empty while those nodes stay visually expanded.
   ///

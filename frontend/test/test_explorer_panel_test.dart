@@ -298,6 +298,23 @@ void main() {
     },
   );
 
+  test('withoutRunningStatuses clears spinners recursively', () {
+    final tree = sampleTree(status: TestNodeStatus.running);
+    final cleared = TestNodeInfo.withoutRunningStatuses(tree);
+    void expectNoRunning(TestNodeInfo node) {
+      expect(node.status, isNot(TestNodeStatus.running));
+      for (final child in node.children) {
+        expectNoRunning(child);
+      }
+    }
+
+    expectNoRunning(cleared);
+    expect(
+      cleared.children.single.children.single.children.first.status,
+      TestNodeStatus.notRun,
+    );
+  });
+
   testWidgets('expanded lazy suite rehydrates after tree reload', (
     tester,
   ) async {

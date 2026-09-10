@@ -16,6 +16,7 @@ from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.config import settings as env_settings
 from robot_studio.core.events import (
     EventBus,
+    ExecutionCancelled,
     ExecutionFailed,
     ExecutionFinished,
     ExecutionStarted,
@@ -104,6 +105,7 @@ class TestExplorerService:
         self.event_bus.subscribe(ExecutionStarted, self._on_execution_started)
         self.event_bus.subscribe(ExecutionFinished, self._on_execution_finished)
         self.event_bus.subscribe(ExecutionFailed, self._on_execution_failed)
+        self.event_bus.subscribe(ExecutionCancelled, self._on_execution_cancelled)
         self._subscribed = True
 
     def _require_workspace(self):
@@ -125,7 +127,11 @@ class TestExplorerService:
 
     async def _on_execution_started(self, event: ExecutionStarted) -> None:
         _ = event
-        self._running_keys = {"*"}
+        # run_test / suite / failed-rerun seed specific keys before start. Keep
+        # them so a single-test play does not mark every node "running". Only
+        # fall back to "*" when nothing was pre-seeded (project / tag / toolbar).
+        if not self._running_keys:
+            self._running_keys = {"*"}
         self._tree = None
 
     async def _on_execution_finished(self, event: ExecutionFinished) -> None:
@@ -139,6 +145,11 @@ class TestExplorerService:
         )
 
     async def _on_execution_failed(self, event: ExecutionFailed) -> None:
+        self._running_keys.clear()
+        self._tree = None
+        _ = event
+
+    async def _on_execution_cancelled(self, event: ExecutionCancelled) -> None:
         self._running_keys.clear()
         self._tree = None
         _ = event
@@ -212,6 +223,13 @@ class TestExplorerService:
     @staticmethod
     def _case_key(path: str, name: str) -> str:
         return f"{Path(path).resolve()}::{name}"
+
+    @staticmethod
+    def _file_running_key(path: str) -> str:
+        try:
+            return f"file:{Path(path).resolve()}"
+        except OSError:
+            return f"file:{path.replace(chr(92), '/')}"
 
     async def get_tree(self, *, query: str | None = None, lazy: bool = True) -> TestNode:
         workspace = self._require_workspace()
@@ -340,12 +358,14 @@ class TestExplorerService:
         if file:
             suite = str(Path(file).expanduser().resolve())
             label = f"Suite: {Path(suite).name}"
+            self._running_keys = {self._file_running_key(suite)}
             return await self.execution_service.run_with_options(
                 suite=suite,
                 run_label=label,
                 configuration_id=configuration_id,
             )
         await self._assert_large_run_allowed(confirm=confirm, tag=None, project_wide=True)
+        self._running_keys.clear()  # ExecutionStarted → "*"
         return await self.execution_service.run_project(configuration_id=configuration_id)
 
     async def run_tag(
@@ -367,6 +387,7 @@ class TestExplorerService:
             tag=cleaned,
             project_wide=True,
         )
+        self._running_keys.clear()  # ExecutionStarted → "*"
         return await self.execution_service.run_with_options(
             suite=str(project.path),
             robot_args=["--include", cleaned],
@@ -501,6 +522,11 @@ class TestExplorerService:
         configuration_id: UUID | None = None,
     ) -> ExecutionRun:
         """Run named tests: one suite file directly, several via the project."""
+        keys: set[str] = set()
+        for suite_path, names in by_file.items():
+            for name in names:
+                keys.add(self._case_key(suite_path, name))
+        self._running_keys = keys if keys else {"*"}
         # Robot allows multiple --test for one suite.
         if len(by_file) == 1:
             suite, names = next(iter(by_file.items()))
@@ -759,20 +785,22 @@ class TestExplorerService:
     def _status_for(self, key: str, name: str, path: str | None = None) -> str:
         if "*" in self._running_keys or key in self._running_keys:
             return "running"
-        if key in self._statuses:
-            return self._statuses[key]
-        named = self._statuses.get(f"name:{name}")
-        if named is not None:
-            return named
         if path:
             try:
                 resolved = str(Path(path).resolve())
             except OSError:
                 resolved = path.replace("\\", "/")
             for candidate in (f"file:{resolved}", f"file:{Path(path).name}"):
+                if candidate in self._running_keys:
+                    return "running"
                 file_status = self._statuses.get(candidate)
                 if file_status is not None:
                     return file_status
+        if key in self._statuses:
+            return self._statuses[key]
+        named = self._statuses.get(f"name:{name}")
+        if named is not None:
+            return named
         return "not_run"
 
     @staticmethod

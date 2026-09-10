@@ -2873,6 +2873,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleRunFinished() async {
+    // Clear explorer spinners immediately — lazy retain can keep stale
+    // `running` children until suite expand completes.
+    if (_testTree != null) {
+      setState(() {
+        _testTree = TestNodeInfo.withoutRunningStatuses(_testTree!);
+      });
+    }
     await _loadExecutionHistory();
     await _loadTestTree();
     if (!mounted) return;
