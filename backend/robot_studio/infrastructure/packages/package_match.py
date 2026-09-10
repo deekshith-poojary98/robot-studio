@@ -5,12 +5,8 @@ Rank tiers (lower is better):
 1. exact
 2. prefix
 3. substring
-4. fuzzy (ordered subsequence)
 
-Ties break on match position / span, then the package name. Fuzzy matching is
-intentionally conservative: query must be at least two characters, every
-character must appear in order, the match must start at a token boundary
-(name start or after ``-``), and no summary-only fuzzy matching.
+Name only — no fuzzy subsequence matching and no summary matching.
 """
 
 from __future__ import annotations
@@ -18,13 +14,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
-# exact → prefix → substring → fuzzy → summary substring → no match
+# exact → prefix → substring → no match
 _TIER_EXACT = 0
 _TIER_PREFIX = 1
 _TIER_SUBSTRING = 2
-_TIER_FUZZY = 3
-_TIER_SUMMARY = 4
-_TIER_NONE = 9
 
 _NORMALIZE_RE = re.compile(r"[-_.]+")
 
@@ -43,8 +36,11 @@ def package_match_key(
     """Return a sort key for *name* against *query*, or ``None`` if no match.
 
     The tuple is ``(tier, secondary, normalized_name)`` so callers can sort
-    ascending and get a stable exact > prefix > substring > fuzzy order.
+    ascending and get a stable exact > prefix > substring order.
+
+    ``summary`` is accepted for API compatibility but ignored.
     """
+    _ = summary
     needle = query.strip()
     if not needle:
         return None
@@ -61,21 +57,6 @@ def package_match_key(
     idx = n.find(q)
     if idx >= 0:
         return (_TIER_SUBSTRING, idx, n)
-
-    # Fuzzy: ordered subsequence only — never for single-character queries.
-    # First character must land on a token boundary so letter-soup hits like
-    # "robot" ⊂ "trio-websocket" do not match.
-    if len(q) >= 2:
-        span = _subsequence_span(q, n)
-        if span is not None:
-            return (_TIER_FUZZY, span, n)
-
-    if summary:
-        hay = summary.casefold()
-        raw = needle.casefold()
-        if raw in hay or q in normalize_package_name(summary):
-            return (_TIER_SUMMARY, 0, n)
-
     return None
 
 
@@ -86,10 +67,11 @@ def rank_packages(
     name_attr: str = "name",
     summary_attr: str = "summary",
 ) -> list[Any]:
-    """Filter *packages* to matches and sort by :func:`package_match_key`.
+    """Filter *packages* to name matches and sort by :func:`package_match_key`.
 
     Accepts either objects with attributes or mapping-like dicts.
     """
+    _ = summary_attr
     needle = query.strip()
     if not needle:
         return list(packages)
@@ -99,12 +81,7 @@ def rank_packages(
         name = _field(item, name_attr)
         if not name:
             continue
-        summary = _field(item, summary_attr)
-        key = package_match_key(
-            needle,
-            str(name),
-            summary=None if summary is None else str(summary),
-        )
+        key = package_match_key(needle, str(name))
         if key is not None:
             scored.append((key, item))
 
@@ -116,26 +93,3 @@ def _field(item: Any, attr: str) -> Any:
     if isinstance(item, dict):
         return item.get(attr)
     return getattr(item, attr, None)
-
-
-def _is_token_start(name: str, index: int) -> bool:
-    return index == 0 or name[index - 1] == "-"
-
-
-def _subsequence_span(query: str, name: str) -> int | None:
-    """Smallest token-anchored window covering *query* as an ordered subsequence."""
-    best: int | None = None
-    for start, char in enumerate(name):
-        if char != query[0] or not _is_token_start(name, start):
-            continue
-        qi = 1
-        for index in range(start + 1, len(name)):
-            if name[index] != query[qi]:
-                continue
-            qi += 1
-            if qi == len(query):
-                span = index - start + 1
-                if best is None or span < best:
-                    best = span
-                break
-    return best

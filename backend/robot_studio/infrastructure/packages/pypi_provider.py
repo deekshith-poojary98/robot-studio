@@ -41,7 +41,7 @@ class PyPIProvider(PackageRegistry):
     Warehouse's HTML ``/search`` is behind a bot challenge, so discovery uses
     the public Simple API name index (cached under ``cache_dir``) plus the
     JSON project API for versions/summaries. Results are ranked
-    exact → prefix → substring → fuzzy and capped at 20.
+    exact → prefix → substring (name only) and capped at 20.
     """
 
     def __init__(
