@@ -511,7 +511,11 @@ class _TestTreeNodeTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12.2,
+                    // Keep suite/file and test/task labels the same size —
+                    // leaf names used to read larger (uppercase + em dash).
+                    fontSize: 11.5,
+                    height: 1.25,
+                    fontWeight: FontWeight.w400,
                     color: context.palette.textPrimary,
                     fontStyle: node.kind == 'setup' || node.kind == 'teardown'
                         ? FontStyle.italic
