@@ -39,6 +39,7 @@ App data: `~/.robot-studio`. Project Studio files: `.robotstudio/` inside the pr
 - **Reports & Insights** — Run history, HTML log/report, on-demand **Generate ReportLens** (from `output.xml`, opens in the browser). **Settings → Execution → Report Retention Days** auto-deletes old run folders (`0` = keep forever; deleted runs also leave Insights analytics). Insights triage from the same history. A keywords-only file or a tag that matches nothing is **No tests**, not Failed.
 - **Git** — Status, commit, branches, remotes, history, diff. Always the open project, not a parent repo.
 - **Doctor, Search, Libraries, Terminal, Settings** — Project health, Find in Files / Find Symbol, library docs, bottom terminal, theme / font / execution prefs. **Command Palette** (`⌘⇧P` / `Ctrl+Shift+P`) for commands, files, and symbols.
+- **Backend port** — Packaged app prefers `8765`; if that port is taken, it allocates a free nearby port and stores it in `~/.robot-studio/backend.port`.
 
 ---
 
