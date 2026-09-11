@@ -27,6 +27,7 @@ import '../environment/import_environment_dialog.dart';
 import '../environment/python_install_guidance.dart';
 import '../editor/editor_page.dart';
 import '../editor/editor_run_gutter.dart';
+import '../editor/editor_start_page.dart';
 import '../editor/editor_tabs_bar.dart';
 import '../execution/execution_page.dart';
 import '../execution/run_target.dart';
@@ -47,7 +48,6 @@ import '../plugins/plugin_details_panel.dart';
 import '../plugins/plugin_manager_page.dart';
 import '../project/import_project_dialog.dart';
 import '../project/new_project_dialog.dart';
-import '../project/project_details_panel.dart';
 import '../doctor/doctor_page.dart';
 import '../reports/delete_run_dialog.dart';
 import '../reports/reports_page.dart';
@@ -83,7 +83,6 @@ enum _CenterView {
   welcome,
   settings,
   placeholder,
-  project,
   environment,
   manager,
   packages,
@@ -3253,7 +3252,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleRunTestNode(TestNodeInfo node) async {
-    _testex('runTestNode kind=${node.kind} name=${node.name} path=${node.path}');
+    _testex(
+      'runTestNode kind=${node.kind} name=${node.name} path=${node.path}',
+    );
     if (node.kind == 'test' || node.kind == 'task') {
       if (node.path == null || node.path!.isEmpty) return;
       await _handleRunSingleTest(file: node.path!, name: node.name);
@@ -5931,7 +5932,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return _CenterView.doctor;
     }
     if (_selectedEnvironment != null) return _CenterView.environment;
-    if (_selectedProject != null) return _CenterView.project;
+    // Project open with nothing else selected → same editor start page as
+    // "no file open" (not a separate project-details screen).
+    if (_selectedProject != null) return _CenterView.editor;
     return _CenterView.placeholder;
   }
 
@@ -6675,7 +6678,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onDelete: () => _handleDeleteEnvironment(_selectedEnvironment!),
         onManage: _handleManageEnvironments,
       ),
-      _CenterView.project => ProjectDetailsPanel(project: _selectedProject!),
       _CenterView.reports => ReportsPage(
         isLoading: _loadingReports,
         dashboard: _reportsDashboard,
@@ -6723,14 +6725,31 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onRerunFile: (path) => unawaited(_rerunInsightsFile(path)),
         onLoadLastFailureName: _loadInsightsLastFailureName,
       ),
-      _CenterView.placeholder => _WorkspaceOpenPlaceholder(
-        workspace: _activeWorkspace!,
-        projects: _projects,
-        onNewProject: _handleNewStandaloneProject,
-        onImportProject: _handleImportProject,
-        onManageEnvironments: _handleManageEnvironments,
+      _CenterView.placeholder => EditorStartPage(
+        title: _activeWorkspace!.name,
+        path: _activeWorkspace!.path,
+        recentFiles: _recentFiles,
+        onOpenFile: () => unawaited(_openCommandPalette()),
+        onOpenRecentFile: (path) => unawaited(_openFile(path)),
+        onSearchProject: _openProjectSearch,
+        explorerVisible: _explorerSideVisible,
+        onShowExplorer: _toggleExplorerFromStartPage,
+        onManageEnvironments: () => unawaited(_handleManageEnvironments()),
+        onNewProject: () => unawaited(_handleNewStandaloneProject()),
+        onImportProject: () => unawaited(_handleImportProject()),
       ),
     };
+  }
+
+  bool get _explorerSideVisible =>
+      !_sidePanelCollapsed && _activePanel == SidebarPanel.explorer;
+
+  void _toggleExplorerFromStartPage() {
+    if (_explorerSideVisible) {
+      setState(() => _sidePanelCollapsed = true);
+      return;
+    }
+    unawaited(_showSidebarPanel(SidebarPanel.explorer));
   }
 
   /// Keep editor and Tests mounted so switching during a run does not dispose
@@ -6772,6 +6791,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Widget _buildEditorPage() {
+    final project = _selectedProject;
+    final workspace = _activeWorkspace;
     return EditorPage(
       key: _editorPageKey,
       tabs: _editorTabs,
@@ -6826,82 +6847,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       onCursorChanged: _editor.onCursorChanged,
       onViewportChanged: _editor.onViewportChanged,
       onCompletionAccepted: _editor.recordCompletionUsage,
-    );
-  }
-}
-
-class _WorkspaceOpenPlaceholder extends StatelessWidget {
-  const _WorkspaceOpenPlaceholder({
-    required this.workspace,
-    required this.projects,
-    required this.onNewProject,
-    required this.onImportProject,
-    required this.onManageEnvironments,
-  });
-
-  final WorkspaceInfo workspace;
-  final List<ProjectInfo> projects;
-  final VoidCallback onNewProject;
-  final VoidCallback onImportProject;
-  final VoidCallback onManageEnvironments;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: context.palette.background,
-      alignment: Alignment.center,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(28),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.folder_open,
-                size: 40,
-                color: context.palette.textMuted,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                workspace.name,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                projects.isEmpty
-                    ? 'Create a project to get started.'
-                    : 'Open a project from the Explorer, or create a new one.',
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  FilledButton.icon(
-                    onPressed: onNewProject,
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('New Project'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onImportProject,
-                    icon: const Icon(Icons.file_download_outlined, size: 16),
-                    label: const Text('Import Project'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onManageEnvironments,
-                    icon: const Icon(Icons.memory_outlined, size: 16),
-                    label: const Text('Environments'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+      startPageTitle: project?.name ?? workspace?.name ?? 'Robot Studio',
+      startPagePath: project?.path ?? workspace?.path ?? '',
+      recentFiles: _recentFiles,
+      onOpenFilePalette: () => unawaited(_openCommandPalette()),
+      onOpenRecentFile: (path) => unawaited(_openFile(path)),
+      onSearchProject: _openProjectSearch,
+      explorerVisible: _explorerSideVisible,
+      onShowExplorer: _toggleExplorerFromStartPage,
+      onManageEnvironments: () => unawaited(_handleManageEnvironments()),
+      onRunProject: project == null
+          ? null
+          : () => unawaited(_handleRunProject()),
     );
   }
 }

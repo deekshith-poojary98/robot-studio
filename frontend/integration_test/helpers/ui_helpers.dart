@@ -360,8 +360,8 @@ Future<void> openProjectInExplorer(
 }) async {
   await tapSidebarPanel(tester, 'Explorer');
   await scrollToAndTap(tester, find.text(projectName));
-  // ProjectDetailsPanel renders labels uppercased (e.g. TYPE, LOCATION).
-  await pumpUntilFound(tester, find.text('TYPE'));
+  // Editor start page (same view for project open / no file).
+  await pumpUntilFound(tester, find.text('Start'));
 }
 
 Future<void> openRobotFileInExplorer(

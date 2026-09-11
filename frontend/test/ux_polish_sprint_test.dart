@@ -350,10 +350,7 @@ void main() {
     expect(find.byTooltip(SidebarPanel.packages.tooltip), findsOneWidget);
   });
 
-  testWidgets('sidebar logo toggles side bar and Help opens docs', (
-    tester,
-  ) async {
-    var toggled = 0;
+  testWidgets('sidebar Help opens docs', (tester) async {
     var helpOpened = 0;
 
     await tester.pumpWidget(
@@ -362,7 +359,6 @@ void main() {
           body: AppSidebar(
             activePanel: SidebarPanel.explorer,
             onPanelSelected: (_) {},
-            onToggleSidebar: () => toggled++,
             onOpenHelp: () => helpOpened++,
             onSettings: () {},
           ),
@@ -370,8 +366,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.bySemanticsLabel(RegExp(r'Toggle Side Bar')));
-    expect(toggled, 1);
+    expect(find.bySemanticsLabel('Robot Studio'), findsOneWidget);
 
     await tester.tap(find.byTooltip('User Guide'));
     expect(helpOpened, 1);

@@ -1575,12 +1575,17 @@ void main() {
             onCtrlClick: (_, __) {},
             onClosePeek: () {},
             onCursorChanged: (_, _) {},
+            startPageTitle: 'demo-project',
+            startPagePath: '/tmp/demo-project',
+            onOpenFilePalette: () {},
           ),
         ),
       ),
     );
 
-    expect(find.text('No file open'), findsOneWidget);
+    expect(find.text('demo-project'), findsOneWidget);
+    expect(find.text('Open File…'), findsOneWidget);
+    expect(find.text('Start'), findsOneWidget);
   });
 
   testWidgets('EditorPage opens file via tabs list', (

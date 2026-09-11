@@ -17,8 +17,7 @@ void main() {
   setUpAll(() async => harness.setUpAll());
   tearDownAll(() async => harness.tearDownAll());
 
-  testWidgets('PR-01 create project appears in explorer',
-      (tester) async {
+  testWidgets('PR-01 create project appears in explorer', (tester) async {
     await harness.seedWorkspace(name: 'PR Create', suffix: 'pr-01');
     await harness.seedEnvironment(name: 'pr-01-env', installRobot: false);
     await harness.launchAppWithWorkspace(tester, workspaceName: 'PR Create');
@@ -31,8 +30,8 @@ void main() {
     expect(projects.any((item) => item['name'] == projectName), isTrue);
 
     await openProjectInExplorer(tester, projectName: projectName);
-    expect(find.text('TYPE'), findsOneWidget);
-    expect(find.text('LOCATION'), findsOneWidget);
+    expect(find.text('Start'), findsOneWidget);
+    expect(find.text('Open File…'), findsOneWidget);
 
     harness.expectNoFlutterErrors();
   });
@@ -55,10 +54,7 @@ void main() {
     await dismissErrorDialogIfPresent(tester);
 
     final projects = await harness.api.listProjects();
-    expect(
-      projects.where((item) => item['name'] == 'Amazon').length,
-      1,
-    );
+    expect(projects.where((item) => item['name'] == 'Amazon').length, 1);
 
     harness.expectNoFlutterErrors();
   });
@@ -98,12 +94,15 @@ void main() {
     final importRoot = harness.resources.scratch('pr-import-me');
     importRoot.createSync(recursive: true);
     Directory('${importRoot.path}/tests').createSync(recursive: true);
-    File('${importRoot.path}/tests/sample.robot').writeAsStringSync(
-      '*** Test Cases ***\nSample\n    Log    x\n',
-    );
+    File(
+      '${importRoot.path}/tests/sample.robot',
+    ).writeAsStringSync('*** Test Cases ***\nSample\n    Log    x\n');
 
     await tapTooltip(tester, 'Import Project');
-    await pumpUntilFound(tester, find.text('Import Project', skipOffstage: false));
+    await pumpUntilFound(
+      tester,
+      find.text('Import Project', skipOffstage: false),
+    );
     await fillDialogFieldByLabel(tester, 'Project path', importRoot.path);
     await submitDialog(tester, actionLabel: 'Import');
     await pumpUntilAbsent(tester, find.text('Import Project'));
@@ -123,7 +122,7 @@ void main() {
 
     await openProjectInExplorer(tester, projectName: 'ProjB');
     expect(find.text('ProjB'), findsWidgets);
-    expect(find.text('TYPE'), findsOneWidget);
+    expect(find.text('Start'), findsOneWidget);
 
     harness.expectNoFlutterErrors();
   });
@@ -143,7 +142,7 @@ void main() {
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('PR-07 project details show location', (tester) async {
+  testWidgets('PR-07 project start page shows path', (tester) async {
     await harness.seedWorkspace(name: 'PR Details', suffix: 'pr-07');
     final project = await harness.seedProject(name: 'DetailProj');
     final path = project['path'] as String;
@@ -151,13 +150,10 @@ void main() {
     await harness.launchAppWithWorkspace(tester, workspaceName: 'PR Details');
     await openProjectInExplorer(tester, projectName: 'DetailProj');
 
-    expect(find.text('TYPE'), findsNothing);
-    expect(find.text('LOCATION'), findsOneWidget);
+    expect(find.text('Start'), findsOneWidget);
+    expect(find.text('Open File…'), findsOneWidget);
     // Path basename or full path fragment should appear.
-    expect(
-      find.textContaining('DetailProj'),
-      findsWidgets,
-    );
+    expect(find.textContaining('DetailProj'), findsWidgets);
     expect(path.isNotEmpty, isTrue);
 
     harness.expectNoFlutterErrors();
@@ -171,19 +167,18 @@ void main() {
     await pumpUntilFound(tester, find.byType(AlertDialog));
     await fillDialogFieldByLabel(tester, 'Project name', 'ShouldNotExist');
     await tester.tap(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.text('Cancel'),
-      ).last,
+      find
+          .descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('Cancel'),
+          )
+          .last,
     );
     await tester.pump();
     await pumpUntilAbsent(tester, find.byType(AlertDialog));
 
     final projects = await harness.api.listProjects();
-    expect(
-      projects.any((item) => item['name'] == 'ShouldNotExist'),
-      isFalse,
-    );
+    expect(projects.any((item) => item['name'] == 'ShouldNotExist'), isFalse);
 
     harness.expectNoFlutterErrors();
   });
@@ -206,10 +201,7 @@ void main() {
       find.byType(AlertDialog),
       timeout: const Duration(seconds: 15),
     );
-    expect(
-      find.textContaining('environment'),
-      findsWidgets,
-    );
+    expect(find.textContaining('environment'), findsWidgets);
 
     // Dismiss guidance.
     final cancel = find.descendant(
@@ -226,8 +218,9 @@ void main() {
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('PR-10 open project from explorer after workspace open',
-      (tester) async {
+  testWidgets('PR-10 open project from explorer after workspace open', (
+    tester,
+  ) async {
     await harness.seedWorkspace(name: 'PR Continue', suffix: 'pr-10');
     await harness.seedProject(name: 'ContinueMe');
     await harness.launchAppWithWorkspace(tester, workspaceName: 'PR Continue');
@@ -235,7 +228,7 @@ void main() {
     expect(find.textContaining('Continue with'), findsNothing);
     await openProjectInExplorer(tester, projectName: 'ContinueMe');
 
-    await pumpUntilFound(tester, find.text('TYPE'));
+    await pumpUntilFound(tester, find.text('Start'));
     harness.expectNoFlutterErrors();
   });
 }

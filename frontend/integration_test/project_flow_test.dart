@@ -13,10 +13,18 @@ void main() {
   setUpAll(() async => harness.setUpAll());
   tearDownAll(() async => harness.tearDownAll());
 
-  testWidgets('create project updates explorer and recent projects', (tester) async {
-    await harness.seedWorkspace(name: 'Project Flow WS', suffix: 'create-project');
+  testWidgets('create project updates explorer and recent projects', (
+    tester,
+  ) async {
+    await harness.seedWorkspace(
+      name: 'Project Flow WS',
+      suffix: 'create-project',
+    );
     await harness.seedEnvironment(name: 'project-flow-env');
-    await harness.launchAppWithWorkspace(tester, workspaceName: 'Project Flow WS');
+    await harness.launchAppWithWorkspace(
+      tester,
+      workspaceName: 'Project Flow WS',
+    );
 
     const projectName = 'Integration Project';
     await createProjectViaUi(tester, name: projectName);
@@ -32,25 +40,34 @@ void main() {
   });
 
   testWidgets('import project displays project details', (tester) async {
-    await harness.seedWorkspace(name: 'Import Flow WS', suffix: 'import-project');
-    await harness.launchAppWithWorkspace(tester, workspaceName: 'Import Flow WS');
+    await harness.seedWorkspace(
+      name: 'Import Flow WS',
+      suffix: 'import-project',
+    );
+    await harness.launchAppWithWorkspace(
+      tester,
+      workspaceName: 'Import Flow WS',
+    );
 
     final importRoot = harness.resources.scratch('import-me');
     importRoot.createSync(recursive: true);
     Directory('${importRoot.path}/tests').createSync(recursive: true);
-    File('${importRoot.path}/tests/sample.robot').writeAsStringSync(
-      '*** Test Cases ***\nSample\n    Log    x\n',
-    );
+    File(
+      '${importRoot.path}/tests/sample.robot',
+    ).writeAsStringSync('*** Test Cases ***\nSample\n    Log    x\n');
 
     await tapTooltip(tester, 'Import Project');
-    await pumpUntilFound(tester, find.text('Import Project', skipOffstage: false));
+    await pumpUntilFound(
+      tester,
+      find.text('Import Project', skipOffstage: false),
+    );
     await fillDialogFieldByLabel(tester, 'Project path', importRoot.path);
     await submitDialog(tester, actionLabel: 'Import');
     await pumpUntilAbsent(tester, find.text('Import Project'));
 
     await pumpUntilFound(tester, find.text('import-me'));
     expect(find.textContaining('Imported'), findsNothing);
-    expect(find.text('LOCATION'), findsOneWidget);
+    expect(find.text('Start'), findsOneWidget);
     harness.expectNoFlutterErrors();
   });
 }

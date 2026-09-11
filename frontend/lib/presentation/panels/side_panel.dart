@@ -26,6 +26,7 @@ class SidePanel extends StatelessWidget {
     super.key,
     required this.panel,
     this.width = defaultWidth,
+    this.onHide,
     this.workspace,
     this.projects = const [],
     this.isLoadingProjects = false,
@@ -82,6 +83,7 @@ class SidePanel extends StatelessWidget {
 
   final SidebarPanel panel;
   final double width;
+  final VoidCallback? onHide;
   final WorkspaceInfo? workspace;
   final List<ProjectInfo> projects;
   final bool isLoadingProjects;
@@ -176,6 +178,20 @@ class SidePanel extends StatelessWidget {
                   : panel == SidebarPanel.libraries
                   ? 'Libraries'
                   : panel.label,
+              trailing: onHide == null
+                  ? null
+                  : IconButton(
+                      tooltip: 'Hide Explorer',
+                      onPressed: onHide,
+                      icon: const Icon(Icons.view_sidebar_outlined, size: 16),
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                      splashRadius: 14,
+                    ),
             ),
             Expanded(child: _buildBody(context)),
           ],
