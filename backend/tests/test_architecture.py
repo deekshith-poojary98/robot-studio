@@ -89,7 +89,7 @@ async def test_rest_gateway_health(container: Container) -> None:
     response = await gateway.health()
 
     assert response.status == "ok"
-    assert response.version == "0.1.0"
+    assert response.version == "1.0.0"
     assert response.modules == REGISTERED_MODULES
 
 
@@ -107,6 +107,6 @@ async def test_health_api_unchanged(container: Container) -> None:
     assert response.status_code == 200
     assert response.json() == {
         "status": "ok",
-        "version": "0.1.0",
+        "version": "1.0.0",
         "modules": REGISTERED_MODULES,
     }
