@@ -166,11 +166,20 @@ class _EnvironmentRow extends StatelessWidget {
   final VoidCallback onClone;
   final VoidCallback onDelete;
 
+  static final _actionStyle = TextButton.styleFrom(
+    minimumSize: const Size(0, 28),
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    visualDensity: VisualDensity.compact,
+    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+  );
+
   @override
   Widget build(BuildContext context) {
     final env = environment;
+    final palette = context.palette;
+    final active = env.active;
     return Material(
-      color: selected ? context.palette.accentSoft : context.palette.surface,
+      color: selected ? palette.accentSoft : palette.surface,
       borderRadius: BorderRadius.circular(AppRadii.md),
       child: InkWell(
         onTap: onTap,
@@ -180,7 +189,7 @@ class _EnvironmentRow extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadii.md),
             border: Border.all(
-              color: selected ? context.palette.accent : context.palette.border,
+              color: selected ? palette.accent : palette.border,
             ),
           ),
           child: Row(
@@ -194,14 +203,11 @@ class _EnvironmentRow extends StatelessWidget {
                         Text(
                           env.name,
                           style: TextStyle(
-                            color: context.palette.textPrimary,
+                            color: palette.textPrimary,
                             fontSize: 13.5,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        if (env.active)
-                          const EnvironmentBadge(label: 'Active', active: true),
                         if (!env.available) ...[
                           const SizedBox(width: 8),
                           const EnvironmentBadge(
@@ -222,13 +228,27 @@ class _EnvironmentRow extends StatelessWidget {
                   ],
                 ),
               ),
-              if (!env.active)
-                TextButton(
-                  onPressed: onActivate,
-                  child: const Text('Activate'),
-                ),
-              TextButton(onPressed: onClone, child: const Text('Clone')),
-              TextButton(onPressed: onDelete, child: const Text('Delete')),
+              TextButton(
+                onPressed: active ? null : onActivate,
+                style: active
+                    ? _actionStyle.copyWith(
+                        foregroundColor: WidgetStatePropertyAll(
+                          palette.success,
+                        ),
+                      )
+                    : _actionStyle,
+                child: Text(active ? 'Active' : 'Activate'),
+              ),
+              TextButton(
+                onPressed: onClone,
+                style: _actionStyle,
+                child: const Text('Clone'),
+              ),
+              TextButton(
+                onPressed: onDelete,
+                style: _actionStyle,
+                child: const Text('Delete'),
+              ),
             ],
           ),
         ),

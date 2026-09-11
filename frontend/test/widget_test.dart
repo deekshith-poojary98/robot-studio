@@ -427,7 +427,11 @@ void main() {
     expect(find.text('Environment Manager'), findsOneWidget);
     expect(find.text('robot-3.12'), findsOneWidget);
     expect(find.textContaining('Python 3.12'), findsOneWidget);
-    expect(find.text('Active'), findsWidgets);
+    final activeButton = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Active'),
+    );
+    expect(activeButton.onPressed, isNull);
+    expect(find.text('Activate'), findsNothing);
   });
 
   testWidgets('Delete dialog blocks active environment', (
