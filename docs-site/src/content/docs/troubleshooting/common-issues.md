@@ -174,7 +174,7 @@ Robot Studio runs **outside** the App Sandbox (so Terminal and Robot runs can re
 
 The UI cannot reach the local API.
 
-**Packaged app:** quit Robot Studio fully and reopen it. The sidecar should start with the app.
+**Packaged app:** quit Robot Studio fully and reopen it. The sidecar should start with the app. It prefers port `8765`; if that port is already taken by something else, it picks a free nearby port and records it in `~/.robot-studio/backend.port`.
 
 **From source:** ensure `make backend` is running and `make health` returns OK on port `8765` (or your overridden port).
 

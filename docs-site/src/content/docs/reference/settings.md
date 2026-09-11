@@ -52,7 +52,7 @@ These `ROBOT_STUDIO_*` variables configure the **local backend process**. Day-to
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `ROBOT_STUDIO_HOST` | `127.0.0.1` | Bind address |
-| `ROBOT_STUDIO_PORT` | `8765` | HTTP / WebSocket port |
+| `ROBOT_STUDIO_PORT` | `8765` | Preferred HTTP / WebSocket port. Packaged launches pick a free nearby port when this one is busy and record it in `~/.robot-studio/backend.port`. |
 | `ROBOT_STUDIO_DATA_DIR` | `~/.robot-studio` | SQLite DB, plugins, local data, logs |
 | `ROBOT_STUDIO_DEBUG` | `false` | Debug mode |
 

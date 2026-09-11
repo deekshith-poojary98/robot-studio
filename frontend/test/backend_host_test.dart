@@ -61,4 +61,34 @@ void main() {
     BackendHost.clearPidFile(dataDir: dir);
     expect(BackendHost.readPidFile(dataDir: dir), isNull);
   });
+
+  test('port file write/read/clear round-trips', () {
+    final dir = Directory.systemTemp.createTempSync('rs-port-');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    BackendHost.writePortFile(8770, dataDir: dir);
+    expect(BackendHost.readPortFile(dataDir: dir), 8770);
+    BackendHost.clearPortFile(dataDir: dir);
+    expect(BackendHost.readPortFile(dataDir: dir), isNull);
+  });
+
+  test('allocatePort prefers the requested port when free', () async {
+    final port = await BackendHost.allocatePort(
+      host: '127.0.0.1',
+      preferred: 18765,
+    );
+    expect(port, 18765);
+  });
+
+  test('allocatePort skips a bound preferred port', () async {
+    final blocker = await ServerSocket.bind('127.0.0.1', 0);
+    addTearDown(() async => blocker.close());
+    final busy = blocker.port;
+    final port = await BackendHost.allocatePort(
+      host: '127.0.0.1',
+      preferred: busy,
+      searchWindow: 5,
+    );
+    expect(port, isNot(busy));
+    expect(port, greaterThan(busy));
+  });
 }

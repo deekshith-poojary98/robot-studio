@@ -8,13 +8,14 @@ import 'models/workspace_event_info.dart';
 
 /// Live workspace filesystem / domain event stream over WebSocket.
 class WorkspaceEventStreamClient {
-  WorkspaceEventStreamClient({String? url})
-      : url = url ?? BackendConfig.wsWorkspaceEventsUrl;
+  WorkspaceEventStreamClient({String? url}) : _urlOverride = url;
 
-  final String url;
+  final String? _urlOverride;
   WebSocket? _socket;
   StreamController<WorkspaceStreamEvent>? _controller;
   StreamSubscription<dynamic>? _subscription;
+
+  String get url => _urlOverride ?? BackendConfig.wsWorkspaceEventsUrl;
 
   Stream<WorkspaceStreamEvent> get events {
     final controller = _controller;
