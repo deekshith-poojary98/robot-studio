@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' show AppExitResponse;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -26,6 +27,7 @@ import '../environment/import_environment_dialog.dart';
 import '../environment/python_install_guidance.dart';
 import '../editor/editor_page.dart';
 import '../editor/editor_run_gutter.dart';
+import '../editor/editor_start_page.dart';
 import '../editor/editor_tabs_bar.dart';
 import '../execution/execution_page.dart';
 import '../execution/run_target.dart';
@@ -46,7 +48,6 @@ import '../plugins/plugin_details_panel.dart';
 import '../plugins/plugin_manager_page.dart';
 import '../project/import_project_dialog.dart';
 import '../project/new_project_dialog.dart';
-import '../project/project_details_panel.dart';
 import '../doctor/doctor_page.dart';
 import '../reports/delete_run_dialog.dart';
 import '../reports/reports_page.dart';
@@ -82,7 +83,6 @@ enum _CenterView {
   welcome,
   settings,
   placeholder,
-  project,
   environment,
   manager,
   packages,
@@ -193,12 +193,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   bool _sidePanelCollapsed = false;
   final List<String> _recentlyClosedPaths = [];
   bool _showReportsPage = false;
+  bool _generatingReportLens = false;
   bool _showDoctorPage = false;
   bool _showInsightsPage = false;
   bool _showSettingsPage = false;
   final _preferencesLeave = PreferencesLeaveBinding();
   List<IndexedSymbolInfo> _testSuites = [];
   TestNodeInfo? _testTree;
+  int _testTreeLoadId = 0;
   bool _loadingTestTree = false;
   String _testFilter = '';
   Timer? _testFilterDebounce;
@@ -1229,6 +1231,29 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     } catch (error) {
       if (!mounted) return;
       await _showError('Open report', error);
+    }
+  }
+
+  Future<void> _openReportLens() async {
+    final run = _selectedReport;
+    if (run == null || _generatingReportLens) return;
+    setState(() => _generatingReportLens = true);
+    try {
+      await _gateway.openReportLens(run.id);
+      if (!mounted) return;
+      showAppToast(
+        context,
+        message: 'Opened ReportLens',
+        icon: Icons.auto_graph_outlined,
+        duration: const Duration(seconds: 2),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      await _showError('Generate ReportLens', error);
+    } finally {
+      if (mounted) {
+        setState(() => _generatingReportLens = false);
+      }
     }
   }
 
@@ -2871,9 +2896,49 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  String _testTreeStatusSummary(TestNodeInfo? root) {
+    if (root == null) return '(null)';
+    final counts = <String, int>{};
+    void walk(TestNodeInfo node) {
+      if (node.kind == 'test' || node.kind == 'task') {
+        final key = node.status.name;
+        counts[key] = (counts[key] ?? 0) + 1;
+      }
+      for (final child in node.children) {
+        walk(child);
+      }
+    }
+
+    walk(root);
+    if (counts.isEmpty) return '(no cases loaded)';
+    return counts.entries.map((e) => '${e.key}:${e.value}').join(',');
+  }
+
+  void _testex(String message) {
+    if (kDebugMode) {
+      _appendLog('[TESTEX] $message');
+    }
+  }
+
   Future<void> _handleRunFinished() async {
-    await _loadExecutionHistory();
+    _testex(
+      'onRunFinished status=${_execution.executionStatus.name} '
+      'tree=${_testTreeStatusSummary(_testTree)}',
+    );
+    // Clear explorer spinners immediately — lazy retain can keep stale
+    // `running` children until suite expand completes.
+    if (_testTree != null) {
+      setState(() {
+        _testTree = TestNodeInfo.withoutRunningStatuses(_testTree!);
+      });
+    }
+    _testex(
+      'after withoutRunningStatuses tree=${_testTreeStatusSummary(_testTree)}',
+    );
+    // Reload the tree before history so expand cannot sit behind a slow
+    // reports fetch while INDEX_UPDATED re-applies stale running.
     await _loadTestTree();
+    await _loadExecutionHistory();
     if (!mounted) return;
     final latest = _executionHistory.isNotEmpty
         ? _executionHistory.first
@@ -3029,12 +3094,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return;
     }
     if (!mounted) return;
+    final loadId = ++_testTreeLoadId;
     setState(() => _loadingTestTree = true);
     try {
       final q = query ?? _testFilter;
       final lazy = q.trim().isEmpty;
-      final previous = _testTree;
       var tree = await _gateway.getTestTree(query: q, lazy: lazy);
+      if (!mounted || loadId != _testTreeLoadId) return;
+      // Capture previous AFTER the await so a concurrent
+      // withoutRunningStatuses is not overwritten by a stale snapshot.
+      final previous = _testTree;
       var refresh = const <TestNodeInfo>[];
       // Lazy reloads replace hydrated suites with empty shells. Keep children
       // for nodes the user already expanded so the tree does not go blank.
@@ -3043,6 +3112,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         tree = retained.tree;
         refresh = retained.refresh;
       }
+      if (!_execution.executionStatus.isActive) {
+        tree = TestNodeInfo.withoutRunningStatuses(tree);
+      }
       List<IndexedSymbolInfo> suites = const [];
       try {
         suites = await _gateway.searchSymbols(
@@ -3050,7 +3122,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           kind: SymbolKind.testSuite,
         );
       } catch (_) {}
-      if (!mounted) return;
+      if (!mounted || loadId != _testTreeLoadId) return;
+      _testex(
+        'loadTestTree load=$loadId active=${_execution.executionStatus.isActive} '
+        'refresh=${refresh.length} tree=${_testTreeStatusSummary(tree)}',
+      );
       setState(() {
         _testTree = tree;
         _testSuites = suites;
@@ -3061,7 +3137,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       }
     } catch (error) {
       if (!mounted) return;
-      setState(() => _loadingTestTree = false);
+      if (loadId == _testTreeLoadId) {
+        setState(() => _loadingTestTree = false);
+      }
       _appendLog('[warn] Could not load test tree: $error');
     }
   }
@@ -3077,8 +3155,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Future<void> _expandTestNode(TestNodeInfo node) async {
     if (node.path == null || node.path!.isEmpty) return;
     try {
-      final children = await _gateway.getTestsForFile(node.path!);
+      var children = await _gateway.getTestsForFile(node.path!);
       if (!mounted || _testTree == null) return;
+      final active = _execution.executionStatus.isActive;
+      if (!active) {
+        children = [
+          for (final child in children)
+            TestNodeInfo.withoutRunningStatuses(child),
+        ];
+      }
+      _testex(
+        'expand ${node.name} active=$active '
+        'children=${children.map((c) => '${c.name}:${c.status.name}').join(',')}',
+      );
       final refreshed = node.copyWith(children: children, detail: '');
       setState(() {
         _testTree = _testTree!.replaceChild(node.id, refreshed);
@@ -3103,8 +3192,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
     await _maybeSaveBeforeRun();
     if (!mounted) return;
+    _testex('runSingleTest POST /tests/run file=$file name=$name');
     setState(() {
       _revealExecutionCenter();
+      if (_testTree != null) {
+        _testTree = TestNodeInfo.withOnlyTestRunning(
+          _testTree!,
+          filePath: file,
+          testName: name,
+        );
+      }
     });
     await _connectExecutionStream();
     try {
@@ -3155,6 +3252,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleRunTestNode(TestNodeInfo node) async {
+    _testex(
+      'runTestNode kind=${node.kind} name=${node.name} path=${node.path}',
+    );
     if (node.kind == 'test' || node.kind == 'task') {
       if (node.path == null || node.path!.isEmpty) return;
       await _handleRunSingleTest(file: node.path!, name: node.name);
@@ -3170,6 +3270,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
     setState(() {
       _revealExecutionCenter();
+      if (_testTree != null &&
+          node.kind == 'suite' &&
+          node.path != null &&
+          node.path!.isNotEmpty) {
+        _testTree = TestNodeInfo.withFileRunning(_testTree!, node.path!);
+      }
     });
     await _connectExecutionStream();
     try {
@@ -4334,17 +4440,25 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _editorCtrlClickDefinition() async {
+  Future<void> _editorCtrlClickDefinition(int line, int column) async {
     final tab = _activeEditorTab;
+    final token = tab == null
+        ? null
+        : _editorTokenAt(line: line, column: column);
+    if (kDebugMode) {
+      debugPrint(
+        'DEFCLICK definition line=$line column=$column '
+        'token=${token ?? 'null'} path=${tab?.path}',
+      );
+    }
     if (tab == null) return;
-    final token = _editorCursorToken();
     if (token == null) return;
     try {
       final definition = await _gateway.languageDefinition(
         name: token,
         filePath: tab.path,
-        line: _cursorLine,
-        column: _cursorColumn,
+        line: line,
+        column: column,
         content: tab.content,
       );
       if (!mounted) return;
@@ -4633,17 +4747,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   /// two spaces, which is the wrong model for Python — on `    return  x` it
   /// would hand back a cell instead of the identifier being pointed at.
   String? _editorCursorToken() {
+    return _editorTokenAt(line: _cursorLine, column: _cursorColumn);
+  }
+
+  String? _editorTokenAt({required int line, required int column}) {
     final tab = _activeEditorTab;
     if (tab == null) return null;
     if (EditorShellController.isPythonPath(tab.path)) {
-      return _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn);
+      return _extractWordAtCursor(tab.content, line, column);
     }
-    return EditorShellController.extractRobotTokenAt(
-          tab.content,
-          _cursorLine,
-          _cursorColumn,
-        ) ??
-        _extractWordAtCursor(tab.content, _cursorLine, _cursorColumn);
+    return EditorShellController.extractRobotTokenAt(tab.content, line, column);
   }
 
   Future<void> _editorGoToDefinition() async {
@@ -5819,7 +5932,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return _CenterView.doctor;
     }
     if (_selectedEnvironment != null) return _CenterView.environment;
-    if (_selectedProject != null) return _CenterView.project;
+    // Project open with nothing else selected → same editor start page as
+    // "no file open" (not a separate project-details screen).
+    if (_selectedProject != null) return _CenterView.editor;
     return _CenterView.placeholder;
   }
 
@@ -5831,6 +5946,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     // Theme lives on MaterialApp (see main.dart) so this State's own context —
     // and every dialog route — resolves the active palette.
     return RobotStudioMenuBar(
+      showInWindowMenu:
+          !Platform.isWindows || _centerView != _CenterView.welcome,
       actions: AppMenuBarActions(
         hasActiveFile: _activeEditorPath != null,
         hasOpenTabs: _editorTabs.isNotEmpty,
@@ -6561,7 +6678,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onDelete: () => _handleDeleteEnvironment(_selectedEnvironment!),
         onManage: _handleManageEnvironments,
       ),
-      _CenterView.project => ProjectDetailsPanel(project: _selectedProject!),
       _CenterView.reports => ReportsPage(
         isLoading: _loadingReports,
         dashboard: _reportsDashboard,
@@ -6586,6 +6702,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onOpenXml: _openReportXml,
         onOpenLog: _openReportLog,
         onOpenReport: _openReportHtml,
+        onOpenReportLens: () => unawaited(_openReportLens()),
+        isGeneratingReportLens: _generatingReportLens,
         onReveal: _revealReport,
         onDelete: _deleteSelectedReport,
       ),
@@ -6607,14 +6725,31 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onRerunFile: (path) => unawaited(_rerunInsightsFile(path)),
         onLoadLastFailureName: _loadInsightsLastFailureName,
       ),
-      _CenterView.placeholder => _WorkspaceOpenPlaceholder(
-        workspace: _activeWorkspace!,
-        projects: _projects,
-        onNewProject: _handleNewStandaloneProject,
-        onImportProject: _handleImportProject,
-        onManageEnvironments: _handleManageEnvironments,
+      _CenterView.placeholder => EditorStartPage(
+        title: _activeWorkspace!.name,
+        path: _activeWorkspace!.path,
+        recentFiles: _recentFiles,
+        onOpenFile: () => unawaited(_openCommandPalette()),
+        onOpenRecentFile: (path) => unawaited(_openFile(path)),
+        onSearchProject: _openProjectSearch,
+        explorerVisible: _explorerSideVisible,
+        onShowExplorer: _toggleExplorerFromStartPage,
+        onManageEnvironments: () => unawaited(_handleManageEnvironments()),
+        onNewProject: () => unawaited(_handleNewStandaloneProject()),
+        onImportProject: () => unawaited(_handleImportProject()),
       ),
     };
+  }
+
+  bool get _explorerSideVisible =>
+      !_sidePanelCollapsed && _activePanel == SidebarPanel.explorer;
+
+  void _toggleExplorerFromStartPage() {
+    if (_explorerSideVisible) {
+      setState(() => _sidePanelCollapsed = true);
+      return;
+    }
+    unawaited(_showSidebarPanel(SidebarPanel.explorer));
   }
 
   /// Keep editor and Tests mounted so switching during a run does not dispose
@@ -6656,6 +6791,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Widget _buildEditorPage() {
+    final project = _selectedProject;
+    final workspace = _activeWorkspace;
     return EditorPage(
       key: _editorPageKey,
       tabs: _editorTabs,
@@ -6710,82 +6847,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       onCursorChanged: _editor.onCursorChanged,
       onViewportChanged: _editor.onViewportChanged,
       onCompletionAccepted: _editor.recordCompletionUsage,
-    );
-  }
-}
-
-class _WorkspaceOpenPlaceholder extends StatelessWidget {
-  const _WorkspaceOpenPlaceholder({
-    required this.workspace,
-    required this.projects,
-    required this.onNewProject,
-    required this.onImportProject,
-    required this.onManageEnvironments,
-  });
-
-  final WorkspaceInfo workspace;
-  final List<ProjectInfo> projects;
-  final VoidCallback onNewProject;
-  final VoidCallback onImportProject;
-  final VoidCallback onManageEnvironments;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: context.palette.background,
-      alignment: Alignment.center,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(28),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.folder_open,
-                size: 40,
-                color: context.palette.textMuted,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                workspace.name,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                projects.isEmpty
-                    ? 'Create a project to get started.'
-                    : 'Open a project from the Explorer, or create a new one.',
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  FilledButton.icon(
-                    onPressed: onNewProject,
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('New Project'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onImportProject,
-                    icon: const Icon(Icons.file_download_outlined, size: 16),
-                    label: const Text('Import Project'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onManageEnvironments,
-                    icon: const Icon(Icons.memory_outlined, size: 16),
-                    label: const Text('Environments'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+      startPageTitle: project?.name ?? workspace?.name ?? 'Robot Studio',
+      startPagePath: project?.path ?? workspace?.path ?? '',
+      recentFiles: _recentFiles,
+      onOpenFilePalette: () => unawaited(_openCommandPalette()),
+      onOpenRecentFile: (path) => unawaited(_openFile(path)),
+      onSearchProject: _openProjectSearch,
+      explorerVisible: _explorerSideVisible,
+      onShowExplorer: _toggleExplorerFromStartPage,
+      onManageEnvironments: () => unawaited(_handleManageEnvironments()),
+      onRunProject: project == null
+          ? null
+          : () => unawaited(_handleRunProject()),
     );
   }
 }

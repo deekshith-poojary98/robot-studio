@@ -19,6 +19,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   flutter::DartProject project(L"data");
 
+  // Impeller OpenGLESSDF on Windows fails to composite re_editor's caret until
+  // a parent text layout (first keystroke). Use Skia until that engine bug is
+  // fixed. Debug equivalent: flutter run -d windows --no-enable-impeller
+  // Requires Flutter 3.47+ Windows headers (ImpellerSwitch).
+  project.set_impeller_switch(flutter::ImpellerSwitch::Disabled);
+
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
 

@@ -9,13 +9,20 @@ import 'package:flutter_pty/flutter_pty.dart';
 import 'package:xterm/xterm.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../preferences/editor_font_families.dart';
 import '../widgets/empty_state.dart';
+import 'windows_shell_path.dart';
 
 /// Interactive shell in the bottom panel (workspace cwd when a project is open).
 class TerminalPanel extends StatefulWidget {
-  const TerminalPanel({super.key, this.workingDirectory});
+  const TerminalPanel({
+    super.key,
+    this.workingDirectory,
+    this.isVisible = true,
+  });
 
   final String? workingDirectory;
+  final bool isVisible;
 
   @override
   State<TerminalPanel> createState() => _TerminalPanelState();
@@ -24,24 +31,35 @@ class TerminalPanel extends StatefulWidget {
 class _TerminalPanelState extends State<TerminalPanel> {
   final Terminal _terminal = Terminal(maxLines: 10000);
   final TerminalController _controller = TerminalController();
+  final FocusNode _focusNode = FocusNode(debugLabel: 'terminal-input');
 
   Pty? _pty;
   StreamSubscription<List<int>>? _outputSub;
   String? _startedIn;
   String? _error;
-  bool _sawOutput = false;
+  int _ptyGeneration = 0;
 
-  static bool get _canStartShell {
+  static bool get _isDesktop {
     if (kIsWeb) return false;
-    if (Platform.environment.containsKey('FLUTTER_TEST')) return false;
     return Platform.isMacOS || Platform.isLinux || Platform.isWindows;
   }
+
+  // Packaged Windows runners can fail to attach xterm's text-input/IME client
+  // ("view ID is null"), while the focused hardware-keyboard path remains
+  // reliable. Keep the IME-capable path on macOS/Linux for composed input.
+  static bool get _usesHardwareKeyboardOnly =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+  static bool get _canStartShell =>
+      _isDesktop && !Platform.environment.containsKey('FLUTTER_TEST');
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _ensureShell();
+      if (!mounted) return;
+      _ensureShell();
+      _requestTerminalFocus();
     });
   }
 
@@ -51,15 +69,36 @@ class _TerminalPanelState extends State<TerminalPanel> {
     if (widget.workingDirectory != oldWidget.workingDirectory) {
       _restartShell();
     }
+    if (widget.isVisible && !oldWidget.isVisible) {
+      _requestTerminalFocus();
+    } else if (!widget.isVisible &&
+        oldWidget.isVisible &&
+        _focusNode.hasFocus) {
+      _focusNode.unfocus();
+    }
   }
 
   @override
   void dispose() {
     _tearDownPty();
+    _focusNode.dispose();
     super.dispose();
   }
 
+  void _requestTerminalFocus() {
+    if (!widget.isVisible) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.isVisible && _focusNode.canRequestFocus) {
+        _focusNode.requestFocus();
+      }
+    });
+  }
+
   void _tearDownPty() {
+    // Invalidate output/exit callbacks before killing the process. On Windows,
+    // ConPTY reports an intentional kill as 0xFFFFFFFF after a short delay;
+    // that stale callback must not be presented as a startup failure.
+    _ptyGeneration++;
     _outputSub?.cancel();
     _outputSub = null;
     try {
@@ -67,7 +106,6 @@ class _TerminalPanelState extends State<TerminalPanel> {
     } catch (_) {}
     _pty = null;
     _startedIn = null;
-    _sawOutput = false;
   }
 
   Future<void> _restartShell() async {
@@ -76,6 +114,7 @@ class _TerminalPanelState extends State<TerminalPanel> {
     _terminal.setCursor(0, 0);
     if (mounted) setState(() => _error = null);
     _ensureShell();
+    _requestTerminalFocus();
   }
 
   void _ensureShell() {
@@ -92,20 +131,26 @@ class _TerminalPanelState extends State<TerminalPanel> {
         _shellExecutable,
         arguments: _shellArguments,
         workingDirectory: cwd,
+        environment: shellEnvironmentForPty(),
         rows: rows,
         columns: cols,
       );
       _pty = pty;
       _startedIn = cwd;
+      final generation = _ptyGeneration;
+      var sawOutput = false;
       _outputSub = pty.output.listen((data) {
-        _sawOutput = true;
+        if (generation != _ptyGeneration || !identical(_pty, pty)) return;
+        sawOutput = true;
         _terminal.write(utf8.decode(data, allowMalformed: true));
       });
       pty.exitCode.then((code) {
-        if (!mounted) return;
+        if (!mounted || generation != _ptyGeneration || !identical(_pty, pty)) {
+          return;
+        }
         _terminal.write('\r\n[process exited with code $code]\r\n');
         // A shell that dies before printing anything never really started.
-        if (!_sawOutput && code != 0) {
+        if (!sawOutput && code != 0) {
           _terminal.write(
             'Could not start $_shellExecutable in $cwd.\r\n'
             'Check that the shell exists and the folder is readable.\r\n',
@@ -119,6 +164,7 @@ class _TerminalPanelState extends State<TerminalPanel> {
         _pty?.resize(h, w);
       };
       if (mounted) setState(() => _error = null);
+      _requestTerminalFocus();
     } catch (error) {
       if (mounted) {
         setState(() => _error = '$error');
@@ -137,6 +183,19 @@ class _TerminalPanelState extends State<TerminalPanel> {
   static List<String> get _shellArguments =>
       Platform.isWindows ? const [] : const ['-l'];
 
+  /// Prefer a real OS mono face. Menlo is missing on Windows; bad metrics there
+  /// make xterm map clicks to the last cell (selection starts bottom-right).
+  static TerminalStyle get _terminalTextStyle {
+    final family = defaultTargetPlatform == TargetPlatform.windows
+        ? 'Consolas'
+        : 'Menlo';
+    return TerminalStyle(
+      fontSize: 12,
+      fontFamily: family,
+      fontFamilyFallback: editorFontFamilyFallback(family),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cwd = widget.workingDirectory;
@@ -149,7 +208,7 @@ class _TerminalPanelState extends State<TerminalPanel> {
       );
     }
 
-    if (!_canStartShell) {
+    if (!_isDesktop) {
       return ColoredBox(
         color: context.palette.rail,
         child: Center(
@@ -195,6 +254,15 @@ class _TerminalPanelState extends State<TerminalPanel> {
         ),
       );
     }
+
+    // xterm maps pointer → cell using MediaQuery padding + textScaler. On
+    // Windows those can skew hit-testing so drag-select anchors at the last
+    // cell. Zero them for the terminal subtree only.
+    final terminalMedia = MediaQuery.of(context).copyWith(
+      textScaler: TextScaler.noScaling,
+      padding: EdgeInsets.zero,
+      viewPadding: EdgeInsets.zero,
+    );
 
     return ColoredBox(
       color: context.palette.rail,
@@ -246,27 +314,35 @@ class _TerminalPanelState extends State<TerminalPanel> {
             ),
           ),
           Expanded(
-            child: TerminalView(
-              _terminal,
-              controller: _controller,
-              autofocus: false,
-              backgroundOpacity: 1,
-              theme: _studioTheme(context.palette),
-              textStyle: const TerminalStyle(fontSize: 12, fontFamily: 'Menlo'),
-              onSecondaryTapDown: (details, offset) async {
-                final selection = _controller.selection;
-                if (selection != null) {
-                  final text = _terminal.buffer.getText(selection);
-                  _controller.clearSelection();
-                  await Clipboard.setData(ClipboardData(text: text));
-                } else {
-                  final data = await Clipboard.getData(Clipboard.kTextPlain);
-                  final text = data?.text;
-                  if (text != null) {
-                    _terminal.paste(text);
+            child: MediaQuery(
+              data: terminalMedia,
+              child: TerminalView(
+                _terminal,
+                controller: _controller,
+                focusNode: _focusNode,
+                autofocus: widget.isVisible,
+                hardwareKeyboardOnly: _usesHardwareKeyboardOnly,
+                backgroundOpacity: 1,
+                padding: EdgeInsets.zero,
+                theme: _studioTheme(context.palette),
+                textStyle: _terminalTextStyle,
+                textScaler: TextScaler.noScaling,
+                onTapUp: (_, _) => _requestTerminalFocus(),
+                onSecondaryTapDown: (details, offset) async {
+                  final selection = _controller.selection;
+                  if (selection != null) {
+                    final text = _terminal.buffer.getText(selection);
+                    _controller.clearSelection();
+                    await Clipboard.setData(ClipboardData(text: text));
+                  } else {
+                    final data = await Clipboard.getData(Clipboard.kTextPlain);
+                    final text = data?.text;
+                    if (text != null) {
+                      _terminal.paste(text);
+                    }
                   }
-                }
-              },
+                },
+              ),
             ),
           ),
         ],

@@ -845,16 +845,23 @@ class EditorShellController {
   }
 
   /// Prefer Robot cell under the caret (multi-word keywords), else word token.
+  ///
+  /// On indented call lines, only match when the caret is inside a cell (or one
+  /// column past the last character — click on the trailing edge of a glyph).
+  /// Further past the cell does not fall back to a word token, so a caret in
+  /// the separator spaces does not resolve as `Browser` from `Open Browser`.
   static String? extractRobotTokenAt(String content, int line, int column) {
     final lines = content.split('\n');
     if (line < 1 || line > lines.length) return null;
     final row = lines[line - 1];
     if (row.startsWith(' ') || row.startsWith('\t')) {
       for (final span in robotCellSpans(row)) {
-        if (column >= span.start && column <= span.end) {
+        // Inclusive last char; also allow one past end (trailing-edge click).
+        if (column >= span.start && column <= span.end + 1) {
           return variableTokenFromCell(span.text) ?? span.text;
         }
       }
+      return null;
     }
     return extractWordAtCursor(content, line, column);
   }

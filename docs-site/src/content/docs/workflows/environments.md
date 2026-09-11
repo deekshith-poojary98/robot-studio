@@ -16,6 +16,8 @@ From **Manage Environments…** you can:
 | **Clone** | You want a copy of an existing environment |
 | **Activate** | You want runs and language features to use that env |
 
+In the manager list, the active environment shows a green, disabled **Active** button. Choose **Activate** on another row to switch. There is no separate Active badge on the row.
+
 Studio-managed environments live under `.robotstudio/environments/`. Legacy `Environments/` folders and common local names (`.venv`, `venv`, `env`) are still discovered. Choosing **Use** on a detected `.venv` registers it as `venv` (leading dots are stripped from the display name).
 
 The status bar shows **ROBOT** and **PYTHON** versions from the active environment so you can confirm you are on the stack you expect. Creating or importing an environment also shows a short confirmation in the status bar.
@@ -27,6 +29,8 @@ With an environment active:
 1. Open the **Packages** activity-bar rail.
 2. Browse installed packages or search PyPI.
 3. Install, update, or uninstall as needed.
+
+Package search (**Search installed** and PyPI) matches **package names only** — exact, then prefix, then substring. Summaries are not searched, and there is no fuzzy / typo matching. Hyphen, underscore, and dot are treated as equivalent.
 
 This is the usual path for libraries such as `robotframework-seleniumlibrary`, `robotframework-browser`, and project-specific packages.
 

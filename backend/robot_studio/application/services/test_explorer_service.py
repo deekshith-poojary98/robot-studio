@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import UUID
@@ -16,14 +17,16 @@ from robot_studio.application.services.workspace_context import WorkspaceContext
 from robot_studio.core.config import settings as env_settings
 from robot_studio.core.events import (
     EventBus,
+    ExecutionCancelled,
     ExecutionFailed,
     ExecutionFinished,
     ExecutionStarted,
     IndexUpdated,
+    TestExplorerUpdated,
     WorkspaceOpened,
 )
 from robot_studio.domain.interfaces.indexing import SymbolKind
-from robot_studio.domain.models import ExecutionRun
+from robot_studio.domain.models import ExecutionRun, ExecutionStatus
 from robot_studio.infrastructure.execution.output_stats import (
     list_failed_tests,
     load_or_build_file_outcomes,
@@ -31,6 +34,8 @@ from robot_studio.infrastructure.execution.output_stats import (
 )
 from robot_studio.infrastructure.indexing.sqlite_store import SqliteIndexStore
 from robot_studio.infrastructure.language.robot_parsing_worker import document_symbols
+
+logger = logging.getLogger(__name__)
 
 
 class TestExplorerValidationError(Exception):
@@ -104,6 +109,7 @@ class TestExplorerService:
         self.event_bus.subscribe(ExecutionStarted, self._on_execution_started)
         self.event_bus.subscribe(ExecutionFinished, self._on_execution_finished)
         self.event_bus.subscribe(ExecutionFailed, self._on_execution_failed)
+        self.event_bus.subscribe(ExecutionCancelled, self._on_execution_cancelled)
         self._subscribed = True
 
     def _require_workspace(self):
@@ -123,22 +129,78 @@ class TestExplorerService:
         # Incremental: drop cache so next tree read rebuilds from IndexStore.
         self._tree = None
 
+    def _execution_is_active(self) -> bool:
+        """True while ExecutionService still has a live run.
+
+        ``_running_keys`` can lag the WebSocket ``finished`` frame: the UI
+        refetches the tree before ``ExecutionFinished`` is published. Treat the
+        run record as source of truth so GET /tests/file cannot keep returning
+        ``running`` after the process has already stopped.
+        """
+        svc = getattr(self, "execution_service", None)
+        if svc is None:
+            return True
+        current = getattr(svc, "_current", None)
+        if current is None:
+            return False
+        return current.status in {
+            ExecutionStatus.STARTING,
+            ExecutionStatus.RUNNING,
+            ExecutionStatus.STOPPING,
+        }
+
+    def _prune_stale_running_keys(self) -> None:
+        if not self._running_keys or self._execution_is_active():
+            return
+        logger.info(
+            "test-explorer prune stale running_keys=%s",
+            sorted(self._running_keys),
+        )
+        self._running_keys.clear()
+        self._tree = None
+
     async def _on_execution_started(self, event: ExecutionStarted) -> None:
         _ = event
-        self._running_keys = {"*"}
+        # run_test / suite / failed-rerun seed specific keys before start. Keep
+        # them so a single-test play does not mark every node "running". Only
+        # fall back to "*" when nothing was pre-seeded (project / tag / toolbar).
+        if not self._running_keys:
+            self._running_keys = {"*"}
+        logger.info(
+            "test-explorer started running_keys=%s",
+            sorted(self._running_keys),
+        )
         self._tree = None
 
     async def _on_execution_finished(self, event: ExecutionFinished) -> None:
-        # Drop spinners immediately — per-test XML apply can take a long time
-        # on huge project runs and must not keep the tree in "running".
+        # Drop spinners immediately — UI must not stay on "running" while XML
+        # is parsed. Await apply so pass/fail is ready, then notify the tree.
+        logger.info(
+            "test-explorer finished run=%s clearing keys=%s",
+            event.run_id,
+            sorted(self._running_keys),
+        )
         self._running_keys.clear()
         self._tree = None
-        asyncio.create_task(
-            self._apply_run_results(event.run_id),
-            name=f"test-explorer-apply-{event.run_id}",
-        )
+        await self._apply_run_results(event.run_id)
+        await self.event_bus.publish(TestExplorerUpdated(run_id=event.run_id))
 
     async def _on_execution_failed(self, event: ExecutionFailed) -> None:
+        logger.info(
+            "test-explorer failed run=%s clearing keys=%s",
+            event.run_id,
+            sorted(self._running_keys),
+        )
+        self._running_keys.clear()
+        self._tree = None
+        _ = event
+
+    async def _on_execution_cancelled(self, event: ExecutionCancelled) -> None:
+        logger.info(
+            "test-explorer cancelled run=%s clearing keys=%s",
+            event.run_id,
+            sorted(self._running_keys),
+        )
         self._running_keys.clear()
         self._tree = None
         _ = event
@@ -213,6 +275,13 @@ class TestExplorerService:
     def _case_key(path: str, name: str) -> str:
         return f"{Path(path).resolve()}::{name}"
 
+    @staticmethod
+    def _file_running_key(path: str) -> str:
+        try:
+            return f"file:{Path(path).resolve()}"
+        except OSError:
+            return f"file:{path.replace(chr(92), '/')}"
+
     async def get_tree(self, *, query: str | None = None, lazy: bool = True) -> TestNode:
         workspace = self._require_workspace()
         # Filtering needs test names — build eagerly.
@@ -256,7 +325,14 @@ class TestExplorerService:
         symbols = await self._parse_file_symbols(target)
         if not symbols:
             symbols = await self.store.symbols_for_file(target)
-        return self._nodes_from_file_symbols(target, symbols)
+        nodes = self._nodes_from_file_symbols(target, symbols)
+        logger.info(
+            "test-explorer get_file path=%s running_keys=%s cases=%s",
+            target,
+            sorted(self._running_keys),
+            [(node.name, node.status) for node in nodes if node.kind in {"test", "task"}],
+        )
+        return nodes
 
     async def count_tests(
         self,
@@ -322,6 +398,11 @@ class TestExplorerService:
             raise TestExplorerValidationError("Test name is required")
         suite = str(Path(file).expanduser().resolve())
         self._running_keys = {self._case_key(suite, name)}
+        logger.info(
+            "test-explorer run_test name=%s running_keys=%s",
+            name.strip(),
+            sorted(self._running_keys),
+        )
         return await self.execution_service.run_with_options(
             suite=suite,
             robot_args=["--test", name.strip()],
@@ -340,12 +421,19 @@ class TestExplorerService:
         if file:
             suite = str(Path(file).expanduser().resolve())
             label = f"Suite: {Path(suite).name}"
+            self._running_keys = {self._file_running_key(suite)}
+            logger.info(
+                "test-explorer run_suite file=%s running_keys=%s",
+                suite,
+                sorted(self._running_keys),
+            )
             return await self.execution_service.run_with_options(
                 suite=suite,
                 run_label=label,
                 configuration_id=configuration_id,
             )
         await self._assert_large_run_allowed(confirm=confirm, tag=None, project_wide=True)
+        self._running_keys.clear()  # ExecutionStarted → "*"
         return await self.execution_service.run_project(configuration_id=configuration_id)
 
     async def run_tag(
@@ -367,6 +455,7 @@ class TestExplorerService:
             tag=cleaned,
             project_wide=True,
         )
+        self._running_keys.clear()  # ExecutionStarted → "*"
         return await self.execution_service.run_with_options(
             suite=str(project.path),
             robot_args=["--include", cleaned],
@@ -501,6 +590,11 @@ class TestExplorerService:
         configuration_id: UUID | None = None,
     ) -> ExecutionRun:
         """Run named tests: one suite file directly, several via the project."""
+        keys: set[str] = set()
+        for suite_path, names in by_file.items():
+            for name in names:
+                keys.add(self._case_key(suite_path, name))
+        self._running_keys = keys if keys else {"*"}
         # Robot allows multiple --test for one suite.
         if len(by_file) == 1:
             suite, names = next(iter(by_file.items()))
@@ -757,22 +851,25 @@ class TestExplorerService:
         return [*setups, *cases]
 
     def _status_for(self, key: str, name: str, path: str | None = None) -> str:
-        if "*" in self._running_keys or key in self._running_keys:
-            return "running"
-        if key in self._statuses:
-            return self._statuses[key]
-        named = self._statuses.get(f"name:{name}")
-        if named is not None:
-            return named
+        if self._execution_is_active():
+            if "*" in self._running_keys or key in self._running_keys:
+                return "running"
         if path:
             try:
                 resolved = str(Path(path).resolve())
             except OSError:
                 resolved = path.replace("\\", "/")
             for candidate in (f"file:{resolved}", f"file:{Path(path).name}"):
+                if self._execution_is_active() and candidate in self._running_keys:
+                    return "running"
                 file_status = self._statuses.get(candidate)
                 if file_status is not None:
                     return file_status
+        if key in self._statuses:
+            return self._statuses[key]
+        named = self._statuses.get(f"name:{name}")
+        if named is not None:
+            return named
         return "not_run"
 
     @staticmethod

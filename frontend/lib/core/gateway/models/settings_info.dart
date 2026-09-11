@@ -83,6 +83,7 @@ class ExecutionSettings {
     this.revealExecutionOnRun = true,
     this.autoOpenReportOnFailure = false,
     this.stopConfirmation = true,
+    this.reportRetentionDays = 0,
   });
 
   factory ExecutionSettings.fromJson(Map<String, dynamic> json) {
@@ -92,6 +93,8 @@ class ExecutionSettings {
       autoOpenReportOnFailure:
           json['auto_open_report_on_failure'] as bool? ?? false,
       stopConfirmation: json['stop_confirmation'] as bool? ?? true,
+      reportRetentionDays:
+          (json['report_retention_days'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -100,11 +103,15 @@ class ExecutionSettings {
   final bool autoOpenReportOnFailure;
   final bool stopConfirmation;
 
+  /// 0 = never auto-delete. Positive = delete runs older than this many days.
+  final int reportRetentionDays;
+
   Map<String, dynamic> toJson() => {
     'large_run_threshold': largeRunThreshold,
     'reveal_execution_on_run': revealExecutionOnRun,
     'auto_open_report_on_failure': autoOpenReportOnFailure,
     'stop_confirmation': stopConfirmation,
+    'report_retention_days': reportRetentionDays,
   };
 
   ExecutionSettings copyWith({
@@ -112,6 +119,7 @@ class ExecutionSettings {
     bool? revealExecutionOnRun,
     bool? autoOpenReportOnFailure,
     bool? stopConfirmation,
+    int? reportRetentionDays,
   }) {
     return ExecutionSettings(
       largeRunThreshold: largeRunThreshold ?? this.largeRunThreshold,
@@ -119,6 +127,7 @@ class ExecutionSettings {
       autoOpenReportOnFailure:
           autoOpenReportOnFailure ?? this.autoOpenReportOnFailure,
       stopConfirmation: stopConfirmation ?? this.stopConfirmation,
+      reportRetentionDays: reportRetentionDays ?? this.reportRetentionDays,
     );
   }
 }

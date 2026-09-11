@@ -339,6 +339,27 @@ Demo
     expect(token, 'Open Workbook');
   });
 
+  test('extractRobotTokenAt allows trailing-edge column only', () {
+    const content = '''*** Test Cases ***
+Demo
+    Open Browser
+''';
+    final row = content.split('\n')[2];
+    final lastCharCol = row.trimRight().length; // column of final 'r'
+    expect(
+      EditorShellController.extractRobotTokenAt(content, 3, lastCharCol),
+      'Open Browser',
+    );
+    expect(
+      EditorShellController.extractRobotTokenAt(content, 3, lastCharCol + 1),
+      'Open Browser',
+    );
+    expect(
+      EditorShellController.extractRobotTokenAt(content, 3, lastCharCol + 2),
+      isNull,
+    );
+  });
+
   test('extractRobotTokenAt normalizes assignment and extended variables', () {
     const content = r'''*** Test Cases ***
 Get Comment By Id

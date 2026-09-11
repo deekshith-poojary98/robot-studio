@@ -53,6 +53,7 @@ for pkg in (
     "jedi",
     "parso",
     "pyflakes",
+    "robotframework_reportlens",
 ):
     try:
         pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)

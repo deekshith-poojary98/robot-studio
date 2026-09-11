@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +17,7 @@ import 'editor_navigation_widgets.dart';
 import 'editor_run_gutter.dart';
 import 'editor_syntax.dart';
 import 'robot_code_shortcuts.dart';
+import 'windows_modifier_keys.dart';
 
 class RobotCodeEditor extends StatefulWidget {
   const RobotCodeEditor({
@@ -57,7 +59,7 @@ class RobotCodeEditor extends StatefulWidget {
   final String initialContent;
   final ValueChanged<String> onContentChanged;
   final void Function(int line, int column)? onCursorChanged;
-  final VoidCallback? onCtrlClick;
+  final void Function(int line, int column)? onCtrlClick;
 
   /// Fired after the pointer rests over a code position (VS Code-style hover).
   final void Function(int line, int column)? onHoverRequest;
@@ -139,6 +141,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
   late CodeLineEditingController _controller;
   late CodeFindController _findController;
+  late FocusNode _editorFocusNode;
   late ScrollController _verticalScroll;
   late ScrollController _horizontalScroll;
   late CodeScrollController _scrollController;
@@ -160,6 +163,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   Offset? _suppressHoverOrigin;
   double _charWidth = 7.8;
   bool _pointerOverTooltip = false;
+  bool _definitionClickHandled = false;
+  Timer? _ctrlPoll;
   final GlobalKey _hoverTooltipKey = GlobalKey();
   Size _hoverTooltipSize = const Size(360, 88);
   _AutocompletePopup? _popup;
@@ -214,6 +219,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _createController(widget.initialContent);
     _lastEmittedContent = widget.initialContent;
     _findController = CodeFindController(_controller);
+    _editorFocusNode = FocusNode(debugLabel: 'RobotCodeEditor');
     final restoreViewport = widget.jumpToLine == null;
     _lastVerticalOffset = restoreViewport
         ? math.max(0.0, widget.initialScrollOffsetY)
@@ -221,7 +227,9 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _lastHorizontalOffset = restoreViewport
         ? math.max(0.0, widget.initialScrollOffsetX)
         : 0;
-    _verticalScroll = ScrollController(initialScrollOffset: _lastVerticalOffset);
+    _verticalScroll = ScrollController(
+      initialScrollOffset: _lastVerticalOffset,
+    );
     _horizontalScroll = ScrollController(
       initialScrollOffset: _lastHorizontalOffset,
     );
@@ -243,8 +251,14 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _listening = true;
     _measureCharWidth();
     widget.onBindState?.call(this);
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      _ctrlPoll = Timer.periodic(const Duration(milliseconds: 50), (_) {
+        pollWindowsControlForDefinition();
+      });
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _jumpIfNeeded(widget.jumpToLine, widget.jumpToColumn);
+      _requestWindowsEditorFocus();
     });
   }
 
@@ -328,6 +342,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
   @override
   void dispose() {
     widget.onBindState?.call(null);
+    _ctrlPoll?.cancel();
     _hoverTimer?.cancel();
     _hoverDismissTimer?.cancel();
     _dismissAutocompleteOverlay();
@@ -338,6 +353,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     _verticalScroll.removeListener(_onVerticalScroll);
     _horizontalScroll.removeListener(_onHorizontalScroll);
     _findController.dispose();
+    _editorFocusNode.dispose();
     _scrollController.dispose();
     _verticalScroll.dispose();
     _horizontalScroll.dispose();
@@ -355,6 +371,15 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     if (_horizontalScroll.hasClients) {
       _lastHorizontalOffset = _horizontalScroll.offset;
     }
+  }
+
+  void _requestWindowsEditorFocus() {
+    if (!mounted || defaultTargetPlatform != TargetPlatform.windows) {
+      return;
+    }
+    // CodeEditor.autofocus is off on Windows so re_editor can attach its
+    // blink listener before focus arrives. Request focus only after that.
+    _editorFocusNode.requestFocus();
   }
 
   void _persistViewport() {
@@ -611,7 +636,10 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     if (tooltipContext == null || !tooltipContext.mounted) return false;
     final box = tooltipContext.findRenderObject() as RenderBox?;
     final editorBox = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize || editorBox == null || !editorBox.hasSize) {
+    if (box == null ||
+        !box.hasSize ||
+        editorBox == null ||
+        !editorBox.hasSize) {
       return false;
     }
     final global = editorBox.localToGlobal(localInEditor);
@@ -721,8 +749,35 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
     return (lineIndex + 1, column);
   }
 
+  void _handleGoToDefinitionPointer(PointerEvent event) {
+    pollWindowsControlForDefinition();
+    final goToDefinitionModifier = isGoToDefinitionModifierPressed();
+    final recentCtrl = windowsControlPressedOrRecentlyHeld();
+    final goToDefinition = shouldGoToDefinitionOnPointerDown(event.buttons);
+    final hit = _lineColumnAt(event.localPosition);
+    if (kDebugMode) {
+      debugPrint(
+        'DEFCLICK down '
+        'buttons=${event.buttons} kind=${event.kind} '
+        'flutterCtrl=${HardwareKeyboard.instance.isControlPressed} '
+        'flutterShift=${HardwareKeyboard.instance.isShiftPressed} '
+        'osCtrl=${windowsControlPressed()} '
+        'recentCtrl=$recentCtrl '
+        'mod=$goToDefinitionModifier '
+        'go=$goToDefinition '
+        'hit=$hit',
+      );
+    }
+    if (!goToDefinition) return;
+    if (hit == null) return;
+    final (line, column) = hit;
+    _definitionClickHandled = true;
+    widget.onCtrlClick?.call(line, column);
+  }
+
   void _onPointerHover(PointerHoverEvent event) {
     if (!context.mounted) return;
+    pollWindowsControlForDefinition();
     final local = event.localPosition;
     _hoverDismissTimer?.cancel();
 
@@ -782,6 +837,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
 
     final editor = CodeEditor(
       controller: _controller,
+      focusNode: _editorFocusNode,
+      autofocus: defaultTargetPlatform != TargetPlatform.windows,
       findController: _findController,
       scrollController: _scrollController,
       wordWrap: widget.wordWrap,
@@ -847,6 +904,7 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
                   RobotTestRunGutter(
                     notifier: notifier,
                     tests: widget.runnableTests,
+                    scrollController: _verticalScroll,
                     onRun: widget.onRunTest,
                     enabled: widget.runTestsEnabled,
                   ),
@@ -967,7 +1025,8 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
           ),
           _DefinitionIntent: CallbackAction<_DefinitionIntent>(
             onInvoke: (_) {
-              widget.onCtrlClick?.call();
+              final sel = _controller.selection;
+              widget.onCtrlClick?.call(sel.baseIndex + 1, sel.baseOffset + 1);
               return null;
             },
           ),
@@ -990,19 +1049,30 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
             _scheduleDismissHover();
           },
           child: Listener(
+            behavior: HitTestBehavior.translucent,
             onPointerHover: _onPointerHover,
             onPointerDown: (event) {
               _suppressHoverOrigin = event.localPosition;
               _dismissHover(immediate: true);
-              final pressed = HardwareKeyboard.instance.logicalKeysPressed;
-              final ctrl =
-                  pressed.contains(LogicalKeyboardKey.controlLeft) ||
-                  pressed.contains(LogicalKeyboardKey.controlRight) ||
-                  pressed.contains(LogicalKeyboardKey.metaLeft) ||
-                  pressed.contains(LogicalKeyboardKey.metaRight);
-              if (ctrl && event.buttons == kPrimaryMouseButton) {
-                widget.onCtrlClick?.call();
+              _handleGoToDefinitionPointer(event);
+              if (defaultTargetPlatform == TargetPlatform.windows) {
+                _editorFocusNode.requestFocus();
               }
+            },
+            onPointerUp: (event) {
+              if (kDebugMode) {
+                debugPrint(
+                  'DEFCLICK up '
+                  'buttons=${event.buttons} kind=${event.kind} '
+                  'flutterCtrl=${HardwareKeyboard.instance.isControlPressed} '
+                  'flutterShift=${HardwareKeyboard.instance.isShiftPressed} '
+                  'osCtrl=${windowsControlPressed()} '
+                  'mod=${isGoToDefinitionModifierPressed()} '
+                  'handled=$_definitionClickHandled '
+                  'hit=${_lineColumnAt(event.localPosition)}',
+                );
+              }
+              _definitionClickHandled = false;
             },
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -1072,7 +1142,13 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
                         bottom: 0,
                         child: PeekDefinitionPanel(
                           symbol: widget.peekDefinition!,
-                          onOpen: widget.onCtrlClick ?? () {},
+                          onOpen: () {
+                            final sel = controller.selection;
+                            (widget.onCtrlClick ?? (_, __) {})(
+                              sel.baseIndex + 1,
+                              sel.baseOffset + 1,
+                            );
+                          },
                           onClose: widget.onClosePeek ?? () {},
                         ),
                       ),

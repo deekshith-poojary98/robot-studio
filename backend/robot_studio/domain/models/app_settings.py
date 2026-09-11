@@ -71,6 +71,8 @@ class ExecutionSettings:
     reveal_execution_on_run: bool = True
     auto_open_report_on_failure: bool = False
     stop_confirmation: bool = True
+    # 0 = never auto-delete. Positive = delete runs older than N days.
+    report_retention_days: int = 0
 
     def to_api(self) -> dict[str, Any]:
         return asdict(self)
@@ -88,6 +90,10 @@ class ExecutionSettings:
                 raw.get("auto_open_report_on_failure", False),
             ),
             stop_confirmation=bool(raw.get("stop_confirmation", True)),
+            report_retention_days=max(
+                0,
+                min(3_650, int(raw.get("report_retention_days", 0) or 0)),
+            ),
         )
 
 

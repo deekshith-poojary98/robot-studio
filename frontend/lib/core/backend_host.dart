@@ -10,15 +10,17 @@ import 'logging/app_logger.dart';
 /// Owns the bundled Python sidecar for double-click desktop launches.
 ///
 /// Behavior:
-/// - If the backend is already healthy (e.g. `make backend` in development),
-///   do nothing — unless a leftover packaged-sidecar PID file is present, in
-///   which case we reclaim ownership so Quit can stop it.
-/// - Else if a sidecar binary sits next to the app, spawn it and wait for health.
+/// - If the backend is already healthy on the preferred (or last-used) port
+///   (e.g. `make backend` in development), attach — and reclaim a leftover
+///   packaged-sidecar PID so Quit can stop it.
+/// - Else if a sidecar binary sits next to the app, allocate a free port
+///   (preferred first, then nearby), spawn it, and point [BackendConfig] there.
 /// - Else leave the UI to show BACKEND UNAVAILABLE (dev without a running API).
 ///
 /// Quit cleanup: Flutter lifecycle `detached` is unreliable on desktop, so
-/// we also write `~/.robot-studio/backend.pid` for the native runner to kill on
-/// quit (macOS `applicationWillTerminate`, Windows `OnDestroy`, Linux shutdown).
+/// we also write `~/.robot-studio/backend.pid` (and `backend.port`) for the
+/// native runner to kill on quit (macOS `applicationWillTerminate`, Windows
+/// `OnDestroy`, Linux shutdown).
 class BackendHost {
   BackendHost._({this.process, this.pid, this.startedByApp = false});
 
@@ -28,6 +30,8 @@ class BackendHost {
 
   static const _sidecarName = 'robot-studio-backend';
   static const pidFileName = 'backend.pid';
+  static const portFileName = 'backend.port';
+  static const _portSearchWindow = 50;
   static BackendHost? _instance;
   static DateTime? _lastRestartAt;
 
@@ -41,34 +45,45 @@ class BackendHost {
   }) async {
     if (_instance != null) return _instance!;
 
-    final healthUrl = '${BackendConfig.httpBaseUrl}/health';
+    final preferred = BackendConfig.preferredPort;
     final sidecar = resolveSidecarPath();
     final existingPid = readPidFile();
+    final rememberedPort = readPortFile();
 
-    if (await waitForHealth(healthUrl, timeout: const Duration(seconds: 1))) {
-      // Packaged orphan from a previous Quit that never killed the sidecar.
-      if (sidecar != null && existingPid != null && _isPidAlive(existingPid)) {
-        AppLogger.info(
-          'Reclaiming leftover packaged backend',
-          tag: 'BackendHost',
-          data: existingPid,
-        );
-        writePidFile(existingPid);
-        return _instance = BackendHost._(pid: existingPid, startedByApp: true);
-      }
-      AppLogger.info(
-        'Backend already healthy — not spawning sidecar',
-        tag: 'BackendHost',
+    // Prefer an already-healthy preferred port (dev: make backend).
+    if (await waitForHealth(
+      _healthUrl(preferred),
+      timeout: const Duration(seconds: 1),
+    )) {
+      return _attachExisting(
+        port: preferred,
+        sidecar: sidecar,
+        existingPid: existingPid,
       );
-      return _instance = BackendHost._();
     }
 
-    // Stale pid file from a dead process.
+    // Packaged orphan may be on a dynamically allocated port.
+    if (rememberedPort != null &&
+        rememberedPort != preferred &&
+        await waitForHealth(
+          _healthUrl(rememberedPort),
+          timeout: const Duration(seconds: 1),
+        )) {
+      return _attachExisting(
+        port: rememberedPort,
+        sidecar: sidecar,
+        existingPid: existingPid,
+      );
+    }
+
+    // Stale pid / port files from a dead process.
     if (existingPid != null && !_isPidAlive(existingPid)) {
       clearPidFile();
+      clearPortFile();
     }
 
     if (sidecar == null) {
+      BackendConfig.setRuntimePort(preferred);
       AppLogger.info(
         'No bundled sidecar found — waiting for an external backend '
         '(dev: make backend)',
@@ -77,7 +92,23 @@ class BackendHost {
       return _instance = BackendHost._();
     }
 
-    AppLogger.info('Starting sidecar', tag: 'BackendHost', data: sidecar);
+    final port = await allocatePort(
+      host: BackendConfig.host,
+      preferred: preferred,
+    );
+    BackendConfig.setRuntimePort(port);
+    if (port != preferred) {
+      AppLogger.info(
+        'Preferred port $preferred busy — using $port',
+        tag: 'BackendHost',
+      );
+    }
+
+    AppLogger.info(
+      'Starting sidecar on :$port',
+      tag: 'BackendHost',
+      data: sidecar,
+    );
     final dataDir = _dataDir();
     final process = await Process.start(
       sidecar,
@@ -85,7 +116,7 @@ class BackendHost {
       environment: {
         ...Platform.environment,
         'ROBOT_STUDIO_HOST': BackendConfig.host,
-        'ROBOT_STUDIO_PORT': '${BackendConfig.port}',
+        'ROBOT_STUDIO_PORT': '$port',
         'ROBOT_STUDIO_DATA_DIR': dataDir.path,
         'ROBOT_STUDIO_DEBUG': 'false',
       },
@@ -98,13 +129,21 @@ class BackendHost {
         AppLogger.debug(line, tag: 'Backend');
       }
     });
+    // Uvicorn access logs use stdout. Process.start pipes stdout even when the
+    // child is a windowed PyInstaller executable; if nobody consumes that
+    // pipe, it fills and blocks the backend event loop in logging.flush().
+    // Backend access logs are already persisted by the sidecar, so discard
+    // this copy while keeping the pipe drained.
+    process.stdout.listen((_) {}, onError: (_) {});
 
     writePidFile(process.pid);
+    writePortFile(port);
 
-    final ready = await waitForHealth(healthUrl, timeout: timeout);
+    final ready = await waitForHealth(_healthUrl(port), timeout: timeout);
     if (!ready) {
       _killPid(process.pid);
       clearPidFile();
+      clearPortFile();
       AppLogger.error(
         'Bundled backend failed to become ready within ${timeout.inSeconds}s',
         tag: 'BackendHost',
@@ -112,8 +151,66 @@ class BackendHost {
       return _instance = BackendHost._();
     }
 
-    AppLogger.info('Bundled backend ready', tag: 'BackendHost');
+    AppLogger.info('Bundled backend ready on :$port', tag: 'BackendHost');
     return _instance = BackendHost._(process: process, startedByApp: true);
+  }
+
+  static BackendHost _attachExisting({
+    required int port,
+    required String? sidecar,
+    required int? existingPid,
+  }) {
+    BackendConfig.setRuntimePort(port);
+    writePortFile(port);
+    if (sidecar != null && existingPid != null && _isPidAlive(existingPid)) {
+      AppLogger.info(
+        'Reclaiming leftover packaged backend',
+        tag: 'BackendHost',
+        data: 'pid=$existingPid port=$port',
+      );
+      writePidFile(existingPid);
+      return _instance = BackendHost._(pid: existingPid, startedByApp: true);
+    }
+    AppLogger.info(
+      'Backend already healthy on :$port — not spawning sidecar',
+      tag: 'BackendHost',
+    );
+    return _instance = BackendHost._();
+  }
+
+  static String _healthUrl(int port) =>
+      'http://${BackendConfig.host}:$port/api/v1/health';
+
+  /// Bind-probe for a free TCP port, preferring [preferred] then nearby ports.
+  @visibleForTesting
+  static Future<int> allocatePort({
+    required String host,
+    required int preferred,
+    int searchWindow = _portSearchWindow,
+  }) async {
+    final start = preferred.clamp(1, 65535);
+    for (var i = 0; i < searchWindow; i++) {
+      final candidate = start + i;
+      if (candidate > 65535) break;
+      if (await _canBind(host, candidate)) {
+        return candidate;
+      }
+    }
+    // Last resort: OS-assigned ephemeral port.
+    final server = await ServerSocket.bind(host, 0);
+    final port = server.port;
+    await server.close();
+    return port;
+  }
+
+  static Future<bool> _canBind(String host, int port) async {
+    try {
+      final server = await ServerSocket.bind(host, port);
+      await server.close();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Kill a frozen or dead owned sidecar and spawn a fresh one.
@@ -141,6 +238,7 @@ class BackendHost {
       _killPid(target, force: true);
     }
     clearPidFile();
+    clearPortFile();
     _instance = null;
     _lastRestartAt = now;
 
@@ -169,6 +267,7 @@ class BackendHost {
       _killPid(target, force: true);
     }
     clearPidFile();
+    clearPortFile();
   }
 
   /// Synchronous kill for AppDelegate / last-chance quit hooks.
@@ -184,6 +283,7 @@ class BackendHost {
     _killPid(target);
     _killPid(target, force: true);
     clearPidFile();
+    clearPortFile();
   }
 
   /// Locate the frozen sidecar next to the Flutter executable.
@@ -217,7 +317,13 @@ class BackendHost {
   @visibleForTesting
   static File pidFile({Directory? dataDir}) {
     final root = dataDir ?? _dataDir();
-    return File('${root.path}${(Platform.pathSeparator)}$pidFileName');
+    return File('${root.path}${Platform.pathSeparator}$pidFileName');
+  }
+
+  @visibleForTesting
+  static File portFile({Directory? dataDir}) {
+    final root = dataDir ?? _dataDir();
+    return File('${root.path}${Platform.pathSeparator}$portFileName');
   }
 
   @visibleForTesting
@@ -227,6 +333,18 @@ class BackendHost {
     } catch (error) {
       AppLogger.debug(
         'Could not write backend pid file: $error',
+        tag: 'BackendHost',
+      );
+    }
+  }
+
+  @visibleForTesting
+  static void writePortFile(int port, {Directory? dataDir}) {
+    try {
+      portFile(dataDir: dataDir).writeAsStringSync('$port\n');
+    } catch (error) {
+      AppLogger.debug(
+        'Could not write backend port file: $error',
         tag: 'BackendHost',
       );
     }
@@ -244,9 +362,30 @@ class BackendHost {
   }
 
   @visibleForTesting
+  static int? readPortFile({Directory? dataDir}) {
+    try {
+      final file = portFile(dataDir: dataDir);
+      if (!file.existsSync()) return null;
+      return int.tryParse(file.readAsStringSync().trim());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @visibleForTesting
   static void clearPidFile({Directory? dataDir}) {
     try {
       final file = pidFile(dataDir: dataDir);
+      if (file.existsSync()) file.deleteSync();
+    } catch (_) {
+      // Best-effort.
+    }
+  }
+
+  @visibleForTesting
+  static void clearPortFile({Directory? dataDir}) {
+    try {
+      final file = portFile(dataDir: dataDir);
       if (file.existsSync()) file.deleteSync();
     } catch (_) {
       // Best-effort.

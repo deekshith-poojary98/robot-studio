@@ -251,6 +251,7 @@ class Container:
             event_bus=self.event_bus,
             results_store=self.plugin_host.get(Capability.RESULTS_STORE),
             repository=self.execution_repository,
+            settings_service=self.settings_service,
         )
         self.report_service.start()
 

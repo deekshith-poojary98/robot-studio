@@ -34,6 +34,8 @@ Selecting a configuration does **not** change the toolbar environment. Packages,
 
 From the selector: **New Configuration…** or **Manage Configurations…** (dialogs — not a new sidebar or Settings page). In Manage, **Duplicate** is a first-class action so you can clone **Smoke - Dev** into **Smoke - Staging** and change a few fields.
 
+In **Manage Configurations…**, the active configuration shows a green, disabled **In Use** button. Choose **Use** on another row to make that configuration active for the next run.
+
 Configurations are stored with the project at `.robotstudio/run-configurations.json` (same Studio metadata folder as environments and reports).
 
 Advanced Robot arguments are an escape hatch: **one argv token per row**, not a shell command.

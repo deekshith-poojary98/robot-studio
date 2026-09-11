@@ -179,6 +179,8 @@ abstract class TransportGateway {
 
   Future<String> openReportHtml(String runId);
 
+  Future<String> openReportLens(String runId);
+
   Future<String> openReportXml(String runId);
 
   Future<String> revealReport(String runId);

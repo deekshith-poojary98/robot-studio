@@ -8,13 +8,14 @@ import 'models/execution_info.dart';
 
 /// Live execution log stream over WebSocket.
 class ExecutionStreamClient {
-  ExecutionStreamClient({String? url})
-      : url = url ?? BackendConfig.wsExecutionUrl;
+  ExecutionStreamClient({String? url}) : _urlOverride = url;
 
-  final String url;
+  final String? _urlOverride;
   WebSocket? _socket;
   StreamController<ExecutionStreamEvent>? _controller;
   StreamSubscription<dynamic>? _subscription;
+
+  String get url => _urlOverride ?? BackendConfig.wsExecutionUrl;
 
   Stream<ExecutionStreamEvent> get events {
     final controller = _controller;

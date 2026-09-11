@@ -19,11 +19,25 @@ from robot_studio.infrastructure.environment.python_provider import (
     _absolute_keep_wrapper,
     _host_python_subprocess_env,
 )
+from robot_studio.infrastructure.execution.console_decode import (
+    decode_robot_console_line,
+)
 from robot_studio.infrastructure.process_utils import windows_no_window_kwargs
 
 
 class RunnerError(Exception):
     """Raised when the runner cannot start or manage a process."""
+
+
+def _robot_subprocess_env() -> dict[str, str]:
+    """Env for ``python -m robot`` — force UTF-8 stdio so console glyphs survive."""
+    env = _host_python_subprocess_env()
+    env["PYTHONUNBUFFERED"] = "1"
+    # Windows consoles often default to a legacy code page; force UTF-8 so
+    # documentation separators (``·``) and non-ASCII names are not mangled.
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+    return env
 
 
 def _studio_progress_listener_source() -> Path | None:
@@ -123,8 +137,7 @@ class SubprocessRunner(Runner):
             suite,
         ]
 
-        env = _host_python_subprocess_env()
-        env["PYTHONUNBUFFERED"] = "1"
+        env = _robot_subprocess_env()
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -235,7 +248,7 @@ class SubprocessRunner(Runner):
             line = await stream.readline()
             if not line:
                 break
-            text = line.decode("utf-8", errors="replace").rstrip("\n")
+            text = decode_robot_console_line(line)
             await run.queue.put(text)
 
     async def _wait_for_exit(

@@ -427,7 +427,11 @@ void main() {
     expect(find.text('Environment Manager'), findsOneWidget);
     expect(find.text('robot-3.12'), findsOneWidget);
     expect(find.textContaining('Python 3.12'), findsOneWidget);
-    expect(find.text('Active'), findsWidgets);
+    final activeButton = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Active'),
+    );
+    expect(activeButton.onPressed, isNull);
+    expect(find.text('Activate'), findsNothing);
   });
 
   testWidgets('Delete dialog blocks active environment', (
@@ -1572,15 +1576,20 @@ void main() {
             onSave: () {},
             onHoverRequest: (_, _) {},
             onHoverExit: () {},
-            onCtrlClick: () {},
+            onCtrlClick: (_, __) {},
             onClosePeek: () {},
             onCursorChanged: (_, _) {},
+            startPageTitle: 'demo-project',
+            startPagePath: '/tmp/demo-project',
+            onOpenFilePalette: () {},
           ),
         ),
       ),
     );
 
-    expect(find.text('No file open'), findsOneWidget);
+    expect(find.text('demo-project'), findsOneWidget);
+    expect(find.text('Open File…'), findsOneWidget);
+    expect(find.text('Start'), findsOneWidget);
   });
 
   testWidgets('EditorPage opens file via tabs list', (
@@ -1626,7 +1635,7 @@ void main() {
             onSave: () {},
             onHoverRequest: (_, _) {},
             onHoverExit: () {},
-            onCtrlClick: () {},
+            onCtrlClick: (_, __) {},
             onClosePeek: () {},
             onCursorChanged: (_, _) {},
           ),
@@ -1693,7 +1702,7 @@ void main() {
             onSave: () {},
             onHoverRequest: (_, _) {},
             onHoverExit: () {},
-            onCtrlClick: () {},
+            onCtrlClick: (_, __) {},
             onClosePeek: () {},
             onCursorChanged: (_, _) {},
           ),
@@ -2336,6 +2345,9 @@ class _FakeTransportGateway implements TransportGateway {
 
   @override
   Future<String> openReportHtml(String runId) async => '/tmp/report.html';
+
+  @override
+  Future<String> openReportLens(String runId) async => '/tmp/reportlens.html';
 
   @override
   Future<String> openReportXml(String runId) async => '/tmp/output.xml';

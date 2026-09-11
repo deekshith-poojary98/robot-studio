@@ -28,6 +28,7 @@ Settings are stored in `~/.robot-studio/settings.json`. Use **Save** to apply ch
 | **Reveal Execution On Run** | On | Bring the execution monitor forward when a run starts |
 | **Auto Open Report On Failure** | Off | Open Reports when tests failed. Empty selection (**NO TESTS**) does not count as a failure. |
 | **Stop Confirmation** | On | Confirm before stopping a running suite |
+| **Report Retention Days** | `0` | Auto-delete runs older than this many days (`0` = keep forever). Runs when you open a workspace or save Settings. **Deleted reports also leave Insights analytics** (pass rate, streaks, file triage). See [Reports](/workflows/reports/#auto-delete-old-reports). |
 
 ## Search
 
@@ -51,7 +52,7 @@ These `ROBOT_STUDIO_*` variables configure the **local backend process**. Day-to
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `ROBOT_STUDIO_HOST` | `127.0.0.1` | Bind address |
-| `ROBOT_STUDIO_PORT` | `8765` | HTTP / WebSocket port |
+| `ROBOT_STUDIO_PORT` | `8765` | Preferred HTTP / WebSocket port. Packaged launches pick a free nearby port when this one is busy and record it in `~/.robot-studio/backend.port`. |
 | `ROBOT_STUDIO_DATA_DIR` | `~/.robot-studio` | SQLite DB, plugins, local data, logs |
 | `ROBOT_STUDIO_DEBUG` | `false` | Debug mode |
 

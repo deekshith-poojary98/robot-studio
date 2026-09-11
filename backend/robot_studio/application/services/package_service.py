@@ -86,8 +86,8 @@ class PackageService:
         packages = await self._installer.list_installed(environment.path)
 
         if query and query.strip():
-            # Relevance first (exact > prefix > substring > fuzzy). The sort
-            # dropdown only applies when there is no active query.
+            # Relevance first (exact > prefix > substring on name only).
+            # The sort dropdown only applies when there is no active query.
             packages = rank_packages(packages, query)
         else:
             packages = self._sort(packages, sort)

@@ -162,6 +162,23 @@ def test_validate_ok_named_and_positional() -> None:
     assert validate_keyword_arguments(meta, ["a", "b", "msg=fail"]) == []
 
 
+def test_validate_xpath_with_equals_is_positional() -> None:
+    """XPath/CSS values containing ``=`` must not be parsed as named args."""
+    meta = _kw(
+        ParameterMetadata(name="selector", required=True),
+        ParameterMetadata(name="assertion_operator", required=False, default="None"),
+        ParameterMetadata(name="assertion_expected", required=False, default="0"),
+        ParameterMetadata(name="message", required=False, default="None"),
+        name="Get Element Count",
+    )
+    xpath = (
+        "//button[normalize-space()='Confirm' or normalize-space()='Delete' "
+        "or normalize-space()='Yes']"
+    )
+    assert validate_keyword_arguments(meta, [xpath]) == []
+    assert validate_keyword_arguments(meta, [f"selector={xpath}"]) == []
+
+
 def test_validate_duplicate_named() -> None:
     meta = _kw(
         ParameterMetadata(name="message", required=True),

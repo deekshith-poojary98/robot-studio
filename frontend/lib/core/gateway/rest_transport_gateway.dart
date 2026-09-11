@@ -24,11 +24,13 @@ export 'models/workspace_info.dart';
 /// REST implementation of [TransportGateway].
 class RestTransportGateway implements TransportGateway {
   RestTransportGateway({String? baseUrl, http.Client? client})
-    : baseUrl = baseUrl ?? BackendConfig.httpBaseUrl,
+    : _baseUrlOverride = baseUrl,
       _client = client ?? http.Client();
 
-  final String baseUrl;
+  final String? _baseUrlOverride;
   final http.Client _client;
+
+  String get baseUrl => _baseUrlOverride ?? BackendConfig.httpBaseUrl;
 
   @override
   Future<HealthResponse> health() async {
@@ -521,6 +523,16 @@ class RestTransportGateway implements TransportGateway {
   @override
   Future<String> openReportHtml(String runId) async {
     final response = await _post('/reports/$runId/open-report', body: {});
+    return response['path'] as String? ?? '';
+  }
+
+  @override
+  Future<String> openReportLens(String runId) async {
+    final response = await _post(
+      '/reports/$runId/open-reportlens',
+      body: {},
+      timeout: const Duration(minutes: 5),
+    );
     return response['path'] as String? ?? '';
   }
 

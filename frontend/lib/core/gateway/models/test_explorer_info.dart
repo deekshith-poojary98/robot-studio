@@ -87,6 +87,76 @@ class TestNodeInfo {
     );
   }
 
+  static String _normPath(String path) =>
+      path.replaceAll('\\', '/').toLowerCase();
+
+  static bool pathsEqual(String? a, String? b) {
+    if (a == null || b == null || a.isEmpty || b.isEmpty) return false;
+    return _normPath(a) == _normPath(b);
+  }
+
+  /// Drop [TestNodeStatus.running] after a run ends so retained lazy children
+  /// do not keep spinners while the tree re-fetches pass/fail.
+  static TestNodeInfo withoutRunningStatuses(TestNodeInfo node) {
+    final kids = [
+      for (final child in node.children) withoutRunningStatuses(child),
+    ];
+    final status = node.status == TestNodeStatus.running
+        ? TestNodeStatus.notRun
+        : node.status;
+    return node.copyWith(status: status, children: kids);
+  }
+
+  /// Play one test: that case spins; sibling `running` from a prior fetch clears.
+  static TestNodeInfo withOnlyTestRunning(
+    TestNodeInfo node, {
+    required String filePath,
+    required String testName,
+  }) {
+    final kids = [
+      for (final child in node.children)
+        withOnlyTestRunning(child, filePath: filePath, testName: testName),
+    ];
+    var status = node.status;
+    if (node.kind == 'test' || node.kind == 'task') {
+      status = pathsEqual(node.path, filePath) && node.name == testName
+          ? TestNodeStatus.running
+          : (status == TestNodeStatus.running
+                ? TestNodeStatus.notRun
+                : status);
+    } else if (kids.isNotEmpty) {
+      status = kids.any((child) => child.status == TestNodeStatus.running)
+          ? TestNodeStatus.running
+          : (status == TestNodeStatus.running
+                ? TestNodeStatus.notRun
+                : status);
+    }
+    return node.copyWith(status: status, children: kids);
+  }
+
+  /// Suite play: cases in [filePath] spin; other files are left alone except
+  /// leftover `running` on this file's siblings is the intent.
+  static TestNodeInfo withFileRunning(TestNodeInfo node, String filePath) {
+    final kids = [
+      for (final child in node.children) withFileRunning(child, filePath),
+    ];
+    var status = node.status;
+    if (node.kind == 'test' || node.kind == 'task') {
+      status = pathsEqual(node.path, filePath)
+          ? TestNodeStatus.running
+          : (status == TestNodeStatus.running
+                ? TestNodeStatus.notRun
+                : status);
+    } else if (kids.isNotEmpty) {
+      status = kids.any((child) => child.status == TestNodeStatus.running)
+          ? TestNodeStatus.running
+          : (status == TestNodeStatus.running
+                ? TestNodeStatus.notRun
+                : status);
+    }
+    return node.copyWith(status: status, children: kids);
+  }
+
   /// After a lazy tree reload, keep previously expanded suite/dir children so
   /// the UI does not flash empty while those nodes stay visually expanded.
   ///

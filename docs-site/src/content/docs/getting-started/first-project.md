@@ -7,7 +7,8 @@ Robot Studio is project-first. Environments, packages, runs, and Git all scope t
 
 ## Create a new project
 
-1. On the welcome screen, choose **New Project** (or use the File menu).
+1. On the welcome screen, choose **New Project**. On Windows, the in-window
+   File / Edit menu bar appears after a project is open.
 2. Pick a folder location and name.
 3. Robot Studio seeds empty `tests/`, `resources/`, and `variables/` folders plus a sensible `.gitignore`.
 4. Studio metadata lives in `.robotstudio/` inside the project (ignored by the seeded gitignore).
@@ -23,6 +24,8 @@ You do not pick a “template type” — every new project is a plain Robot Fra
 If the folder does **not** look like a Robot project, Robot Studio warns and offers **Continue anyways**. Choosing that opens the folder anyway (`force`). Prefer **New Project** when you want the seeded `tests/` / `resources/` / `variables/` layout.
 
 **Recent Projects** on the welcome screen is the fastest way back to work you already opened. With a project open, the folder chip next to **Env** in the toolbar also lists recents, **Open Project**, and **Reveal in Finder** (Windows: **Reveal in Explorer**) so you can open the project folder in the OS file manager.
+
+Until you open a file, the center view is the editor **start page** (**Start** and **Recent**) — quick actions such as **Open File…**, **Show Explorer**, and **Environments**. Details: [Write and edit tests](/workflows/writing-tests/#when-no-file-is-open).
 
 :::tip[Workspaces]
 Workspaces are an advanced multi-project container (Open / New / Recent). Most people can ignore them at first and work with a single project. **Import Project** only appears in a multi-project workspace — it attaches another existing folder to that workspace. Day to day, use **Open Project** instead.

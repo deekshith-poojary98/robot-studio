@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../core/gateway/transport_gateway.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/error_dialog.dart';
-import '../widgets/status_badge.dart';
 import 'run_configuration_edit_dialog.dart';
 
 Future<void> showManageRunConfigurationsDialog(
@@ -377,30 +376,15 @@ class _ConfigurationRowState extends State<_ConfigurationRow> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          widget.item.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: palette.textPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      if (active) ...[
-                        const SizedBox(width: AppSpacing.sm),
-                        StatusBadge(
-                          label: 'Selected',
-                          filled: true,
-                          dotColor: palette.accent,
-                          height: 20,
-                        ),
-                      ],
-                    ],
+                  Text(
+                    widget.item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
@@ -413,12 +397,15 @@ class _ConfigurationRowState extends State<_ConfigurationRow> {
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            if (!active)
-              TextButton(
-                onPressed: busy ? null : widget.onUse,
-                style: _actionStyle,
-                child: const Text('Use'),
-              ),
+            TextButton(
+              onPressed: (busy || active) ? null : widget.onUse,
+              style: active
+                  ? _actionStyle.copyWith(
+                      foregroundColor: WidgetStatePropertyAll(palette.success),
+                    )
+                  : _actionStyle,
+              child: Text(active ? 'In Use' : 'Use'),
+            ),
             TextButton(
               key: Key('run-config.duplicate.${widget.item.id}'),
               onPressed: busy ? null : widget.onDuplicate,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:robot_studio/core/gateway/models/test_explorer_info.dart';
+import 'package:robot_studio/core/theme/app_theme.dart';
 import 'package:robot_studio/presentation/tests/test_explorer_panel.dart';
 
 void main() {
@@ -134,6 +135,32 @@ void main() {
     expect(find.text('Pay'), findsOneWidget);
   });
 
+  testWidgets('pass status colors the beaker like the toolbar chip', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            height: 600,
+            child: TestExplorerPanel(
+              tree: sampleTree(status: TestNodeStatus.pass),
+            ),
+          ),
+        ),
+      ),
+    );
+    final beaker = tester.widget<Icon>(
+      find.descendant(
+        of: find.widgetWithText(InkWell, 'Pay'),
+        matching: find.byIcon(Icons.science_outlined),
+      ),
+    );
+    expect(beaker.color, AppColors.success);
+  });
+
   testWidgets('status updates render running indicator', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -150,6 +177,8 @@ void main() {
     );
 
     expect(find.byType(CircularProgressIndicator), findsWidgets);
+    // Play is hidden on the running test row (spinner replaces it).
+    expect(find.byKey(const Key('test-run-test:1')), findsNothing);
   });
 
   testWidgets('lazy suite shells are expandable', (tester) async {
@@ -297,6 +326,70 @@ void main() {
       expect(retained.refresh.map((n) => n.id), ['suite:1']);
     },
   );
+
+  test('withoutRunningStatuses clears spinners recursively', () {
+    final tree = sampleTree(status: TestNodeStatus.running);
+    final cleared = TestNodeInfo.withoutRunningStatuses(tree);
+    void expectNoRunning(TestNodeInfo node) {
+      expect(node.status, isNot(TestNodeStatus.running));
+      for (final child in node.children) {
+        expectNoRunning(child);
+      }
+    }
+
+    expectNoRunning(cleared);
+    expect(
+      cleared.children.single.children.single.children.first.status,
+      TestNodeStatus.notRun,
+    );
+  });
+
+  test('withOnlyTestRunning marks one case and clears sibling spinners', () {
+    final tree = sampleTree(status: TestNodeStatus.running);
+    final focused = TestNodeInfo.withOnlyTestRunning(
+      tree,
+      filePath: '/tmp/checkout.robot',
+      testName: 'Pay',
+    );
+    final suite = focused.children.single.children.single;
+    expect(suite.children[0].status, TestNodeStatus.running);
+    expect(suite.children[1].status, isNot(TestNodeStatus.running));
+  });
+
+  test('retain then strip running does not keep spinners after finish', () {
+    final hydrated = sampleTree(status: TestNodeStatus.running);
+    final lazyReload = TestNodeInfo(
+      id: 'workspace:1',
+      kind: 'workspace',
+      name: 'Demo WS',
+      children: [
+        TestNodeInfo(
+          id: 'project:1',
+          kind: 'project',
+          name: 'Shop',
+          children: [
+            const TestNodeInfo(
+              id: 'suite:1',
+              kind: 'suite',
+              name: 'checkout',
+              path: '/tmp/checkout.robot',
+              detail: 'expand',
+            ),
+          ],
+        ),
+      ],
+    );
+    final retained = TestNodeInfo.retainHydratedChildren(hydrated, lazyReload);
+    final stripped = TestNodeInfo.withoutRunningStatuses(retained.tree);
+    void expectNoRunning(TestNodeInfo node) {
+      expect(node.status, isNot(TestNodeStatus.running));
+      for (final child in node.children) {
+        expectNoRunning(child);
+      }
+    }
+
+    expectNoRunning(stripped);
+  });
 
   testWidgets('expanded lazy suite rehydrates after tree reload', (
     tester,

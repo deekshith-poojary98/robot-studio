@@ -119,6 +119,29 @@ void main() {
     });
   });
 
+  testWidgets('Windows in-window menu can be hidden on welcome', (
+    tester,
+  ) async {
+    await withPlatform(TargetPlatform.windows, tester, () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RobotStudioMenuBar(
+              actions: actions(hasWorkspace: false),
+              showInWindowMenu: false,
+              child: const Text('Welcome'),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Welcome'), findsOneWidget);
+      expect(find.byType(MenuBar), findsNothing);
+      expect(find.text('File'), findsNothing);
+      expect(find.text('Edit'), findsNothing);
+    });
+  });
+
   testWidgets('Save is disabled when no file is open (macOS)', (tester) async {
     await withPlatform(TargetPlatform.macOS, tester, () async {
       await tester.pumpWidget(

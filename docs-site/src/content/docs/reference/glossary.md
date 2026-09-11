@@ -19,6 +19,8 @@ description: Short definitions for Robot Studio and Robot Framework terms used i
 | **Find in Files** | Text search across the project (Search rail / `⌘⇧F`) |
 | **Libraries** | Activity-bar browser of **BuiltIn** plus libraries imported with `Library` in `.robot` / `.resource` files |
 | **Packages** | Activity-bar UI to install/update/uninstall PyPI packages into the active environment |
+| **ReportLens** | On-demand interactive HTML report from a run’s `output.xml` (**Generate ReportLens** on Reports) |
+| **Editor start page** | Center view with **Start** and **Recent** when a project is open but no editor tab is |
 | **Insights** | Run-health triage and index composition view |
 | **Robot Doctor** | Project health findings UI (activity bar label: **Doctor**) — structural issues only |
 | **Settings** | Full-screen preferences UI (activity-bar gear, File → Settings…, `⌘,`) stored in `~/.robot-studio/settings.json` |

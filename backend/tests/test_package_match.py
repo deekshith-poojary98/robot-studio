@@ -24,52 +24,46 @@ def test_normalize_collapses_separators() -> None:
     assert normalize_package_name("  Robot--Framework  ") == "robot-framework"
 
 
-def test_tiers_exact_prefix_substring_fuzzy() -> None:
+def test_tiers_exact_prefix_substring() -> None:
     exact = package_match_key("Requests", "requests")
     prefix = package_match_key("robot", "robotframework")
     substring = package_match_key("framework", "robotframework")
-    fuzzy = package_match_key("rflib", "robotframework-library")
     assert exact is not None and exact[0] == 0
     assert prefix is not None and prefix[0] == 1
     assert substring is not None and substring[0] == 2
-    assert fuzzy is not None and fuzzy[0] == 3
 
 
-def test_single_char_does_not_fuzzy_match_everything() -> None:
-    # Contiguous mid-name hit is substring, not fuzzy.
-    mid = package_match_key("lph", "alpha")
-    assert mid is not None and mid[0] == 2
-    # A character absent from the name does not fuzzy-match via subsequence.
-    assert package_match_key("z", "robotframework") is None
-    assert package_match_key("a", "xyz") is None
-    # Two+ chars may fuzzy-match as an ordered subsequence from a token start.
-    fuzzy = package_match_key("rf", "robotframework")
-    assert fuzzy is not None and fuzzy[0] == 3
+def test_no_fuzzy_subsequence_match() -> None:
+    assert package_match_key("rflib", "robotframework-library") is None
+    assert package_match_key("rf", "robotframework") is None
+    assert package_match_key("ws", "trio-websocket") is None
+    assert package_match_key("pan", "pydantic") is None
+    assert package_match_key("pan", "paginate") is None
 
 
-def test_fuzzy_requires_token_boundary_start() -> None:
-    # "robot" is an ordered subsequence of "trio-websocket" (r…o…b…o…t) but
-    # does not start on a token boundary, so it must not match.
-    assert package_match_key("robot", "trio-websocket") is None
-    assert "trio-websocket" not in [
-        item.name for item in rank_packages([_pkg("trio-websocket")], "robot")
-    ]
-    # Token-initial fuzzy still works (w…s after the hyphen).
-    ws = package_match_key("ws", "trio-websocket")
-    assert ws is not None and ws[0] == 3
-
-
-def test_summary_only_ranks_after_name_matches() -> None:
+def test_no_summary_match() -> None:
+    assert (
+        package_match_key(
+            "pan",
+            "bracex",
+            summary="Bash style brace expander.",
+        )
+        is None
+    )
     packages = [
         _pkg("helper-utils", summary="HTTP client for robot"),
         _pkg("robotframework"),
         _pkg("other"),
     ]
     ranked = rank_packages(packages, "robot")
-    assert [item.name for item in ranked] == [
-        "robotframework",  # prefix
-        "helper-utils",  # summary
-    ]
+    assert [item.name for item in ranked] == ["robotframework"]
+
+
+def test_substring_still_matches_contiguous_name() -> None:
+    mid = package_match_key("lph", "alpha")
+    assert mid is not None and mid[0] == 2
+    assert package_match_key("pan", "paginate") is None  # "pan" not contiguous
+    assert package_match_key("agi", "paginate") is not None
 
 
 def test_rank_order_is_deterministic() -> None:
@@ -82,11 +76,11 @@ def test_rank_order_is_deterministic() -> None:
     ]
     ranked = rank_packages(packages, "robot")
     names = [item.name for item in ranked]
-    assert names[0] == "robotframework"  # prefix beats substring/fuzzy
+    assert names[0] == "robotframework"  # prefix beats substring
     assert "robotframework-seleniumlibrary" in names  # substring
     assert "awesome-robot-tools" in names  # substring
+    assert "rbt" not in names  # fuzzy no longer matches
     assert "unrelated" not in names
-    # Same query always yields the same order.
     assert [item.name for item in rank_packages(packages, "robot")] == names
 
 

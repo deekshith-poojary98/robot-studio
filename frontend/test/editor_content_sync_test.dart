@@ -1,4 +1,8 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:re_editor/re_editor.dart';
+import 'package:robot_studio/core/theme/app_theme.dart';
 import 'package:robot_studio/presentation/editor/robot_code_editor.dart';
 
 void main() {
@@ -60,4 +64,86 @@ void main() {
       );
     });
   });
+
+  group('Windows editor caret focus', () {
+    testWidgets('disables CodeEditor autofocus and focuses after first frame', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      try {
+        await tester.pumpWidget(_editorApp());
+        await tester.pump();
+
+        final editor = tester.widget<CodeEditor>(find.byType(CodeEditor));
+        expect(editor.autofocus, isFalse);
+
+        final focus = _editorFocus(tester);
+        expect(focus.focusNode!.hasFocus, isTrue);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('clicking an unfocused editor requests focus on pointer down', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      try {
+        await tester.pumpWidget(_editorApp());
+        await tester.pump();
+
+        final focus = _editorFocus(tester);
+        focus.focusNode!.unfocus();
+        await tester.pump();
+        expect(focus.focusNode!.hasFocus, isFalse);
+
+        await tester.tapAt(tester.getCenter(find.byType(RobotCodeEditor)));
+        await tester.pump();
+        await tester.pump(Duration.zero);
+
+        expect(focus.focusNode!.hasFocus, isTrue);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('macOS keeps CodeEditor autofocus enabled', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      try {
+        await tester.pumpWidget(_editorApp());
+        await tester.pump();
+
+        final editor = tester.widget<CodeEditor>(find.byType(CodeEditor));
+        expect(editor.autofocus, isTrue);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+  });
+}
+
+Focus _editorFocus(WidgetTester tester) {
+  return tester.widget<Focus>(
+    find.byWidgetPredicate(
+      (widget) =>
+          widget is Focus && widget.focusNode?.debugLabel == 'RobotCodeEditor',
+    ),
+  );
+}
+
+Widget _editorApp() {
+  return MaterialApp(
+    theme: buildAppTheme(),
+    home: Scaffold(
+      body: SizedBox(
+        width: 800,
+        height: 600,
+        child: RobotCodeEditor(
+          path: 'example.robot',
+          initialContent: '*** Test Cases ***\nExample\n    Log    Hello\n',
+          onContentChanged: (_) {},
+        ),
+      ),
+    ),
+  );
 }

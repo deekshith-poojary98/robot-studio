@@ -36,6 +36,13 @@ def strip_keyword_qualifier(keyword: str) -> str:
     return raw
 
 
+# RF named-arg left side is an identifier (``selector=…``). Values that merely
+# contain ``=`` (XPath ``normalize-space()='…'``, CSS, etc.) stay positional —
+# matching RF, which only treats ``name=value`` as named when ``name`` is a
+# real argument (or ``**kwargs`` is present).
+_NAMED_ARGUMENT_NAME = re.compile(r"^[A-Za-z_][\w]*$")
+
+
 def parse_argument_cell(cell: str) -> tuple[str | None, str]:
     """Return ``(name, value)`` for ``name=value`` cells; name is None if positional."""
     text = (cell or "").strip()
@@ -48,6 +55,8 @@ def parse_argument_cell(cell: str) -> tuple[str | None, str]:
     name, _, value = text.partition("=")
     name = name.strip()
     if not name or " " in name:
+        return None, text
+    if not _NAMED_ARGUMENT_NAME.fullmatch(name):
         return None, text
     return name, value
 

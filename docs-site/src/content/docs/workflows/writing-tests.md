@@ -3,6 +3,17 @@ title: Write and edit tests
 description: Everyday editing in Robot Studio — files, outline, diagnostics, and navigation.
 ---
 
+## When no file is open
+
+With a project open and no editor tab, the center view is the **start page** — project name and path at the top, then **Start** and **Recent**.
+
+| Section | What you get |
+|---------|----------------|
+| **Start** | **Open File…** (`⌘P` / `Ctrl+P`), **Show Explorer** / **Hide Explorer** (`⌘B` / `Ctrl+B`), **Search in Project** (`⌘⇧F` / `Ctrl+Shift+F`), **Run Project** (`F5`, when a project is ready to run), and **Environments**. On a workspace with no project selected you may also see **New Project…** / **Import Project…**. |
+| **Recent** | The last **3** files you opened. Empty state: **No recent files**. |
+
+**Show Explorer** opens the Explorer panel; **Hide Explorer** collapses the side panel. Same chord as **View → Toggle Side Bar** and clicking the activity-bar logo — see [Keyboard shortcuts](/tips/keyboard-shortcuts/).
+
 ## Open and create files
 
 Use the **Explorer** to browse your project. You can:

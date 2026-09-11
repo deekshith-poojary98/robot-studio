@@ -188,7 +188,10 @@ class _BottomPanelState extends State<BottomPanel> {
                   index: _activeTab.index,
                   sizing: StackFit.expand,
                   children: [
-                    TerminalPanel(workingDirectory: widget.workingDirectory),
+                    TerminalPanel(
+                      workingDirectory: widget.workingDirectory,
+                      isVisible: _activeTab == BottomPanelTab.terminal,
+                    ),
                     ProblemsPanel(
                       diagnostics: widget.problems,
                       isLoading: widget.isLoadingProblems,

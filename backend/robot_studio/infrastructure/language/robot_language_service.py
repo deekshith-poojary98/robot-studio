@@ -132,6 +132,18 @@ _SECTION_HEADERS = SECTION_HEADERS
 _AUTOMATIC_VARIABLE_NAMES = AUTOMATIC_VARIABLE_NAMES
 _CONTINUATION_MARKER = CONTINUATION_MARKER
 
+# BuiltIns whose first argument is the variable *name being defined*
+# (``Set Suite Variable    ${X}    value``), not a read of an existing var.
+_VARIABLE_SETTER_KEYWORDS = frozenset(
+    {
+        "set suite variable",
+        "set test variable",
+        "set task variable",
+        "set global variable",
+        "set local variable",
+    },
+)
+
 _SECTION_HOVER_LABELS = frozenset(
     {
         "test case",
@@ -1821,7 +1833,7 @@ class RobotLanguageService(LanguageService):
                         diagnostics,
                         disk_symbol_cache,
                     )
-                for var_token in re.findall(r"\$\{[^}]+\}|@\{[^}]+\}|&\{[^}]+\}|%\{[^}]+\}", raw):
+                for var_token in self._variable_tokens_in_text(raw):
                     normalized = self._normalize_variable_token(var_token)
                     if self._is_known_variable(normalized, declared_variables):
                         continue
@@ -2219,6 +2231,18 @@ class RobotLanguageService(LanguageService):
                         declared.add(match.group(1))
                 continue
 
+            # Set Suite/Test/Global/Local/Task Variable    ${name}    …
+            # Also Suite Setup    Set Global Variable    ${name}    …
+            for i, cell in enumerate(cells):
+                if cell.casefold() not in _VARIABLE_SETTER_KEYWORDS:
+                    continue
+                if i + 1 >= len(cells):
+                    break
+                match = re.match(r"^([\$@&%]\{[^}]+\})$", cells[i + 1])
+                if match:
+                    declared.add(match.group(1))
+                break
+
             # ${x}=    Keyword   /   ${x}    value   /   ${x}=value-in-one-cell
             # Multi-assign: ${a}    ${b}=    Keyword
             consumed_assign = False
@@ -2376,6 +2400,55 @@ class RobotLanguageService(LanguageService):
     @staticmethod
     def _robot_cells(line: str) -> list[str]:
         return split_robot_cells(line)
+
+    @classmethod
+    def _variable_tokens_in_text(cls, text: str) -> list[str]:
+        """RF variable reads in ``text``, excluding inline Python ``${{…}}``.
+
+        ``${{ $a + $b }}`` (RF 3.2+) is an expression, not a variable name.
+        Matching ``${…}`` naively flags the whole expression as unknown.
+        """
+        masked = cls._mask_inline_python_evaluations(text)
+        return re.findall(
+            r"\$\{(?!\{)[^}]+\}|@\{[^}]+\}|&\{[^}]+\}|%\{[^}]+\}",
+            masked,
+        )
+
+    @staticmethod
+    def _mask_inline_python_evaluations(text: str) -> str:
+        """Replace ``${{ … }}`` spans with spaces so nested ``${x}`` inside
+        are not scanned as RF variable tokens either (use ``$x`` there).
+        """
+        if "${{" not in text:
+            return text
+        out: list[str] = []
+        i = 0
+        n = len(text)
+        while i < n:
+            if text.startswith("${{", i):
+                # Count from the first '{' after '$' so both opens of '{{'
+                # and both closes of '}}' are balanced (incl. nested dicts).
+                depth = 0
+                j = i + 1
+                while j < n:
+                    ch = text[j]
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                        if depth == 0:
+                            j += 1
+                            break
+                    j += 1
+                else:
+                    out.append(text[i:])
+                    break
+                out.append(" " * (j - i))
+                i = j
+                continue
+            out.append(text[i])
+            i += 1
+        return "".join(out)
 
     @staticmethod
     def _normalize_variable_token(token: str) -> str:

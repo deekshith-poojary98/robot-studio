@@ -76,7 +76,9 @@ async def test_search_returns_ranked_top_matches(provider: PyPIProvider) -> None
     assert "libfilewatcher" in names
     assert "robotframework-filewatcher" in names
     assert "EasyFileWatcher" in names
-    assert "pytest-file-watcher" in names
+    # Hyphenated "file-watcher" is not a substring of query "filewatcher"
+    # after name-only exact/prefix/substring matching.
+    assert "pytest-file-watcher" not in names
     assert "watchdog" not in names
     assert "unrelated" not in names
     assert len(names) <= 20

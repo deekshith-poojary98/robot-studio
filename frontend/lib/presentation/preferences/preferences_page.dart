@@ -652,6 +652,25 @@ class _PreferencesPageState extends State<PreferencesPage> {
             });
           },
         ),
+        _NumberFieldRow(
+          label: 'Report Retention Days',
+          hint:
+              'Auto-delete runs older than this many days (0 = keep forever). '
+              'Deleted reports are also removed from Insights analytics.',
+          value: _draft.execution.reportRetentionDays,
+          min: 0,
+          max: 3650,
+          onChanged: (value) {
+            _markChanged();
+            setState(() {
+              _draft = _draft.copyWith(
+                execution: _draft.execution.copyWith(
+                  reportRetentionDays: value,
+                ),
+              );
+            });
+          },
+        ),
       ],
     );
   }

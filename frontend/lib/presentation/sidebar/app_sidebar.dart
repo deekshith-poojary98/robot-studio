@@ -1,7 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
-import '../shell/shell_shortcuts.dart';
 import '../widgets/sidebar_button.dart';
 import 'sidebar_panel.dart';
 
@@ -11,8 +12,8 @@ class AppSidebar extends StatelessWidget {
     required this.activePanel,
     required this.onPanelSelected,
     this.onSettings,
-    this.onToggleSidebar,
     this.onOpenHelp,
+    this.onToggleSidebar,
     this.settingsActive = false,
     this.showBranding = true,
   });
@@ -20,16 +21,14 @@ class AppSidebar extends StatelessWidget {
   final SidebarPanel activePanel;
   final ValueChanged<SidebarPanel> onPanelSelected;
   final VoidCallback? onSettings;
-  final VoidCallback? onToggleSidebar;
   final VoidCallback? onOpenHelp;
+  final VoidCallback? onToggleSidebar;
   final bool settingsActive;
   final bool showBranding;
 
   @override
   Widget build(BuildContext context) {
-    final toggleLabel =
-        'Toggle Side Bar (${ShellShortcutActivators.label('⌘B', 'Ctrl+B')})';
-
+    final toggleShortcut = Platform.isMacOS ? '⌘B' : 'Ctrl+B';
     return Container(
       width: 52,
       decoration: BoxDecoration(
@@ -41,40 +40,37 @@ class AppSidebar extends StatelessWidget {
         children: [
           const SizedBox(height: 10),
           Tooltip(
-            message: onToggleSidebar != null ? toggleLabel : 'Robot Studio',
+            message: onToggleSidebar == null
+                ? 'Robot Studio'
+                : 'Toggle Side Bar ($toggleShortcut)',
             preferBelow: false,
             waitDuration: const Duration(milliseconds: 250),
             child: Center(
-              child: SizedBox(
-                width: 30,
-                height: 30,
-                child: showBranding
-                    ? Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: onToggleSidebar,
+              child: InkWell(
+                onTap: onToggleSidebar,
+                borderRadius: BorderRadius.circular(9),
+                child: SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: showBranding
+                      ? ClipRRect(
                           borderRadius: BorderRadius.circular(9),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(9),
-                            child: Image.asset(
-                              Theme.of(context).brightness == Brightness.dark
-                                  ? 'assets/branding/logo-mark.png'
-                                  : 'assets/branding/logo-mark-light.png',
-                              width: 30,
-                              height: 30,
-                              fit: BoxFit.contain,
-                              cacheWidth: 60,
-                              cacheHeight: 60,
-                              filterQuality: FilterQuality.medium,
-                              gaplessPlayback: true,
-                              semanticLabel: onToggleSidebar != null
-                                  ? toggleLabel
-                                  : 'Robot Studio',
-                            ),
+                          child: Image.asset(
+                            Theme.of(context).brightness == Brightness.dark
+                                ? 'assets/branding/logo-mark.png'
+                                : 'assets/branding/logo-mark-light.png',
+                            width: 30,
+                            height: 30,
+                            fit: BoxFit.contain,
+                            cacheWidth: 60,
+                            cacheHeight: 60,
+                            filterQuality: FilterQuality.medium,
+                            gaplessPlayback: true,
+                            semanticLabel: 'Robot Studio',
                           ),
-                        ),
-                      )
-                    : const SizedBox.expand(),
+                        )
+                      : const SizedBox.expand(),
+                ),
               ),
             ),
           ),

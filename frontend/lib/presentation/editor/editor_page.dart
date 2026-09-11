@@ -4,9 +4,9 @@ import '../../core/gateway/models/file_info.dart';
 import '../../core/gateway/models/index_info.dart';
 import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
-import '../widgets/empty_state.dart';
 import 'editor_navigation_widgets.dart';
 import 'editor_run_gutter.dart';
+import 'editor_start_page.dart';
 import 'editor_tabs_bar.dart';
 import 'robot_code_editor.dart';
 
@@ -48,6 +48,16 @@ class EditorPage extends StatefulWidget {
     this.fontSize = 13,
     this.fontFamily = 'Menlo',
     this.tabWidth = 4,
+    this.startPageTitle,
+    this.startPagePath,
+    this.recentFiles = const [],
+    this.onOpenFilePalette,
+    this.onOpenRecentFile,
+    this.onSearchProject,
+    this.onShowExplorer,
+    this.explorerVisible = false,
+    this.onManageEnvironments,
+    this.onRunProject,
   });
 
   final List<EditorTabInfo> tabs;
@@ -73,7 +83,7 @@ class EditorPage extends StatefulWidget {
   final VoidCallback onSave;
   final void Function(int line, int column) onHoverRequest;
   final VoidCallback onHoverExit;
-  final VoidCallback onCtrlClick;
+  final void Function(int line, int column) onCtrlClick;
   final VoidCallback onClosePeek;
   final void Function(int line, int column) onCursorChanged;
   final void Function(String path, double offsetX, double offsetY)?
@@ -89,6 +99,18 @@ class EditorPage extends StatefulWidget {
   final double fontSize;
   final String fontFamily;
   final int tabWidth;
+
+  /// Shown when no editor tab is active (replaces the blank empty state).
+  final String? startPageTitle;
+  final String? startPagePath;
+  final List<String> recentFiles;
+  final VoidCallback? onOpenFilePalette;
+  final ValueChanged<String>? onOpenRecentFile;
+  final VoidCallback? onSearchProject;
+  final VoidCallback? onShowExplorer;
+  final bool explorerVisible;
+  final VoidCallback? onManageEnvironments;
+  final VoidCallback? onRunProject;
 
   @override
   State<EditorPage> createState() => EditorPageState();
@@ -174,12 +196,17 @@ class EditorPageState extends State<EditorPage> {
             ),
           Expanded(
             child: active == null
-                ? const EmptyState(
-                    icon: Icons.description_outlined,
-                    title: 'No file open',
-                    message:
-                        'Pick a file in the Explorer, or press ⌘P / '
-                        'Ctrl+P to jump to one.',
+                ? EditorStartPage(
+                    title: widget.startPageTitle ?? 'Robot Studio',
+                    path: widget.startPagePath ?? '',
+                    recentFiles: widget.recentFiles,
+                    onOpenFile: widget.onOpenFilePalette,
+                    onOpenRecentFile: widget.onOpenRecentFile,
+                    onSearchProject: widget.onSearchProject,
+                    onShowExplorer: widget.onShowExplorer,
+                    explorerVisible: widget.explorerVisible,
+                    onManageEnvironments: widget.onManageEnvironments,
+                    onRunProject: widget.onRunProject,
                   )
                 : Row(
                     children: [

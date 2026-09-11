@@ -511,7 +511,11 @@ class _TestTreeNodeTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12.2,
+                    // Keep suite/file and test/task labels the same size —
+                    // leaf names used to read larger (uppercase + em dash).
+                    fontSize: 11.5,
+                    height: 1.25,
+                    fontWeight: FontWeight.w400,
                     color: context.palette.textPrimary,
                     fontStyle: node.kind == 'setup' || node.kind == 'teardown'
                         ? FontStyle.italic
@@ -531,7 +535,8 @@ class _TestTreeNodeTile extends StatelessWidget {
                   ),
                 ),
               _StatusDot(status: node.status),
-              if (node.isRunnable)
+              // Hide play while this node is running — spinner takes its place.
+              if (node.isRunnable && node.status != TestNodeStatus.running)
                 IconButton(
                   key: Key('test-run-${node.id}'),
                   onPressed: onRunNode == null ? null : () => onRunNode!(node),
@@ -588,6 +593,8 @@ class _TestTreeNodeTile extends StatelessWidget {
       'project' => Icons.folder_special_outlined,
       'directory' => Icons.folder_outlined,
       'suite' => Icons.description_outlined,
+      // Always outlined — filled Icons.science is missing in some desktop
+      // glyph sets and renders blank on pass/fail rows.
       'test' || 'task' => Icons.science_outlined,
       'setup' || 'teardown' => Icons.settings_outlined,
       _ => Icons.circle_outlined,
@@ -595,6 +602,7 @@ class _TestTreeNodeTile extends StatelessWidget {
   }
 
   Color _kindColor(AppPalette palette, TestNodeInfo node) {
+    // Same success / error / warning tokens as the toolbar StatusBadge chip.
     return switch (node.status) {
       TestNodeStatus.pass => palette.success,
       TestNodeStatus.fail => palette.error,
@@ -613,15 +621,19 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (status == TestNodeStatus.running) {
-      return const Padding(
-        padding: EdgeInsets.only(right: 2),
+      return Padding(
+        padding: const EdgeInsets.only(right: 2),
         child: SizedBox(
           width: 10,
           height: 10,
-          child: CircularProgressIndicator(strokeWidth: 1.5),
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            color: context.palette.info,
+          ),
         ),
       );
     }
+    // Match toolbar StatusBadge dotColor for Passed / Failed / etc.
     final color = switch (status) {
       TestNodeStatus.pass => context.palette.success,
       TestNodeStatus.fail => context.palette.error,

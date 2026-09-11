@@ -25,6 +25,7 @@ from robot_studio.core.events import (
     ProjectOpened,
     RepositoryUpdated,
     Subscription,
+    TestExplorerUpdated,
     WorkspaceClosed,
     WorkspaceOpened,
 )
@@ -71,6 +72,7 @@ class WorkspaceEventService:
             self.event_bus.subscribe(IndexUpdated, self._on_index_updated),
             self.event_bus.subscribe(IndexProgress, self._on_index_progress),
             self.event_bus.subscribe(AnalysisProgress, self._on_analysis_progress),
+            self.event_bus.subscribe(TestExplorerUpdated, self._on_test_explorer_updated),
             self.event_bus.subscribe(RepositoryUpdated, self._on_repository_updated),
             self.event_bus.subscribe(WorkspaceOpened, self._on_workspace_opened),
             self.event_bus.subscribe(WorkspaceClosed, self._on_workspace_closed),
@@ -211,6 +213,14 @@ class WorkspaceEventService:
                 "type": "INDEX_UPDATED",
                 "scope": event.scope,
                 "scope_id": event.scope_id,
+            }
+        )
+
+    async def _on_test_explorer_updated(self, event: TestExplorerUpdated) -> None:
+        await self._broadcast(
+            {
+                "type": "TESTS_UPDATED",
+                "run_id": str(event.run_id) if event.run_id else None,
             }
         )
 
