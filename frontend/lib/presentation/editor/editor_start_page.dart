@@ -48,53 +48,60 @@ class EditorStartPage extends StatelessWidget {
         builder: (context, constraints) {
           final wide = constraints.maxWidth >= 700;
           return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                minHeight: constraints.maxHeight - 64,
+                minWidth: constraints.maxWidth,
+                minHeight: constraints.maxHeight,
               ),
               child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 720),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 32,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
-                      ),
-                      if (path.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.xs),
-                        SelectableText(
-                          path,
-                          style: TextStyle(
-                            color: palette.textMuted,
-                            fontSize: 12,
+                        if (path.isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          SelectableText(
+                            path,
+                            style: TextStyle(
+                              color: palette.textMuted,
+                              fontSize: 12,
+                            ),
                           ),
-                        ),
-                      ],
-                      const SizedBox(height: 28),
-                      if (wide)
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: _buildStart(context)),
-                            const SizedBox(width: 48),
-                            Expanded(child: _buildRecent(context, recent)),
-                          ],
-                        )
-                      else ...[
-                        _buildStart(context),
+                        ],
                         const SizedBox(height: 28),
-                        _buildRecent(context, recent),
+                        if (wide)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: _buildStart(context)),
+                              const SizedBox(width: 48),
+                              Expanded(child: _buildRecent(context, recent)),
+                            ],
+                          )
+                        else ...[
+                          _buildStart(context),
+                          const SizedBox(height: 28),
+                          _buildRecent(context, recent),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
