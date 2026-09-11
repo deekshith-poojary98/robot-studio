@@ -104,7 +104,7 @@ Packaged beta is zip-only for macOS / Windows / Linux via **Actions → Package 
 
 ## Emergency Lane
 
-These **interrupt all work** — including active P0 items. Do not queue behind fuzzy package search.
+These **interrupt all work** — including active P0 items. Do not queue behind package-search polish.
 
 | Class | Examples |
 |-------|----------|
@@ -125,7 +125,7 @@ Almost all burn-down time goes here.
 
 ### Package / Reports / Chrome
 
-- [x] Package search supports partial / fuzzy matching
+- [x] Package search supports name-only exact / prefix / substring ranking (no fuzzy)
 - [x] Remove PASS badge from Reports — result status badge removed from run details; failure counts stay emphasized; Last Run shows “Finished” on success and emphasizes FAIL
 - [x] Stop button spacing / alignment — Run / Project / Stop are one segmented bar (`ux_polish_ab_test.dart`)
 - [x] Toolbar spacing consistency (Stop + run controls) — same segmented control, equal width/height, zero gap

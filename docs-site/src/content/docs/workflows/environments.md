@@ -28,6 +28,8 @@ With an environment active:
 2. Browse installed packages or search PyPI.
 3. Install, update, or uninstall as needed.
 
+Package search (**Search installed** and PyPI) matches **package names only** — exact, then prefix, then substring. Summaries are not searched, and there is no fuzzy / typo matching. Hyphen, underscore, and dot are treated as equivalent.
+
 This is the usual path for libraries such as `robotframework-seleniumlibrary`, `robotframework-browser`, and project-specific packages.
 
 ## Health tips

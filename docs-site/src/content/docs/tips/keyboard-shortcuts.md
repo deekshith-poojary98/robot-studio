@@ -45,6 +45,8 @@ With no popup open, `Tab` indents and `Shift+Tab` outdents as usual.
 | Reopen Closed Editor | `⌘⇧T` / `Ctrl+Shift+T` |
 | Next / previous editor tab | `Ctrl+Tab` / `Ctrl+Shift+Tab` |
 
+On the editor [start page](/workflows/writing-tests/#when-no-file-is-open) (no open tab), **Show Explorer** / **Hide Explorer** uses the same `⌘B` / `Ctrl+B` chord; **Open File…** and **Search in Project** use Go to File and Find in Project above.
+
 ## Editor
 
 | Action | Shortcut |

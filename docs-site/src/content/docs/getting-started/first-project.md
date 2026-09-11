@@ -25,6 +25,8 @@ If the folder does **not** look like a Robot project, Robot Studio warns and off
 
 **Recent Projects** on the welcome screen is the fastest way back to work you already opened. With a project open, the folder chip next to **Env** in the toolbar also lists recents, **Open Project**, and **Reveal in Finder** (Windows: **Reveal in Explorer**) so you can open the project folder in the OS file manager.
 
+Until you open a file, the center view is the editor **start page** (**Start** and **Recent**) — quick actions such as **Open File…**, **Show Explorer**, and **Environments**. Details: [Write and edit tests](/workflows/writing-tests/#when-no-file-is-open).
+
 :::tip[Workspaces]
 Workspaces are an advanced multi-project container (Open / New / Recent). Most people can ignore them at first and work with a single project. **Import Project** only appears in a multi-project workspace — it attaches another existing folder to that workspace. Day to day, use **Open Project** instead.
 :::

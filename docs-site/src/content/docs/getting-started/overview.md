@@ -21,7 +21,7 @@ It is not a generic code editor with a Robot plugin bolted on. The product is bu
 | **Environments & packages** | Create, import, or activate a venv; install libraries from PyPI via **Packages** |
 | **Editor** | Multi-tab Robot editing with completions, diagnostics, go to definition, and outline |
 | **Run** | Toolbar **Run** / **Project** / **Stop**, **Tests** tree, run configurations (tags, variables), live logs |
-| **Reports** | Browse run history and open `report.html` / `log.html`; **Failed Tests** with Jump to Source |
+| **Reports** | Browse run history, open `report.html` / `log.html`, and on-demand **Generate ReportLens**; **Failed Tests** with Jump to Source |
 | **Insights** | Triage run health and jump into failures, source, or Reports |
 | **Robot Doctor** | Structural project health (circular imports, duplicates, unused assets) |
 | **Libraries** | Browse BuiltIn and imported library keywords and docs |
