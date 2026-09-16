@@ -47,6 +47,7 @@ class AppMenuBarActions {
     required this.onGoToDefinition,
     required this.onPeekDefinition,
     required this.onFindReferences,
+    required this.onImpactAnalysis,
     required this.onGoToSymbolInFile,
     required this.onFindSymbolInProject,
     required this.onShowHover,
@@ -96,6 +97,7 @@ class AppMenuBarActions {
   final VoidCallback onGoToDefinition;
   final VoidCallback onPeekDefinition;
   final VoidCallback onFindReferences;
+  final VoidCallback onImpactAnalysis;
   final VoidCallback onGoToSymbolInFile;
   final VoidCallback onFindSymbolInProject;
   final VoidCallback onShowHover;
@@ -401,6 +403,10 @@ class RobotStudioMenuBar extends StatelessWidget {
             label: 'Find References',
             onSelected: a.hasActiveFile ? a.onFindReferences : null,
           ),
+          PlatformMenuItem(
+            label: 'Impact Analysis',
+            onSelected: a.hasActiveFile ? a.onImpactAnalysis : null,
+          ),
           PlatformMenuItemGroup(
             members: [
               PlatformMenuItem(
@@ -646,6 +652,10 @@ class _InWindowMenuBar extends StatelessWidget {
                 _item(
                   'Find References',
                   onPressed: a.hasActiveFile ? a.onFindReferences : null,
+                ),
+                _item(
+                  'Impact Analysis',
+                  onPressed: a.hasActiveFile ? a.onImpactAnalysis : null,
                 ),
                 const Divider(height: 8),
                 _item(

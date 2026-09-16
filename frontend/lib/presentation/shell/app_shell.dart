@@ -212,6 +212,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   bool _showEditorPage = false;
   HoverInfo? _editorHover;
   List<SymbolReferenceInfo> _editorReferences = [];
+  ImpactReportInfo? _editorImpact;
 
   String get _backendStatus => _workspace.backendStatus;
   WorkspaceInfo? get _activeWorkspace => _workspace.activeWorkspace;
@@ -1958,6 +1959,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _editor.documentOutline = [];
       _editorHover = null;
       _editorReferences = [];
+      _editorImpact = null;
       _editor.setStatusMessage(null);
       _editor.jumpToLine = null;
       _editor.jumpToColumn = null;
@@ -3478,6 +3480,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _editor.jumpToColumn = column;
         _editorHover = null;
         _editorReferences = [];
+        _editorImpact = null;
         _editor.setStatusMessage(null);
       });
       _trackRecentFile(path);
@@ -3511,6 +3514,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _editor.jumpToColumn = column;
         _editorHover = null;
         _editorReferences = [];
+        _editorImpact = null;
         _editor.setStatusMessage(null);
         _busy = false;
       });
@@ -3588,6 +3592,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       ];
       _editorHover = null;
       _editorReferences = [];
+      _editorImpact = null;
     });
     if (nextPath != null) {
       await _loadOutline(nextPath!);
@@ -3671,6 +3676,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _editor.jumpToColumn = null;
       _editorHover = null;
       _editorReferences = [];
+      _editorImpact = null;
       _editor.setStatusMessage(null);
     });
     _editor.onActiveTabChanged();
@@ -4775,6 +4781,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _editor.setStatusMessage(null);
       _editorHover = null;
       _editorReferences = [];
+      _editorImpact = null;
     });
 
     try {
@@ -4880,7 +4887,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     setState(() {
       _editor.setStatusMessage(null);
       _editorReferences = [];
+      _editorImpact = null;
       _editorHover = null;
+      _editorImpact = null;
     });
 
     try {
@@ -4904,6 +4913,73 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _editorImpactAnalysis() async {
+    final token = _editorCursorToken() ?? _editorTokenName();
+    if (token == null) {
+      setState(() {
+        _editor.setStatusMessage(
+          'Place the cursor on a keyword (or select one in the outline).',
+        );
+      });
+      return;
+    }
+
+    setState(() {
+      _editor.setStatusMessage('Analyzing impact for "$token"…');
+      _editorImpact = null;
+      _editorReferences = [];
+      _editorImpact = null;
+      _editorHover = null;
+    });
+
+    try {
+      final report = await _gateway.analysisImpact(
+        symbol: token,
+        kind: 'keyword',
+      );
+      if (!mounted) return;
+      setState(() {
+        _editorImpact = report;
+        if (report.emptyGraph) {
+          _editor.setStatusMessage(
+            'Analysis graph is empty — rebuild the index after opening a Robot project.',
+          );
+        } else if (report.symbol == null) {
+          _editor.setStatusMessage(
+            'No analysis symbol matched "$token".',
+          );
+        } else if (report.allHits.isEmpty) {
+          _editor.setStatusMessage(
+            'No affected tests for "${report.symbol!.name}".',
+          );
+        } else {
+          final certain = report.items.length;
+          final uncertain = report.uncertain.length;
+          _editor.setStatusMessage(
+            uncertain == 0
+                ? 'Impact: $certain affected test${certain == 1 ? '' : 's'}.'
+                : 'Impact: $certain affected, $uncertain uncertain.',
+          );
+        }
+      });
+    } catch (error) {
+      _appendLog('[warn] Impact analysis failed: $error');
+      if (!mounted) return;
+      setState(() => _editor.setStatusMessage(null));
+      await _showError('Impact Analysis', error);
+    }
+  }
+
+  void _openImpactHit(ImpactHitInfo hit) {
+    unawaited(
+      _openFile(
+        hit.test.filePath,
+        line: hit.test.line,
+        column: hit.test.column,
+      ),
+    );
+  }
+
   Future<void> _editorHoverLookup() async {
     final token = _editorCursorToken() ?? _editorTokenName();
     if (token == null) {
@@ -4920,6 +4996,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _editor.setStatusMessage(null);
       _editorHover = null;
       _editorReferences = [];
+      _editorImpact = null;
     });
 
     try {
@@ -5139,6 +5216,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       ];
       _editorHover = null;
       _editorReferences = [];
+      _editorImpact = null;
     });
     if (nextPath != null) {
       await _loadOutline(nextPath!);
@@ -5655,6 +5733,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           onSelect: () => unawaited(_editorFindReferences()),
         ),
         PaletteItem(
+          id: 'editor.impact',
+          title: 'Impact Analysis',
+          subtitle: 'Affected tests for the symbol at the caret',
+          icon: Icons.account_tree_outlined,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_editorImpactAnalysis()),
+        ),
+        PaletteItem(
           id: 'editor.rename',
           title: 'Rename Symbol',
           subtitle: 'Robot and Python files',
@@ -5990,6 +6076,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onGoToDefinition: () => unawaited(_editorGoToDefinition()),
         onPeekDefinition: () => unawaited(_editorPeekDefinition()),
         onFindReferences: () => unawaited(_editorFindReferences()),
+        onImpactAnalysis: () => unawaited(_editorImpactAnalysis()),
         onGoToSymbolInFile: () => unawaited(_editorOpenSymbol()),
         onFindSymbolInProject: () => unawaited(_editorWorkspaceSymbol()),
         onShowHover: () => unawaited(_editorHoverLookup()),
@@ -6800,6 +6887,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       wordWrap: _wordWrap,
       hover: _editorHover,
       references: _editorReferences,
+      impact: _editorImpact,
+      onOpenImpactHit: _openImpactHit,
+      onDismissImpact: () => setState(() => _editorImpact = null),
       statusMessage: _editorStatusMessage,
       onDismissStatusMessage: () =>
           setState(() => _editor.setStatusMessage(null)),

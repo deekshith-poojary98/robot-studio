@@ -86,6 +86,7 @@ export default defineConfig({
 					label: 'Everyday workflows',
 					items: [
 						{ label: 'Write and edit tests', slug: 'workflows/writing-tests' },
+						{ label: 'Impact Analysis', slug: 'workflows/impact-analysis' },
 						{ label: 'Environments & packages', slug: 'workflows/environments' },
 						{ label: 'Run, stop & re-run', slug: 'workflows/running-tests' },
 						{ label: 'Find code & symbols', slug: 'workflows/search' },

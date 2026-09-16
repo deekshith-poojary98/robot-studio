@@ -19,6 +19,7 @@ Use ⌘ on macOS and Ctrl on Windows/Linux unless noted. When in doubt, the comm
 | Find in file | `⌘F` / `Ctrl+F` |
 | Replace | `⌘H` / `Ctrl+H` |
 | Go to Definition | `F12` or Ctrl/Cmd+Click |
+| Impact Analysis | Command Palette → **Impact Analysis**, or **Go → Impact Analysis** |
 | Run File | `F5` |
 | Stop | `Shift+F5` |
 | Robot Doctor | `⌘⇧D` / `Ctrl+Shift+D` |
