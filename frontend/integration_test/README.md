@@ -137,10 +137,16 @@ Live workspace events (`/api/v1/workspace/events`) are covered by backend `tests
 
 Tests avoid arbitrary `sleep()` and wait for visible UI states instead.
 
+The harness disables **Restore last project** via settings so API-seeded
+recent projects/workspaces do not auto-open and skip the welcome screen.
+
 After the pre-M14 UX polish pass, suites reach language navigation through the editor
 overflow menu is gone — use `tapEditorMenuAction(tester, 'definition' | 'peek' | 'references' | 'hover' | …)` (command palette) or the window **Go** / **Edit** menus
 rather than permanent toolbar buttons, and the bottom panel has Terminal / 
 Problems — run output is on the Tests view; SH-08 asserts Execution Logs is gone.
+
+Welcome branding is the wordmark image (`Key('welcome.wordmark')`), not
+`Text('Robot Studio')`.
 
 ---
 

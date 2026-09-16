@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
@@ -14,12 +15,12 @@ void main() {
       (tester) async {
     await harness.launchApp(tester);
 
-    expect(find.text('Robot Studio'), findsOneWidget);
+    expect(find.byKey(const Key('welcome.wordmark')), findsOneWidget);
     expect(find.text('CONNECTED'), findsNothing);
     expect(find.text('OFFLINE'), findsNothing);
     expect(find.text('Open Project'), findsOneWidget);
-    expect(find.text('Recent Workspaces'), findsOneWidget);
     expect(find.text('Recent Projects'), findsOneWidget);
+    expect(find.text('Recent Workspaces'), findsOneWidget);
     expect(find.text('New Workspace'), findsWidgets);
 
     harness.expectNoFlutterErrors();

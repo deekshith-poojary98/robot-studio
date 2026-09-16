@@ -18,10 +18,11 @@ void main() {
   testWidgets('SH-01 cold start with backend up shows welcome', (tester) async {
     await harness.launchApp(tester);
 
-    expect(find.text('Robot Studio'), findsWidgets);
+    expect(find.byKey(const Key('welcome.wordmark')), findsOneWidget);
     expect(find.text('CONNECTED'), findsNothing);
     expect(find.text('OFFLINE'), findsNothing);
     expect(find.text('Open Project'), findsOneWidget);
+    expect(find.text('Recent Projects'), findsOneWidget);
     expect(find.text('Recent Workspaces'), findsOneWidget);
     expect(find.text('Idle'), findsNothing);
 
@@ -120,7 +121,8 @@ void main() {
   });
 
   testWidgets('SH-06 activity rail tooltips are descriptive', (tester) async {
-    await harness.launchApp(tester);
+    await harness.seedWorkspace(name: 'SH Tooltips', suffix: 'sh-tooltips');
+    await harness.launchAppWithWorkspace(tester, workspaceName: 'SH Tooltips');
 
     final expected = <String>[
       'Explorer — projects, environments, and files',
@@ -131,6 +133,7 @@ void main() {
       // Plugins is intentionally omitted from the activity bar for beta.
       'Source Control — Git status, commit, and branches',
       'Reports — run history, logs, and HTML reports',
+      'Robot Doctor — structural problems across the project',
     ];
 
     for (final tooltip in expected) {
@@ -170,8 +173,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await pumpUntilFound(tester, find.textContaining('SHView'));
 
-    // Explorer keeps a "Package Manager" shortcut; the full page must close.
-    expect(find.text('Package Manager'), findsOneWidget);
+    // Leaving Packages closes the Package Manager center view.
+    expect(find.text('Package Manager'), findsNothing);
     expect(find.textContaining('SHView'), findsWidgets);
 
     harness.expectNoFlutterErrors();

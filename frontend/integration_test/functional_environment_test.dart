@@ -247,9 +247,8 @@ void main() {
       (tester) async {
     await harness.launchApp(tester);
 
-    expect(find.text('Manage Environments'), findsOneWidget);
-    await tester.tap(find.text('Manage Environments'));
-    await tester.pump(const Duration(milliseconds: 300));
+    // Toolbar (and env chip) are hidden on the welcome screen.
+    expect(find.byKey(const Key('toolbar.environment')), findsNothing);
     expect(find.text('Environment Manager'), findsNothing);
 
     harness.expectNoFlutterErrors();

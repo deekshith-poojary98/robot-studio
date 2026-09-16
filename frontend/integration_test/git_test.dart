@@ -28,12 +28,12 @@ void main() {
     );
 
     await harness.launchAppWithWorkspace(tester, workspaceName: 'Git Flow WS');
-    await openSourceControl(tester);
+    await openSourceControl(tester, projectName: 'GitProject');
 
-    await tapText(tester, 'Initialize Git Repository');
+    await tapText(tester, 'Initialize Git in this project');
     await pumpUntilAbsent(
       tester,
-      find.text('Not a Git repository'),
+      find.text('No Git repository in this project'),
       timeout: const Duration(seconds: 30),
     );
     await harness.configureGitIdentityAfterInit(workspacePath);
@@ -42,17 +42,17 @@ void main() {
       path: suitePath,
       content: '*** Test Cases ***\nGit\n    Log    changed\n',
     );
-    await tapText(tester, 'Refresh');
-    await pumpUntilFound(tester, find.text('Untracked'));
+    await tapTooltip(tester, 'Refresh');
+    await pumpUntilFound(tester, find.textContaining('Untracked'));
 
     final commitField = find.byWidgetPredicate(
       (widget) =>
           widget is TextField &&
-          widget.decoration?.hintText == 'Describe your changes…',
+          widget.decoration?.hintText == 'Message…',
     );
     await tester.enterText(commitField, 'Integration commit');
     await tapText(tester, 'Commit All');
-    await pumpUntilFound(tester, find.text('No changes'), timeout: const Duration(seconds: 30));
+    await pumpUntilFound(tester, find.text('Nothing to commit'), timeout: const Duration(seconds: 30));
 
     final history = await harness.api.gitHistory();
     expect(history, isNotEmpty);

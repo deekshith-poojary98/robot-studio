@@ -40,7 +40,7 @@ void main() {
   Finder commitField() => find.byWidgetPredicate(
         (widget) =>
             widget is TextField &&
-            widget.decoration?.hintText == 'Describe your changes…',
+            widget.decoration?.hintText == 'Message…',
       );
 
   testWidgets('GT-01 non-repo empty state', (tester) async {
@@ -50,9 +50,9 @@ void main() {
       project: 'GtEmpty',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'GT Empty');
-    await openSourceControl(tester);
-    await pumpUntilFound(tester, find.text('Not a Git repository'));
-    expect(find.text('Initialize Git Repository'), findsWidgets);
+    await openSourceControl(tester, projectName: 'GtEmpty');
+    await pumpUntilFound(tester, find.text('No Git repository in this project'));
+    expect(find.text('Initialize Git in this project'), findsWidgets);
 
     harness.expectNoFlutterErrors();
   });
@@ -64,11 +64,11 @@ void main() {
       project: 'GtInit',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'GT-Init');
-    await openSourceControl(tester);
-    await tapText(tester, 'Initialize Git Repository');
+    await openSourceControl(tester, projectName: 'GtInit');
+    await tapText(tester, 'Initialize Git in this project');
     await pumpUntilAbsent(
       tester,
-      find.text('Not a Git repository'),
+      find.text('No Git repository in this project'),
       timeout: const Duration(seconds: 30),
     );
     await harness.configureGitIdentityAfterInit(seeded.workspacePath);
@@ -91,20 +91,20 @@ void main() {
       project: 'GtStatus',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'GT Status');
-    await openSourceControl(tester);
-    await tapText(tester, 'Initialize Git Repository');
-    await pumpUntilAbsent(tester, find.text('Not a Git repository'));
+    await openSourceControl(tester, projectName: 'GtStatus');
+    await tapText(tester, 'Initialize Git in this project');
+    await pumpUntilAbsent(tester, find.text('No Git repository in this project'));
     await harness.configureGitIdentityAfterInit(seeded.workspacePath);
 
     await harness.api.writeFile(
       path: seeded.suitePath,
       content: '*** Test Cases ***\nGit\n    Log    changed\n',
     );
-    await tapText(tester, 'Refresh');
-    await pumpUntilFound(tester, find.text('Untracked'));
+    await tapTooltip(tester, 'Refresh');
+    await pumpUntilFound(tester, find.textContaining('Untracked'));
     // Change rows may be long absolute paths; Untracked section is enough to
     // prove status listed workspace changes after the write.
-    expect(find.text('No changes'), findsNothing);
+    expect(find.text('Nothing to commit'), findsNothing);
 
     harness.expectNoFlutterErrors();
   });
@@ -116,23 +116,23 @@ void main() {
       project: 'GtStage',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'GT Stage');
-    await openSourceControl(tester);
-    await tapText(tester, 'Initialize Git Repository');
-    await pumpUntilAbsent(tester, find.text('Not a Git repository'));
+    await openSourceControl(tester, projectName: 'GtStage');
+    await tapText(tester, 'Initialize Git in this project');
+    await pumpUntilAbsent(tester, find.text('No Git repository in this project'));
     await harness.configureGitIdentityAfterInit(seeded.workspacePath);
     await harness.api.writeFile(
       path: seeded.suitePath,
       content: '*** Test Cases ***\nGit\n    Log    staged\n',
     );
-    await tapText(tester, 'Refresh');
-    await pumpUntilFound(tester, find.text('Untracked'));
+    await tapTooltip(tester, 'Refresh');
+    await pumpUntilFound(tester, find.textContaining('Untracked'));
 
     // Selection checkboxes act as stage selection before Commit Selected.
     final checkbox = find.byType(Checkbox);
     await pumpUntilFound(tester, checkbox);
     await tester.tap(checkbox.first);
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.textContaining('Commit Selected'), findsWidgets);
+    expect(find.textContaining('Selected'), findsWidgets);
 
     harness.expectNoFlutterErrors();
   });
@@ -144,22 +144,22 @@ void main() {
       project: 'GtCommit',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'GT Commit');
-    await openSourceControl(tester);
-    await tapText(tester, 'Initialize Git Repository');
-    await pumpUntilAbsent(tester, find.text('Not a Git repository'));
+    await openSourceControl(tester, projectName: 'GtCommit');
+    await tapText(tester, 'Initialize Git in this project');
+    await pumpUntilAbsent(tester, find.text('No Git repository in this project'));
     await harness.configureGitIdentityAfterInit(seeded.workspacePath);
     await harness.api.writeFile(
       path: seeded.suitePath,
       content: '*** Test Cases ***\nGit\n    Log    commit-me\n',
     );
-    await tapText(tester, 'Refresh');
-    await pumpUntilFound(tester, find.text('Untracked'));
+    await tapTooltip(tester, 'Refresh');
+    await pumpUntilFound(tester, find.textContaining('Untracked'));
 
     await tester.enterText(commitField(), 'GT-05 commit');
     await tapText(tester, 'Commit All');
     await pumpUntilFound(
       tester,
-      find.text('No changes'),
+      find.text('Nothing to commit'),
       timeout: const Duration(seconds: 30),
     );
 
@@ -173,16 +173,16 @@ void main() {
       project: 'GtEmptyMsg',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'GT EmptyMsg');
-    await openSourceControl(tester);
-    await tapText(tester, 'Initialize Git Repository');
-    await pumpUntilAbsent(tester, find.text('Not a Git repository'));
+    await openSourceControl(tester, projectName: 'GtEmptyMsg');
+    await tapText(tester, 'Initialize Git in this project');
+    await pumpUntilAbsent(tester, find.text('No Git repository in this project'));
     await harness.configureGitIdentityAfterInit(seeded.workspacePath);
     await harness.api.writeFile(
       path: seeded.suitePath,
       content: '*** Test Cases ***\nGit\n    Log    block\n',
     );
-    await tapText(tester, 'Refresh');
-    await pumpUntilFound(tester, find.text('Untracked'));
+    await tapTooltip(tester, 'Refresh');
+    await pumpUntilFound(tester, find.textContaining('Untracked'));
     await pumpUntilFound(tester, find.text('Commit All'));
 
     final commitAll = tester.widget<ButtonStyleButton>(
@@ -203,26 +203,26 @@ void main() {
       project: 'GtBranch',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'GT Branch');
-    await openSourceControl(tester);
-    await tapText(tester, 'Initialize Git Repository');
-    await pumpUntilAbsent(tester, find.text('Not a Git repository'));
+    await openSourceControl(tester, projectName: 'GtBranch');
+    await tapText(tester, 'Initialize Git in this project');
+    await pumpUntilAbsent(tester, find.text('No Git repository in this project'));
     await harness.configureGitIdentityAfterInit(seeded.workspacePath);
     await harness.api.writeFile(
       path: seeded.suitePath,
       content: '*** Test Cases ***\nGit\n    Log    base\n',
     );
-    await tapText(tester, 'Refresh');
-    await pumpUntilFound(tester, find.text('Untracked'));
+    await tapTooltip(tester, 'Refresh');
+    await pumpUntilFound(tester, find.textContaining('Untracked'));
     await pumpUntilFound(tester, commitField());
     await tester.enterText(commitField(), 'base commit');
     await tapText(tester, 'Commit All');
-    await pumpUntilFound(tester, find.text('No changes'));
+    await pumpUntilFound(tester, find.text('Nothing to commit'));
 
     await harness.api.gitCreateBranch('feature/gt-07');
     final status = await harness.api.gitCheckout('feature/gt-07');
     expect(status['branch'], 'feature/gt-07');
 
-    await tapText(tester, 'Refresh');
+    await tapTooltip(tester, 'Refresh');
     await pumpUntilFound(tester, find.textContaining('feature/gt-07'));
 
     harness.expectNoFlutterErrors();
@@ -235,20 +235,20 @@ void main() {
       project: 'GtHistory',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'GT History');
-    await openSourceControl(tester);
-    await tapText(tester, 'Initialize Git Repository');
-    await pumpUntilAbsent(tester, find.text('Not a Git repository'));
+    await openSourceControl(tester, projectName: 'GtHistory');
+    await tapText(tester, 'Initialize Git in this project');
+    await pumpUntilAbsent(tester, find.text('No Git repository in this project'));
     await harness.configureGitIdentityAfterInit(seeded.workspacePath);
     await harness.api.writeFile(
       path: seeded.suitePath,
       content: '*** Test Cases ***\nGit\n    Log    hist\n',
     );
-    await tapText(tester, 'Refresh');
-    await pumpUntilFound(tester, find.text('Untracked'));
+    await tapTooltip(tester, 'Refresh');
+    await pumpUntilFound(tester, find.textContaining('Untracked'));
     await pumpUntilFound(tester, commitField());
     await tester.enterText(commitField(), 'history commit');
     await tapText(tester, 'Commit All');
-    await pumpUntilFound(tester, find.text('No changes'));
+    await pumpUntilFound(tester, find.text('Nothing to commit'));
 
     final history = await harness.api.gitHistory();
     expect(history, isNotEmpty);
@@ -257,7 +257,7 @@ void main() {
       path: seeded.suitePath,
       content: '*** Test Cases ***\nGit\n    Log    hist-2\n',
     );
-    await tapText(tester, 'Refresh');
+    await tapTooltip(tester, 'Refresh');
     await pumpUntilFound(
       tester,
       find.textContaining('git.robot', skipOffstage: false),
@@ -275,7 +275,7 @@ void main() {
       project: 'GtRemoteGate',
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'GT RemoteGate');
-    await openSourceControl(tester);
+    await openSourceControl(tester, projectName: 'GtRemoteGate');
 
     // Without a repo, toolbar remote actions stay hidden.
     expect(
@@ -285,12 +285,14 @@ void main() {
       findsNothing,
     );
 
-    await tapText(tester, 'Initialize Git Repository');
-    await pumpUntilAbsent(tester, find.text('Not a Git repository'));
-    // Repo without remotes still shows page Fetch/Pull/Push; assert present
-    // but no crash when tapped (actionable error or no-op path).
-    expect(find.text('Fetch'), findsWidgets);
-    await tester.tap(find.text('Fetch').first);
+    await tapText(tester, 'Initialize Git in this project');
+    await pumpUntilAbsent(tester, find.text('No Git repository in this project'));
+    // Repo without remotes: icon buttons with gated tooltips (no text labels).
+    await pumpUntilFound(
+      tester,
+      find.byTooltip('Fetch (add a remote first)'),
+    );
+    await tester.tap(find.byTooltip('Fetch (add a remote first)'));
     await tester.pump(const Duration(milliseconds: 600));
 
     harness.expectNoFlutterErrors();
@@ -304,37 +306,37 @@ void main() {
     );
 
     await harness.launchAppWithWorkspace(tester, workspaceName: 'GT Remotes');
-    await openSourceControl(tester);
-    await tapText(tester, 'Initialize Git Repository');
-    await pumpUntilAbsent(tester, find.text('Not a Git repository'));
+    await openSourceControl(tester, projectName: 'GtRemotes');
+    await tapText(tester, 'Initialize Git in this project');
+    await pumpUntilAbsent(tester, find.text('No Git repository in this project'));
     await harness.configureGitIdentityAfterInit(seeded.workspacePath);
 
     await harness.api.writeFile(
       path: seeded.suitePath,
       content: '*** Test Cases ***\nGit\n    Log    remote\n',
     );
-    await tapText(tester, 'Refresh');
-    await pumpUntilFound(tester, find.text('Untracked'));
+    await tapTooltip(tester, 'Refresh');
+    await pumpUntilFound(tester, find.textContaining('Untracked'));
     await pumpUntilFound(tester, commitField());
     await tester.enterText(commitField(), 'seed for remotes');
     await tapText(tester, 'Commit All');
-    await pumpUntilFound(tester, find.text('No changes'));
+    await pumpUntilFound(tester, find.text('Nothing to commit'));
 
     await harness.api.seedLocalGitRemote();
-    await tapText(tester, 'Refresh');
+    await tapTooltip(tester, 'Refresh');
 
-    expect(find.text('Fetch'), findsWidgets);
-    await tester.tap(find.text('Push').first);
+    await pumpUntilFound(tester, find.byTooltip('Fetch'));
+    await tester.tap(find.byTooltip('Push'));
     await tester.pump(const Duration(seconds: 2));
     final pushed = await harness.api.gitPush();
     expect(pushed['success'], isTrue, reason: '${pushed['message']}');
 
-    await tester.tap(find.text('Fetch').first);
+    await tester.tap(find.byTooltip('Fetch'));
     await tester.pump(const Duration(seconds: 2));
     final fetched = await harness.api.gitFetch();
     expect(fetched['success'], isTrue, reason: '${fetched['message']}');
 
-    await tester.tap(find.text('Pull').first);
+    await tester.tap(find.byTooltip('Pull'));
     await tester.pump(const Duration(seconds: 2));
     final pulled = await harness.api.gitPull();
     expect(pulled['success'], isTrue, reason: '${pulled['message']}');

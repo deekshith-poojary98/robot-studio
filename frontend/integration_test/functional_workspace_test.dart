@@ -113,10 +113,8 @@ void main() {
     await harness.seedWorkspace(name: 'WS Enable', suffix: 'ws-06');
     await harness.launchAppWithWorkspace(tester, workspaceName: 'WS Enable');
 
-    await pumpUntilFound(tester, find.text('New Project'));
-    expect(find.byTooltip('Manage Environments'), findsWidgets);
-
-    // Toolbar New Project tooltip should be enabled.
+    await pumpUntilFound(tester, find.byTooltip('New Project'));
+    expect(find.byKey(const Key('toolbar.environment')), findsOneWidget);
     expect(find.byTooltip('New Project'), findsWidgets);
 
     harness.expectNoFlutterErrors();
@@ -161,7 +159,7 @@ void main() {
       '/nonexistent/robot-studio/integration/path',
     );
     await submitDialog(tester, actionLabel: 'Create');
-    await pumpUntilFound(tester, find.text('Workspace error'));
+    await pumpUntilFound(tester, find.text('Could not open that folder'));
     await dismissErrorDialogIfPresent(tester);
 
     expect(find.text('CONNECTED'), findsNothing);
