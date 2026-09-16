@@ -121,6 +121,40 @@ class EdgeRef(BaseModel):
     context: str = ""
 
 
+class ImpactRelation(str, Enum):
+    """How an affected test relates to the changed symbol."""
+
+    DIRECT_CALL = "direct_call"
+    TRANSITIVE_CALL = "transitive_call"
+    RESOURCE_IMPORT = "resource_import"
+    SELF = "self"
+
+
+class ImpactHit(BaseModel):
+    """One affected test with confidence and a short explanation."""
+
+    test: EntityRef
+    suite: EntityRef | None = None
+    confidence: BindingConfidence = BindingConfidence.LOW
+    relation: ImpactRelation = ImpactRelation.TRANSITIVE_CALL
+    why: str = ""
+    depth: int = 0
+    path: list[EdgeRef] = Field(default_factory=list)
+
+
+class ImpactReport(BaseModel):
+    """Impact Analysis result for a symbol (or changed files/symbols batch)."""
+
+    symbol: EntityRef | None = None
+    seeds: list[EntityRef] = Field(default_factory=list)
+    graph_version: str = ""
+    incremental_revision: int = 0
+    entity_count: int = 0
+    empty_graph: bool = False
+    items: list[ImpactHit] = Field(default_factory=list)
+    uncertain: list[ImpactHit] = Field(default_factory=list)
+
+
 class DependencyNode(BaseModel):
     id: str
     kind: str

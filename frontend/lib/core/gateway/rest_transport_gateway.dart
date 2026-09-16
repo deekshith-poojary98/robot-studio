@@ -11,6 +11,7 @@ export 'models/execution_info.dart';
 export 'models/file_info.dart';
 export 'models/git_info.dart';
 export 'models/health_response.dart';
+export 'models/impact_info.dart';
 export 'models/index_info.dart';
 export 'models/insights_info.dart';
 export 'models/language_info.dart';
@@ -616,6 +617,27 @@ class RestTransportGateway implements TransportGateway {
       '?run_id=${Uri.encodeQueryComponent(runId)}',
     );
     return RunFailuresInfo.fromJson(response);
+  }
+
+  @override
+  Future<ImpactReportInfo> analysisImpact({
+    String? symbol,
+    String? kind,
+    List<String>? changedFiles,
+    List<String>? changedSymbols,
+    String? projectId,
+  }) async {
+    final response = await _post(
+      '/analysis/graph/impact',
+      body: {
+        'symbol': ?symbol,
+        'kind': ?kind,
+        'changed_files': ?changedFiles,
+        'changed_symbols': ?changedSymbols,
+        'project_id': ?projectId,
+      },
+    );
+    return ImpactReportInfo.fromJson(response);
   }
 
   @override

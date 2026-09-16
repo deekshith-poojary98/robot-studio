@@ -12,6 +12,7 @@ from robot_studio.domain.models.analysis import (
     DependencyNode,
     EdgeRef,
     EntityRef,
+    ImpactReport,
     InspectionInfo,
     InspectionReport,
     UsageStat,
@@ -119,6 +120,23 @@ class AnalysisService:
     ) -> list[EntityRef]:
         return await self.engine.affected_tests(
             await self._require_project(project_id),
+            changed_files=changed_files,
+            changed_symbols=changed_symbols,
+        )
+
+    async def impact_analysis(
+        self,
+        *,
+        symbol: str | None = None,
+        kind: str | None = None,
+        changed_files: list[str] | None = None,
+        changed_symbols: list[str] | None = None,
+        project_id: UUID | None = None,
+    ) -> ImpactReport:
+        return await self.engine.impact_analysis(
+            await self._require_project(project_id),
+            symbol=symbol,
+            kind=kind,
             changed_files=changed_files,
             changed_symbols=changed_symbols,
         )

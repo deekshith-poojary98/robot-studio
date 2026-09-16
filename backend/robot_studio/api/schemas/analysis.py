@@ -12,6 +12,8 @@ from robot_studio.domain.models.analysis import (
     EntityRef,
     Finding,
     FindingSeverity,
+    ImpactHit,
+    ImpactReport,
     InspectionInfo,
     InspectionReport,
     UsageStat,
@@ -208,3 +210,65 @@ class AffectedTestsRequest(BaseModel):
     changed_files: list[str] = Field(default_factory=list)
     changed_symbols: list[str] = Field(default_factory=list)
     project_id: str | None = None
+
+
+class ImpactRequest(BaseModel):
+    """Caret / batch Impact Analysis request."""
+
+    symbol: str | None = None
+    kind: str | None = None  # keyword | resource | variable | test_case
+    changed_files: list[str] = Field(default_factory=list)
+    changed_symbols: list[str] = Field(default_factory=list)
+    project_id: str | None = None
+
+
+class ImpactHitResponse(BaseModel):
+    test: EntityRefResponse
+    suite: EntityRefResponse | None = None
+    confidence: str
+    relation: str
+    why: str
+    depth: int = 0
+    path: list[EdgeRefResponse] = Field(default_factory=list)
+
+    @classmethod
+    def from_model(cls, hit: ImpactHit) -> ImpactHitResponse:
+        return cls(
+            test=EntityRefResponse.from_model(hit.test),
+            suite=(
+                EntityRefResponse.from_model(hit.suite) if hit.suite is not None else None
+            ),
+            confidence=hit.confidence.value,
+            relation=hit.relation.value,
+            why=hit.why,
+            depth=hit.depth,
+            path=[EdgeRefResponse.from_model(e) for e in hit.path],
+        )
+
+
+class ImpactResponse(BaseModel):
+    symbol: EntityRefResponse | None = None
+    seeds: list[EntityRefResponse] = Field(default_factory=list)
+    graph_version: str = ""
+    incremental_revision: int = 0
+    entity_count: int = 0
+    empty_graph: bool = False
+    items: list[ImpactHitResponse] = Field(default_factory=list)
+    uncertain: list[ImpactHitResponse] = Field(default_factory=list)
+
+    @classmethod
+    def from_model(cls, report: ImpactReport) -> ImpactResponse:
+        return cls(
+            symbol=(
+                EntityRefResponse.from_model(report.symbol)
+                if report.symbol is not None
+                else None
+            ),
+            seeds=[EntityRefResponse.from_model(s) for s in report.seeds],
+            graph_version=report.graph_version,
+            incremental_revision=report.incremental_revision,
+            entity_count=report.entity_count,
+            empty_graph=report.empty_graph,
+            items=[ImpactHitResponse.from_model(i) for i in report.items],
+            uncertain=[ImpactHitResponse.from_model(i) for i in report.uncertain],
+        )

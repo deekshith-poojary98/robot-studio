@@ -2471,6 +2471,17 @@ class _FakeTransportGateway implements TransportGateway {
   }
 
   @override
+  Future<ImpactReportInfo> analysisImpact({
+    String? symbol,
+    String? kind,
+    List<String>? changedFiles,
+    List<String>? changedSymbols,
+    String? projectId,
+  }) async {
+    return const ImpactReportInfo();
+  }
+
+  @override
   Future<IndexedSymbolInfo?> languageDefinition({
     String? name,
     String? symbolId,

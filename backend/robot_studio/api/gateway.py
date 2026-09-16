@@ -51,6 +51,7 @@ from robot_studio.domain.models.analysis import (
     DependencyNode,
     EdgeRef,
     EntityRef,
+    ImpactReport,
     InspectionInfo,
     InspectionReport,
     UsageStat,
@@ -1015,6 +1016,23 @@ class RestGateway:
         project_id: UUID | None = None,
     ) -> list[EntityRef]:
         return await self._analysis_service.affected_tests(
+            changed_files=changed_files,
+            changed_symbols=changed_symbols,
+            project_id=project_id,
+        )
+
+    async def analysis_impact(
+        self,
+        *,
+        symbol: str | None = None,
+        kind: str | None = None,
+        changed_files: list[str] | None = None,
+        changed_symbols: list[str] | None = None,
+        project_id: UUID | None = None,
+    ) -> ImpactReport:
+        return await self._analysis_service.impact_analysis(
+            symbol=symbol,
+            kind=kind,
             changed_files=changed_files,
             changed_symbols=changed_symbols,
             project_id=project_id,
