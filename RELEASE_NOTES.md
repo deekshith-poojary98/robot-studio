@@ -1,4 +1,71 @@
-# Robot Studio 1.0.0 — Beta
+# Robot Studio 1.1.0
+
+**Date:** 2026-09-16  
+**Kind:** Packaged release via [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases). Zip only (same as 1.0.0).  
+**Version:** `1.1.0` (matches backend `robot_studio.__version__`; GitHub tag `v1.1.0`).
+
+Desktop IDE for [Robot Framework](https://robotframework.org/). This release ships **Impact Analysis** — the first post-beta semantic RF workflow.
+
+**User guide:** https://deekshith-poojary98.github.io/robot-studio/  
+**Impact workflow:** https://deekshith-poojary98.github.io/robot-studio/workflows/impact-analysis/
+
+---
+
+## Get the build
+
+Download the zip for your OS **and CPU** from **[GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases)** (tag **`v1.1.0`**).
+
+| Platform | What to open | Notes |
+|----------|----------------|-------|
+| **macOS** | `Robot Studio.app` | Unzip, double-click. Gatekeeper may require **Open Anyway**. |
+| **Windows** | `RobotStudio/RobotStudio.exe` | Keep the unzipped folder together. Clean VMs may need [VC++ Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist). |
+| **Linux x64** | `RobotStudio/robot_studio` | Run `./robot_studio`, or use the `.desktop` launcher. |
+| **Linux arm64** | `RobotStudio/robot_studio` | Use the `linux-arm64` zip (`uname -m` → `aarch64`). |
+
+Maintainers: push tag **`v1.1.0`** to run **Actions → Package Desktop** and attach zips (e.g. `Robot-Studio-1.1.0-macos.zip`).
+
+App data: `~/.robot-studio`. Project Studio files: `.robotstudio/` inside the project.
+
+---
+
+## What’s new in 1.1.0
+
+### Impact Analysis (flagship)
+
+Answer **which tests should I re-run?** after changing a shared keyword, resource, or variable — not only where the name appears.
+
+1. Place the caret on a **keyword**, **resource import path**, or **variable** (or select it in the outline).
+2. Run **Impact Analysis** — **Go → Impact Analysis**, or Command Palette → **Impact Analysis**.
+3. The right-hand **Impact** panel lists **Affected** (certain) and **Uncertain** (low-confidence) tests, with Direct / Transitive / Import / Variable and a short **why**.
+4. Click a row to jump to that test. Optionally **Run Impact Set** (panel button, **Go → Run Impact Set**, or palette) to re-run only the **certain** hits through the normal run pipeline (active run config, save-before-run, Stop, reports, large-run confirm).
+5. While the panel is open, results **refresh** after the analysis index updates (for example after you save related files).
+
+Requires an open project with a built analysis graph (wait for indexing / rebuild if the panel says the graph is empty).
+
+**Guide:** [Impact Analysis](https://deekshith-poojary98.github.io/robot-studio/workflows/impact-analysis/)
+
+### Still from 1.0.0
+
+Everything in the 1.0.0 beta (editor intelligence, environments, run configs, reports, Git, Doctor, Search, …) remains. See the 1.0.0 section below for the full list.
+
+---
+
+## Known limits
+
+- Impact is graph-based: dynamic / unbound usages stay in **Uncertain** (or missing) — never silently treated as certain.
+- Editor context menu entry for Impact is not required for this cut (Go menu + palette).
+- Safe Rename, debugger, AI, flaky analysis, and notarized installers are **not** in 1.1.0.
+- macOS Gatekeeper may still warn (ad-hoc signed).
+
+---
+
+## Feedback
+
+File bugs on [GitHub Issues](https://github.com/deekshith-poojary98/robot-studio/issues). Include OS, steps, and expected result. Logs: `~/.robot-studio/logs/`.
+
+---
+
+# Robot Studio 1.0.0 — Beta (previous)
 
 **Date:** 2026-09-12  
 **Kind:** Packaged beta via [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases). Not an App Store / installer release (zip only).  
@@ -10,7 +77,7 @@ Desktop IDE for [Robot Framework](https://robotframework.org/). Open a project, 
 
 ---
 
-## Get the build
+## Get the build (1.0.0)
 
 Download the zip for your OS **and CPU** from **[GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases)** (tag **`v1.0.0`**).
 
@@ -43,7 +110,7 @@ App data: `~/.robot-studio`. Project Studio files: `.robotstudio/` inside the pr
 
 ---
 
-## Known limits
+## Known limits (1.0.0)
 
 - Beta — expect bugs. Please report them (below).
 - macOS Gatekeeper may warn (ad-hoc signed, not notarized). Open anyway from System Settings if needed.
@@ -53,7 +120,7 @@ App data: `~/.robot-studio`. Project Studio files: `.robotstudio/` inside the pr
 
 ---
 
-## Feedback
+## Feedback (1.0.0)
 
 File bugs and requests on [GitHub Issues](https://github.com/deekshith-poojary98/robot-studio/issues).
 
