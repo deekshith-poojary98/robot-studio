@@ -4945,9 +4945,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             'Analysis graph is empty — rebuild the index after opening a Robot project.',
           );
         } else if (report.symbol == null) {
-          _editor.setStatusMessage(
-            'No analysis symbol matched "$token".',
-          );
+          _editor.setStatusMessage('No analysis symbol matched "$token".');
         } else if (report.allHits.isEmpty) {
           _editor.setStatusMessage(
             'No affected tests for "${report.symbol!.name}".',
@@ -4978,6 +4976,73 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         column: hit.test.column,
       ),
     );
+  }
+
+  Future<void> _handleRunImpactSet() async {
+    final report = _editorImpact;
+    if (report == null) {
+      if (!mounted) return;
+      setState(() {
+        _editor.setStatusMessage(
+          'Run Impact Analysis first to build an impact set.',
+        );
+      });
+      return;
+    }
+    final hits = report.items;
+    if (hits.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _editor.setStatusMessage(
+          report.uncertain.isEmpty
+              ? 'No affected tests to run.'
+              : 'Only uncertain hits — review them before running.',
+        );
+      });
+      return;
+    }
+    if (!await _ensureProject(
+      message: 'Open a project before running tests.',
+    )) {
+      return;
+    }
+    if (!await _ensureRobotReady()) {
+      return;
+    }
+    await _maybeSaveBeforeRun();
+    if (!mounted) return;
+
+    final threshold = _settings.execution.largeRunThreshold;
+    if (hits.length > threshold &&
+        !await _showLargeRunConfirmDialog(
+          count: hits.length,
+          threshold: threshold,
+        )) {
+      return;
+    }
+
+    setState(() {
+      _revealExecutionCenter();
+      _editor.setStatusMessage(
+        'Running impact set (${hits.length} test${hits.length == 1 ? '' : 's'})…',
+      );
+    });
+    await _connectExecutionStream();
+    try {
+      final run = await _gateway.runSelectedTests([
+        for (final hit in hits) (file: hit.test.filePath, name: hit.test.name),
+      ], configurationId: _activeRunConfigurationId);
+      if (!mounted) return;
+      setState(() {
+        _execution.executionStatus = run.status;
+        _execution.currentExecution = run;
+      });
+      _startElapsedTimer();
+    } catch (error) {
+      if (!mounted) return;
+      _appendLog('[error] Impact set run failed: $error');
+      await _handleExecutionError(error);
+    }
   }
 
   Future<void> _editorHoverLookup() async {
@@ -5741,6 +5806,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           onSelect: () => unawaited(_editorImpactAnalysis()),
         ),
         PaletteItem(
+          id: 'editor.impact.run',
+          title: 'Run Impact Set',
+          subtitle: 'Run certain affected tests from the Impact panel',
+          icon: Icons.play_arrow,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_handleRunImpactSet()),
+        ),
+        PaletteItem(
           id: 'editor.rename',
           title: 'Rename Symbol',
           subtitle: 'Robot and Python files',
@@ -6043,6 +6116,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             _executionStatus == ExecutionStatus.running ||
             _executionStatus == ExecutionStatus.starting,
         canRun: _canRunTests,
+        canRunImpactSet: _editorImpact?.items.isNotEmpty ?? false,
         onNewProject: () => unawaited(_handleNewStandaloneProject()),
         onOpenProject: () => unawaited(_handleOpenProject()),
         onOpenWorkspace: () => unawaited(_handleOpenWorkspace()),
@@ -6077,6 +6151,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onPeekDefinition: () => unawaited(_editorPeekDefinition()),
         onFindReferences: () => unawaited(_editorFindReferences()),
         onImpactAnalysis: () => unawaited(_editorImpactAnalysis()),
+        onRunImpactSet: () => unawaited(_handleRunImpactSet()),
         onGoToSymbolInFile: () => unawaited(_editorOpenSymbol()),
         onFindSymbolInProject: () => unawaited(_editorWorkspaceSymbol()),
         onShowHover: () => unawaited(_editorHoverLookup()),
@@ -6890,6 +6965,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       impact: _editorImpact,
       onOpenImpactHit: _openImpactHit,
       onDismissImpact: () => setState(() => _editorImpact = null),
+      onRunImpactSet: () => unawaited(_handleRunImpactSet()),
+      runImpactEnabled: _canRunTests && !_executionStatus.isActive,
       statusMessage: _editorStatusMessage,
       onDismissStatusMessage: () =>
           setState(() => _editor.setStatusMessage(null)),

@@ -22,6 +22,8 @@ class EditorPage extends StatefulWidget {
     this.impact,
     this.onOpenImpactHit,
     this.onDismissImpact,
+    this.onRunImpactSet,
+    this.runImpactEnabled = true,
     required this.statusMessage,
     this.onDismissStatusMessage,
     required this.breadcrumb,
@@ -72,6 +74,8 @@ class EditorPage extends StatefulWidget {
   final ImpactReportInfo? impact;
   final ValueChanged<ImpactHitInfo>? onOpenImpactHit;
   final VoidCallback? onDismissImpact;
+  final VoidCallback? onRunImpactSet;
+  final bool runImpactEnabled;
   final String? statusMessage;
 
   /// Dismisses the notice before its auto-expiry.
@@ -271,6 +275,8 @@ class EditorPageState extends State<EditorPage> {
                             impact: widget.impact,
                             onOpenImpactHit: widget.onOpenImpactHit,
                             onDismissImpact: widget.onDismissImpact,
+                            onRunImpactSet: widget.onRunImpactSet,
+                            runImpactEnabled: widget.runImpactEnabled,
                           ),
                         ),
                     ],
@@ -289,6 +295,8 @@ class _LanguageSidePanel extends StatelessWidget {
     this.impact,
     this.onOpenImpactHit,
     this.onDismissImpact,
+    this.onRunImpactSet,
+    this.runImpactEnabled = true,
   });
 
   final HoverInfo? hover;
@@ -296,6 +304,8 @@ class _LanguageSidePanel extends StatelessWidget {
   final ImpactReportInfo? impact;
   final ValueChanged<ImpactHitInfo>? onOpenImpactHit;
   final VoidCallback? onDismissImpact;
+  final VoidCallback? onRunImpactSet;
+  final bool runImpactEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -369,6 +379,38 @@ class _LanguageSidePanel extends StatelessWidget {
                 style: TextStyle(color: palette.textMuted, fontSize: 12),
               ),
             ] else ...[
+              if (onRunImpactSet != null) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton(
+                    onPressed: runImpactEnabled && impact!.items.isNotEmpty
+                        ? onRunImpactSet
+                        : null,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 28),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      visualDensity: VisualDensity.compact,
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    child: Text(
+                      impact!.items.isEmpty
+                          ? 'Run Impact Set'
+                          : 'Run Impact Set (${impact!.items.length})',
+                    ),
+                  ),
+                ),
+                if (impact!.items.isEmpty && impact!.uncertain.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Only uncertain hits — review them before running.',
+                    style: TextStyle(color: palette.textMuted, fontSize: 11),
+                  ),
+                ],
+              ],
               if (impact!.items.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Text(

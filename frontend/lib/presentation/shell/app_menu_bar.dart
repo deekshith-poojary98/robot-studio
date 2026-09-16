@@ -14,6 +14,7 @@ class AppMenuBarActions {
     required this.wordWrap,
     required this.canStop,
     this.canRun = true,
+    this.canRunImpactSet = false,
     required this.onNewProject,
     required this.onOpenProject,
     required this.onOpenWorkspace,
@@ -48,6 +49,7 @@ class AppMenuBarActions {
     required this.onPeekDefinition,
     required this.onFindReferences,
     required this.onImpactAnalysis,
+    required this.onRunImpactSet,
     required this.onGoToSymbolInFile,
     required this.onFindSymbolInProject,
     required this.onShowHover,
@@ -63,6 +65,9 @@ class AppMenuBarActions {
   final bool wordWrap;
   final bool canStop;
   final bool canRun;
+
+  /// True when the Impact panel has at least one certain (non-low-confidence) hit.
+  final bool canRunImpactSet;
 
   final VoidCallback onNewProject;
   final VoidCallback onOpenProject;
@@ -98,6 +103,7 @@ class AppMenuBarActions {
   final VoidCallback onPeekDefinition;
   final VoidCallback onFindReferences;
   final VoidCallback onImpactAnalysis;
+  final VoidCallback onRunImpactSet;
   final VoidCallback onGoToSymbolInFile;
   final VoidCallback onFindSymbolInProject;
   final VoidCallback onShowHover;
@@ -407,6 +413,12 @@ class RobotStudioMenuBar extends StatelessWidget {
             label: 'Impact Analysis',
             onSelected: a.hasActiveFile ? a.onImpactAnalysis : null,
           ),
+          PlatformMenuItem(
+            label: 'Run Impact Set',
+            onSelected: a.hasWorkspace && a.canRun && a.canRunImpactSet
+                ? a.onRunImpactSet
+                : null,
+          ),
           PlatformMenuItemGroup(
             members: [
               PlatformMenuItem(
@@ -656,6 +668,12 @@ class _InWindowMenuBar extends StatelessWidget {
                 _item(
                   'Impact Analysis',
                   onPressed: a.hasActiveFile ? a.onImpactAnalysis : null,
+                ),
+                _item(
+                  'Run Impact Set',
+                  onPressed: a.hasWorkspace && a.canRun && a.canRunImpactSet
+                      ? a.onRunImpactSet
+                      : null,
                 ),
                 const Divider(height: 8),
                 _item(

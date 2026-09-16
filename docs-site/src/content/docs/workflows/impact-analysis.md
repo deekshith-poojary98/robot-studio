@@ -30,11 +30,19 @@ Each row shows:
 
 Click a row to jump to that test in the editor. Close the panel with the **X**.
 
+## Run the impact set
+
+With **Affected** results showing, use **Run Impact Set** (button on the Impact panel, **Go → Run Impact Set**, or the command palette).
+
+- Runs only **certain** (non-low-confidence) affected tests through the normal run pipeline (active run configuration, save-before-run, Stop, reports).
+- **Uncertain** hits are listed for review but are **not** included automatically.
+- If there are no certain hits, the action stays disabled / explains that only uncertain hits exist.
+- Large sets use the same **Large Run Threshold** confirmation as other big runs (**Settings → Execution**).
+
 ## Tips
 
 - Prefer Impact when deciding what to re-run after editing a shared keyword.
 - Use **Find References** when you need every textual / index occurrence of a name.
-- **Run Impact Set** (run only the listed tests) is planned; for now, run the listed files or tests from **Tests** / the toolbar.
 
 ## Related
 

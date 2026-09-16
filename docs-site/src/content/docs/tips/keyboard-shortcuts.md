@@ -20,6 +20,7 @@ Use ⌘ on macOS and Ctrl on Windows/Linux unless noted. When in doubt, the comm
 | Replace | `⌘H` / `Ctrl+H` |
 | Go to Definition | `F12` or Ctrl/Cmd+Click |
 | Impact Analysis | Command Palette → **Impact Analysis**, or **Go → Impact Analysis** |
+| Run Impact Set | Command Palette → **Run Impact Set**, or **Go → Run Impact Set** (certain hits only) |
 | Run File | `F5` |
 | Stop | `Shift+F5` |
 | Robot Doctor | `⌘⇧D` / `Ctrl+Shift+D` |
