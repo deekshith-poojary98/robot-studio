@@ -127,6 +127,7 @@ class ImpactRelation(str, Enum):
     DIRECT_CALL = "direct_call"
     TRANSITIVE_CALL = "transitive_call"
     RESOURCE_IMPORT = "resource_import"
+    VARIABLE_USE = "variable_use"
     SELF = "self"
 
 

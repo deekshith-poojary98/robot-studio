@@ -519,6 +519,8 @@ class _ImpactHitTileState extends State<_ImpactHitTile> {
         return 'Transitive';
       case 'resource_import':
         return 'Import';
+      case 'variable_use':
+        return 'Variable';
       case 'self':
         return 'Self';
       default:

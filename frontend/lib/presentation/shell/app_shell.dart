@@ -213,6 +213,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   HoverInfo? _editorHover;
   List<SymbolReferenceInfo> _editorReferences = [];
   ImpactReportInfo? _editorImpact;
+  String? _impactSeedSymbol;
+  String? _impactSeedKind;
+  int _impactRequestId = 0;
+  Timer? _impactRefreshDebounce;
 
   String get _backendStatus => _workspace.backendStatus;
   WorkspaceInfo? get _activeWorkspace => _workspace.activeWorkspace;
@@ -3923,6 +3927,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       await _loadOutline(active);
       _scheduleLanguageRefresh();
     }
+    if (_editorImpact != null &&
+        _impactSeedSymbol != null &&
+        _impactSeedSymbol!.isNotEmpty) {
+      _impactRefreshDebounce?.cancel();
+      _impactRefreshDebounce = Timer(const Duration(milliseconds: 400), () {
+        if (!mounted) return;
+        unawaited(_editorImpactAnalysis(refresh: true));
+      });
+    }
   }
 
   Future<void> _handleLiveProjectMissing(WorkspaceStreamEvent event) async {
@@ -4913,43 +4926,57 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _editorImpactAnalysis() async {
-    final token = _editorCursorToken() ?? _editorTokenName();
-    if (token == null) {
+  Future<void> _editorImpactAnalysis({bool refresh = false}) async {
+    final token = refresh
+        ? (_impactSeedSymbol ?? _editorCursorToken() ?? _editorTokenName())
+        : (_editorCursorToken() ?? _editorTokenName());
+    if (token == null || token.isEmpty) {
       setState(() {
         _editor.setStatusMessage(
-          'Place the cursor on a keyword (or select one in the outline).',
+          'Place the cursor on a keyword, resource, or variable '
+          '(or select one in the outline).',
         );
       });
       return;
     }
 
+    final kind = refresh
+        ? (_impactSeedKind ?? _impactKindForToken(token))
+        : _impactKindForToken(token);
+    final requestId = ++_impactRequestId;
+
     setState(() {
-      _editor.setStatusMessage('Analyzing impact for "$token"…');
-      _editorImpact = null;
-      _editorReferences = [];
-      _editorImpact = null;
-      _editorHover = null;
+      _impactSeedSymbol = token;
+      _impactSeedKind = kind;
+      _editor.setStatusMessage(
+        refresh
+            ? 'Refreshing impact for "$token"…'
+            : 'Analyzing impact for "$token"…',
+      );
+      if (!refresh) {
+        _editorImpact = null;
+        _editorReferences = [];
+        _editorHover = null;
+      }
     });
 
     try {
       final report = await _gateway.analysisImpact(
         symbol: token,
-        kind: 'keyword',
+        kind: kind,
       );
-      if (!mounted) return;
+      if (!mounted || requestId != _impactRequestId) return;
       setState(() {
         _editorImpact = report;
         if (report.emptyGraph) {
           _editor.setStatusMessage(
             'Analysis graph is empty — rebuild the index after opening a Robot project.',
           );
-        } else if (report.symbol == null) {
+        } else if (report.symbol == null && report.seeds.isEmpty) {
           _editor.setStatusMessage('No analysis symbol matched "$token".');
         } else if (report.allHits.isEmpty) {
-          _editor.setStatusMessage(
-            'No affected tests for "${report.symbol!.name}".',
-          );
+          final label = report.symbol?.name ?? token;
+          _editor.setStatusMessage('No affected tests for "$label".');
         } else {
           final certain = report.items.length;
           final uncertain = report.uncertain.length;
@@ -4961,11 +4988,49 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         }
       });
     } catch (error) {
+      if (requestId != _impactRequestId) return;
       _appendLog('[warn] Impact analysis failed: $error');
       if (!mounted) return;
       setState(() => _editor.setStatusMessage(null));
-      await _showError('Impact Analysis', error);
+      if (!refresh) {
+        await _showError('Impact Analysis', error);
+      }
     }
+  }
+
+  /// Detect seed kind for Impact: outline wins, else token shape.
+  String _impactKindForToken(String token) {
+    final outline = _selectedOutlineSymbol;
+    if (outline != null &&
+        outline.name.isNotEmpty &&
+        (outline.name == token ||
+            outline.name.replaceAll(RegExp(r'\s+'), ' ') ==
+                token.replaceAll(RegExp(r'\s+'), ' '))) {
+      switch (outline.kind) {
+        case SymbolKind.variable:
+          return 'variable';
+        case SymbolKind.resource:
+        case SymbolKind.file:
+          return 'resource';
+        case SymbolKind.keyword:
+        case SymbolKind.keywordCall:
+          return 'keyword';
+        default:
+          break;
+      }
+    }
+    final trimmed = token.trim();
+    if (RegExp(r'^[\$@&%]\{').hasMatch(trimmed)) {
+      return 'variable';
+    }
+    final lower = trimmed.toLowerCase();
+    if (lower.endsWith('.resource') ||
+        lower.contains('/') ||
+        lower.contains(r'\') ||
+        lower.contains('..')) {
+      return 'resource';
+    }
+    return 'keyword';
   }
 
   void _openImpactHit(ImpactHitInfo hit) {
@@ -6964,7 +7029,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       references: _editorReferences,
       impact: _editorImpact,
       onOpenImpactHit: _openImpactHit,
-      onDismissImpact: () => setState(() => _editorImpact = null),
+      onDismissImpact: () => setState(() {
+        _editorImpact = null;
+        _impactSeedSymbol = null;
+        _impactSeedKind = null;
+        _impactRefreshDebounce?.cancel();
+      }),
       onRunImpactSet: () => unawaited(_handleRunImpactSet()),
       runImpactEnabled: _canRunTests && !_executionStatus.isActive,
       statusMessage: _editorStatusMessage,

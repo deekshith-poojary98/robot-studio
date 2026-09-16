@@ -1,19 +1,21 @@
 ---
 title: Impact Analysis
-description: See which tests are affected by a keyword change, with confidence and why.
+description: See which tests are affected by a keyword, resource, or variable change — with confidence and why.
 ---
 
-When you change a shared keyword, Impact Analysis answers **which tests should you re-run?** — not only where the name appears (that is [Find References](/workflows/search/)).
+When you change a shared keyword, resource, or variable, Impact Analysis answers **which tests should you re-run?** — not only where the name appears (that is [Find References](/workflows/search/)).
 
 ## Open Impact Analysis
 
-1. Open a Robot file and place the caret on a **user keyword** name (or select the keyword in the outline).
+1. Open a Robot file and place the caret on a **user keyword**, **resource import path**, or **variable** (or select the symbol in the outline).
 2. Run **Impact Analysis** from:
    - **Command Palette** (`⌘⇧P` / `Ctrl+Shift+P`) → **Impact Analysis**
    - **Go → Impact Analysis**
 3. A right-hand **Impact** panel lists affected tests.
 
 Requires an open project with a built analysis graph (open the project and wait for indexing / rebuild if the panel says the graph is empty).
+
+While the panel is open, results **refresh** after the analysis index updates (for example after you save related files).
 
 ## Read the results
 
@@ -25,8 +27,8 @@ Requires an open project with a built analysis graph (open the project and wait 
 Each row shows:
 
 - Test name
-- File, relation (**Direct** / **Transitive** / **Import**), and confidence
-- A short **why** line (for example, that the test calls the keyword)
+- File, relation (**Direct** / **Transitive** / **Import** / **Variable**), and confidence
+- A short **why** line (for example, that the test calls the keyword, imports the resource, or uses the variable)
 
 Click a row to jump to that test in the editor. Close the panel with the **X**.
 
@@ -41,7 +43,7 @@ With **Affected** results showing, use **Run Impact Set** (button on the Impact 
 
 ## Tips
 
-- Prefer Impact when deciding what to re-run after editing a shared keyword.
+- Prefer Impact when deciding what to re-run after editing a shared keyword, resource, or variable.
 - Use **Find References** when you need every textual / index occurrence of a name.
 
 ## Related
