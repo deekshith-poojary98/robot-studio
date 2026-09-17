@@ -50,10 +50,12 @@ Future<void> waitForBackendReady(
   final deadline = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(deadline)) {
     await tester.pump(const Duration(milliseconds: 100));
-    final welcome = tester.widgetList(find.text('Open Project')).isNotEmpty ||
+    final welcome =
+        tester.widgetList(find.text('Open Project')).isNotEmpty ||
         tester.widgetList(find.byKey(const Key('welcome.wordmark'))).isNotEmpty;
-    final session =
-        tester.widgetList(find.byKey(const Key('toolbar.search'))).isNotEmpty;
+    final session = tester
+        .widgetList(find.byKey(const Key('toolbar.search')))
+        .isNotEmpty;
     if (welcome || session) {
       expect(find.text('CONNECTED'), findsNothing);
       expect(find.text('OFFLINE'), findsNothing);
@@ -104,13 +106,17 @@ Future<void> tapSidebarPanel(WidgetTester tester, String label) async {
   }
 
   // Activity rail tooltips are descriptive: "Reports — run history…".
+  // Doctor uses "Robot Doctor — …" rather than "Doctor — …".
   final descriptive = find.byWidgetPredicate(
     (widget) =>
         widget is Tooltip &&
         widget.message != null &&
         (widget.message!.startsWith('$label —') ||
             widget.message!.startsWith('$label -') ||
-            widget.message == label),
+            widget.message == label ||
+            (label == 'Doctor' &&
+                (widget.message!.startsWith('Robot Doctor —') ||
+                    widget.message!.startsWith('Robot Doctor -')))),
   );
   await pumpUntilFound(tester, descriptive);
   await tester.tap(descriptive.first);
@@ -188,10 +194,7 @@ Future<void> setInstallRobotFramework(
     matching: find.text('Install Robot Framework'),
   );
   await pumpUntilFound(tester, label);
-  final checkbox = find.descendant(
-    of: dialog,
-    matching: find.byType(Checkbox),
-  );
+  final checkbox = find.descendant(of: dialog, matching: find.byType(Checkbox));
   await pumpUntilFound(tester, checkbox);
   final box = tester.widget<Checkbox>(checkbox.first);
   if ((box.value ?? false) != enabled) {
@@ -575,4 +578,50 @@ Future<void> tapEditorFormat(WidgetTester tester) async {
 
 Future<void> tapEditorFind(WidgetTester tester) async {
   await runCommandPaletteAction(tester, 'Find');
+}
+
+Future<void> openSettings(WidgetTester tester) async {
+  await tapTooltip(tester, 'Settings (⌘,)');
+  await pumpUntilFound(tester, find.text('Settings'));
+  await pumpUntilFound(tester, find.text('Editor'));
+}
+
+Future<void> openLibraries(WidgetTester tester) async {
+  await tapSidebarPanel(tester, 'Libraries');
+  // PanelHeader renders titles in uppercase.
+  await pumpUntilFound(tester, find.text('LIBRARIES'));
+}
+
+Future<void> openDoctor(WidgetTester tester) async {
+  await tapSidebarPanel(tester, 'Doctor');
+  await pumpUntilFound(tester, find.text('Robot Doctor'));
+}
+
+/// Expands the Explorer OUTLINE section (if collapsed) and selects [symbolName].
+Future<void> selectOutlineSymbol(WidgetTester tester, String symbolName) async {
+  await tapSidebarPanel(tester, 'Explorer');
+  final outlineHeader = find.text('OUTLINE');
+  await pumpUntilFound(
+    tester,
+    outlineHeader,
+    timeout: const Duration(seconds: 20),
+  );
+  // Expand when the symbol is not yet visible (collapsed by default).
+  if (tester.widgetList(find.text(symbolName)).isEmpty) {
+    await tester.tap(outlineHeader.first);
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+  final symbol = find.text(symbolName);
+  await pumpUntilFound(tester, symbol, timeout: const Duration(seconds: 30));
+  await tester.ensureVisible(symbol.first);
+  await tester.tap(symbol.first);
+  await tester.pump(const Duration(milliseconds: 400));
+}
+
+Future<void> openRunConfigurationMenu(WidgetTester tester) async {
+  final chip = find.byKey(const Key('toolbar.run-configuration'));
+  await pumpUntilFound(tester, chip);
+  await tester.tap(chip);
+  await tester.pump(const Duration(milliseconds: 300));
+  await pumpUntilFound(tester, find.text('Default'));
 }
