@@ -26,11 +26,7 @@ void main() {
   }
 
   testWidgets('ST-01 open settings from rail', (tester) async {
-    await seedMinimal(
-      workspace: 'ST Open',
-      suffix: 'st-01',
-      project: 'StOpen',
-    );
+    await seedMinimal(workspace: 'ST Open', suffix: 'st-01', project: 'StOpen');
     await harness.launchAppWithWorkspace(tester, workspaceName: 'ST Open');
     await openSettings(tester);
 
@@ -38,16 +34,13 @@ void main() {
     expect(find.text('Editor'), findsWidgets);
     expect(find.text('Execution'), findsWidgets);
     expect(find.text('Appearance'), findsWidgets);
+    expect(find.text('About'), findsWidgets);
 
     harness.expectNoFlutterErrors();
   });
 
   testWidgets('ST-02 switch categories and see section fields', (tester) async {
-    await seedMinimal(
-      workspace: 'ST Cats',
-      suffix: 'st-02',
-      project: 'StCats',
-    );
+    await seedMinimal(workspace: 'ST Cats', suffix: 'st-02', project: 'StCats');
     await harness.launchAppWithWorkspace(tester, workspaceName: 'ST Cats');
     await openSettings(tester);
 
@@ -64,20 +57,13 @@ void main() {
   });
 
   testWidgets('ST-03 save a preference change', (tester) async {
-    await seedMinimal(
-      workspace: 'ST Save',
-      suffix: 'st-03',
-      project: 'StSave',
-    );
+    await seedMinimal(workspace: 'ST Save', suffix: 'st-03', project: 'StSave');
     await harness.launchAppWithWorkspace(tester, workspaceName: 'ST Save');
     await openSettings(tester);
     await pumpUntilFound(tester, find.text('Auto Save'));
 
     final autoSaveSwitch = find.descendant(
-      of: find.ancestor(
-        of: find.text('Auto Save'),
-        matching: find.byType(Row),
-      ),
+      of: find.ancestor(of: find.text('Auto Save'), matching: find.byType(Row)),
       matching: find.byType(Switch),
     );
     // Fall back to first visible Switch in the settings content.

@@ -45,6 +45,18 @@ Settings are stored in `~/.robot-studio/settings.json`. Use **Save** to apply ch
 | **Accent** | Teal (Default) | Accent colour for chrome |
 | **Restore Last Project** | On | Reopen the last project or workspace when Robot Studio starts |
 
+## About
+
+Read-only product information (not saved to `settings.json`):
+
+| Field | What it shows |
+|-------|----------------|
+| **Application** | Product name |
+| **Version** | Installed app version and build from the package (`pubspec` / installer), with **Copy** |
+| **Backend** | Local backend version from health when connected |
+| **License** | Apache 2.0 |
+| **Open User Guide** | Opens the public docs site |
+
 ## Advanced: backend environment variables
 
 These `ROBOT_STUDIO_*` variables configure the **local backend process**. Day-to-day preferences belong in **Settings** above.

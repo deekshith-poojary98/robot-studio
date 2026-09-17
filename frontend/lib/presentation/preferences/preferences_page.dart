@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../../core/app_info.dart';
 import '../../core/gateway/models/settings_info.dart';
 import '../../core/settings/app_settings_controller.dart';
 import '../../core/theme/app_theme.dart';
@@ -52,13 +54,15 @@ enum SettingsCategory {
   editor,
   execution,
   search,
-  appearance;
+  appearance,
+  about;
 
   String get label => switch (this) {
     SettingsCategory.editor => 'Editor',
     SettingsCategory.execution => 'Execution',
     SettingsCategory.search => 'Search',
     SettingsCategory.appearance => 'Appearance',
+    SettingsCategory.about => 'About',
   };
 
   IconData get icon => switch (this) {
@@ -66,6 +70,7 @@ enum SettingsCategory {
     SettingsCategory.execution => Icons.play_circle_outline,
     SettingsCategory.search => Icons.search_outlined,
     SettingsCategory.appearance => Icons.palette_outlined,
+    SettingsCategory.about => Icons.info_outline,
   };
 
   String get description => switch (this) {
@@ -73,6 +78,7 @@ enum SettingsCategory {
     SettingsCategory.execution => 'Run confirmations and result panels',
     SettingsCategory.search => 'Which files Find in Files reads',
     SettingsCategory.appearance => 'Theme and accent colour',
+    SettingsCategory.about => 'Version, license, and links',
   };
 }
 
@@ -82,12 +88,20 @@ class PreferencesPage extends StatefulWidget {
     super.key,
     required this.controller,
     this.leaveBinding,
+    this.backendVersion,
+    this.onOpenUserGuide,
   });
 
   final AppSettingsController controller;
 
   /// When set, the shell can prompt before leaving with unsaved draft changes.
   final PreferencesLeaveBinding? leaveBinding;
+
+  /// Local backend version from `/health`, when connected.
+  final String? backendVersion;
+
+  /// Opens the public user guide (same as the rail help control).
+  final VoidCallback? onOpenUserGuide;
 
   @override
   State<PreferencesPage> createState() => _PreferencesPageState();
@@ -109,6 +123,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
   final _ignoreController = TextEditingController();
   List<String> _installedFonts = const [];
   bool _fontsLoaded = false;
+  AppInfo? _appInfo;
 
   @override
   void initState() {
@@ -123,6 +138,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
       isDirty: () => _isDirty,
     );
     _loadInstalledFonts();
+    _loadAppInfo();
   }
 
   Future<void> _loadInstalledFonts() async {
@@ -132,6 +148,19 @@ class _PreferencesPageState extends State<PreferencesPage> {
       _installedFonts = installed;
       _fontsLoaded = true;
     });
+  }
+
+  Future<void> _loadAppInfo() async {
+    try {
+      final info = await AppInfo.load();
+      if (!mounted) return;
+      setState(() => _appInfo = info);
+    } catch (_) {
+      if (!mounted) return;
+      setState(
+        () => _appInfo = const AppInfo(version: '—', buildNumber: ''),
+      );
+    }
   }
 
   @override
@@ -445,6 +474,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
             SettingsCategory.execution => _executionSection(),
             SettingsCategory.search => _searchSection(),
             SettingsCategory.appearance => _appearanceSection(),
+            SettingsCategory.about => _aboutSection(),
           },
         ),
       ),
@@ -754,6 +784,107 @@ class _PreferencesPageState extends State<PreferencesPage> {
           },
         ),
       ],
+    );
+  }
+
+  Widget _aboutSection() {
+    final info = _appInfo;
+    final backend = widget.backendVersion?.trim();
+    return _Section(
+      title: 'About',
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: Text(
+            'A desktop IDE for Robot Framework — projects, environments, '
+            'editor, runs, and reports in one place.',
+            style: TextStyle(
+              fontSize: 12.5,
+              height: 1.4,
+              color: context.palette.textSecondary,
+            ),
+          ),
+        ),
+        _InfoRow(
+          label: 'Application',
+          value: info?.appName ?? 'Robot Studio',
+        ),
+        _InfoRow(
+          label: 'Version',
+          value: info?.displayVersion ?? '…',
+          onCopy: info == null
+              ? null
+              : () => _copyAboutValue(info.displayVersion),
+        ),
+        _InfoRow(
+          label: 'Backend',
+          value: (backend == null || backend.isEmpty)
+              ? 'Not connected'
+              : backend.startsWith('v')
+              ? backend
+              : 'v$backend',
+        ),
+        const _InfoRow(label: 'License', value: 'Apache 2.0'),
+        if (widget.onOpenUserGuide != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: widget.onOpenUserGuide,
+              icon: const Icon(Icons.menu_book_outlined, size: 16),
+              label: const Text(
+                'Open User Guide',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _copyAboutValue(String value) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    if (!mounted) return;
+    setState(() => _savedNotice = 'Copied version to clipboard');
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value, this.onCopy});
+
+  final String label;
+  final String value;
+  final VoidCallback? onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    return _RowShell(
+      label: label,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SelectableText(
+            value,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: context.palette.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (onCopy != null) ...[
+            const SizedBox(width: AppSpacing.xs),
+            IconButton(
+              tooltip: 'Copy',
+              onPressed: onCopy,
+              icon: const Icon(Icons.copy_outlined, size: 14),
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

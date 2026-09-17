@@ -4961,10 +4961,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     });
 
     try {
-      final report = await _gateway.analysisImpact(
-        symbol: token,
-        kind: kind,
-      );
+      final report = await _gateway.analysisImpact(symbol: token, kind: kind);
       if (!mounted || requestId != _impactRequestId) return;
       setState(() {
         _editorImpact = report;
@@ -6752,6 +6749,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _CenterView.settings => PreferencesPage(
         controller: _settings,
         leaveBinding: _preferencesLeave,
+        backendVersion: _workspace.backendVersion,
+        onOpenUserGuide: () => unawaited(_openUserGuide()),
       ),
       _CenterView.welcome => WelcomeScreen(
         recentWorkspaces: _recentWorkspaces,

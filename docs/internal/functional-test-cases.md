@@ -2188,7 +2188,7 @@
 | **Priority**      | P0                                                    |
 | **Preconditions** | App connected                                         |
 | **Steps**         | Click Settings (⌘,) on the activity rail              |
-| **Expected**      | Settings page with Editor / Execution / Search / Appearance. |
+| **Expected**      | Settings page with Editor / Execution / Search / Appearance / About. |
 
 
 

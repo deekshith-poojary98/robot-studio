@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart' as pkg;
+import 'package:robot_studio/core/app_info.dart';
 import 'package:robot_studio/core/gateway/transport_gateway.dart';
 import 'package:robot_studio/core/settings/app_settings_controller.dart';
 import 'package:robot_studio/core/theme/app_theme.dart';
@@ -91,10 +93,19 @@ Future<void> _pump(
 void main() {
   setUp(() {
     debugInstalledEditorFonts = ['Menlo', 'Fira Code', 'JetBrains Mono'];
+    pkg.PackageInfo.setMockInitialValues(
+      appName: 'Robot Studio',
+      packageName: 'robot_studio',
+      version: '1.1.0',
+      buildNumber: '6',
+      buildSignature: '',
+    );
+    AppInfo.debugSet(null);
   });
   tearDown(() {
     debugInstalledEditorFonts = null;
     debugResetEditorFontFamilyCache();
+    AppInfo.debugSet(null);
   });
 
   testWidgets('opens on Editor and switches categories', (tester) async {
@@ -110,6 +121,32 @@ void main() {
 
     expect(find.text('Stop Confirmation'), findsOneWidget);
     expect(find.text('Auto Save'), findsNothing);
+  });
+
+  testWidgets('About shows app version and backend', (tester) async {
+    final controller = AppSettingsController(gateway: _SettingsGateway());
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: PreferencesPage(
+            controller: controller,
+            backendVersion: '1.1.0',
+            onOpenUserGuide: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('About'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Version'), findsOneWidget);
+    expect(find.text('1.1.0 (6)'), findsOneWidget);
+    expect(find.text('v1.1.0'), findsOneWidget);
+    expect(find.text('Apache 2.0'), findsOneWidget);
+    expect(find.text('Open User Guide'), findsOneWidget);
   });
 
   testWidgets('Appearance exposes Restore Last Project on by default', (
