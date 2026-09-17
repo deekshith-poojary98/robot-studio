@@ -55,7 +55,16 @@ Read-only product information (not saved to `settings.json`):
 | **Version** | Installed app version and build from the package (`pubspec` / installer), with **Copy** |
 | **Backend** | Local backend version from health when connected |
 | **License** | Apache 2.0 |
+| **Check for Updates** | Asks the update service for a newer release (also runs quietly at startup) |
 | **Open User Guide** | Opens the public docs site |
+
+Update checks call `GET {ROBOT_STUDIO_UPDATE_URL}/v1/latest` (default `http://127.0.0.1:8090` while developing). Override when packaging:
+
+```bash
+flutter run --dart-define=ROBOT_STUDIO_UPDATE_URL=https://updates.example.com
+```
+
+If a newer version is available, Robot Studio shows **Update available** with links to release notes and download.
 
 ## Advanced: backend environment variables
 

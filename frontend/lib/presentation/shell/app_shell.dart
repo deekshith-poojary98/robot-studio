@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/backend_host.dart';
+import '../../core/app_info.dart';
 import '../../core/gateway/models/workspace_event_info.dart';
 import '../../core/gateway/rest_transport_gateway.dart';
 import '../../core/gateway/transport_gateway.dart';
@@ -15,8 +16,12 @@ import '../../core/logging/app_logger.dart';
 import '../../core/platform/studio_file_picker.dart';
 import '../../core/settings/app_settings_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/updates/update_check_config.dart';
+import '../../core/updates/update_check_service.dart';
+import '../../core/updates/update_info.dart';
 import '../preferences/preferences_leave_binding.dart';
 import '../preferences/preferences_page.dart';
+import '../updates/update_available_dialog.dart';
 import '../widgets/unsaved_changes_dialog.dart';
 import '../environment/clone_environment_dialog.dart';
 import '../environment/create_environment_dialog.dart';
@@ -198,6 +203,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   bool _showInsightsPage = false;
   bool _showSettingsPage = false;
   final _preferencesLeave = PreferencesLeaveBinding();
+  bool _startupUpdatePromptShown = false;
   List<IndexedSymbolInfo> _testSuites = [];
   TestNodeInfo? _testTree;
   int _testTreeLoadId = 0;
@@ -505,6 +511,63 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       tag: 'Shell',
       data: 'backend=$_backendStatus',
     );
+    unawaited(_checkForUpdates(silent: true));
+  }
+
+  /// Asks the update middleman for the latest release.
+  ///
+  /// [silent] skips dialogs when already current or when the service is down
+  /// (startup). Manual About checks always report the outcome.
+  Future<void> _checkForUpdates({required bool silent}) async {
+    if (!isUpdateCheckConfigured) {
+      if (!silent && mounted) {
+        await _showError(
+          'Check for updates',
+          'Update service URL is not configured.',
+        );
+      }
+      return;
+    }
+
+    try {
+      final app = await AppInfo.load();
+      final latest = await UpdateCheckService().fetchLatest();
+      if (!mounted) return;
+
+      final newer = isUpdateNewer(
+        latest: latest,
+        currentVersion: app.version,
+        currentBuild: app.buildNumber,
+      );
+
+      if (!newer) {
+        if (!silent) {
+          await showUpToDateDialog(
+            context,
+            currentDisplayVersion: app.displayVersion,
+          );
+        }
+        return;
+      }
+
+      if (silent && _startupUpdatePromptShown) return;
+      if (silent) _startupUpdatePromptShown = true;
+
+      await showUpdateAvailableDialog(
+        context,
+        currentDisplayVersion: app.displayVersion,
+        latest: latest,
+      );
+    } catch (error) {
+      AppLogger.debug(
+        'Update check failed',
+        tag: 'Shell',
+        data: '$error',
+      );
+      if (!silent && mounted) {
+        await _showError('Check for updates', error);
+      }
+    }
   }
 
   /// Reopen the project/workspace the UI still shows after a backend restart.
@@ -2318,14 +2381,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _openUserGuide() async {
-    const url = 'https://deekshith-poojary98.github.io/robot-studio/';
-    if (Platform.isMacOS) {
-      await Process.run('open', [url]);
-    } else if (Platform.isWindows) {
-      await Process.run('cmd', ['/c', 'start', '', url]);
-    } else {
-      await Process.run('xdg-open', [url]);
-    }
+    await openExternalUrl(
+      'https://deekshith-poojary98.github.io/robot-studio/',
+    );
   }
 
   void _cycleEditorTab({required bool forward}) {
@@ -6751,6 +6809,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         leaveBinding: _preferencesLeave,
         backendVersion: _workspace.backendVersion,
         onOpenUserGuide: () => unawaited(_openUserGuide()),
+        onCheckForUpdates: () => unawaited(_checkForUpdates(silent: false)),
       ),
       _CenterView.welcome => WelcomeScreen(
         recentWorkspaces: _recentWorkspaces,

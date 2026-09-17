@@ -90,6 +90,7 @@ class PreferencesPage extends StatefulWidget {
     this.leaveBinding,
     this.backendVersion,
     this.onOpenUserGuide,
+    this.onCheckForUpdates,
   });
 
   final AppSettingsController controller;
@@ -102,6 +103,9 @@ class PreferencesPage extends StatefulWidget {
 
   /// Opens the public user guide (same as the rail help control).
   final VoidCallback? onOpenUserGuide;
+
+  /// Asks the update middleman whether a newer build is available.
+  final VoidCallback? onCheckForUpdates;
 
   @override
   State<PreferencesPage> createState() => _PreferencesPageState();
@@ -825,18 +829,38 @@ class _PreferencesPageState extends State<PreferencesPage> {
               : 'v$backend',
         ),
         const _InfoRow(label: 'License', value: 'Apache 2.0'),
-        if (widget.onOpenUserGuide != null) ...[
+        if (widget.onOpenUserGuide != null ||
+            widget.onCheckForUpdates != null) ...[
           const SizedBox(height: AppSpacing.md),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: widget.onOpenUserGuide,
-              icon: const Icon(Icons.menu_book_outlined, size: 16),
-              label: const Text(
-                'Open User Guide',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-            ),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              if (widget.onCheckForUpdates != null)
+                TextButton.icon(
+                  onPressed: widget.onCheckForUpdates,
+                  icon: const Icon(Icons.system_update_alt, size: 16),
+                  label: const Text(
+                    'Check for Updates',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              if (widget.onOpenUserGuide != null)
+                TextButton.icon(
+                  onPressed: widget.onOpenUserGuide,
+                  icon: const Icon(Icons.menu_book_outlined, size: 16),
+                  label: const Text(
+                    'Open User Guide',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ],

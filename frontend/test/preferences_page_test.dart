@@ -133,6 +133,7 @@ void main() {
             controller: controller,
             backendVersion: '1.1.0',
             onOpenUserGuide: () {},
+            onCheckForUpdates: () {},
           ),
         ),
       ),
@@ -146,6 +147,7 @@ void main() {
     expect(find.text('1.1.0 (6)'), findsOneWidget);
     expect(find.text('v1.1.0'), findsOneWidget);
     expect(find.text('Apache 2.0'), findsOneWidget);
+    expect(find.text('Check for Updates'), findsOneWidget);
     expect(find.text('Open User Guide'), findsOneWidget);
   });
 
