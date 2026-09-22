@@ -30,7 +30,7 @@ Each row shows:
 - File, relation (**Direct** / **Transitive** / **Import** / **Variable**), and confidence
 - A short **why** line (for example, that the test calls the keyword, imports the resource, or uses the variable)
 
-Click a row to jump to that test in the editor. Close the panel with the **X**.
+Click a row to jump to that test — the Impact panel stays open so you can review other hits. Close it with the **X**.
 
 ## Run the impact set
 

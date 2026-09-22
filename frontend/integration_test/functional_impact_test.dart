@@ -32,7 +32,8 @@ void main() {
     final suite = '$root/tests/login.robot';
     await harness.api.writeFile(
       path: resource,
-      content: '*** Keywords ***\n'
+      content:
+          '*** Keywords ***\n'
           'LoginUser\n'
           '    [Documentation]    Shared login\n'
           '    Log    login\n'
@@ -42,7 +43,8 @@ void main() {
     );
     await harness.api.writeFile(
       path: suite,
-      content: '*** Settings ***\n'
+      content:
+          '*** Settings ***\n'
           'Resource    ../resources/common.resource\n'
           'Library     BuiltIn\n'
           '*** Variables ***\n'
@@ -108,6 +110,28 @@ void main() {
     harness.expectNoFlutterErrors();
   });
 
+  testWidgets('IA-02b impact panel stays open after jumping to a hit', (
+    tester,
+  ) async {
+    await seedImpactProject(
+      workspace: 'IA Stay',
+      suffix: 'ia-02b',
+      project: 'IaStay',
+    );
+    await harness.launchAppWithWorkspace(tester, workspaceName: 'IA Stay');
+    await openProjectInExplorer(tester, projectName: 'IaStay');
+    await openImpactForLoginUser(tester, projectName: 'IaStay');
+    await pumpUntilFound(tester, find.text('Can Login'));
+
+    await tester.tap(find.text('Can Login').first);
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Impact'), findsWidgets);
+    expect(find.textContaining('Run Impact Set'), findsWidgets);
+
+    harness.expectNoFlutterErrors();
+  });
+
   testWidgets('IA-03 dismiss impact side panel', (tester) async {
     await seedImpactProject(
       workspace: 'IA Close',
@@ -138,7 +162,11 @@ void main() {
     await pumpUntilFound(tester, find.text('Can Login'));
 
     final runButton = find.widgetWithText(FilledButton, 'Run Impact Set (1)');
-    await pumpUntilFound(tester, runButton, timeout: const Duration(seconds: 45));
+    await pumpUntilFound(
+      tester,
+      runButton,
+      timeout: const Duration(seconds: 45),
+    );
     await tester.tap(runButton.first);
     await tester.pump(const Duration(milliseconds: 500));
 

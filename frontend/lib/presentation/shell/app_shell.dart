@@ -3515,7 +3515,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _trackRecentFile(String path) => _editor.trackRecentFile(path);
 
-  Future<void> _openFile(String path, {int? line, int? column}) async {
+  Future<void> _openFile(
+    String path, {
+    int? line,
+    int? column,
+    bool clearSidePanels = true,
+  }) async {
     AppLogger.info(
       'Open file',
       tag: 'Shell',
@@ -3537,9 +3542,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
-        _editorReferences = [];
-        _editorImpact = null;
-        _editor.setStatusMessage(null);
+        // Keep Impact / References when jumping from a panel hit.
+        if (clearSidePanels) {
+          _editorReferences = [];
+          _editorImpact = null;
+          _editor.setStatusMessage(null);
+        }
       });
       _trackRecentFile(path);
       await _selectTab(path);
@@ -3571,9 +3579,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
-        _editorReferences = [];
-        _editorImpact = null;
-        _editor.setStatusMessage(null);
+        if (clearSidePanels) {
+          _editorReferences = [];
+          _editorImpact = null;
+          _editor.setStatusMessage(null);
+        }
         _busy = false;
       });
       _trackRecentFile(file.path);
@@ -5090,6 +5100,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         hit.test.filePath,
         line: hit.test.line,
         column: hit.test.column,
+        clearSidePanels: false,
       ),
     );
   }

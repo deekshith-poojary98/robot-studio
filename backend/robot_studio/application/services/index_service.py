@@ -82,6 +82,9 @@ class IndexService:
     _last_indexed_at: datetime | None = field(default=None, init=False)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     _rebuild_task: asyncio.Task | None = field(default=None, init=False)
+    # Workspace the in-flight `_rebuild_task` targets — cancel stale work when
+    # the user switches projects without restarting the backend.
+    _rebuild_workspace_id: UUID | None = field(default=None, init=False)
     _finalize_task: asyncio.Task | None = field(default=None, init=False)
     _unsubscribes: list[Subscription] = field(default_factory=list, init=False)
     _stopped: bool = field(default=False, init=False)
@@ -124,6 +127,7 @@ class IndexService:
         async with self._lock:
             task = self._rebuild_task
             self._rebuild_task = None
+            self._rebuild_workspace_id = None
         if task is not None and not task.done():
             task.cancel()
             with suppress(asyncio.CancelledError):
@@ -132,6 +136,8 @@ class IndexService:
     async def _on_workspace_opened(self, event: WorkspaceOpened) -> None:
         _ = event
         # Never block open-path / workspace open on indexing (VS Code model).
+        # Cancels any in-flight rebuild for a previous workspace so a Demo →
+        # other-project switch does not leave the new index empty.
         await self.schedule_rebuild(full=False)
 
     async def _on_project_changed(
@@ -244,17 +250,41 @@ class IndexService:
             raise IndexValidationError("Open a workspace before indexing")
         return workspace
 
+    async def _cancel_rebuild_locked(self) -> None:
+        """Cancel in-flight rebuild work. Caller must hold ``_lock``."""
+        prior = self._rebuild_task
+        self._rebuild_task = None
+        self._rebuild_workspace_id = None
+        if prior is None or prior.done():
+            return
+        prior.cancel()
+        with suppress(asyncio.CancelledError):
+            await prior
+
     async def schedule_rebuild(self, *, full: bool = False) -> IndexStatus:
         """Start indexing in the background and return immediately."""
         if self._stopped:
             return await self.get_status()
         workspace = self._require_workspace()
-        self._state = "indexing"
-        self._message = "Indexing workspace…" if not full else "Rebuilding index…"
-        self._errors = []
         async with self._lock:
-            if self._rebuild_task and not self._rebuild_task.done():
+            prior = self._rebuild_task
+            same_workspace = (
+                prior is not None
+                and not prior.done()
+                and self._rebuild_workspace_id == workspace.id
+            )
+            # Coalesce duplicate WorkspaceOpened / open-path for the same root.
+            # A different workspace (or an explicit full rebuild) must cancel
+            # stale work — otherwise the new project stays at files_indexed=0.
+            if same_workspace and not full:
                 return await self.get_status()
+            await self._cancel_rebuild_locked()
+            self._state = "indexing"
+            self._message = (
+                "Indexing workspace…" if not full else "Rebuilding index…"
+            )
+            self._errors = []
+            self._rebuild_workspace_id = workspace.id
             self._rebuild_task = asyncio.create_task(
                 self._rebuild_workspace(
                     workspace.id,
@@ -274,11 +304,20 @@ class IndexService:
         if project is None or project.workspace_id != workspace.id:
             return await self.get_status()
 
-        self._state = "indexing"
-        self._message = f"Indexing project '{project.name}'…"
         async with self._lock:
-            if self._rebuild_task and not self._rebuild_task.done():
+            prior = self._rebuild_task
+            same_workspace = (
+                prior is not None
+                and not prior.done()
+                and self._rebuild_workspace_id == workspace.id
+            )
+            if same_workspace:
                 return await self.get_status()
+            await self._cancel_rebuild_locked()
+            self._state = "indexing"
+            self._message = f"Indexing project '{project.name}'…"
+            self._errors = []
+            self._rebuild_workspace_id = workspace.id
             self._rebuild_task = asyncio.create_task(
                 self._reindex_project_root(workspace.id, project),
                 name=f"index-project-{project_id}",
@@ -288,17 +327,12 @@ class IndexService:
     async def rebuild(self) -> IndexStatus:
         """Explicit rebuild (API / UI) — waits until indexing finishes."""
         workspace = self._require_workspace()
-        self._state = "indexing"
-        self._message = "Rebuilding index…"
-        self._errors = []
         async with self._lock:
-            prior = self._rebuild_task
-            if prior is not None and not prior.done():
-                prior.cancel()
-                try:
-                    await prior
-                except asyncio.CancelledError:
-                    pass
+            await self._cancel_rebuild_locked()
+            self._state = "indexing"
+            self._message = "Rebuilding index…"
+            self._errors = []
+            self._rebuild_workspace_id = workspace.id
             self._rebuild_task = asyncio.create_task(
                 self._rebuild_workspace(
                     workspace.id,

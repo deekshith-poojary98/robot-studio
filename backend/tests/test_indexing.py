@@ -543,6 +543,89 @@ async def test_schedule_rebuild_returns_before_indexing_finishes(index_stack) ->
 
 
 @pytest.mark.asyncio
+async def test_workspace_switch_cancels_prior_rebuild_and_indexes_new(
+    index_stack,
+    tmp_path: Path,
+) -> None:
+    """Demo → other project without restart must not leave files_indexed=0.
+
+    Previously schedule_rebuild early-returned while the prior workspace's
+    rebuild was still running, so the newly opened project never indexed.
+    """
+    service, _store, _facade, _suite, _lib, _bus, workspace, _project = index_stack
+    context = service.context
+
+    # Inflate the first workspace so its rebuild takes more than one event-loop turn.
+    tests_dir = workspace.path / "Projects" / "Demo" / "tests"
+    for i in range(20):
+        (tests_dir / f"bulk_{i}.robot").write_text(
+            f"*** Keywords ***\nBulk {i}\n    Log    {i}\n"
+            f"*** Test Cases ***\nCase {i}\n    Bulk {i}\n",
+            encoding="utf-8",
+        )
+
+    first = await service.schedule_rebuild(full=False)
+    assert first.state == "indexing"
+    prior_task = service._rebuild_task
+    assert prior_task is not None
+    assert not prior_task.done()
+
+    other_root = tmp_path / "Other"
+    other_root.mkdir()
+    (other_root / "Projects").mkdir()
+    other_project_path = other_root / "Projects" / "Connect"
+    other_project_path.mkdir()
+    (other_project_path / "tests").mkdir()
+    other_suite = other_project_path / "tests" / "hr.robot"
+    other_suite.write_text(
+        "*** Keywords ***\n"
+        "Create User Form Should Be Loaded\n"
+        "    Log    ok\n"
+        "*** Test Cases ***\n"
+        "Open Form\n"
+        "    Create User Form Should Be Loaded\n",
+        encoding="utf-8",
+    )
+    other_ws = Workspace(
+        id=uuid4(),
+        name="Other",
+        path=other_root,
+        created_at=datetime.now(UTC),
+        settings=WorkspaceSettings(),
+    )
+    other_project = Project(
+        id=uuid4(),
+        workspace_id=other_ws.id,
+        name="Connect",
+        path=other_project_path,
+        created_at=datetime.now(UTC),
+        type=ProjectType.EMPTY,
+    )
+    await service.project_repository.create(other_project)
+
+    # Switch workspaces — WorkspaceOpened must cancel prior rebuild and index Other.
+    await context.open(other_ws)
+    await asyncio.sleep(0)
+    new_task = service._rebuild_task
+    assert new_task is not None
+    assert new_task is not prior_task
+    assert service._rebuild_workspace_id == other_ws.id
+    await new_task
+
+    status = await service.get_status()
+    assert status.state == "ready"
+    assert status.files_indexed >= 1
+    hits = await service.search(
+        "Create User Form Should Be Loaded",
+        kind=SymbolKind.KEYWORD,
+    )
+    assert any(item["name"] == "Create User Form Should Be Loaded" for item in hits)
+    # Prior workspace symbols must not leak into the active workspace search.
+    leaked = await service.search("Bulk 0", kind=SymbolKind.KEYWORD)
+    assert not any(item.get("workspace_id") == str(workspace.id) for item in leaked)
+
+
+@pytest.mark.asyncio
 async def test_incremental_rebuild_skips_unchanged_files(index_stack) -> None:
     service, store, _facade, suite, _lib, _bus, _workspace, _project = index_stack
     await service.rebuild()
