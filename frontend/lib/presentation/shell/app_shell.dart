@@ -559,11 +559,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         latest: latest,
       );
     } catch (error) {
-      AppLogger.debug(
-        'Update check failed',
-        tag: 'Shell',
-        data: '$error',
-      );
+      AppLogger.debug('Update check failed', tag: 'Shell', data: '$error');
       if (!silent && mounted) {
         await _showError('Check for updates', error);
       }
@@ -6808,7 +6804,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         controller: _settings,
         leaveBinding: _preferencesLeave,
         backendVersion: _workspace.backendVersion,
-        onOpenUserGuide: () => unawaited(_openUserGuide()),
         onCheckForUpdates: () => unawaited(_checkForUpdates(silent: false)),
       ),
       _CenterView.welcome => WelcomeScreen(

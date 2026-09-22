@@ -89,7 +89,6 @@ class PreferencesPage extends StatefulWidget {
     required this.controller,
     this.leaveBinding,
     this.backendVersion,
-    this.onOpenUserGuide,
     this.onCheckForUpdates,
   });
 
@@ -100,9 +99,6 @@ class PreferencesPage extends StatefulWidget {
 
   /// Local backend version from `/health`, when connected.
   final String? backendVersion;
-
-  /// Opens the public user guide (same as the rail help control).
-  final VoidCallback? onOpenUserGuide;
 
   /// Asks the update middleman whether a newer build is available.
   final VoidCallback? onCheckForUpdates;
@@ -161,9 +157,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
       setState(() => _appInfo = info);
     } catch (_) {
       if (!mounted) return;
-      setState(
-        () => _appInfo = const AppInfo(version: '—', buildNumber: ''),
-      );
+      setState(() => _appInfo = const AppInfo(version: '—', buildNumber: ''));
     }
   }
 
@@ -537,9 +531,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
             _markChanged();
             setState(() {
               _draft = _draft.copyWith(
-                editor: _draft.editor.copyWith(
-                  pythonMemberDiagnostics: value,
-                ),
+                editor: _draft.editor.copyWith(pythonMemberDiagnostics: value),
               );
             });
           },
@@ -809,10 +801,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
             ),
           ),
         ),
-        _InfoRow(
-          label: 'Application',
-          value: info?.appName ?? 'Robot Studio',
-        ),
+        _InfoRow(label: 'Application', value: info?.appName ?? 'Robot Studio'),
         _InfoRow(
           label: 'Version',
           value: info?.displayVersion ?? '…',
@@ -829,38 +818,18 @@ class _PreferencesPageState extends State<PreferencesPage> {
               : 'v$backend',
         ),
         const _InfoRow(label: 'License', value: 'Apache 2.0'),
-        if (widget.onOpenUserGuide != null ||
-            widget.onCheckForUpdates != null) ...[
+        if (widget.onCheckForUpdates != null) ...[
           const SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              if (widget.onCheckForUpdates != null)
-                TextButton.icon(
-                  onPressed: widget.onCheckForUpdates,
-                  icon: const Icon(Icons.system_update_alt, size: 16),
-                  label: const Text(
-                    'Check for Updates',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              if (widget.onOpenUserGuide != null)
-                TextButton.icon(
-                  onPressed: widget.onOpenUserGuide,
-                  icon: const Icon(Icons.menu_book_outlined, size: 16),
-                  label: const Text(
-                    'Open User Guide',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-            ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: widget.onCheckForUpdates,
+              icon: const Icon(Icons.system_update_alt, size: 16),
+              label: const Text(
+                'Check for Updates',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
           ),
         ],
       ],
