@@ -57,11 +57,7 @@ Read-only product information (not saved to `settings.json`):
 | **License** | Apache 2.0 |
 | **Check for Updates** | Asks the update service for a newer release (also runs quietly at startup) |
 
-Update checks call `GET {ROBOT_STUDIO_UPDATE_URL}/v1/latest` (default `https://robot-studio-updates.onrender.com`). The client retries up to **3 times** (45s timeout each) so a sleeping free-tier host can wake. Override when packaging or testing locally:
-
-```bash
-flutter run --dart-define=ROBOT_STUDIO_UPDATE_URL=http://127.0.0.1:8090
-```
+Update checks call `GET https://robot-studio-updates.onrender.com/v1/latest`. The client retries up to **3 times** (45s timeout each) so a sleeping free-tier host can wake.
 
 If a newer version is available, Robot Studio shows **Update available** with links to release notes and download.
 
