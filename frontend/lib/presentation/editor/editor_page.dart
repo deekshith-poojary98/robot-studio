@@ -37,6 +37,12 @@ class EditorPage extends StatefulWidget {
     this.onTabContextAction,
     required this.onContentChanged,
     required this.onSave,
+    this.onGoToDefinition,
+    this.onPeekDefinition,
+    this.onFindReferences,
+    this.onImpactAnalysis,
+    this.onRenameSymbol,
+    this.onFormatDocument,
     required this.onHoverRequest,
     required this.onHoverExit,
     required this.onCtrlClick,
@@ -92,6 +98,12 @@ class EditorPage extends StatefulWidget {
   onTabContextAction;
   final void Function(String path, String content) onContentChanged;
   final VoidCallback onSave;
+  final VoidCallback? onGoToDefinition;
+  final VoidCallback? onPeekDefinition;
+  final VoidCallback? onFindReferences;
+  final VoidCallback? onImpactAnalysis;
+  final VoidCallback? onRenameSymbol;
+  final VoidCallback? onFormatDocument;
   final void Function(int line, int column) onHoverRequest;
   final VoidCallback onHoverExit;
   final void Function(int line, int column) onCtrlClick;
@@ -239,6 +251,12 @@ class EditorPageState extends State<EditorPage> {
                           onHoverRequest: widget.onHoverRequest,
                           onHoverExit: widget.onHoverExit,
                           onSave: widget.onSave,
+                          onGoToDefinition: widget.onGoToDefinition,
+                          onPeekDefinition: widget.onPeekDefinition,
+                          onFindReferences: widget.onFindReferences,
+                          onImpactAnalysis: widget.onImpactAnalysis,
+                          onRenameSymbol: widget.onRenameSymbol,
+                          onFormatDocument: widget.onFormatDocument,
                           onContentChanged: (content) =>
                               widget.onContentChanged(active.path, content),
                           onCursorChanged: widget.onCursorChanged,
@@ -573,7 +591,10 @@ class _ImpactHitTileState extends State<_ImpactHitTile> {
                   const SizedBox(height: 2),
                   Text(
                     hit.why,
-                    style: TextStyle(color: palette.textSecondary, fontSize: 11),
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ],

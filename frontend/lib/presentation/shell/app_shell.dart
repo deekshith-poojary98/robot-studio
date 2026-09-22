@@ -7140,6 +7140,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       onTabContextAction: _handleTabContextAction,
       onContentChanged: _onContentChanged,
       onSave: _saveActive,
+      onGoToDefinition: () => unawaited(_editorGoToDefinition()),
+      onPeekDefinition: () => unawaited(_editorPeekDefinition()),
+      onFindReferences: () => unawaited(_editorFindReferences()),
+      onImpactAnalysis: () => unawaited(_editorImpactAnalysis()),
+      onRenameSymbol: () => unawaited(_editorRenameSymbol()),
+      onFormatDocument: () => unawaited(_editorFormatDocument()),
       onHoverRequest: (line, column) =>
           unawaited(_editor.requestHoverTooltip(line: line, column: column)),
       onHoverExit: _editor.clearHoverTooltip,

@@ -332,6 +332,11 @@ class _CodeSelectionGestureDetectorState extends State<_CodeSelectionGestureDete
     if (_isRemappedDefinitionClick()) {
       return;
     }
+    // VS Code / desktop convention: right-click outside an existing selection
+    // places the caret first so context actions use the clicked symbol.
+    if (!_isPositionOnSelection(details.globalPosition)) {
+      _selectPosition(details.globalPosition, _SelectionChangedCause.tapDown);
+    }
     widget.controller.clearComposing();
     widget.selectionOverlayController.showToolbar(context, details.globalPosition);
   }
