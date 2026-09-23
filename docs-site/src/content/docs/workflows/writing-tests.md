@@ -33,6 +33,7 @@ The Robot editor is multi-tab and understands Robot Framework structure:
 - Editor breadcrumbs for the current file path / structure
 - **Go to Definition** (F12 or Ctrl/Cmd+Click), with a picker when multiple matches exist
 - Find references and document symbols (**Go → Go to Symbol in File…**)
+- **Impact Analysis** (**Go → Impact Analysis** or the command palette) — which tests are affected if you change the keyword at the caret (see [Impact Analysis](/workflows/impact-analysis/))
 - Live diagnostics while you type (including library imports resolved through the active environment)
 - Document **Outline** under Explorer for jumping within the file (Robot suites and Python modules, including Python variables and class fields). Click a symbol to move the caret and scroll it into view.
 - Play control in the gutter of a `.robot` suite — click it (or **Run → Run Test at Cursor**) to run only that test instead of the whole file. See [Run, stop & re-run](/workflows/running-tests/).

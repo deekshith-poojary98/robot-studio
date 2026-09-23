@@ -345,6 +345,75 @@ async def test_analysis_inspection_and_graph_apis(api_client) -> None:
     assert affected.status_code == 200, affected.text
     assert "Can Login" in {item["name"] for item in affected.json()["items"]}
 
+    impact = await client.post(
+        "/api/v1/analysis/graph/impact",
+        json={"symbol": "Login User", "kind": "keyword"},
+    )
+    assert impact.status_code == 200, impact.text
+    impact_body = impact.json()
+    assert impact_body["empty_graph"] is False
+    assert impact_body["entity_count"] >= 5
+    assert impact_body["graph_version"]
+    assert impact_body["symbol"] is not None
+    assert impact_body["symbol"]["name"] == "Login User"
+    hit_names = {item["test"]["name"] for item in impact_body["items"]}
+    uncertain_names = {item["test"]["name"] for item in impact_body["uncertain"]}
+    assert "Can Login" in hit_names | uncertain_names
+    can_login = next(
+        item
+        for item in [*impact_body["items"], *impact_body["uncertain"]]
+        if item["test"]["name"] == "Can Login"
+    )
+    assert can_login["relation"] == "direct_call"
+    assert can_login["depth"] == 1
+    assert can_login["confidence"] in {"exact", "high", "medium", "low"}
+    assert "Can Login" in can_login["why"]
+    assert "Login User" in can_login["why"]
+    assert can_login["suite"] is not None
+    assert can_login["suite"]["kind"] == "suite"
+    if can_login["confidence"] == "low":
+        assert can_login in impact_body["uncertain"]
+    else:
+        assert can_login in impact_body["items"]
+
+    # Resource import path → suites that import it → contained tests
+    resource_impact = await client.post(
+        "/api/v1/analysis/graph/impact",
+        json={"symbol": "common.resource", "kind": "resource"},
+    )
+    assert resource_impact.status_code == 200, resource_impact.text
+    resource_body = resource_impact.json()
+    resource_hits = {
+        item["test"]["name"]
+        for item in [*resource_body["items"], *resource_body["uncertain"]]
+    }
+    assert "Can Login" in resource_hits
+    resource_hit = next(
+        item
+        for item in [*resource_body["items"], *resource_body["uncertain"]]
+        if item["test"]["name"] == "Can Login"
+    )
+    assert resource_hit["relation"] == "resource_import"
+
+    # Variable use (where REFERENCES_VARIABLE is bound)
+    var_impact = await client.post(
+        "/api/v1/analysis/graph/impact",
+        json={"symbol": "${USER}", "kind": "variable"},
+    )
+    assert var_impact.status_code == 200, var_impact.text
+    var_body = var_impact.json()
+    var_hits = {
+        item["test"]["name"]
+        for item in [*var_body["items"], *var_body["uncertain"]]
+    }
+    assert "Can Login" in var_hits
+    var_hit = next(
+        item
+        for item in [*var_body["items"], *var_body["uncertain"]]
+        if item["test"]["name"] == "Can Login"
+    )
+    assert var_hit["relation"] == "variable_use"
+
     vars_refs = await client.get(
         "/api/v1/analysis/graph/variable-references",
         params={"variable": "${USER}"},

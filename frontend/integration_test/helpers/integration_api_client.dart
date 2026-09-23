@@ -8,6 +8,17 @@ class IntegrationApiClient {
 
   final String baseUrl;
 
+  Future<Map<String, dynamic>> updateSettings(Map<String, dynamic> patch) async {
+    return _decode(await _patch('/settings', patch));
+  }
+
+  /// Keeps integration launches on the welcome screen (no auto-restore).
+  Future<Map<String, dynamic>> disableRestoreLastProject() async {
+    return updateSettings({
+      'appearance': {'restore_last_project': false},
+    });
+  }
+
   Future<Map<String, dynamic>> health() async {
     return _decode(await _get('/health'));
   }
@@ -273,8 +284,9 @@ class IntegrationApiClient {
             const <dynamic>[]);
   }
 
-  Future<Map<String, dynamic>> rebuildIndex() async {
-    return _decode(await _post('/index/rebuild', {}));
+  Future<Map<String, dynamic>> rebuildIndex({bool wait = true}) async {
+    final query = wait ? '?wait=true' : '';
+    return _decode(await _post('/index/rebuild$query', {}));
   }
 
   Future<Map<String, dynamic>> indexStatus() async {
@@ -376,6 +388,26 @@ class IntegrationApiClient {
     final client = HttpClient();
     try {
       final request = await client.putUrl(Uri.parse('$baseUrl$path'));
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode(body));
+      final response = await request.close();
+      final text = await response.transform(utf8.decoder).join();
+      return IntegrationHttpResponse(response.statusCode, text);
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<IntegrationHttpResponse> _patch(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final client = HttpClient();
+    try {
+      final request = await client.openUrl(
+        'PATCH',
+        Uri.parse('$baseUrl$path'),
+      );
       request.headers.contentType = ContentType.json;
       request.write(jsonEncode(body));
       final response = await request.close();

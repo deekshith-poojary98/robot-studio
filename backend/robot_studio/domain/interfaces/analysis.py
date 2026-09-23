@@ -12,6 +12,7 @@ from robot_studio.domain.models.analysis import (
     EntityRef,
     Finding,
     GraphVersion,
+    ImpactReport,
     InspectionInfo,
     InspectionReport,
     SemanticEdge,
@@ -143,6 +144,17 @@ class AnalysisEngine(ABC):
         changed_files: list[str] | None = None,
         changed_symbols: list[str] | None = None,
     ) -> list[EntityRef]: ...
+
+    @abstractmethod
+    async def impact_analysis(
+        self,
+        project_id: UUID,
+        *,
+        symbol: str | None = None,
+        kind: str | None = None,
+        changed_files: list[str] | None = None,
+        changed_symbols: list[str] | None = None,
+    ) -> ImpactReport: ...
 
     @abstractmethod
     async def variable_references(self, project_id: UUID, variable: str) -> list[EdgeRef]: ...

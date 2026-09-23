@@ -37,7 +37,7 @@ void main() {
     await tapEditorFormat(tester);
     await tester.pump(const Duration(milliseconds: 500));
 
-    await tapText(tester, 'Save');
+    await saveActiveEditor(tester);
     await tester.pump(const Duration(milliseconds: 500));
 
     final persisted = await harness.api.readFile(suitePath);
@@ -45,7 +45,7 @@ void main() {
     expect(persisted['content'], contains('Log'));
 
     await scrollToAndTap(tester, find.text('second.robot'));
-    await pumpUntilFound(tester, find.text('Second'));
+    await pumpUntilFound(tester, find.text('second.robot'));
 
     expect(find.text('sample.robot'), findsWidgets);
     expect(find.text('second.robot'), findsWidgets);

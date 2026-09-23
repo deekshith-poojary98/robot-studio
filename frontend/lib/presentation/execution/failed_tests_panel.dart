@@ -38,52 +38,31 @@ class FailedTestsPanel extends StatelessWidget {
     }
 
     final theme = Theme.of(context);
-    final list = failures.length > 4
-        ? ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: embedded ? 280 : 220),
-            child: ListView.separated(
-              shrinkWrap: true,
-              physics: embedded
-                  ? const ClampingScrollPhysics()
-                  : const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.symmetric(
-                vertical: embedded ? 0 : AppSpacing.sm,
-              ),
-              itemCount: failures.length,
-              separatorBuilder: (context, index) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final failure = failures[index];
-                return _FailureRow(
-                  failure: failure,
-                  dense: embedded,
-                  onJump: onJumpToSource == null || !failure.canJump
-                      ? null
-                      : () => onJumpToSource!(failure),
-                  onRerun: onRerunTest == null || !failure.canJump
-                      ? null
-                      : () => onRerunTest!(failure),
-                );
-              },
-            ),
-          )
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var index = 0; index < failures.length; index++) ...[
-                if (index > 0) const Divider(height: 1),
-                _FailureRow(
-                  failure: failures[index],
-                  dense: embedded,
-                  onJump: onJumpToSource == null || !failures[index].canJump
-                      ? null
-                      : () => onJumpToSource!(failures[index]),
-                  onRerun: onRerunTest == null || !failures[index].canJump
-                      ? null
-                      : () => onRerunTest!(failures[index]),
-                ),
-              ],
-            ],
+    // Always constrain + scroll — ≤4 tall failure rows (long TimeoutErrors,
+    // Jump/Re-run) used to grow unboundedly and shove Live Output off-screen.
+    final list = ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: embedded ? 280 : 240),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const ClampingScrollPhysics(),
+        padding: EdgeInsets.symmetric(vertical: embedded ? 0 : AppSpacing.sm),
+        itemCount: failures.length,
+        separatorBuilder: (context, index) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final failure = failures[index];
+          return _FailureRow(
+            failure: failure,
+            dense: embedded,
+            onJump: onJumpToSource == null || !failure.canJump
+                ? null
+                : () => onJumpToSource!(failure),
+            onRerun: onRerunTest == null || !failure.canJump
+                ? null
+                : () => onRerunTest!(failure),
           );
+        },
+      ),
+    );
 
     if (embedded) return list;
 

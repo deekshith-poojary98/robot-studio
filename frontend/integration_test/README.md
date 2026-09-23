@@ -101,6 +101,12 @@ Dart defines injected by the script:
 | `functional_plugins_test.dart` | Functional TC PL-01…PL-07 (plugins; PL-07 skip) |
 | `functional_ux_test.dart` | Functional TC UX-01…UX-08 (guidance / gating) |
 | `functional_crosscut_test.dart` | Functional TC XR-01…XR-06 (smoke / stress; XR-05 skip) |
+| `functional_impact_test.dart` | Functional TC IA-01…IA-04 (Impact Analysis / Run Impact Set) |
+| `functional_doctor_test.dart` | Functional TC DR-01…DR-04 (Robot Doctor findings flow) |
+| `functional_settings_test.dart` | Functional TC ST-01…ST-04 (Settings preferences UI) |
+| `functional_run_configuration_test.dart` | Functional TC RC-01…RC-04 (run configuration chip / dialogs) |
+| `functional_libraries_test.dart` | Functional TC LB-01…LB-03 (Libraries panel; first-class) |
+| `functional_terminal_test.dart` | Functional TC TM-01…TM-04 (Terminal chrome beyond tab existence; PTY off under `FLUTTER_TEST`) |
 | `startup_test.dart` | App launch, backend connection, welcome shell |
 | `workspace_flow_test.dart` | Create / open workspace |
 | `project_flow_test.dart` | Create / import / select projects |
@@ -128,7 +134,7 @@ Some suites (environment creation with `installRobot: true`, package install, ex
 | `helpers/integration_api_client.dart` | REST setup, verification, async polling |
 | `helpers/integration_harness.dart` | Shared lifecycle, app launch, seed helpers (`openRecentWorkspace` waits for welcome to dismiss — not the workspace title, which disappears when a project auto-opens) |
 | `helpers/integration_fixtures.dart` | Shared fixture paths / seed data |
-| `helpers/ui_helpers.dart` | UI interaction and condition-based waits (incl. `tapEditorFormat` / `tapEditorFind` / `tapEditorMenuAction` via the command palette) |
+| `helpers/ui_helpers.dart` | UI interaction and condition-based waits (incl. `tapEditorFormat` / `tapEditorFind` / `tapEditorMenuAction` via the command palette; `openSettings` / `openDoctor` / `openLibraries` / `selectOutlineSymbol` / `openRunConfigurationMenu`) |
 | `helpers/performance_tracker.dart` | Timing logs (no pass/fail thresholds) |
 | `fixtures/sample.robot` | Sample suite |
 | `fixtures/test_plugin/` | Fake plugin (`plugin.json` + `plugin.py`) |
@@ -137,10 +143,16 @@ Live workspace events (`/api/v1/workspace/events`) are covered by backend `tests
 
 Tests avoid arbitrary `sleep()` and wait for visible UI states instead.
 
+The harness disables **Restore last project** via settings so API-seeded
+recent projects/workspaces do not auto-open and skip the welcome screen.
+
 After the pre-M14 UX polish pass, suites reach language navigation through the editor
 overflow menu is gone — use `tapEditorMenuAction(tester, 'definition' | 'peek' | 'references' | 'hover' | …)` (command palette) or the window **Go** / **Edit** menus
 rather than permanent toolbar buttons, and the bottom panel has Terminal / 
 Problems — run output is on the Tests view; SH-08 asserts Execution Logs is gone.
+
+Welcome branding is the wordmark image (`Key('welcome.wordmark')`), not
+`Text('Robot Studio')`.
 
 ---
 

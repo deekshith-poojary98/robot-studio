@@ -73,6 +73,8 @@ See [What is Robot Studio?](/getting-started/overview/) for the loop that must a
 
 After freeze, the first post-beta bet is turning semantic models into **change-aware RF workflows**.
 
+**1.1.0 ships Impact Analysis** (keyword / resource / variable → affected tests → **Run Impact Set**). See the [Impact Analysis](/workflows/impact-analysis/) workflow and `RELEASE_NOTES.md`. Safe Rename remains the next epic.
+
 ### Candidate set (evaluated)
 
 | Priority | Capability | Verdict |

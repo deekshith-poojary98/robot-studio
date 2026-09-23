@@ -70,7 +70,7 @@ void main() {
       '/nonexistent/robot-studio/integration/path',
     );
     await submitDialog(tester, actionLabel: 'Create');
-    await pumpUntilFound(tester, find.text('Workspace error'));
+    await pumpUntilFound(tester, find.text('Could not open that folder'));
     await dismissErrorDialogIfPresent(tester);
 
     harness.expectNoFlutterErrors();

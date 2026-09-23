@@ -22,6 +22,7 @@ class IntegrationHarness {
   final PerformanceTracker performance = PerformanceTracker();
   final List<FlutterErrorDetails> flutterErrors = [];
   bool _initialized = false;
+  String? _lastEnvironmentId;
 
   Future<void> setUpAll() async {
     IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -55,6 +56,9 @@ class IntegrationHarness {
       );
     }
     api = IntegrationApiClient(baseUrl: '${backend!.baseUrl}/api/v1');
+    // Session restore skips the welcome screen after API seeds create
+    // recent projects/workspaces — disable it so launchApp stays stable.
+    await api.disableRestoreLastProject();
 
     final previousHandler = FlutterError.onError;
     FlutterError.onError = (details) {
@@ -89,6 +93,13 @@ class IntegrationHarness {
   }) async {
     await launchApp(tester);
     await openRecentWorkspace(tester, workspaceName);
+    // Opening a workspace can clear package/env binding for API clients.
+    final envId = _lastEnvironmentId;
+    if (envId != null) {
+      try {
+        await api.activateEnvironment(envId);
+      } catch (_) {}
+    }
   }
 
   Future<void> openRecentWorkspace(
@@ -143,6 +154,7 @@ class IntegrationHarness {
     if (activate) {
       final id = created['id'] as String?;
       if (id != null) {
+        _lastEnvironmentId = id;
         await api.activateEnvironment(id);
       }
     }

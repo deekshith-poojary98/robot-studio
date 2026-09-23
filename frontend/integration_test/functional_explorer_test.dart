@@ -77,7 +77,7 @@ void main() {
       projectName: 'ExOpen',
     );
     await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
-    expect(find.textContaining('Sample'), findsWidgets);
+    expect(find.text('sample.robot'), findsWidgets);
 
     harness.expectNoFlutterErrors();
   });
@@ -120,14 +120,16 @@ void main() {
       'sample.robot',
       projectName: 'ExTabs',
     );
-    await pumpUntilFound(tester, find.textContaining('Sample'));
+    await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
+    expect(find.text('sample.robot'), findsWidgets);
 
     await openRobotFileInExplorer(
       tester,
       'second.robot',
       projectName: 'ExTabs',
     );
-    await pumpUntilFound(tester, find.textContaining('Second'));
+    await pumpUntilFound(tester, find.text('second.robot'));
+    expect(find.text('sample.robot'), findsWidgets);
 
     expect(find.text('sample.robot'), findsWidgets);
     expect(find.text('second.robot'), findsWidgets);
@@ -140,7 +142,7 @@ void main() {
     await pumpUntilFound(tester, sampleTab);
     await tester.tap(sampleTab);
     await tester.pump(const Duration(milliseconds: 400));
-    await pumpUntilFound(tester, find.textContaining('Sample'));
+    expect(find.text('sample.robot'), findsWidgets);
 
     harness.expectNoFlutterErrors();
   });
@@ -214,7 +216,7 @@ void main() {
     await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
     await tapEditorFormat(tester);
     await tester.pump(const Duration(milliseconds: 400));
-    await tapText(tester, 'Save');
+    await saveActiveEditor(tester);
     await tester.pump(const Duration(milliseconds: 500));
 
     final persisted = await harness.api.readFile(files.sample);

@@ -56,7 +56,7 @@ Run Hello
     await tapSidebarPanel(tester, 'Insights');
     await pumpUntilFound(tester, find.text('Composition'));
     await pumpUntilFound(tester, find.text('Keywords'));
-    expect(find.text('Test Cases'), findsWidgets);
+    expect(find.text('Test cases'), findsWidgets);
 
     harness.expectNoFlutterErrors();
   });
@@ -153,7 +153,7 @@ Run Hello
     );
     await harness.launchAppWithWorkspace(tester, workspaceName: 'IX Suites');
     await tapSidebarPanel(tester, 'Tests');
-    await pumpUntilFound(tester, find.text('Test Suites'));
+    await pumpUntilFound(tester, find.byKey(const Key('test-explorer-search')));
     await pumpUntilFound(tester, find.text('Live Output'));
 
     await pumpUntilFound(
@@ -161,7 +161,7 @@ Run Hello
       find.textContaining('ix06_listed'),
       timeout: const Duration(seconds: 60),
     );
-    expect(find.textContaining('No suites indexed yet'), findsNothing);
+    expect(find.textContaining('No tests yet'), findsNothing);
 
     harness.expectNoFlutterErrors();
   });
@@ -181,6 +181,8 @@ Run Hello
       find.textContaining('ix07_open'),
       timeout: const Duration(seconds: 60),
     );
+    await tester.tap(find.textContaining('ix07_open').first);
+    await tester.pump(const Duration(milliseconds: 50));
     await tester.tap(find.textContaining('ix07_open').first);
     await tester.pump(const Duration(milliseconds: 600));
 

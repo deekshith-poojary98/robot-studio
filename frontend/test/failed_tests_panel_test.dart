@@ -175,6 +175,56 @@ void main() {
     expect(find.text('Re-run Test'), findsOneWidget);
   });
 
+  testWidgets('Execution page keeps Live Output visible with several failures', (
+    tester,
+  ) async {
+    // Short window + four tall TimeoutError rows used to shove Live Output off-screen.
+    await tester.binding.setSurfaceSize(const Size(1200, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    const longMsg =
+        'TimeoutError: locator.waitFor: Timeout 10000ms exceeded.\n'
+        "Call log:\n  - waiting for locator(\"//h2[.='connectHR']\") "
+        'to be visible for 10s\n'
+        '  - waiting for "networkidle"';
+
+    final failures = [
+      for (var i = 1; i <= 4; i++)
+        RunTestFailureInfo(
+          runId: 'run-dash',
+          name: 'TC-DASH-00$i',
+          message: longMsg,
+          source: '/proj/tests/dashboard_test.robot',
+          line: 10 + i,
+        ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ExecutionPage(
+            consoleLines: const ['[ FAIL ] TC-DASH-001'],
+            status: ExecutionStatus.failed,
+            currentRun: null,
+            failedTests: failures,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Failed Tests'), findsOneWidget);
+    expect(find.text('Live Output'), findsOneWidget);
+
+    final liveTop = tester.getTopLeft(find.text('Live Output')).dy;
+    expect(
+      liveTop,
+      lessThan(640 - 120),
+      reason: 'Live Output must stay above the bottom chrome, not clipped away',
+    );
+    // Failed list is constrained and scrollable (not an unbounded Column).
+    expect(find.byType(ListView), findsWidgets);
+  });
+
   testWidgets('Execution page hides Failed Tests skeleton on a passing run', (
     tester,
   ) async {

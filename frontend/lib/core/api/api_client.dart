@@ -292,6 +292,21 @@ class ApiClient implements TransportGateway {
       _gateway.getRunFailures(runId);
 
   @override
+  Future<ImpactReportInfo> analysisImpact({
+    String? symbol,
+    String? kind,
+    List<String>? changedFiles,
+    List<String>? changedSymbols,
+    String? projectId,
+  }) => _gateway.analysisImpact(
+    symbol: symbol,
+    kind: kind,
+    changedFiles: changedFiles,
+    changedSymbols: changedSymbols,
+    projectId: projectId,
+  );
+
+  @override
   Future<IndexedSymbolInfo?> languageDefinition({
     String? name,
     String? symbolId,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/gateway/models/file_info.dart';
+import '../../core/gateway/models/impact_info.dart';
 import '../../core/gateway/models/index_info.dart';
 import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
@@ -18,6 +19,11 @@ class EditorPage extends StatefulWidget {
     required this.wordWrap,
     required this.hover,
     required this.references,
+    this.impact,
+    this.onOpenImpactHit,
+    this.onDismissImpact,
+    this.onRunImpactSet,
+    this.runImpactEnabled = true,
     required this.statusMessage,
     this.onDismissStatusMessage,
     required this.breadcrumb,
@@ -31,6 +37,12 @@ class EditorPage extends StatefulWidget {
     this.onTabContextAction,
     required this.onContentChanged,
     required this.onSave,
+    this.onGoToDefinition,
+    this.onPeekDefinition,
+    this.onFindReferences,
+    this.onImpactAnalysis,
+    this.onRenameSymbol,
+    this.onFormatDocument,
     required this.onHoverRequest,
     required this.onHoverExit,
     required this.onCtrlClick,
@@ -65,6 +77,11 @@ class EditorPage extends StatefulWidget {
   final bool wordWrap;
   final HoverInfo? hover;
   final List<SymbolReferenceInfo> references;
+  final ImpactReportInfo? impact;
+  final ValueChanged<ImpactHitInfo>? onOpenImpactHit;
+  final VoidCallback? onDismissImpact;
+  final VoidCallback? onRunImpactSet;
+  final bool runImpactEnabled;
   final String? statusMessage;
 
   /// Dismisses the notice before its auto-expiry.
@@ -81,6 +98,12 @@ class EditorPage extends StatefulWidget {
   onTabContextAction;
   final void Function(String path, String content) onContentChanged;
   final VoidCallback onSave;
+  final VoidCallback? onGoToDefinition;
+  final VoidCallback? onPeekDefinition;
+  final VoidCallback? onFindReferences;
+  final VoidCallback? onImpactAnalysis;
+  final VoidCallback? onRenameSymbol;
+  final VoidCallback? onFormatDocument;
   final void Function(int line, int column) onHoverRequest;
   final VoidCallback onHoverExit;
   final void Function(int line, int column) onCtrlClick;
@@ -228,6 +251,12 @@ class EditorPageState extends State<EditorPage> {
                           onHoverRequest: widget.onHoverRequest,
                           onHoverExit: widget.onHoverExit,
                           onSave: widget.onSave,
+                          onGoToDefinition: widget.onGoToDefinition,
+                          onPeekDefinition: widget.onPeekDefinition,
+                          onFindReferences: widget.onFindReferences,
+                          onImpactAnalysis: widget.onImpactAnalysis,
+                          onRenameSymbol: widget.onRenameSymbol,
+                          onFormatDocument: widget.onFormatDocument,
                           onContentChanged: (content) =>
                               widget.onContentChanged(active.path, content),
                           onCursorChanged: widget.onCursorChanged,
@@ -253,12 +282,19 @@ class EditorPageState extends State<EditorPage> {
                           onBindState: (state) => _editor = state,
                         ),
                       ),
-                      if (widget.hover != null || widget.references.isNotEmpty)
+                      if (widget.hover != null ||
+                          widget.references.isNotEmpty ||
+                          widget.impact != null)
                         SizedBox(
-                          width: 260,
+                          width: 280,
                           child: _LanguageSidePanel(
                             hover: widget.hover,
                             references: widget.references,
+                            impact: widget.impact,
+                            onOpenImpactHit: widget.onOpenImpactHit,
+                            onDismissImpact: widget.onDismissImpact,
+                            onRunImpactSet: widget.onRunImpactSet,
+                            runImpactEnabled: widget.runImpactEnabled,
                           ),
                         ),
                     ],
@@ -271,17 +307,31 @@ class EditorPageState extends State<EditorPage> {
 }
 
 class _LanguageSidePanel extends StatelessWidget {
-  const _LanguageSidePanel({required this.hover, required this.references});
+  const _LanguageSidePanel({
+    required this.hover,
+    required this.references,
+    this.impact,
+    this.onOpenImpactHit,
+    this.onDismissImpact,
+    this.onRunImpactSet,
+    this.runImpactEnabled = true,
+  });
 
   final HoverInfo? hover;
   final List<SymbolReferenceInfo> references;
+  final ImpactReportInfo? impact;
+  final ValueChanged<ImpactHitInfo>? onOpenImpactHit;
+  final VoidCallback? onDismissImpact;
+  final VoidCallback? onRunImpactSet;
+  final bool runImpactEnabled;
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       decoration: BoxDecoration(
-        color: context.palette.surface,
-        border: Border(left: BorderSide(color: context.palette.borderSubtle)),
+        color: palette.surface,
+        border: Border(left: BorderSide(color: palette.borderSubtle)),
       ),
       child: ListView(
         padding: const EdgeInsets.all(12),
@@ -297,6 +347,135 @@ class _LanguageSidePanel extends StatelessWidget {
             if (hover!.documentation.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(hover!.documentation),
+            ],
+            const SizedBox(height: 14),
+          ],
+          if (impact != null) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Impact',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (onDismissImpact != null)
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: onDismissImpact,
+                    icon: const Icon(Icons.close, size: 16),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              impact!.symbol == null
+                  ? 'No matching symbol in the analysis graph'
+                  : '${impact!.symbol!.kind}: ${impact!.symbol!.name}',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (impact!.emptyGraph) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Analysis graph is empty. Rebuild the index after opening a Robot project.',
+                style: TextStyle(color: palette.warning, fontSize: 12),
+              ),
+            ] else if (impact!.allHits.isEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'No affected tests.',
+                style: TextStyle(color: palette.textMuted, fontSize: 12),
+              ),
+            ] else ...[
+              if (onRunImpactSet != null) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton(
+                    onPressed: runImpactEnabled && impact!.items.isNotEmpty
+                        ? onRunImpactSet
+                        : null,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 28),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      visualDensity: VisualDensity.compact,
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    child: Text(
+                      impact!.items.isEmpty
+                          ? 'Run Impact Set'
+                          : 'Run Impact Set (${impact!.items.length})',
+                    ),
+                  ),
+                ),
+                if (impact!.items.isEmpty && impact!.uncertain.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Only uncertain hits — review them before running.',
+                    style: TextStyle(color: palette.textMuted, fontSize: 11),
+                  ),
+                ],
+              ],
+              if (impact!.items.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Affected (${impact!.items.length})',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                ...impact!.items.map(
+                  (hit) => _ImpactHitTile(
+                    hit: hit,
+                    uncertain: false,
+                    onTap: onOpenImpactHit == null
+                        ? null
+                        : () => onOpenImpactHit!(hit),
+                  ),
+                ),
+              ],
+              if (impact!.uncertain.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Uncertain (${impact!.uncertain.length})',
+                  style: TextStyle(
+                    color: palette.warning,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Low-confidence bindings — review before relying on these.',
+                  style: TextStyle(color: palette.textMuted, fontSize: 11),
+                ),
+                const SizedBox(height: 4),
+                ...impact!.uncertain.map(
+                  (hit) => _ImpactHitTile(
+                    hit: hit,
+                    uncertain: true,
+                    onTap: onOpenImpactHit == null
+                        ? null
+                        : () => onOpenImpactHit!(hit),
+                  ),
+                ),
+              ],
             ],
             const SizedBox(height: 14),
           ],
@@ -327,6 +506,101 @@ class _LanguageSidePanel extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _ImpactHitTile extends StatefulWidget {
+  const _ImpactHitTile({
+    required this.hit,
+    required this.uncertain,
+    this.onTap,
+  });
+
+  final ImpactHitInfo hit;
+  final bool uncertain;
+  final VoidCallback? onTap;
+
+  @override
+  State<_ImpactHitTile> createState() => _ImpactHitTileState();
+}
+
+class _ImpactHitTileState extends State<_ImpactHitTile> {
+  bool _hovered = false;
+
+  String get _relationLabel {
+    switch (widget.hit.relation) {
+      case 'direct_call':
+        return 'Direct';
+      case 'transitive_call':
+        return 'Transitive';
+      case 'resource_import':
+        return 'Import';
+      case 'variable_use':
+        return 'Variable';
+      case 'self':
+        return 'Self';
+      default:
+        return widget.hit.relation;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final hit = widget.hit;
+    final pathLabel = hit.test.filePath.replaceAll('\\', '/').split('/').last;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: widget.onTap == null
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: ColoredBox(
+          color: _hovered ? palette.surfaceHover : Colors.transparent,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hit.test.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _hovered ? palette.accent : palette.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$pathLabel:${hit.test.line} · $_relationLabel · ${hit.confidence}',
+                  style: TextStyle(
+                    color: widget.uncertain
+                        ? palette.warning
+                        : palette.textMuted,
+                    fontSize: 11,
+                  ),
+                ),
+                if (hit.why.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    hit.why,
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

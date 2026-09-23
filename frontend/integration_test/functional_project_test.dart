@@ -183,37 +183,24 @@ void main() {
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('PR-09 run without environment shows guidance', (tester) async {
+  testWidgets('PR-09 run without environment is gated on the toolbar',
+      (tester) async {
     await harness.seedWorkspace(name: 'PR NoEnv', suffix: 'pr-09');
     await harness.seedProject(name: 'NeedsEnv');
     // No environment seeded / activated.
     await harness.launchAppWithWorkspace(tester, workspaceName: 'PR NoEnv');
     await openProjectInExplorer(tester, projectName: 'NeedsEnv');
 
-    // Enabled Run Project tooltip (not the label text).
-    final runProject = find.byTooltip('Run the selected project');
-    await pumpUntilFound(tester, runProject);
-    await tester.tap(runProject.first);
-    await tester.pump();
-
-    await pumpUntilFound(
-      tester,
-      find.byType(AlertDialog),
-      timeout: const Duration(seconds: 15),
+    await pumpUntilFound(tester, find.byKey(const Key('toolbar.run-project')));
+    // Without an env / Robot, Project run stays disabled with guidance tooltip
+    // (toolbar does not fire the run handler when canRunProject is false).
+    expect(
+      find.byTooltip(
+        "Robot Framework isn't installed in the selected environment.\n"
+        'Install Robot Framework…',
+      ),
+      findsWidgets,
     );
-    expect(find.textContaining('environment'), findsWidgets);
-
-    // Dismiss guidance.
-    final cancel = find.descendant(
-      of: find.byType(AlertDialog),
-      matching: find.text('Cancel'),
-    );
-    if (tester.widgetList(cancel).isNotEmpty) {
-      await tester.tap(cancel.last);
-      await tester.pump();
-    } else {
-      await dismissErrorDialogIfPresent(tester);
-    }
 
     harness.expectNoFlutterErrors();
   });

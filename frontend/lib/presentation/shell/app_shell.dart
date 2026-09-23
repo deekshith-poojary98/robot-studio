@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/backend_host.dart';
+import '../../core/app_info.dart';
 import '../../core/gateway/models/workspace_event_info.dart';
 import '../../core/gateway/rest_transport_gateway.dart';
 import '../../core/gateway/transport_gateway.dart';
@@ -15,8 +16,12 @@ import '../../core/logging/app_logger.dart';
 import '../../core/platform/studio_file_picker.dart';
 import '../../core/settings/app_settings_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/updates/update_check_config.dart';
+import '../../core/updates/update_check_service.dart';
+import '../../core/updates/update_info.dart';
 import '../preferences/preferences_leave_binding.dart';
 import '../preferences/preferences_page.dart';
+import '../updates/update_available_dialog.dart';
 import '../widgets/unsaved_changes_dialog.dart';
 import '../environment/clone_environment_dialog.dart';
 import '../environment/create_environment_dialog.dart';
@@ -198,6 +203,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   bool _showInsightsPage = false;
   bool _showSettingsPage = false;
   final _preferencesLeave = PreferencesLeaveBinding();
+  bool _startupUpdatePromptShown = false;
   List<IndexedSymbolInfo> _testSuites = [];
   TestNodeInfo? _testTree;
   int _testTreeLoadId = 0;
@@ -212,6 +218,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   bool _showEditorPage = false;
   HoverInfo? _editorHover;
   List<SymbolReferenceInfo> _editorReferences = [];
+  ImpactReportInfo? _editorImpact;
+  String? _impactSeedSymbol;
+  String? _impactSeedKind;
+  int _impactRequestId = 0;
+  Timer? _impactRefreshDebounce;
 
   String get _backendStatus => _workspace.backendStatus;
   WorkspaceInfo? get _activeWorkspace => _workspace.activeWorkspace;
@@ -500,6 +511,59 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       tag: 'Shell',
       data: 'backend=$_backendStatus',
     );
+    unawaited(_checkForUpdates(silent: true));
+  }
+
+  /// Asks the update middleman for the latest release.
+  ///
+  /// [silent] skips dialogs when already current or when the service is down
+  /// (startup). Manual About checks always report the outcome.
+  Future<void> _checkForUpdates({required bool silent}) async {
+    if (!isUpdateCheckConfigured) {
+      if (!silent && mounted) {
+        await _showError(
+          'Check for updates',
+          'Update service URL is not configured.',
+        );
+      }
+      return;
+    }
+
+    try {
+      final app = await AppInfo.load();
+      final latest = await UpdateCheckService().fetchLatest();
+      if (!mounted) return;
+
+      final newer = isUpdateNewer(
+        latest: latest,
+        currentVersion: app.version,
+        currentBuild: app.buildNumber,
+      );
+
+      if (!newer) {
+        if (!silent) {
+          await showUpToDateDialog(
+            context,
+            currentDisplayVersion: app.displayVersion,
+          );
+        }
+        return;
+      }
+
+      if (silent && _startupUpdatePromptShown) return;
+      if (silent) _startupUpdatePromptShown = true;
+
+      await showUpdateAvailableDialog(
+        context,
+        currentDisplayVersion: app.displayVersion,
+        latest: latest,
+      );
+    } catch (error) {
+      AppLogger.debug('Update check failed', tag: 'Shell', data: '$error');
+      if (!silent && mounted) {
+        await _showError('Check for updates', error);
+      }
+    }
   }
 
   /// Reopen the project/workspace the UI still shows after a backend restart.
@@ -1958,6 +2022,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _editor.documentOutline = [];
       _editorHover = null;
       _editorReferences = [];
+      _editorImpact = null;
       _editor.setStatusMessage(null);
       _editor.jumpToLine = null;
       _editor.jumpToColumn = null;
@@ -2312,14 +2377,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _openUserGuide() async {
-    const url = 'https://deekshith-poojary98.github.io/robot-studio/';
-    if (Platform.isMacOS) {
-      await Process.run('open', [url]);
-    } else if (Platform.isWindows) {
-      await Process.run('cmd', ['/c', 'start', '', url]);
-    } else {
-      await Process.run('xdg-open', [url]);
-    }
+    await openExternalUrl(
+      'https://deekshith-poojary98.github.io/robot-studio/',
+    );
   }
 
   void _cycleEditorTab({required bool forward}) {
@@ -3455,7 +3515,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _trackRecentFile(String path) => _editor.trackRecentFile(path);
 
-  Future<void> _openFile(String path, {int? line, int? column}) async {
+  Future<void> _openFile(
+    String path, {
+    int? line,
+    int? column,
+    bool clearSidePanels = true,
+  }) async {
     AppLogger.info(
       'Open file',
       tag: 'Shell',
@@ -3477,8 +3542,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
-        _editorReferences = [];
-        _editor.setStatusMessage(null);
+        // Keep Impact / References when jumping from a panel hit.
+        if (clearSidePanels) {
+          _editorReferences = [];
+          _editorImpact = null;
+          _editor.setStatusMessage(null);
+        }
       });
       _trackRecentFile(path);
       await _selectTab(path);
@@ -3510,8 +3579,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _editor.jumpToLine = line;
         _editor.jumpToColumn = column;
         _editorHover = null;
-        _editorReferences = [];
-        _editor.setStatusMessage(null);
+        if (clearSidePanels) {
+          _editorReferences = [];
+          _editorImpact = null;
+          _editor.setStatusMessage(null);
+        }
         _busy = false;
       });
       _trackRecentFile(file.path);
@@ -3588,6 +3660,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       ];
       _editorHover = null;
       _editorReferences = [];
+      _editorImpact = null;
     });
     if (nextPath != null) {
       await _loadOutline(nextPath!);
@@ -3671,6 +3744,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _editor.jumpToColumn = null;
       _editorHover = null;
       _editorReferences = [];
+      _editorImpact = null;
       _editor.setStatusMessage(null);
     });
     _editor.onActiveTabChanged();
@@ -3916,6 +3990,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (active != null && EditorShellController.isSourcePath(active)) {
       await _loadOutline(active);
       _scheduleLanguageRefresh();
+    }
+    if (_editorImpact != null &&
+        _impactSeedSymbol != null &&
+        _impactSeedSymbol!.isNotEmpty) {
+      _impactRefreshDebounce?.cancel();
+      _impactRefreshDebounce = Timer(const Duration(milliseconds: 400), () {
+        if (!mounted) return;
+        unawaited(_editorImpactAnalysis(refresh: true));
+      });
     }
   }
 
@@ -4775,6 +4858,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _editor.setStatusMessage(null);
       _editorHover = null;
       _editorReferences = [];
+      _editorImpact = null;
     });
 
     try {
@@ -4880,7 +4964,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     setState(() {
       _editor.setStatusMessage(null);
       _editorReferences = [];
+      _editorImpact = null;
       _editorHover = null;
+      _editorImpact = null;
     });
 
     try {
@@ -4904,6 +4990,188 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _editorImpactAnalysis({bool refresh = false}) async {
+    final token = refresh
+        ? (_impactSeedSymbol ?? _editorCursorToken() ?? _editorTokenName())
+        : (_editorCursorToken() ?? _editorTokenName());
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _editor.setStatusMessage(
+          'Place the cursor on a keyword, resource, or variable '
+          '(or select one in the outline).',
+        );
+      });
+      return;
+    }
+
+    final kind = refresh
+        ? (_impactSeedKind ?? _impactKindForToken(token))
+        : _impactKindForToken(token);
+    final requestId = ++_impactRequestId;
+
+    setState(() {
+      _impactSeedSymbol = token;
+      _impactSeedKind = kind;
+      _editor.setStatusMessage(
+        refresh
+            ? 'Refreshing impact for "$token"…'
+            : 'Analyzing impact for "$token"…',
+      );
+      if (!refresh) {
+        _editorImpact = null;
+        _editorReferences = [];
+        _editorHover = null;
+      }
+    });
+
+    try {
+      final report = await _gateway.analysisImpact(symbol: token, kind: kind);
+      if (!mounted || requestId != _impactRequestId) return;
+      setState(() {
+        _editorImpact = report;
+        if (report.emptyGraph) {
+          _editor.setStatusMessage(
+            'Analysis graph is empty — rebuild the index after opening a Robot project.',
+          );
+        } else if (report.symbol == null && report.seeds.isEmpty) {
+          _editor.setStatusMessage('No analysis symbol matched "$token".');
+        } else if (report.allHits.isEmpty) {
+          final label = report.symbol?.name ?? token;
+          _editor.setStatusMessage('No affected tests for "$label".');
+        } else {
+          final certain = report.items.length;
+          final uncertain = report.uncertain.length;
+          _editor.setStatusMessage(
+            uncertain == 0
+                ? 'Impact: $certain affected test${certain == 1 ? '' : 's'}.'
+                : 'Impact: $certain affected, $uncertain uncertain.',
+          );
+        }
+      });
+    } catch (error) {
+      if (requestId != _impactRequestId) return;
+      _appendLog('[warn] Impact analysis failed: $error');
+      if (!mounted) return;
+      setState(() => _editor.setStatusMessage(null));
+      if (!refresh) {
+        await _showError('Impact Analysis', error);
+      }
+    }
+  }
+
+  /// Detect seed kind for Impact: outline wins, else token shape.
+  String _impactKindForToken(String token) {
+    final outline = _selectedOutlineSymbol;
+    if (outline != null &&
+        outline.name.isNotEmpty &&
+        (outline.name == token ||
+            outline.name.replaceAll(RegExp(r'\s+'), ' ') ==
+                token.replaceAll(RegExp(r'\s+'), ' '))) {
+      switch (outline.kind) {
+        case SymbolKind.variable:
+          return 'variable';
+        case SymbolKind.resource:
+        case SymbolKind.file:
+          return 'resource';
+        case SymbolKind.keyword:
+        case SymbolKind.keywordCall:
+          return 'keyword';
+        default:
+          break;
+      }
+    }
+    final trimmed = token.trim();
+    if (RegExp(r'^[\$@&%]\{').hasMatch(trimmed)) {
+      return 'variable';
+    }
+    final lower = trimmed.toLowerCase();
+    if (lower.endsWith('.resource') ||
+        lower.contains('/') ||
+        lower.contains(r'\') ||
+        lower.contains('..')) {
+      return 'resource';
+    }
+    return 'keyword';
+  }
+
+  void _openImpactHit(ImpactHitInfo hit) {
+    unawaited(
+      _openFile(
+        hit.test.filePath,
+        line: hit.test.line,
+        column: hit.test.column,
+        clearSidePanels: false,
+      ),
+    );
+  }
+
+  Future<void> _handleRunImpactSet() async {
+    final report = _editorImpact;
+    if (report == null) {
+      if (!mounted) return;
+      setState(() {
+        _editor.setStatusMessage(
+          'Run Impact Analysis first to build an impact set.',
+        );
+      });
+      return;
+    }
+    final hits = report.items;
+    if (hits.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _editor.setStatusMessage(
+          report.uncertain.isEmpty
+              ? 'No affected tests to run.'
+              : 'Only uncertain hits — review them before running.',
+        );
+      });
+      return;
+    }
+    if (!await _ensureProject(
+      message: 'Open a project before running tests.',
+    )) {
+      return;
+    }
+    if (!await _ensureRobotReady()) {
+      return;
+    }
+    await _maybeSaveBeforeRun();
+    if (!mounted) return;
+
+    final threshold = _settings.execution.largeRunThreshold;
+    if (hits.length > threshold &&
+        !await _showLargeRunConfirmDialog(
+          count: hits.length,
+          threshold: threshold,
+        )) {
+      return;
+    }
+
+    setState(() {
+      _revealExecutionCenter();
+      _editor.setStatusMessage(
+        'Running impact set (${hits.length} test${hits.length == 1 ? '' : 's'})…',
+      );
+    });
+    await _connectExecutionStream();
+    try {
+      final run = await _gateway.runSelectedTests([
+        for (final hit in hits) (file: hit.test.filePath, name: hit.test.name),
+      ], configurationId: _activeRunConfigurationId);
+      if (!mounted) return;
+      setState(() {
+        _execution.executionStatus = run.status;
+        _execution.currentExecution = run;
+      });
+      _startElapsedTimer();
+    } catch (error) {
+      if (!mounted) return;
+      _appendLog('[error] Impact set run failed: $error');
+      await _handleExecutionError(error);
+    }
+  }
+
   Future<void> _editorHoverLookup() async {
     final token = _editorCursorToken() ?? _editorTokenName();
     if (token == null) {
@@ -4920,6 +5188,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _editor.setStatusMessage(null);
       _editorHover = null;
       _editorReferences = [];
+      _editorImpact = null;
     });
 
     try {
@@ -5139,6 +5408,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       ];
       _editorHover = null;
       _editorReferences = [];
+      _editorImpact = null;
     });
     if (nextPath != null) {
       await _loadOutline(nextPath!);
@@ -5655,6 +5925,22 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           onSelect: () => unawaited(_editorFindReferences()),
         ),
         PaletteItem(
+          id: 'editor.impact',
+          title: 'Impact Analysis',
+          subtitle: 'Affected tests for the symbol at the caret',
+          icon: Icons.account_tree_outlined,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_editorImpactAnalysis()),
+        ),
+        PaletteItem(
+          id: 'editor.impact.run',
+          title: 'Run Impact Set',
+          subtitle: 'Run certain affected tests from the Impact panel',
+          icon: Icons.play_arrow,
+          kind: PaletteItemKind.command,
+          onSelect: () => unawaited(_handleRunImpactSet()),
+        ),
+        PaletteItem(
           id: 'editor.rename',
           title: 'Rename Symbol',
           subtitle: 'Robot and Python files',
@@ -5957,6 +6243,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             _executionStatus == ExecutionStatus.running ||
             _executionStatus == ExecutionStatus.starting,
         canRun: _canRunTests,
+        canRunImpactSet: _editorImpact?.items.isNotEmpty ?? false,
         onNewProject: () => unawaited(_handleNewStandaloneProject()),
         onOpenProject: () => unawaited(_handleOpenProject()),
         onOpenWorkspace: () => unawaited(_handleOpenWorkspace()),
@@ -5990,6 +6277,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onGoToDefinition: () => unawaited(_editorGoToDefinition()),
         onPeekDefinition: () => unawaited(_editorPeekDefinition()),
         onFindReferences: () => unawaited(_editorFindReferences()),
+        onImpactAnalysis: () => unawaited(_editorImpactAnalysis()),
+        onRunImpactSet: () => unawaited(_handleRunImpactSet()),
         onGoToSymbolInFile: () => unawaited(_editorOpenSymbol()),
         onFindSymbolInProject: () => unawaited(_editorWorkspaceSymbol()),
         onShowHover: () => unawaited(_editorHoverLookup()),
@@ -6525,6 +6814,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _CenterView.settings => PreferencesPage(
         controller: _settings,
         leaveBinding: _preferencesLeave,
+        backendVersion: _workspace.backendVersion,
+        onCheckForUpdates: () => unawaited(_checkForUpdates(silent: false)),
       ),
       _CenterView.welcome => WelcomeScreen(
         recentWorkspaces: _recentWorkspaces,
@@ -6800,6 +7091,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       wordWrap: _wordWrap,
       hover: _editorHover,
       references: _editorReferences,
+      impact: _editorImpact,
+      onOpenImpactHit: _openImpactHit,
+      onDismissImpact: () => setState(() {
+        _editorImpact = null;
+        _impactSeedSymbol = null;
+        _impactSeedKind = null;
+        _impactRefreshDebounce?.cancel();
+      }),
+      onRunImpactSet: () => unawaited(_handleRunImpactSet()),
+      runImpactEnabled: _canRunTests && !_executionStatus.isActive,
       statusMessage: _editorStatusMessage,
       onDismissStatusMessage: () =>
           setState(() => _editor.setStatusMessage(null)),
@@ -6839,6 +7140,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       onTabContextAction: _handleTabContextAction,
       onContentChanged: _onContentChanged,
       onSave: _saveActive,
+      onGoToDefinition: () => unawaited(_editorGoToDefinition()),
+      onPeekDefinition: () => unawaited(_editorPeekDefinition()),
+      onFindReferences: () => unawaited(_editorFindReferences()),
+      onImpactAnalysis: () => unawaited(_editorImpactAnalysis()),
+      onRenameSymbol: () => unawaited(_editorRenameSymbol()),
+      onFormatDocument: () => unawaited(_editorFormatDocument()),
       onHoverRequest: (line, column) =>
           unawaited(_editor.requestHoverTooltip(line: line, column: column)),
       onHoverExit: _editor.clearHoverTooltip,

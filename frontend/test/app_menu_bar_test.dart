@@ -7,7 +7,9 @@ void main() {
   AppMenuBarActions actions({
     bool hasActiveFile = true,
     bool hasWorkspace = true,
+    bool canRunImpactSet = false,
     VoidCallback? onRunTestAtCursor,
+    VoidCallback? onRunImpactSet,
   }) {
     return AppMenuBarActions(
       hasActiveFile: hasActiveFile,
@@ -15,6 +17,7 @@ void main() {
       hasWorkspace: hasWorkspace,
       wordWrap: true,
       canStop: false,
+      canRunImpactSet: canRunImpactSet,
       onNewProject: () {},
       onOpenProject: () {},
       onOpenWorkspace: () {},
@@ -48,6 +51,8 @@ void main() {
       onGoToDefinition: () {},
       onPeekDefinition: () {},
       onFindReferences: () {},
+      onImpactAnalysis: () {},
+      onRunImpactSet: onRunImpactSet ?? () {},
       onGoToSymbolInFile: () {},
       onFindSymbolInProject: () {},
       onShowHover: () {},
@@ -244,6 +249,8 @@ void main() {
                 onGoToDefinition: () {},
                 onPeekDefinition: () {},
                 onFindReferences: () {},
+                onImpactAnalysis: () {},
+                onRunImpactSet: () {},
                 onGoToSymbolInFile: () {},
                 onFindSymbolInProject: () {},
                 onShowHover: () {},
@@ -287,6 +294,58 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(ranAtCursor, isTrue);
+    });
+  });
+
+  testWidgets('Windows Go Run Impact Set disabled without certain hits', (
+    tester,
+  ) async {
+    await withPlatform(TargetPlatform.windows, tester, () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RobotStudioMenuBar(
+              actions: actions(canRunImpactSet: false),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Go'));
+      await tester.pumpAndSettle();
+
+      final item = tester.widget<MenuItemButton>(
+        find.widgetWithText(MenuItemButton, 'Run Impact Set'),
+      );
+      expect(item.onPressed, isNull);
+    });
+  });
+
+  testWidgets('Windows Go Run Impact Set runs when certain hits exist', (
+    tester,
+  ) async {
+    await withPlatform(TargetPlatform.windows, tester, () async {
+      var ran = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RobotStudioMenuBar(
+              actions: actions(
+                canRunImpactSet: true,
+                onRunImpactSet: () => ran = true,
+              ),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Go'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(MenuItemButton, 'Run Impact Set'));
+      await tester.pumpAndSettle();
+      expect(ran, isTrue);
     });
   });
 }

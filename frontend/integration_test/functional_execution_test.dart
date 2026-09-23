@@ -175,11 +175,14 @@ Sleepy
     await openProjectInExplorer(tester, projectName: seeded.project);
 
     final run = tester.widget<ToolbarButton>(toolbarButton('Run'));
-    final runProject = tester.widget<ToolbarButton>(
-      toolbarButton('Run Project'),
-    );
+    final runProject = tester.widget<ToolbarButton>(toolbarButton('Project'));
     expect(run.primary, isTrue);
-    expect(runProject.primary, isTrue);
+    // Project is secondary chrome beside the primary Run control.
+    expect(runProject.primary, isFalse);
+    expect(runProject.onTap, isNotNull);
+    // Run stays gated until a .robot suite is open.
+    expect(run.onTap, isNull);
+    expect(run.tooltip, 'Open a .robot suite file to run');
 
     harness.expectNoFlutterErrors();
   });
@@ -188,10 +191,8 @@ Sleepy
     await ensureExecutionIdle();
     await harness.launchApp(tester);
     await pumpUntilFound(tester, find.text('Recent Workspaces'));
-    await pumpUntilFound(tester, toolbarButton('Run'));
-    final run = tester.widget<ToolbarButton>(toolbarButton('Run'));
-    expect(run.onTap, isNull);
-    expect(run.tooltip, 'Open a project to run the current file');
+    // Welcome has no session toolbar — assert gated controls are absent.
+    expect(find.byKey(const Key('toolbar.run')), findsNothing);
     expect(find.textContaining('Running ·'), findsNothing);
 
     harness.expectNoFlutterErrors();
@@ -200,7 +201,8 @@ Sleepy
   testWidgets('XC-07 run without project shows guidance', (tester) async {
     await ensureExecutionIdle();
     await harness.seedWorkspace(name: 'XC NoProj', suffix: 'xc-07');
-    await harness.seedEnvironment(name: 'xc-07-env', installRobot: false);
+    // Robot must be ready so the gated tooltip is project-missing, not RF-missing.
+    await harness.seedEnvironment(name: 'xc-07-env', installRobot: true);
     await harness.launchAppWithWorkspace(tester, workspaceName: 'XC NoProj');
 
     await tapSidebarPanel(tester, 'Tests');
@@ -208,9 +210,7 @@ Sleepy
     // Launch controls live on the toolbar — gated until a project is open.
     expect(find.widgetWithText(FilledButton, 'Run Project'), findsNothing);
     expect(find.widgetWithText(OutlinedButton, 'Run File'), findsNothing);
-    final runProject = tester.widget<ToolbarButton>(
-      toolbarButton('Run Project'),
-    );
+    final runProject = tester.widget<ToolbarButton>(toolbarButton('Project'));
     expect(runProject.onTap, isNull);
     expect(runProject.tooltip, 'Open a project to run');
 

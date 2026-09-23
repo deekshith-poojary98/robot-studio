@@ -13,6 +13,7 @@ description: Short definitions for Robot Studio and Robot Framework terms used i
 | **Active environment** | The environment currently selected for the project |
 | **Run configuration** | Named execution context (tags, variables, optional per-run environment pin) selected next to **Run / Project / Stop**. Does not switch the active environment. Stored in `.robotstudio/run-configurations.json` |
 | **Index** | Background database of keywords, variables (Variables section, `VAR`, arguments, assignments, FOR, embedded arguments), and files for search and navigation |
+| **Impact Analysis** | Given a keyword, resource, or variable at the caret, lists tests that would be affected if it changed (direct / transitive / import / variable use), with confidence. Results refresh when the index updates while the panel is open. **Run Impact Set** re-runs only the certain (non-low-confidence) hits — see [Impact Analysis](/workflows/impact-analysis/) |
 | **Embedded arguments** | Variables in a keyword **name**, such as `Login with ${type} credential`. A call like `Login with valid credential` binds `valid` to `${type}` |
 | **Tests** | Activity-bar tree of suites and tests you can run |
 | **Failed Tests** | List of failures after a run (Execution / Reports) with Jump to Source and Re-run Test |

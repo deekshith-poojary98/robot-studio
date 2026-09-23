@@ -65,7 +65,13 @@
 | 14. Plugins                             | PL     | 7       | 2      |
 | 15. UX guidance & gating                | UX     | 8       | 4      |
 | 16. Cross-cutting / regression          | XR     | 6       | 2      |
-| **Total**                               |        | **144** | **56** |
+| 17. Impact Analysis / Run Impact Set    | IA     | 4       | 2      |
+| 18. Robot Doctor                        | DR     | 4       | 2      |
+| 19. Settings preferences                | ST     | 4       | 1      |
+| 20. Run configurations                  | RC     | 4       | 2      |
+| 21. Libraries panel                     | LB     | 3       | 1      |
+| 22. Terminal                            | TM     | 4       | 1      |
+| **Total**                               |        | **167** | **65** |
 
 
 ---
@@ -2054,6 +2060,342 @@
 
 
 
+## 17. Impact Analysis / Run Impact Set
+
+
+
+### IA-01 — Impact Analysis from outline keyword
+
+
+|                   |                                                                            |
+| ----------------- | -------------------------------------------------------------------------- |
+| **Priority**      | P0                                                                         |
+| **Preconditions** | Project with shared keyword in a resource + calling test                   |
+| **Steps**         | Open resource → select keyword in Outline → Command Palette → Impact Analysis |
+| **Expected**      | Impact side panel opens; affected tests include the caller.                |
+
+
+
+
+### IA-02 — Impact panel lists affected tests
+
+
+|                   |                                                       |
+| ----------------- | ----------------------------------------------------- |
+| **Priority**      | P0                                                    |
+| **Preconditions** | IA-01 seed                                            |
+| **Steps**         | Run Impact Analysis on a used keyword                 |
+| **Expected**      | Affected list + **Run Impact Set (N)** control visible. |
+
+
+
+
+### IA-03 — Dismiss Impact side panel
+
+
+|                   |                                   |
+| ----------------- | --------------------------------- |
+| **Priority**      | P1                                |
+| **Preconditions** | Impact panel open with hits       |
+| **Steps**         | Click Close on the Impact panel   |
+| **Expected**      | Panel dismisses; editor remains open. |
+
+
+
+
+### IA-04 — Run Impact Set
+
+
+|                   |                                                              |
+| ----------------- | ------------------------------------------------------------ |
+| **Priority**      | P1                                                           |
+| **Preconditions** | Active env with Robot Framework; Impact panel with certain hits |
+| **Steps**         | Click **Run Impact Set (N)**                                 |
+| **Expected**      | Execution starts for the impacted tests only.                |
+
+
+---
+
+
+
+## 18. Robot Doctor
+
+
+
+### DR-01 — Open Doctor from activity rail
+
+
+|                   |                                         |
+| ----------------- | --------------------------------------- |
+| **Priority**      | P0                                      |
+| **Preconditions** | Open project                            |
+| **Steps**         | Click Doctor on the activity rail       |
+| **Expected**      | Robot Doctor page with Scan project control |
+
+
+
+
+### DR-02 — Open Doctor from command palette
+
+
+|                   |                          |
+| ----------------- | ------------------------ |
+| **Priority**      | P1                       |
+| **Preconditions** | Open project             |
+| **Steps**         | Palette → **Open Robot Doctor** |
+| **Expected**      | Same Doctor page as DR-01. |
+
+
+
+
+### DR-03 — Auto-scan unused keyword finding
+
+
+|                   |                                                            |
+| ----------------- | ---------------------------------------------------------- |
+| **Priority**      | P0                                                         |
+| **Preconditions** | Resource with an unused keyword (e.g. Dead Keyword); index built |
+| **Steps**         | Open Doctor (auto-scan on enter)                           |
+| **Expected**      | Finding mentioning the unused keyword appears.             |
+
+
+
+
+### DR-04 — Open source from finding
+
+
+|                   |                                     |
+| ----------------- | ----------------------------------- |
+| **Priority**      | P1                                  |
+| **Preconditions** | Finding with a source path          |
+| **Steps**         | Expand finding → **Open source**    |
+| **Expected**      | Editor opens the referenced resource/file. |
+
+
+---
+
+
+
+## 19. Settings preferences
+
+
+
+### ST-01 — Open Settings from rail
+
+
+|                   |                                                       |
+| ----------------- | ----------------------------------------------------- |
+| **Priority**      | P0                                                    |
+| **Preconditions** | App connected                                         |
+| **Steps**         | Click Settings (⌘,) on the activity rail              |
+| **Expected**      | Settings page with Editor / Execution / Search / Appearance / About. |
+
+
+
+
+### ST-02 — Switch categories
+
+
+|                   |                                                  |
+| ----------------- | ------------------------------------------------ |
+| **Priority**      | P1                                               |
+| **Preconditions** | Settings open                                    |
+| **Steps**         | Select Execution, Appearance, Editor             |
+| **Expected**      | Section fields update (e.g. Large Run Threshold, Theme). |
+
+
+
+
+### ST-03 — Save a preference change
+
+
+|                   |                         |
+| ----------------- | ----------------------- |
+| **Priority**      | P1                      |
+| **Preconditions** | Settings open           |
+| **Steps**         | Toggle Auto Save → Save |
+| **Expected**      | Status shows Settings saved. |
+
+
+
+
+### ST-04 — Discard unsaved changes on leave
+
+
+|                   |                                         |
+| ----------------- | --------------------------------------- |
+| **Priority**      | P1                                      |
+| **Preconditions** | Dirty Settings draft                    |
+| **Steps**         | Toggle a switch → leave Settings → Discard |
+| **Expected**      | Prompt appears; Discard closes without saving draft |
+
+
+---
+
+
+
+## 20. Run configurations
+
+
+
+### RC-01 — Default chip on toolbar
+
+
+|                   |                                |
+| ----------------- | ------------------------------ |
+| **Priority**      | P0                             |
+| **Preconditions** | Open project                   |
+| **Steps**         | Observe run-configuration toolbar chip |
+| **Expected**      | Label Default; chip is enabled. |
+
+
+
+
+### RC-02 — New configuration dialog
+
+
+|                   |                                             |
+| ----------------- | ------------------------------------------- |
+| **Priority**      | P1                                          |
+| **Preconditions** | Open project                                |
+| **Steps**         | Open chip menu → New Configuration…         |
+| **Expected**      | New Run Configuration dialog with Name + Create. |
+
+
+
+
+### RC-03 — Create named configuration
+
+
+|                   |                                      |
+| ----------------- | ------------------------------------ |
+| **Priority**      | P0                                   |
+| **Preconditions** | Open project                         |
+| **Steps**         | Create config with name Smoke Tags → Create |
+| **Expected**      | Chip / menu shows Smoke Tags as available. |
+
+
+
+
+### RC-04 — Manage configurations
+
+
+|                   |                             |
+| ----------------- | --------------------------- |
+| **Priority**      | P1                          |
+| **Preconditions** | Open project                |
+| **Steps**         | Manage Configurations… → Done |
+| **Expected**      | Run Configurations dialog opens and closes. |
+
+
+---
+
+
+
+## 21. Libraries panel
+
+
+
+### LB-01 — Open Libraries from rail
+
+
+|                   |                              |
+| ----------------- | ---------------------------- |
+| **Priority**      | P0                           |
+| **Preconditions** | Open project                 |
+| **Steps**         | Click Libraries on activity rail |
+| **Expected**      | Libraries side panel title.  |
+
+
+
+
+### LB-02 — Lists BuiltIn library
+
+
+|                   |                                         |
+| ----------------- | --------------------------------------- |
+| **Priority**      | P1                                      |
+| **Preconditions** | Env with Robot Framework; suite imports BuiltIn |
+| **Steps**         | Open Libraries                          |
+| **Expected**      | BuiltIn appears in the library list.    |
+
+
+
+
+### LB-03 — Open library keywords
+
+
+|                   |                             |
+| ----------------- | --------------------------- |
+| **Priority**      | P1                          |
+| **Preconditions** | BuiltIn listed              |
+| **Steps**         | Tap BuiltIn                 |
+| **Expected**      | Keyword list / filter UI for that library |
+
+
+---
+
+
+
+## 22. Terminal
+
+
+
+### TM-01 — Terminal tab shows project cwd
+
+
+|                   |                                                            |
+| ----------------- | ---------------------------------------------------------- |
+| **Priority**      | P0                                                         |
+| **Preconditions** | Open project                                               |
+| **Steps**         | Open bottom Terminal tab                                   |
+| **Expected**      | Working-directory path + Restart/Kill shell controls visible. |
+| **Notes**         | Under `FLUTTER_TEST`, PTY I/O is disabled; chrome still loads. |
+
+
+
+
+### TM-02 — Collapse and re-expand Terminal
+
+
+|                   |                             |
+| ----------------- | --------------------------- |
+| **Priority**      | P1                          |
+| **Preconditions** | Terminal open               |
+| **Steps**         | Collapse panel → re-open Terminal tab |
+| **Expected**      | Restart chrome hides then returns. |
+
+
+
+
+### TM-03 — Restart shell control
+
+
+|                   |                       |
+| ----------------- | --------------------- |
+| **Priority**      | P1                    |
+| **Preconditions** | Terminal open         |
+| **Steps**         | Click Restart shell   |
+| **Expected**      | Control remains usable. |
+
+
+
+
+### TM-04 — Kill shell control
+
+
+|                   |                            |
+| ----------------- | -------------------------- |
+| **Priority**      | P2                         |
+| **Preconditions** | Terminal open              |
+| **Steps**         | Click Kill shell           |
+| **Expected**      | Terminal chrome stays mounted. |
+
+
+---
+
+
+
 ## Suggested execution sets
 
 
@@ -2064,6 +2406,7 @@
 | **Full functional**      | All          | Milestone / RC    |
 | **Git remotes**          | GT-09, GT-10 | Only with TD-04   |
 | **Install guidance**     | PK-09, XC-11 | With TD-06        |
+| **Impact / Doctor**      | IA-*, DR-*   | 1.1.0 gate        |
 
 
 ---
@@ -2100,6 +2443,12 @@ Attachments: screenshot, logs, report path
 | Language / Problems         | LG           |
 | Command palette             | CP           |
 | Indexing / Keywords / Tests | IX           |
+| Impact Analysis             | IA           |
+| Robot Doctor                | DR           |
+| Settings                    | ST           |
+| Run configurations          | RC           |
+| Libraries                   | LB           |
+| Terminal                    | TM, SH       |
 | Execution                   | XC           |
 | Reports                     | RP           |
 | Git                         | GT           |

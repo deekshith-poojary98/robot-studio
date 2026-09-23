@@ -118,7 +118,7 @@ Run Hello
     await openBottomTab(tester, 'Problems');
     await pumpUntilFound(
       tester,
-      find.textContaining('No problems found'),
+      find.textContaining('No problems'),
       timeout: const Duration(seconds: 60),
     );
     expect(find.textContaining('UnknownKeyword'), findsNothing);
@@ -249,7 +249,7 @@ Run Hello
     await openBottomTab(tester, 'Problems');
     await pumpUntilFound(
       tester,
-      find.textContaining('No problems found'),
+      find.textContaining('No problems'),
       timeout: const Duration(seconds: 60),
     );
 

@@ -51,7 +51,8 @@ void main() {
       projectName: 'EdOpen',
     );
     await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
-    expect(find.textContaining('Sample'), findsWidgets);
+    // re_editor does not expose buffer text as Text widgets — assert shell + tab.
+    expect(find.text('sample.robot'), findsWidgets);
 
     harness.expectNoFlutterErrors();
   });
@@ -146,7 +147,7 @@ void main() {
     await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
     await tapEditorFormat(tester);
     await tester.pump(const Duration(milliseconds: 400));
-    await tapText(tester, 'Save');
+    await saveActiveEditor(tester);
     await tester.pump(const Duration(milliseconds: 500));
 
     final persisted = await harness.api.readFile(files.sample);
@@ -234,7 +235,7 @@ void main() {
       'second.robot',
       projectName: 'EdReopen',
     );
-    await pumpUntilFound(tester, find.textContaining('Second'));
+    await pumpUntilFound(tester, find.text('second.robot'));
 
     // Switch back via the editor tab strip (explorer tap on an already-open
     // file may not activate the tab; matches EX-04 / ED-08 UI reopen path).
@@ -245,7 +246,7 @@ void main() {
     await pumpUntilFound(tester, sampleTab);
     await tester.tap(sampleTab);
     await tester.pump(const Duration(milliseconds: 400));
-    await pumpUntilFound(tester, find.textContaining('Sample'));
+    expect(find.text('sample.robot'), findsWidgets);
 
     harness.expectNoFlutterErrors();
   });
@@ -265,7 +266,7 @@ void main() {
     // re_editor paints highlighted section headers; assert shell + outline
     // symbol and that the on-disk suite still has standard section markers.
     await pumpUntilFound(tester, find.byKey(const Key('editor.page')));
-    await pumpUntilFound(tester, find.textContaining('Sample'));
+    expect(find.text('sample.robot'), findsWidgets);
     final persisted = await harness.api.readFile(files.sample);
     expect(persisted['content'], contains('*** Test Cases ***'));
     expect(find.byKey(const Key('editor.page')), findsOneWidget);
@@ -302,7 +303,15 @@ void main() {
       await tester.pump();
     }
 
-    await pumpUntilAbsent(tester, find.byType(EditorTabsBar));
+    // EditorTabsBar remains mounted with empty tabs (builds to shrink);
+    // assert the closed file tab chip is gone.
+    await pumpUntilAbsent(
+      tester,
+      find.descendant(
+        of: find.byType(EditorTabsBar),
+        matching: find.text('sample.robot'),
+      ),
+    );
     harness.expectNoFlutterErrors();
   });
 }

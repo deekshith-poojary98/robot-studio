@@ -11,6 +11,7 @@ import '../../core/gateway/models/index_info.dart';
 import '../../core/gateway/models/language_info.dart';
 import '../../core/theme/app_theme.dart';
 import '../preferences/editor_font_families.dart';
+import 'editor_context_menu.dart';
 import 'editor_find_panel.dart';
 import 'editor_language_widgets.dart';
 import 'editor_navigation_widgets.dart';
@@ -30,6 +31,12 @@ class RobotCodeEditor extends StatefulWidget {
     this.onHoverRequest,
     this.onHoverExit,
     this.onSave,
+    this.onGoToDefinition,
+    this.onPeekDefinition,
+    this.onFindReferences,
+    this.onImpactAnalysis,
+    this.onRenameSymbol,
+    this.onFormatDocument,
     this.wordWrap = true,
     this.jumpToLine,
     this.jumpToColumn,
@@ -67,6 +74,15 @@ class RobotCodeEditor extends StatefulWidget {
 
   /// Wired to ⌘S / Ctrl+S via re_editor save intent override.
   final VoidCallback? onSave;
+
+  /// Right-click context menu actions (Go / Edit). Find/Replace use [showFind].
+  final VoidCallback? onGoToDefinition;
+  final VoidCallback? onPeekDefinition;
+  final VoidCallback? onFindReferences;
+  final VoidCallback? onImpactAnalysis;
+  final VoidCallback? onRenameSymbol;
+  final VoidCallback? onFormatDocument;
+
   final bool wordWrap;
   final int? jumpToLine;
   final int? jumpToColumn;
@@ -844,6 +860,16 @@ class RobotCodeEditorState extends State<RobotCodeEditor> {
       wordWrap: widget.wordWrap,
       chunkAnalyzer: _chunkAnalyzer,
       commentFormatter: DefaultCodeCommentFormatter(singleLinePrefix: '#'),
+      toolbarController: EditorContextMenuController(
+        onGoToDefinition: widget.onGoToDefinition,
+        onPeekDefinition: widget.onPeekDefinition,
+        onFindReferences: widget.onFindReferences,
+        onImpactAnalysis: widget.onImpactAnalysis,
+        onRenameSymbol: widget.onRenameSymbol,
+        onFormatDocument: widget.onFormatDocument,
+        onFind: () => showFind(),
+        onReplace: () => showFind(replace: true),
+      ),
       shortcutsActivatorsBuilder: const RobotCodeShortcutsActivatorsBuilder(),
       shortcutOverrideActions: {
         CodeShortcutSaveIntent: CallbackAction<CodeShortcutSaveIntent>(

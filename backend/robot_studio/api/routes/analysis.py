@@ -24,6 +24,8 @@ from robot_studio.api.schemas.analysis import (
     EdgeRefResponse,
     EntityListResponse,
     EntityRefResponse,
+    ImpactRequest,
+    ImpactResponse,
     InspectionInfoResponse,
     InspectionListResponse,
     InspectionReportResponse,
@@ -178,6 +180,25 @@ async def affected_tests(
     except AnalysisValidationError as exc:
         raise _http(exc) from exc
     return EntityListResponse(items=[EntityRefResponse.from_model(i) for i in items])
+
+
+@router.post("/graph/impact", response_model=ImpactResponse)
+async def impact_analysis(
+    body: ImpactRequest,
+    gateway: GatewayDep,
+) -> ImpactResponse:
+    """Impact Analysis: affected tests with confidence + why (M1)."""
+    try:
+        report = await gateway.analysis_impact(
+            symbol=body.symbol,
+            kind=body.kind,
+            changed_files=body.changed_files or None,
+            changed_symbols=body.changed_symbols or None,
+            project_id=UUID(body.project_id) if body.project_id else None,
+        )
+    except AnalysisValidationError as exc:
+        raise _http(exc) from exc
+    return ImpactResponse.from_model(report)
 
 
 @router.get("/graph/variable-references", response_model=EdgeListResponse)

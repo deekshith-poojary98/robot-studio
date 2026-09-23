@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:robot_studio/presentation/editor/editor_tabs_bar.dart';
+import 'package:robot_studio/presentation/shell/shell_shortcuts.dart';
 
 import 'helpers/integration_harness.dart';
 import 'helpers/ui_helpers.dart';
@@ -57,19 +58,33 @@ Cp Case
     await waitForBackendReady(tester);
 
     // Meta/Ctrl key simulation trips HardwareKeyboard assertions under
-    // integration_test. Assert the shell binds ⌘K/Ctrl+K, then open via the
-    // same palette entry used by that shortcut.
-    final shortcutsFinder = find.byType(Shortcuts);
-    await pumpUntilFound(tester, shortcutsFinder);
-    final shortcuts = tester.widgetList<Shortcuts>(shortcutsFinder);
-    final bindsPalette = shortcuts.any(
-      (widget) => widget.shortcuts.keys.any((activator) {
-        return activator is SingleActivator &&
-            activator.trigger == LogicalKeyboardKey.keyK &&
-            (activator.meta || activator.control);
-      }),
-    );
-    expect(bindsPalette, isTrue);
+    // integration_test. Assert the catalog binds palette chords; on macOS the
+    // platform menu owns them (flutterShortcuts is Ctrl+Tab only), on Win/Linux
+    // they live on the Shortcuts widget.
+    final catalogBindsPalette = ShellShortcutActivators.map.keys.any((
+      activator,
+    ) {
+      return activator is SingleActivator &&
+          activator.trigger == LogicalKeyboardKey.keyP &&
+          activator.shift &&
+          (activator.meta || activator.control);
+    });
+    expect(catalogBindsPalette, isTrue);
+
+    if (!ShellShortcutActivators.isMac) {
+      final shortcutsFinder = find.byType(Shortcuts);
+      await pumpUntilFound(tester, shortcutsFinder);
+      final shortcuts = tester.widgetList<Shortcuts>(shortcutsFinder);
+      final bindsPalette = shortcuts.any(
+        (widget) => widget.shortcuts.keys.any((activator) {
+          return activator is SingleActivator &&
+              activator.trigger == LogicalKeyboardKey.keyP &&
+              activator.shift &&
+              (activator.meta || activator.control);
+        }),
+      );
+      expect(bindsPalette, isTrue);
+    }
 
     await openCommandPalette(tester);
     expect(find.byType(Dialog), findsWidgets);

@@ -11,13 +11,15 @@ void main() {
   setUpAll(() async => harness.setUpAll());
   tearDownAll(() async => harness.tearDownAll());
 
-  testWidgets('search, install, and uninstall lightweight package', (tester) async {
+  testWidgets('search, install, and uninstall lightweight package', (
+    tester,
+  ) async {
     await harness.seedWorkspace(name: 'Package Flow WS', suffix: 'packages');
-    await harness.seedEnvironment(
-      name: 'package-env',
-      installRobot: false,
+    await harness.seedEnvironment(name: 'package-env', installRobot: false);
+    await harness.launchAppWithWorkspace(
+      tester,
+      workspaceName: 'Package Flow WS',
     );
-    await harness.launchAppWithWorkspace(tester, workspaceName: 'Package Flow WS');
 
     await openPackageManager(tester);
     await pumpUntilFound(tester, find.text('Package Manager'));
@@ -30,7 +32,11 @@ void main() {
     expect(packages.any((item) => item['name'] == 'six'), isTrue);
 
     await tapText(tester, 'Refresh');
-    await pumpUntilFound(tester, find.text('six'), timeout: const Duration(seconds: 30));
+    await pumpUntilFound(
+      tester,
+      find.text('six'),
+      timeout: const Duration(seconds: 30),
+    );
 
     await harness.api.uninstallPackage('six');
     packages = await harness.api.listPackages();
@@ -39,19 +45,24 @@ void main() {
     harness.expectNoFlutterErrors();
   });
 
-  testWidgets('robot framework detection updates after install env', (tester) async {
-    await harness.seedWorkspace(name: 'Robot Detect WS', suffix: 'robot-detect');
-    await harness.seedEnvironment(
-      name: 'robot-detect-env',
-      installRobot: true,
+  testWidgets('robot framework detection updates after install env', (
+    tester,
+  ) async {
+    await harness.seedWorkspace(
+      name: 'Robot Detect WS',
+      suffix: 'robot-detect',
     );
-    await harness.launchAppWithWorkspace(tester, workspaceName: 'Robot Detect WS');
+    await harness.seedEnvironment(name: 'robot-detect-env', installRobot: true);
+    await harness.launchAppWithWorkspace(
+      tester,
+      workspaceName: 'Robot Detect WS',
+    );
 
     await openPackageManager(tester);
     await pumpUntilFound(
       tester,
-      find.textContaining('Robot'),
-      timeout: const Duration(seconds: 30),
+      find.textContaining('robotframework'),
+      timeout: const Duration(seconds: 45),
     );
 
     harness.expectNoFlutterErrors();

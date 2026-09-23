@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import UUID
@@ -20,6 +20,10 @@ from robot_studio.domain.models.analysis import (
     EdgeRef,
     EntityKind,
     EntityRef,
+    ImpactHit,
+    ImpactRelation,
+    ImpactReport,
+    SemanticEdge,
     SemanticEntity,
     UsageStat,
 )
@@ -59,6 +63,42 @@ def _entity_ref(entity: SemanticEntity) -> EntityRef:
         column=entity.column,
         documentation=entity.documentation,
         detail=entity.detail,
+    )
+
+
+_CONFIDENCE_RANK = {
+    BindingConfidence.EXACT: 0,
+    BindingConfidence.HIGH: 1,
+    BindingConfidence.MEDIUM: 2,
+    BindingConfidence.LOW: 3,
+}
+
+
+def _worse_confidence(
+    left: BindingConfidence,
+    right: BindingConfidence,
+) -> BindingConfidence:
+    if _CONFIDENCE_RANK[left] >= _CONFIDENCE_RANK[right]:
+        return left
+    return right
+
+
+def _edge_ref(
+    edge: SemanticEdge,
+    *,
+    source: SemanticEntity | None,
+    target: SemanticEntity | None,
+) -> EdgeRef:
+    return EdgeRef(
+        edge_kind=edge.edge_kind.value,
+        source=_entity_ref(source) if source else None,
+        target=_entity_ref(target) if target else None,
+        source_file=str(edge.source_file),
+        source_line=edge.source_line,
+        source_column=edge.source_column,
+        target_name=edge.target_name,
+        confidence=edge.confidence.value,
+        context=edge.context,
     )
 
 
@@ -615,6 +655,428 @@ class RobotAnalysisEngine(AnalysisEngine):
             kind=EntityKind.TEST_CASE.value,
         )
         return [_entity_ref(t) for t in tests if t.id in seen]
+
+    async def impact_analysis(
+        self,
+        project_id: UUID,
+        *,
+        symbol: str | None = None,
+        kind: str | None = None,
+        changed_files: list[str] | None = None,
+        changed_symbols: list[str] | None = None,
+    ) -> ImpactReport:
+        """Path-aware impact: affected tests with confidence, relation, and why."""
+        version = await self.store.get_graph_version(project_id)
+        all_entities = await self.store.list_entities(project_id=project_id)
+        empty_graph = len(all_entities) == 0
+        by_id = {e.id: e for e in all_entities}
+
+        seed_ids = await self._impact_seed_ids(
+            project_id,
+            symbol=symbol,
+            kind=kind,
+            changed_files=changed_files,
+            changed_symbols=changed_symbols,
+            entities=all_entities,
+        )
+        seeds = [_entity_ref(by_id[sid]) for sid in seed_ids if sid in by_id]
+        primary = seeds[0] if seeds else None
+
+        if empty_graph or not seed_ids:
+            return ImpactReport(
+                symbol=primary,
+                seeds=seeds,
+                graph_version=version.graph_version,
+                incremental_revision=version.incremental_revision,
+                entity_count=len(all_entities),
+                empty_graph=empty_graph,
+            )
+
+        reverse, contains_edges = await self._impact_graph_edges(project_id)
+        suite_by_test = self._suite_for_tests_from_edges(
+            by_id, contains_edges
+        )
+        symbol_label = primary.name if primary else (symbol or "symbol")
+
+        # BFS + hit assembly is CPU-bound over in-memory structures — keep the
+        # event loop free for mid-size projects.
+        certain, uncertain = await asyncio.to_thread(
+            self._impact_walk_and_hits,
+            seed_ids=seed_ids,
+            reverse=reverse,
+            contains_edges=contains_edges,
+            by_id=by_id,
+            suite_by_test=suite_by_test,
+            symbol_label=symbol_label,
+        )
+
+        return ImpactReport(
+            symbol=primary,
+            seeds=seeds,
+            graph_version=version.graph_version,
+            incremental_revision=version.incremental_revision,
+            entity_count=len(all_entities),
+            empty_graph=False,
+            items=certain,
+            uncertain=uncertain,
+        )
+
+    def _impact_walk_and_hits(
+        self,
+        *,
+        seed_ids: set[str],
+        reverse: dict[str, list[tuple[str, SemanticEdge]]],
+        contains_edges: list[SemanticEdge],
+        by_id: dict[str, SemanticEntity],
+        suite_by_test: dict[str, SemanticEntity],
+        symbol_label: str,
+    ) -> tuple[list[ImpactHit], list[ImpactHit]]:
+        parent: dict[str, tuple[str, SemanticEdge] | None] = {
+            sid: None for sid in seed_ids
+        }
+        queue: deque[str] = deque(seed_ids)
+        seen = set(seed_ids)
+        while queue:
+            current = queue.popleft()
+            for caller_id, edge in reverse.get(current, ()):
+                if caller_id in seen:
+                    continue
+                seen.add(caller_id)
+                parent[caller_id] = (current, edge)
+                queue.append(caller_id)
+
+        # Suite/resource importers are reached via IMPORTS_RESOURCE; expand to
+        # contained tests so resource seeds surface runnable impact hits.
+        self._impact_expand_contains(seen, parent, contains_edges, by_id)
+
+        certain: list[ImpactHit] = []
+        uncertain: list[ImpactHit] = []
+        for ent_id in seen:
+            ent = by_id.get(ent_id)
+            if ent is None or ent.kind != EntityKind.TEST_CASE:
+                continue
+            hit = self._build_impact_hit(
+                test=ent,
+                suite=suite_by_test.get(ent.id),
+                parent=parent,
+                by_id=by_id,
+                seed_ids=seed_ids,
+                symbol_label=symbol_label,
+            )
+            if hit.confidence == BindingConfidence.LOW:
+                uncertain.append(hit)
+            else:
+                certain.append(hit)
+
+        certain.sort(key=lambda h: (h.depth, h.test.name.lower()))
+        uncertain.sort(key=lambda h: (h.depth, h.test.name.lower()))
+        return certain, uncertain
+
+    @staticmethod
+    def _impact_expand_contains(
+        seen: set[str],
+        parent: dict[str, tuple[str, SemanticEdge] | None],
+        contains_edges: list[SemanticEdge],
+        by_id: dict[str, SemanticEntity],
+    ) -> None:
+        for edge in contains_edges:
+            if not edge.target_id or edge.target_id in seen:
+                continue
+            if edge.source_id not in seen:
+                continue
+            source = by_id.get(edge.source_id)
+            target = by_id.get(edge.target_id)
+            if source is None or target is None:
+                continue
+            if target.kind != EntityKind.TEST_CASE:
+                continue
+            if source.kind not in {EntityKind.SUITE, EntityKind.RESOURCE}:
+                continue
+            seen.add(target.id)
+            parent[target.id] = (source.id, edge)
+
+    async def _impact_seed_ids(
+        self,
+        project_id: UUID,
+        *,
+        symbol: str | None,
+        kind: str | None,
+        changed_files: list[str] | None,
+        changed_symbols: list[str] | None,
+        entities: list[SemanticEntity] | None = None,
+    ) -> set[str]:
+        seed_ids: set[str] = set()
+        symbols = list(changed_symbols or [])
+        if symbol and symbol not in symbols:
+            symbols.append(symbol)
+
+        kind_filter: list[str] | None = None
+        resource_kind = False
+        variable_kind = False
+        if kind:
+            normalized = kind.strip().lower().replace("-", "_")
+            if normalized in {k.value for k in EntityKind}:
+                kind_filter = [normalized]
+                resource_kind = normalized == EntityKind.RESOURCE.value
+                variable_kind = normalized == EntityKind.VARIABLE.value
+            elif normalized == "keyword":
+                kind_filter = [EntityKind.KEYWORD.value]
+            elif normalized in {"resource", "file"}:
+                kind_filter = [EntityKind.RESOURCE.value, EntityKind.FILE.value]
+                resource_kind = True
+            elif normalized == "variable":
+                kind_filter = [EntityKind.VARIABLE.value]
+                variable_kind = True
+
+        for name in symbols:
+            if variable_kind or kind_filter == [EntityKind.VARIABLE.value]:
+                norms = [normalize_variable_name(name)]
+            elif resource_kind:
+                norms = self._resource_lookup_keys(name)
+            else:
+                norms = [normalize_keyword_name(name)]
+            kinds = kind_filter or [
+                EntityKind.KEYWORD.value,
+                EntityKind.TEST_CASE.value,
+                EntityKind.RESOURCE.value,
+            ]
+            before = len(seed_ids)
+            for norm in norms:
+                if not norm:
+                    continue
+                for ent in await self.store.find_entities_by_normalized_name(
+                    norm,
+                    project_id=project_id,
+                    kinds=kinds,
+                ):
+                    seed_ids.add(ent.id)
+
+            # Resource import paths often don't match entity name_normalized
+            # (stem). Fall back to path / basename scan of in-memory entities.
+            if resource_kind and len(seed_ids) == before:
+                seed_ids.update(
+                    self._match_resource_entities(name, entities or [])
+                )
+
+        if changed_files:
+            known = entities or await self.store.list_entities(
+                project_id=project_id
+            )
+            for raw in changed_files:
+                path = str(Path(raw).resolve())
+                for ent in known:
+                    if str(ent.file_path.resolve()) == path and ent.kind in {
+                        EntityKind.KEYWORD,
+                        EntityKind.TEST_CASE,
+                        EntityKind.RESOURCE,
+                        EntityKind.SUITE,
+                        EntityKind.VARIABLE,
+                    }:
+                        seed_ids.add(ent.id)
+        return seed_ids
+
+    @staticmethod
+    def _resource_lookup_keys(name: str) -> list[str]:
+        raw = (name or "").strip().strip("\"'")
+        if not raw:
+            return []
+        keys = [
+            normalize_keyword_name(raw),
+            normalize_keyword_name(Path(raw).stem),
+            normalize_keyword_name(Path(raw).name),
+        ]
+        return list(dict.fromkeys(k for k in keys if k))
+
+    @staticmethod
+    def _match_resource_entities(
+        name: str,
+        entities: list[SemanticEntity],
+    ) -> set[str]:
+        raw = (name or "").strip().strip("\"'")
+        if not raw:
+            return set()
+        keys = {
+            normalize_keyword_name(raw),
+            normalize_keyword_name(Path(raw).stem),
+            normalize_keyword_name(Path(raw).name),
+        }
+        keys.discard("")
+        resolved: str | None = None
+        try:
+            candidate = Path(raw)
+            if candidate.is_absolute():
+                resolved = str(candidate.resolve())
+        except OSError:
+            resolved = None
+        hits: set[str] = set()
+        for ent in entities:
+            if ent.kind not in {EntityKind.RESOURCE, EntityKind.FILE}:
+                continue
+            if resolved and str(ent.file_path.resolve()) == resolved:
+                hits.add(ent.id)
+                continue
+            if ent.name_normalized in keys:
+                hits.add(ent.id)
+                continue
+            if normalize_keyword_name(ent.file_path.stem) in keys:
+                hits.add(ent.id)
+                continue
+            if normalize_keyword_name(ent.file_path.name) in keys:
+                hits.add(ent.id)
+        return hits
+
+    async def _impact_graph_edges(
+        self,
+        project_id: UUID,
+    ) -> tuple[
+        dict[str, list[tuple[str, SemanticEdge]]],
+        list[SemanticEdge],
+    ]:
+        """Reverse call/import/var adjacency + CONTAINS edges for suite expand."""
+        reverse: dict[str, list[tuple[str, SemanticEdge]]] = defaultdict(list)
+        contains_edges: list[SemanticEdge] = []
+        for edge_kind in (
+            EdgeKind.CALLS.value,
+            EdgeKind.IMPORTS_RESOURCE.value,
+            EdgeKind.REFERENCES_VARIABLE.value,
+            EdgeKind.CONTAINS.value,
+        ):
+            for edge in await self.store.list_edges(
+                project_id=project_id,
+                edge_kind=edge_kind,
+            ):
+                if edge.edge_kind == EdgeKind.CONTAINS:
+                    contains_edges.append(edge)
+                    continue
+                if edge.target_id:
+                    reverse[edge.target_id].append((edge.source_id, edge))
+        return reverse, contains_edges
+
+    def _suite_for_tests_from_edges(
+        self,
+        by_id: dict[str, SemanticEntity],
+        contains_edges: list[SemanticEdge],
+    ) -> dict[str, SemanticEntity]:
+        """Map test_case id → owning suite entity via CONTAINS edges."""
+        suite_by_test: dict[str, SemanticEntity] = {}
+        for edge in contains_edges:
+            if not edge.target_id:
+                continue
+            target = by_id.get(edge.target_id)
+            source = by_id.get(edge.source_id)
+            if (
+                target is not None
+                and source is not None
+                and target.kind == EntityKind.TEST_CASE
+                and source.kind == EntityKind.SUITE
+            ):
+                suite_by_test[target.id] = source
+        suites_by_path = {
+            str(e.file_path.resolve()): e
+            for e in by_id.values()
+            if e.kind == EntityKind.SUITE
+        }
+        for ent in by_id.values():
+            if ent.kind != EntityKind.TEST_CASE or ent.id in suite_by_test:
+                continue
+            suite = suites_by_path.get(str(ent.file_path.resolve()))
+            if suite is not None:
+                suite_by_test[ent.id] = suite
+        return suite_by_test
+
+    async def _suite_for_tests(
+        self,
+        project_id: UUID,
+        by_id: dict[str, SemanticEntity],
+    ) -> dict[str, SemanticEntity]:
+        contains = await self.store.list_edges(
+            project_id=project_id,
+            edge_kind=EdgeKind.CONTAINS.value,
+        )
+        return self._suite_for_tests_from_edges(by_id, contains)
+
+    def _build_impact_hit(
+        self,
+        *,
+        test: SemanticEntity,
+        suite: SemanticEntity | None,
+        parent: dict[str, tuple[str, SemanticEdge] | None],
+        by_id: dict[str, SemanticEntity],
+        seed_ids: set[str],
+        symbol_label: str,
+    ) -> ImpactHit:
+        path_edges: list[EdgeRef] = []
+        edge_kinds: list[EdgeKind] = []
+        confidence = BindingConfidence.EXACT
+        depth = 0
+        cursor = test.id
+        hops: list[str] = []
+
+        if cursor in seed_ids and parent.get(cursor) is None:
+            return ImpactHit(
+                test=_entity_ref(test),
+                suite=_entity_ref(suite) if suite else None,
+                confidence=BindingConfidence.EXACT,
+                relation=ImpactRelation.SELF,
+                why=f"Test '{test.name}' is itself in the changed set",
+                depth=0,
+                path=[],
+            )
+
+        while cursor not in seed_ids:
+            step = parent.get(cursor)
+            if step is None:
+                break
+            prev_id, edge = step
+            source = by_id.get(edge.source_id)
+            target = by_id.get(edge.target_id) if edge.target_id else None
+            path_edges.append(_edge_ref(edge, source=source, target=target))
+            edge_kinds.append(edge.edge_kind)
+            confidence = _worse_confidence(confidence, edge.confidence)
+            if target is not None and target.id != test.id:
+                hops.append(target.name)
+            elif edge.target_name:
+                hops.append(edge.target_name)
+            depth += 1
+            cursor = prev_id
+
+        path_edges.reverse()
+        # Ignore CONTAINS hops for relation labeling (suite→test expand only).
+        meaningful = [k for k in edge_kinds if k != EdgeKind.CONTAINS]
+        has_call = EdgeKind.CALLS in meaningful
+        has_import = EdgeKind.IMPORTS_RESOURCE in meaningful
+        has_var = EdgeKind.REFERENCES_VARIABLE in meaningful
+        if has_call and len(meaningful) <= 1:
+            relation = ImpactRelation.DIRECT_CALL
+            why = f"Test '{test.name}' calls '{symbol_label}'"
+        elif has_call:
+            relation = ImpactRelation.TRANSITIVE_CALL
+            via = hops[0] if hops else "…"
+            why = (
+                f"Test '{test.name}' transitively depends on "
+                f"'{symbol_label}' via '{via}'"
+            )
+        elif has_import:
+            relation = ImpactRelation.RESOURCE_IMPORT
+            why = (
+                f"Suite for '{test.name}' imports resource '{symbol_label}'"
+            )
+        elif has_var:
+            relation = ImpactRelation.VARIABLE_USE
+            why = f"Test '{test.name}' uses variable '{symbol_label}'"
+        else:
+            relation = ImpactRelation.TRANSITIVE_CALL
+            why = f"Test '{test.name}' is reachable from '{symbol_label}'"
+
+        return ImpactHit(
+            test=_entity_ref(test),
+            suite=_entity_ref(suite) if suite else None,
+            confidence=confidence,
+            relation=relation,
+            why=why,
+            depth=depth,
+            path=path_edges,
+        )
 
     async def variable_references(self, project_id: UUID, variable: str) -> list[EdgeRef]:
         norm = normalize_variable_name(variable)

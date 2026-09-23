@@ -4,6 +4,7 @@ import 'models/environment_info.dart';
 import 'models/file_info.dart';
 import 'models/git_info.dart';
 import 'models/health_response.dart';
+import 'models/impact_info.dart';
 import 'models/index_info.dart';
 import 'models/insights_info.dart';
 import 'models/language_info.dart';
@@ -25,6 +26,7 @@ export 'models/execution_info.dart';
 export 'models/file_info.dart';
 export 'models/git_info.dart';
 export 'models/health_response.dart';
+export 'models/impact_info.dart';
 export 'models/index_info.dart';
 export 'models/insights_info.dart';
 export 'models/language_info.dart';
@@ -206,6 +208,14 @@ abstract class TransportGateway {
   });
 
   Future<RunFailuresInfo> getRunFailures(String runId);
+
+  Future<ImpactReportInfo> analysisImpact({
+    String? symbol,
+    String? kind,
+    List<String>? changedFiles,
+    List<String>? changedSymbols,
+    String? projectId,
+  });
 
   Future<IndexedSymbolInfo?> languageDefinition({
     String? name,
