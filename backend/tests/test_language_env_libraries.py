@@ -150,10 +150,18 @@ def test_resolve_library_reports_doc_format(
 
 
 @pytest.mark.asyncio
-async def test_resolve_library_reports_robot_format_for_builtin() -> None:
-    """libdoc defaults to ROBOT, which must stay sniffable downstream."""
+async def test_resolve_library_reports_doc_format_for_builtin() -> None:
+    """libdoc must expose a sniffable ROBOT_LIBRARY_DOC_FORMAT for std libs.
+
+    Robot Framework's default for Collections has varied (ROBOT historically,
+    MARKDOWN on newer releases) — we only require a known non-empty dialect.
+    """
     result = resolve_library("Collections")
-    assert result["doc_format"] == "ROBOT"
+    assert result["doc_format"] in {"ROBOT", "MARKDOWN", "HTML", "TEXT", "REST"}
+    # Keywords inherit the library-level format for the hover/docs renderer.
+    sample = next(iter(result["keyword_info"].values()), None)
+    assert sample is not None
+    assert sample["doc_format"] == result["doc_format"]
 
 
 def test_signature_help_keeps_multiword_keywords() -> None:
