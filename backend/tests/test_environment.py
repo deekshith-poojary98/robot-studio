@@ -130,8 +130,10 @@ async def test_create_blocks_legacy_name_collision(services) -> None:
         "primary",
         sys.executable,
     )
-    with pytest.raises(EnvironmentValidationError, match="already registered"):
-        await services["environment_service"].import_environment(created.path)
+    # Selecting a path that is already registered activates it (idempotent).
+    again = await services["environment_service"].import_environment(created.path)
+    assert again.id == created.id
+    assert again.is_active
 
 
 @pytest.mark.asyncio
@@ -445,6 +447,28 @@ async def test_recreate_same_path_gets_new_identity(services) -> None:
     listed_after = await services["environment_service"].list_environments()
     assert listed_after == []
     assert await services["environment_repo"].list_by_workspace(reopened.id) == []
+
+
+@pytest.mark.asyncio
+async def test_list_keeps_broken_python_as_unavailable(
+    services,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Homebrew/base Python moves must not 400 the environments list."""
+    created = await services["environment_service"].create_environment(
+        "broken",
+        sys.executable,
+    )
+
+    def boom(_python: Path):
+        raise EnvironmentValidationError(
+            "Failed to read Python version: Library not loaded",
+        )
+
+    monkeypatch.setattr(services["environment_service"]._python, "inspect", boom)
+    listed = await services["environment_service"].list_environments()
+    match = next(item for item in listed if item.id == created.id)
+    assert match.available is False
 
 
 @pytest.mark.asyncio

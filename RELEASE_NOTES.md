@@ -1,6 +1,6 @@
 # Robot Studio 1.1.0
 
-**Date:** 2026-09-16  
+**Date:** 2026-09-24  
 **Kind:** Packaged release via [GitHub Releases](https://github.com/deekshith-poojary98/robot-studio/releases). Zip only (same as 1.0.0).  
 **Version:** `1.1.0` (matches backend `robot_studio.__version__`; GitHub tag `v1.1.0`).
 

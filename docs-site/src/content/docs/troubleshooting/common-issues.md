@@ -188,6 +188,16 @@ If open fails with **Permission denied** (or a bare Internal Server Error), the 
 
 Open or create a **project** first. Those actions stay gated on the welcome screen until a project is active.
 
+## Environment prompt after opening a project that already has `.robotstudio`
+
+Studio should list environments under `.robotstudio/environments/` automatically. If you still see **Create / Select Existing**, the registered venv’s Python may be broken (common on macOS after a Homebrew Python upgrade — the venv still points at a deleted `Cellar/python@…` path).
+
+1. Open **Manage Environments** — the env may show as unavailable / missing.
+2. Prefer **Create Environment** (new name, or delete the broken folder first) rather than **Select Existing** on the same broken `default` folder.
+3. Or recreate from Terminal: remove `.robotstudio/environments/default`, then Create again in Studio.
+
+After updating Robot Studio, a broken env no longer hides the whole list (it appears unavailable instead of triggering the empty-state prompt).
+
 ## Tests will not run
 
 1. Confirm a project is open.

@@ -174,9 +174,13 @@ class EnvironmentService:
 
         existing = await self._repository.get_by_path(str(env_root))
         if existing is not None and existing.workspace_id == workspace.id:
-            raise EnvironmentValidationError(
-                "This environment is already registered in the workspace",
-            )
+            # Select Existing / re-open after a failed list must not 400 —
+            # activate the registered env instead of asking the user to invent
+            # a second copy of the same folder.
+            await self._activate(existing)
+            refreshed = await self._repository.get(existing.id)
+            assert refreshed is not None
+            return await self._enrich(refreshed)
 
         executables = self._python.resolve_executables(env_root)
 
@@ -632,7 +636,12 @@ class EnvironmentService:
                 python = self._python.resolve_executables(environment.path).python
             except EnvironmentValidationError:
                 return environment.model_copy(update={"available": False})
-        info = await run_blocking(self._python.inspect, python)
+        try:
+            info = await run_blocking(self._python.inspect, python)
+        except EnvironmentValidationError:
+            # Broken venv (e.g. Homebrew moved the base Python) must not 400 the
+            # whole environments list — UI shows unavailable and offers recreate.
+            return environment.model_copy(update={"available": False})
         robot_exe = environment.robot_executable
         if info.robot_version and (robot_exe is None or not Path(robot_exe).is_file()):
             try:

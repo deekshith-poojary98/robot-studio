@@ -2316,6 +2316,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     try {
       await _gateway.importEnvironment(selected);
       await _loadEnvironments();
+      _dismissEnvironmentPrompt();
       _appendLog('[info] Imported environment from $selected');
       _setFooterNotice('Imported environment');
     } catch (error) {
