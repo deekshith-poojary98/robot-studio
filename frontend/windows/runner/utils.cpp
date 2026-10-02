@@ -139,8 +139,10 @@ void TerminatePackagedBackendIfNeeded() {
   }
 
   std::wstring pid_path(profile);
+  std::wstring port_path(profile);
   free(profile);
   pid_path += L"\\.robot-studio\\backend.pid";
+  port_path += L"\\.robot-studio\\backend.port";
 
   FILE* file = nullptr;
   if (_wfopen_s(&file, pid_path.c_str(), L"r") != 0 || file == nullptr) {
@@ -153,6 +155,41 @@ void TerminatePackagedBackendIfNeeded() {
   if (!parsed || pid <= 1) {
     _wremove(pid_path.c_str());
     return;
+  }
+
+  // Refuse to kill a recycled PID unless it still owns the recorded listen port.
+  FILE* port_file = nullptr;
+  if (_wfopen_s(&port_file, port_path.c_str(), L"r") == 0 && port_file != nullptr) {
+    int port = 0;
+    const bool port_ok = fscanf_s(port_file, "%d", &port) == 1;
+    fclose(port_file);
+    if (port_ok && port > 0) {
+      // netstat -ano lists LISTENING rows ending with the owning PID.
+      char command[160];
+      sprintf_s(command, "cmd.exe /C netstat -ano -p tcp | findstr :%d | findstr LISTENING | findstr %d",
+                port, pid);
+      STARTUPINFOA startup_info{};
+      startup_info.cb = sizeof(startup_info);
+      startup_info.dwFlags = STARTF_USESHOWWINDOW;
+      startup_info.wShowWindow = SW_HIDE;
+      PROCESS_INFORMATION process_info{};
+      std::string mutable_command(command);
+      bool listens = false;
+      if (CreateProcessA(nullptr, mutable_command.data(), nullptr, nullptr, FALSE,
+                         CREATE_NO_WINDOW, nullptr, nullptr, &startup_info,
+                         &process_info)) {
+        WaitForSingleObject(process_info.hProcess, 5000);
+        DWORD exit_code = 1;
+        GetExitCodeProcess(process_info.hProcess, &exit_code);
+        CloseHandle(process_info.hThread);
+        CloseHandle(process_info.hProcess);
+        listens = exit_code == 0;
+      }
+      if (!listens) {
+        _wremove(pid_path.c_str());
+        return;
+      }
+    }
   }
 
   TerminatePidTree(static_cast<DWORD>(pid));

@@ -69,15 +69,35 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS outermost so preflight still works; request logging inside CORS.
+    # Desktop Flutter clients do not use CORS. Reflecting ``*`` let any web page
+    # on the same machine call the local API (install packages, write files, …).
+    # Keep middleware for tooling that opts in via ROBOT_STUDIO_CORS_ORIGINS.
+    cors_origins = [
+        origin.strip()
+        for origin in os.environ.get("ROBOT_STUDIO_CORS_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
     app.add_middleware(RequestLoggingMiddleware)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    if cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_credentials=False,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+    @app.middleware("http")
+    async def reject_browser_cross_origin(request: Request, call_next):
+        """Block browser CSRF against the loopback API.
+
+        Dart's HttpClient does not send Origin. Browsers always do for
+        cross-origin fetches — reject those unless explicitly allowlisted.
+        """
+        origin = request.headers.get("origin")
+        if origin and origin not in cors_origins:
+            return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+        return await call_next(request)
 
     @app.exception_handler(Exception)
     async def unhandled_exception(request: Request, exc: Exception) -> Response:

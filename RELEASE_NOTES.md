@@ -1,3 +1,53 @@
+# Robot Studio — Unreleased (1.1.1)
+
+**Date:** TBD  
+**Kind:** Patch release (planned). Builds not published yet.  
+**Version:** `1.1.1` (unreleased — will match backend `robot_studio.__version__` and tag `v1.1.1` when shipped).
+
+Correctness and security fixes on top of **1.1.0**. No new flagship features.
+
+**User guide:** https://deekshith-poojary98.github.io/robot-studio/
+
+---
+
+## What’s coming in 1.1.1
+
+### Security (local API)
+
+- Stop reflecting `Access-Control-Allow-Origin: *` on the loopback backend so a random web page cannot drive the API from the browser.
+- Reject browser `Origin` headers unless allowlisted via `ROBOT_STUDIO_CORS_ORIGINS`.
+- Block package install names that are URLs, paths, or pip flags (prevents attacker-controlled `setup.py` via `packages/install`).
+- Validate Git branch / ref names before they reach `git` (blocks `.`, `--force`, and similar option injection).
+
+### Environments
+
+- **Select Existing** on a path already registered in the workspace **activates** that environment instead of returning “already registered” (idempotent re-import).
+- After a successful **Select Existing** import, the empty-state environment prompt is dismissed.
+- Broken venvs (e.g. Homebrew moved the base Python — `EnvironmentValidationError` from inspect) show as **unavailable** and no longer 400 the entire environments list or force the Create / Select Existing empty-state prompt.
+- Non-executable / wrong-arch Python (`OSError` / `PermissionError` during inspect) is treated the same way — unavailable, list still loads.
+- Troubleshooting guide covers broken envs after a Python upgrade ([common issues](https://deekshith-poojary98.github.io/robot-studio/troubleshooting/common-issues/)).
+- Re-importing a path owned by **another** workspace is rejected instead of silently stealing that workspace’s registry row.
+- Failed venv bootstrap cleans up the half-built directory so recreate is not blocked forever.
+
+### Data loss / reliability
+
+- **Open Project / Open Recent / Open Workspace** prompts to save or discard unsaved editor tabs (same pattern as Quit) instead of wiping them silently.
+- Switching projects **unwatches** the previous workspace roots so edits under the old tree are not indexed into the new one.
+- Packaged backend PID reclaim and native quit (macOS / Linux / Windows) only kill a process that still owns the recorded listen port — avoids SIGKILL on a recycled unrelated PID.
+
+### Indexing / analysis
+
+- Workspace switch still cancels stale rebuilds and indexes the new project.
+- Analysis binder / index store fixes to avoid duplicate or stale reference rows across full rebuilds.
+
+---
+
+## Known limits
+
+Same as 1.1.0 (Impact graph limits, Gatekeeper, no notarized installers, …).
+
+---
+
 # Robot Studio 1.1.0
 
 **Date:** 2026-09-24  

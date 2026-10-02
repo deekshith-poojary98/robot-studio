@@ -91,4 +91,13 @@ void main() {
     expect(port, isNot(busy));
     expect(port, greaterThan(busy));
   });
+
+  test('pidListensOnPort matches the process that bound the port', () async {
+    final server = await ServerSocket.bind('127.0.0.1', 0);
+    addTearDown(() async => server.close());
+    final port = server.port;
+    final ours = pid;
+    expect(BackendHost.pidListensOnPort(ours, port), isTrue);
+    expect(BackendHost.pidListensOnPort(ours + 99999, port), isFalse);
+  });
 }

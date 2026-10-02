@@ -12,7 +12,8 @@ import 'logging/app_logger.dart';
 /// Behavior:
 /// - If the backend is already healthy on the preferred (or last-used) port
 ///   (e.g. `make backend` in development), attach — and reclaim a leftover
-///   packaged-sidecar PID so Quit can stop it.
+///   packaged-sidecar PID only when that PID is the listener on that port
+///   (so Quit never kills a recycled unrelated process).
 /// - Else if a sidecar binary sits next to the app, allocate a free port
 ///   (preferred first, then nearby), spawn it, and point [BackendConfig] there.
 /// - Else leave the UI to show BACKEND UNAVAILABLE (dev without a running API).
@@ -162,14 +163,31 @@ class BackendHost {
   }) {
     BackendConfig.setRuntimePort(port);
     writePortFile(port);
-    if (sidecar != null && existingPid != null && _isPidAlive(existingPid)) {
+
+    var pid = existingPid;
+    if (pid != null && !_isPidAlive(pid)) {
+      // Stale file from a dead process — never reclaim a recycled PID later.
+      clearPidFile();
+      pid = null;
+    }
+
+    // Only claim ownership when the pid file actually listens on this port.
+    // A recycled PID (browser, IDE helper, …) must never be killed on Quit.
+    if (sidecar != null &&
+        pid != null &&
+        _pidListensOnPort(pid, port)) {
       AppLogger.info(
         'Reclaiming leftover packaged backend',
         tag: 'BackendHost',
-        data: 'pid=$existingPid port=$port',
+        data: 'pid=$pid port=$port',
       );
-      writePidFile(existingPid);
-      return _instance = BackendHost._(pid: existingPid, startedByApp: true);
+      writePidFile(pid);
+      return _instance = BackendHost._(pid: pid, startedByApp: true);
+    }
+
+    if (pid != null) {
+      // Alive but not our listener (e.g. make backend + leftover pid file).
+      clearPidFile();
     }
     AppLogger.info(
       'Backend already healthy on :$port — not spawning sidecar',
@@ -180,6 +198,49 @@ class BackendHost {
 
   static String _healthUrl(int port) =>
       'http://${BackendConfig.host}:$port/api/v1/health';
+
+  /// True when [processId] is the process listening on TCP [port].
+  @visibleForTesting
+  static bool pidListensOnPort(int processId, int port) =>
+      _pidListensOnPort(processId, port);
+
+  static bool _pidListensOnPort(int processId, int port) {
+    if (processId <= 0 || port <= 0) return false;
+    try {
+      if (Platform.isWindows) {
+        final result = Process.runSync('netstat', [
+          '-ano',
+          '-p',
+          'tcp',
+        ], runInShell: true);
+        if (result.exitCode != 0) return false;
+        for (final line in result.stdout.toString().split('\n')) {
+          if (!line.contains('LISTENING')) continue;
+          final parts = line.trim().split(RegExp(r'\s+'));
+          if (parts.length < 5) continue;
+          final local = parts[1];
+          final owner = parts.last;
+          if (owner != '$processId') continue;
+          if (local.endsWith(':$port')) return true;
+        }
+        return false;
+      }
+      final result = Process.runSync('lsof', [
+        '-nP',
+        '-iTCP:$port',
+        '-sTCP:LISTEN',
+        '-t',
+      ]);
+      if (result.exitCode != 0) return false;
+      return result.stdout
+          .toString()
+          .trim()
+          .split(RegExp(r'\s+'))
+          .contains('$processId');
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Bind-probe for a free TCP port, preferring [preferred] then nearby ports.
   @visibleForTesting

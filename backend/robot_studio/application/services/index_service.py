@@ -86,6 +86,9 @@ class IndexService:
     # the user switches projects without restarting the backend.
     _rebuild_workspace_id: UUID | None = field(default=None, init=False)
     _finalize_task: asyncio.Task | None = field(default=None, init=False)
+    # Roots currently registered with ``watcher`` — drop stale ones on switch so
+    # edits under a previous workspace are not indexed into the new one.
+    _watched_roots: set[Path] = field(default_factory=set, init=False)
     _unsubscribes: list[Subscription] = field(default_factory=list, init=False)
     _stopped: bool = field(default=False, init=False)
 
@@ -311,9 +314,24 @@ class IndexService:
                 and not prior.done()
                 and self._rebuild_workspace_id == workspace.id
             )
-            if same_workspace:
-                return await self.get_status()
             await self._cancel_rebuild_locked()
+            # An in-flight workspace rebuild already snapshot the project list at
+            # start — coalescing would permanently skip a just-created/imported
+            # project. Restart a workspace pass so the new root is included.
+            if same_workspace:
+                self._state = "indexing"
+                self._message = "Indexing workspace…"
+                self._errors = []
+                self._rebuild_workspace_id = workspace.id
+                self._rebuild_task = asyncio.create_task(
+                    self._rebuild_workspace(
+                        workspace.id,
+                        workspace.path,
+                        full=False,
+                    ),
+                    name="index-rebuild",
+                )
+                return await self.get_status()
             self._state = "indexing"
             self._message = f"Indexing project '{project.name}'…"
             self._errors = []
@@ -371,8 +389,12 @@ class IndexService:
             if shared.exists():
                 roots.append((shared, None))
 
-            for root, project_id in roots:
+            desired = {root for root, _ in roots}
+            for stale in self._watched_roots - desired:
+                self.watcher.unwatch_path(stale)
+            for root in desired:
                 self.watcher.watch_path(root)
+            self._watched_roots = desired
 
             # Watch immediately so edits during background index are not missed.
             # Watcher failures must never abort indexing (sandbox / FSEvents issues).
@@ -495,7 +517,9 @@ class IndexService:
         analysis_rebind: bool = True,
     ) -> set[str]:
         indexed_paths: set[str] = set()
+        root = Path(root)
         self.watcher.watch_path(root)
+        self._watched_roots.add(root)
         # Discovery is sync and can touch huge trees — keep the event loop free.
         paths = await asyncio.to_thread(self.indexer.discover_files, root)
         total = len(paths)

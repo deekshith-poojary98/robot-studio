@@ -238,3 +238,13 @@ async def test_init_without_git_is_validation_error(
     )
     with pytest.raises(GitValidationError, match="not installed"):
         await service.init()
+
+
+def test_checkout_rejects_option_injection() -> None:
+    """Git option/path injection must fail before argv reaches git."""
+    from robot_studio.application.services.git_service import _validate_git_ref
+
+    for bad in (".", "--force", "-b", "feature login", "../main", ""):
+        with pytest.raises(GitValidationError, match="Invalid|required"):
+            _validate_git_ref(bad)
+    assert _validate_git_ref("feature/login") == "feature/login"

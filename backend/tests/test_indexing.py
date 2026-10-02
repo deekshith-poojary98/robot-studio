@@ -17,7 +17,7 @@ from robot_studio.core.events import (
     IndexUpdated,
     InMemoryEventBus,
 )
-from robot_studio.domain.interfaces.indexing import SymbolKind
+from robot_studio.domain.interfaces.indexing import IndexScope, SymbolKind
 from robot_studio.domain.models import (
     Project,
     ProjectType,
@@ -1152,3 +1152,131 @@ def test_use_process_pool_disabled_when_frozen(monkeypatch) -> None:
     monkeypatch.setattr(mod.sys, "platform", "darwin", raising=False)
     assert mod._use_process_pool(20, 2) is True
     assert mod._use_process_pool(1, 2) is False
+
+
+@pytest.mark.asyncio
+async def test_workspace_invalidate_clears_references(tmp_path: Path) -> None:
+    """Full rebuild must not accumulate duplicate Find References rows."""
+    db = tmp_path / "index.db"
+    store = SqliteIndexStore(db)
+    await store.initialize()
+
+    ws = uuid4()
+    project = uuid4()
+    suite = tmp_path / "suite.robot"
+    suite.write_text("*** Keywords ***\nLogin\n    Log  x\n", encoding="utf-8")
+    from robot_studio.domain.models import IndexedSymbol
+
+    await store.replace_file_index(
+        suite,
+        [
+            IndexedSymbol(
+                id="kw-login",
+                name="Login",
+                kind=SymbolKind.KEYWORD.value,
+                file_path=suite,
+                line=2,
+                workspace_id=ws,
+                project_id=project,
+            ),
+        ],
+        [
+            {
+                "symbol_id": "kw-login",
+                "name": "Login",
+                "file_path": str(suite),
+                "line": 5,
+                "project_id": project,
+                "context": "call",
+            },
+        ],
+    )
+    refs_before = await store.find_references("kw-login", workspace_id=ws)
+    assert len(refs_before) == 1
+
+    await store.invalidate(IndexScope.WORKSPACE, str(ws))
+    assert await store.find_references("kw-login", workspace_id=ws) == []
+    assert await store.list_indexed_files(ws) == []
+
+    # Simulate a full rebuild commit (clear_existing=False).
+    await store.replace_file_index(
+        suite,
+        [
+            IndexedSymbol(
+                id="kw-login",
+                name="Login",
+                kind=SymbolKind.KEYWORD.value,
+                file_path=suite,
+                line=2,
+                workspace_id=ws,
+                project_id=project,
+            ),
+        ],
+        [
+            {
+                "symbol_id": "kw-login",
+                "name": "Login",
+                "file_path": str(suite),
+                "line": 5,
+                "project_id": project,
+                "context": "call",
+            },
+        ],
+        clear_existing=False,
+    )
+    refs_after = await store.find_references("kw-login", workspace_id=ws)
+    assert len(refs_after) == 1
+
+
+@pytest.mark.asyncio
+async def test_schedule_reindex_project_during_rebuild_includes_new_project(
+    index_stack,
+    tmp_path: Path,
+) -> None:
+    """Create/import mid-rebuild must not coalesce away the new project."""
+    service, _store, _facade, suite, _lib, _bus, workspace, _project = index_stack
+    tests_dir = suite.parent
+    for i in range(20):
+        (tests_dir / f"bulk_{i}.robot").write_text(
+            f"*** Keywords ***\nBulk {i}\n    Log    {i}\n"
+            f"*** Test Cases ***\nCase {i}\n    Bulk {i}\n",
+            encoding="utf-8",
+        )
+
+    first = await service.schedule_rebuild(full=False)
+    assert first.state == "indexing"
+    prior = service._rebuild_task
+    assert prior is not None and not prior.done()
+
+    other_project_path = workspace.path / "Projects" / "Imported"
+    other_project_path.mkdir()
+    (other_project_path / "tests").mkdir()
+    other_suite = other_project_path / "tests" / "unique.robot"
+    other_suite.write_text(
+        "*** Keywords ***\n"
+        "UniqueKW\n"
+        "    Log    ok\n"
+        "*** Test Cases ***\n"
+        "Unique Case\n"
+        "    UniqueKW\n",
+        encoding="utf-8",
+    )
+    other_project = Project(
+        id=uuid4(),
+        workspace_id=workspace.id,
+        name="Imported",
+        path=other_project_path,
+        created_at=datetime.now(UTC),
+        type=ProjectType.EMPTY,
+    )
+    await service.project_repository.create(other_project)
+
+    status = await service.schedule_reindex_project(other_project.id)
+    assert status.state == "indexing"
+    new_task = service._rebuild_task
+    assert new_task is not None
+    assert new_task is not prior
+    await new_task
+
+    hits = await service.search("UniqueKW", kind=SymbolKind.KEYWORD)
+    assert any(item["name"] == "UniqueKW" for item in hits)

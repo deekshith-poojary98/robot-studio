@@ -37,6 +37,20 @@ class GitValidationError(Exception):
     """Raised when a git operation cannot proceed."""
 
 
+def _validate_git_ref(value: str, *, what: str = "branch") -> str:
+    """Reject option-injection and path tricks before they reach ``git`` argv."""
+    cleaned = value.strip()
+    if not cleaned:
+        raise GitValidationError(f"{what.capitalize()} name is required")
+    if cleaned in {".", ".."} or cleaned.startswith("-"):
+        raise GitValidationError(f"Invalid {what} name")
+    if any(ch in cleaned for ch in " \t\n\r\\\"';|&<>"):
+        raise GitValidationError(f"Invalid {what} name")
+    if ".." in cleaned:
+        raise GitValidationError(f"Invalid {what} name")
+    return cleaned
+
+
 @dataclass
 class GitService:
     context: WorkspaceContext
@@ -161,28 +175,32 @@ class GitService:
         return await self.provider.branches(Path(repo.root))
 
     async def checkout(self, branch: str) -> GitRepositoryInfo:
+        cleaned = _validate_git_ref(branch)
         repo = await self._require_repository()
-        updated = await self.provider.checkout(Path(repo.root), branch)
+        updated = await self.provider.checkout(Path(repo.root), cleaned)
         self._repository = updated
         await self.event_bus.publish(
-            BranchChanged(root=str(updated.root), branch=updated.branch or branch),
+            BranchChanged(root=str(updated.root), branch=updated.branch or cleaned),
         )
         await self.event_bus.publish(RepositoryUpdated(root=str(updated.root)))
         return updated
 
     async def create_branch(self, name: str, *, start_point: str | None = None) -> GitBranch:
+        cleaned = _validate_git_ref(name)
+        start = _validate_git_ref(start_point, what="start point") if start_point else None
         repo = await self._require_repository()
         branch = await self.provider.create_branch(
             Path(repo.root),
-            name,
-            start_point=start_point,
+            cleaned,
+            start_point=start,
         )
         await self.event_bus.publish(RepositoryUpdated(root=str(repo.root)))
         return branch
 
     async def delete_branch(self, name: str) -> None:
+        cleaned = _validate_git_ref(name)
         repo = await self._require_repository()
-        await self.provider.delete_branch(Path(repo.root), name)
+        await self.provider.delete_branch(Path(repo.root), cleaned)
         await self.event_bus.publish(RepositoryUpdated(root=str(repo.root)))
 
     async def commit(self, message: str, *, files: list[str] | None = None) -> GitCommit:

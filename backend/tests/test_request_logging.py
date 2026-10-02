@@ -91,3 +91,21 @@ async def test_http_errors_still_return_status(api_client) -> None:
     client, _fresh, _tmp = api_client
     response = await client.get(f"/api/v1/reports/{uuid4()}")
     assert response.status_code in {400, 404}
+
+
+@pytest.mark.asyncio
+async def test_browser_origin_is_rejected(api_client) -> None:
+    """Loopback API must not be callable from an arbitrary web origin."""
+    client, _fresh, _tmp = api_client
+    response = await client.get(
+        "/api/v1/health",
+        headers={"Origin": "https://evil.example"},
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_desktop_client_without_origin_is_allowed(api_client) -> None:
+    client, _fresh, _tmp = api_client
+    response = await client.get("/api/v1/health")
+    assert response.status_code == 200
