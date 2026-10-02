@@ -497,3 +497,85 @@ async def test_repository_persistence(services) -> None:
     assert loaded.name == "persist"
     assert loaded.python_version
     assert loaded.python_executable.is_file()
+
+
+@pytest.mark.asyncio
+async def test_create_venv_failure_removes_half_built_dir(
+    services,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ensurepip/ssl failures must not leave a tree that blocks recreate."""
+
+    def boom(_base: Path, env_root: Path) -> None:
+        env_root.mkdir(parents=True, exist_ok=True)
+        (env_root / "pyvenv.cfg").write_text("home = x\n", encoding="utf-8")
+        raise EnvironmentValidationError("ssl module is missing")
+
+    monkeypatch.setattr(services["environment_service"]._python, "create_venv", boom)
+    with pytest.raises(EnvironmentValidationError, match="ssl module"):
+        await services["environment_service"].create_environment(
+            "half-built",
+            sys.executable,
+        )
+
+    workspace = services["workspace"]
+    leftover = services["environment_service"]._fs.find_existing_environment_root(
+        workspace.path,
+        "half-built",
+    )
+    assert leftover is None
+
+    # Recreate must succeed once bootstrap works again.
+    monkeypatch.undo()
+    created = await services["environment_service"].create_environment(
+        "half-built",
+        sys.executable,
+        install_robot_framework=False,
+    )
+    assert created.name == "half-built"
+
+
+@pytest.mark.asyncio
+async def test_import_rejects_env_registered_in_other_workspace(services) -> None:
+    """Shared path must not silently steal another workspace's registry row."""
+    external = services["tmp_path"] / "shared-venv"
+    PythonEnvironmentProvider().create_venv(Path(sys.executable), external)
+    first = await services["environment_service"].import_environment(external)
+    assert first.path == external.resolve()
+
+    workspace_repo = SqliteWorkspaceRepository(services["tmp_path"] / "test.db")
+    await workspace_repo.initialize()
+    other_home = services["tmp_path"] / "homes" / "other"
+    other_home.mkdir(parents=True)
+    workspace_service = WorkspaceService(workspace_repo, services["context"])
+    other = await workspace_service.create_workspace("Other", other_home)
+
+    with pytest.raises(EnvironmentValidationError, match="another workspace"):
+        await services["environment_service"].import_environment(external)
+
+    still = await services["environment_repo"].get(first.id)
+    assert still is not None
+    assert still.workspace_id == services["workspace"].id
+    assert await services["environment_repo"].get_by_path(str(external)) is not None
+    _ = other  # opened so context points elsewhere; path still owned by first WS
+
+
+@pytest.mark.asyncio
+async def test_list_marks_oserror_inspect_unavailable(
+    services,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-executable / wrong-arch Python must not 400 the environments list."""
+    created = await services["environment_service"].create_environment(
+        "oserr",
+        sys.executable,
+        install_robot_framework=False,
+    )
+
+    def boom(_python: Path):
+        raise PermissionError("Permission denied")
+
+    monkeypatch.setattr(services["environment_service"]._python, "inspect", boom)
+    listed = await services["environment_service"].list_environments()
+    match = next(item for item in listed if item.id == created.id)
+    assert match.available is False

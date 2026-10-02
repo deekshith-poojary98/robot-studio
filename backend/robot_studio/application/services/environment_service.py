@@ -117,9 +117,11 @@ class EnvironmentService:
             )
 
         base_python = Path(python_interpreter).expanduser().resolve()
-        self._python.create_venv(base_python, env_root)
-
         try:
+            # create_venv must be inside the cleanup try — ensurepip/ssl failures
+            # leave a half-built tree that otherwise blocks recreate forever.
+            self._python.create_venv(base_python, env_root)
+
             executables = self._python.resolve_executables(env_root)
             if install_robot_framework:
                 self._python.install_robot_framework(executables.python)
@@ -181,6 +183,13 @@ class EnvironmentService:
             refreshed = await self._repository.get(existing.id)
             assert refreshed is not None
             return await self._enrich(refreshed)
+        if existing is not None:
+            # Path is UNIQUE across the registry — importing into another
+            # workspace must not silently DELETE the prior workspace's row.
+            raise EnvironmentValidationError(
+                "This environment is already registered in another workspace. "
+                "Remove it there first, or choose a different folder.",
+            )
 
         executables = self._python.resolve_executables(env_root)
 
@@ -402,9 +411,11 @@ class EnvironmentService:
 
         # Create empty venv using the same Python major.minor when possible.
         base_python = source.python_executable
-        self._python.create_venv(base_python, target_root)
-
         try:
+            # Same as create_environment: bootstrap failures must wipe the tree
+            # so a retry is not blocked by find_existing_environment_root.
+            self._python.create_venv(base_python, target_root)
+
             with tempfile.NamedTemporaryFile(
                 mode="w",
                 suffix="-requirements.txt",
@@ -638,9 +649,9 @@ class EnvironmentService:
                 return environment.model_copy(update={"available": False})
         try:
             info = await run_blocking(self._python.inspect, python)
-        except EnvironmentValidationError:
-            # Broken venv (e.g. Homebrew moved the base Python) must not 400 the
-            # whole environments list — UI shows unavailable and offers recreate.
+        except (EnvironmentValidationError, OSError):
+            # Broken venv (Homebrew moved base Python, non-executable binary,
+            # wrong arch) must not 400 the whole environments list.
             return environment.model_copy(update={"available": False})
         robot_exe = environment.robot_executable
         if info.robot_version and (robot_exe is None or not Path(robot_exe).is_file()):

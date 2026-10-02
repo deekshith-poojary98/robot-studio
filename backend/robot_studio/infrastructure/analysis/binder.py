@@ -60,6 +60,14 @@ class SemanticBinder:
             project_id=project_id,
             kind=EntityKind.FILE.value,
         )
+        libraries = await self._store.list_entities(
+            project_id=project_id,
+            kind=EntityKind.LIBRARY.value,
+        )
+        suites = await self._store.list_entities(
+            project_id=project_id,
+            kind=EntityKind.SUITE.value,
+        )
 
         kw_by_norm: dict[str, list] = {}
         for kw in keywords:
@@ -85,6 +93,17 @@ class SemanticBinder:
             if name_key not in resource_by_name:
                 resource_by_name[name_key] = f
 
+        # Prefixes that may legally qualify a user/resource keyword call
+        # (``MyResource.Keyword``). Library prefixes must NOT HIGH-bind to a
+        # bare user keyword (``SeleniumLibrary.Get Text`` ≠ user ``Get Text``).
+        resource_prefixes = set(resource_by_name)
+        for suite in suites:
+            resource_prefixes.add(normalize_keyword_name(suite.name))
+            resource_prefixes.add(normalize_keyword_name(suite.file_path.stem))
+        library_prefixes = {
+            normalize_keyword_name(lib.name) for lib in libraries if lib.name
+        }
+
         edges = await self._store.list_edges(project_id=project_id)
         updated = 0
         for edge in edges:
@@ -95,6 +114,8 @@ class SemanticBinder:
                     edge.target_name,
                     edge.target_name_normalized,
                     kw_by_norm,
+                    resource_prefixes=resource_prefixes,
+                    library_prefixes=library_prefixes,
                 )
                 target_id = target.id if target is not None else None
                 if target_id != edge.target_id or edge.confidence != confidence:
@@ -158,19 +179,51 @@ class SemanticBinder:
         raw_name: str,
         normalized: str,
         kw_by_norm: dict[str, list],
+        *,
+        resource_prefixes: set[str] | None = None,
+        library_prefixes: set[str] | None = None,
     ):
-        candidates = [
+        resource_prefixes = resource_prefixes or set()
+        library_prefixes = library_prefixes or set()
+        has_dot = "." in (raw_name or "")
+        prefix_norm = ""
+        if has_dot:
+            prefix_norm = normalize_keyword_name(raw_name.split(".", maxsplit=1)[0])
+
+        # ``Library.Keyword`` must not HIGH-match a bare user keyword. Allow the
+        # strip-prefix HIGH path only for known Resource/Suite qualifiers.
+        allow_strip_as_resource = (not has_dot) or (
+            bool(prefix_norm)
+            and prefix_norm in resource_prefixes
+            and prefix_norm not in library_prefixes
+        )
+
+        candidates: list[tuple[str, BindingConfidence]] = [
             (normalized, BindingConfidence.EXACT),
-            (
-                normalize_keyword_name(strip_library_prefix(raw_name)),
-                BindingConfidence.HIGH,
-            ),
-            (strip_bdd_prefix(normalized), BindingConfidence.MEDIUM),
-            (
-                strip_bdd_prefix(normalize_keyword_name(strip_library_prefix(raw_name))),
-                BindingConfidence.MEDIUM,
-            ),
         ]
+        if allow_strip_as_resource:
+            candidates.append(
+                (
+                    normalize_keyword_name(strip_library_prefix(raw_name)),
+                    BindingConfidence.HIGH,
+                ),
+            )
+            candidates.append(
+                (strip_bdd_prefix(normalized), BindingConfidence.MEDIUM),
+            )
+            candidates.append(
+                (
+                    strip_bdd_prefix(
+                        normalize_keyword_name(strip_library_prefix(raw_name)),
+                    ),
+                    BindingConfidence.MEDIUM,
+                ),
+            )
+        else:
+            # Keep BDD on the full normalized name only (no library strip).
+            candidates.append(
+                (strip_bdd_prefix(normalized), BindingConfidence.MEDIUM),
+            )
         seen: set[str] = set()
         for cand, base_confidence in candidates:
             if not cand or cand in seen:
@@ -189,7 +242,13 @@ class SemanticBinder:
                 return matches[0], BindingConfidence.LOW
         call_names = [raw_name]
         without_lib = strip_library_prefix(raw_name)
-        if without_lib and without_lib != raw_name:
+        # Embedded-arg matching after stripping a library prefix is only safe
+        # for Resource/Suite qualifiers — same rule as HIGH strip above.
+        if (
+            without_lib
+            and without_lib != raw_name
+            and allow_strip_as_resource
+        ):
             call_names.append(without_lib)
         for source in list(call_names):
             for prefix in ("Given ", "When ", "Then ", "And ", "But "):

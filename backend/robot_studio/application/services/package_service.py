@@ -152,6 +152,21 @@ class PackageService:
         cleaned = name.strip()
         if not cleaned:
             raise PackageValidationError("Package name is required")
+        # Pip treats a URL / local path / ``--flag`` as an install target and will
+        # execute setup.py from attacker-controlled sources. Only allow PEP 503
+        # style names (optional extras); version pins use the separate field.
+        if cleaned.startswith("-") or any(
+            marker in cleaned for marker in ("://", "/", "\\", " ", "\t", "\n", ";", "|", "&", "'", '"')
+        ):
+            raise PackageValidationError("Invalid package name")
+        base = cleaned.split("[", 1)[0]
+        if not base or not all(
+            ch.isalnum() or ch in "._-" for ch in base
+        ):
+            raise PackageValidationError("Invalid package name")
+        if "[" in cleaned:
+            if not cleaned.endswith("]") or cleaned.count("[") != 1:
+                raise PackageValidationError("Invalid package name")
 
         requirement = cleaned
         if version is not None and version.strip():

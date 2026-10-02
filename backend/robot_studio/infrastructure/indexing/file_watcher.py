@@ -61,6 +61,7 @@ class NativeFileWatcher(FileWatcher):
     on_change: ChangeHandler | None = None
     on_fs_change: FsChangeHandler | None = None
     _roots: set[Path] = field(default_factory=set)
+    _watches: dict[Path, object] = field(default_factory=dict, init=False)
     _loop: asyncio.AbstractEventLoop | None = field(default=None, init=False)
     _observer: object | None = field(default=None, init=False)
     _handler: object | None = field(default=None, init=False)
@@ -127,7 +128,8 @@ class NativeFileWatcher(FileWatcher):
 
         def _attach() -> None:
             for root in roots:
-                observer.schedule(handler, str(root), recursive=True)
+                watch = observer.schedule(handler, str(root), recursive=True)
+                self._watches[root] = watch
             observer.daemon = True  # type: ignore[attr-defined]
             observer.start()
 
@@ -143,6 +145,7 @@ class NativeFileWatcher(FileWatcher):
             self._observer.join(timeout=2)  # type: ignore[union-attr]
             self._observer = None
         self._handler = None
+        self._watches.clear()
         if self._debounce_task is not None:
             self._debounce_task.cancel()
             try:
@@ -176,13 +179,28 @@ class NativeFileWatcher(FileWatcher):
                 self._observer is not None
                 and self._handler is not None
                 and root.exists()
+                and root in self._roots
             ):
-                self._observer.schedule(self._handler, str(root), recursive=True)  # type: ignore[union-attr]
+                watch = self._observer.schedule(  # type: ignore[union-attr]
+                    self._handler,
+                    str(root),
+                    recursive=True,
+                )
+                self._watches[root] = watch
 
         await asyncio.to_thread(_schedule)
 
     def unwatch_path(self, path: Path) -> None:
-        self._roots.discard(Path(path))
+        root = Path(path)
+        self._roots.discard(root)
+        watch = self._watches.pop(root, None)
+        observer = self._observer
+        if watch is not None and observer is not None:
+            try:
+                observer.unschedule(watch)  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001
+                # Observer may already have been stopped / watch removed.
+                pass
 
     @property
     def is_running(self) -> bool:

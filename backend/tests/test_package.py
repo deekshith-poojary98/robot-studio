@@ -369,3 +369,17 @@ async def test_force_install_passes_force_reinstall(services, monkeypatch) -> No
     assert captured
     assert captured[0][:2] == ["install", "--force-reinstall"]
     assert captured[0][-1] == "six==1.16.0"
+
+
+@pytest.mark.asyncio
+async def test_install_rejects_url_and_flag_package_names(services) -> None:
+    """Pip URL/flag install targets must not reach the installer (RCE vector)."""
+    service = services["package_service"]
+    for bad in (
+        "https://evil.example/evil-1.0.tar.gz",
+        "--index-url=https://evil.example",
+        "../evil",
+        "pkg;rm",
+    ):
+        with pytest.raises(PackageValidationError, match="Invalid package name"):
+            await service.install_package(bad)

@@ -1999,6 +1999,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     List<DetectedEnvironmentInfo> detectedEnvironments = const [],
   }) async {
     if (!await _prepareLeaveSettings()) return;
+    // Open Project / Open Recent previously wiped in-memory tabs with no prompt.
+    if (!await _confirmLeaveDirtyEditorWork(action: 'switching projects')) {
+      return;
+    }
     setState(() {
       _workspace.activeWorkspace = workspace;
       _selectedProject = selectedProject;
@@ -5585,8 +5589,21 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<bool> _confirmQuitIfNeeded() async {
     if (!mounted) return true;
-
     final settingsDirty = _showSettingsPage && _preferencesLeave.isDirty;
+    return _confirmLeaveDirtyEditorWork(
+      action: 'quitting',
+      settingsDirty: settingsDirty,
+    );
+  }
+
+  /// Save / discard / cancel when in-memory editor tabs (and optionally Settings)
+  /// would otherwise be lost.
+  Future<bool> _confirmLeaveDirtyEditorWork({
+    required String action,
+    bool settingsDirty = false,
+  }) async {
+    if (!mounted) return true;
+
     final dirtyTabs = _editorTabs.where((tab) => tab.isDirty).toList();
     if (!settingsDirty && dirtyTabs.isEmpty) return true;
 
@@ -5604,7 +5621,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       context,
       title: 'Unsaved Changes',
       message:
-          'You have ${parts.join(' and ')}. Save before quitting, '
+          'You have ${parts.join(' and ')}. Save before $action, '
           "or discard them?",
       saveLabel: dirtyTabs.length > 1 || settingsDirty ? 'Save All' : 'Save',
     );

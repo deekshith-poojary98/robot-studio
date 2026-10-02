@@ -39,6 +39,43 @@ def test_normalize_keyword_and_variable() -> None:
     assert not looks_like_keyword_literal("${open_keyword}")
 
 
+def test_library_prefixed_call_does_not_high_bind_user_keyword() -> None:
+    """SeleniumLibrary.Get Text must not HIGH-bind to a user keyword Get Text."""
+    from types import SimpleNamespace
+
+    from robot_studio.domain.models.analysis import BindingConfidence
+    from robot_studio.infrastructure.analysis.binder import SemanticBinder
+
+    user_kw = SimpleNamespace(
+        id="kw-user-gettext",
+        name="Get Text",
+        name_normalized="gettext",
+    )
+    binder = SemanticBinder(store=None)  # type: ignore[arg-type]
+    kw_by_norm = {"gettext": [user_kw]}
+
+    target, confidence = binder._resolve_keyword(
+        "SeleniumLibrary.Get Text",
+        normalize_keyword_name("SeleniumLibrary.Get Text"),
+        kw_by_norm,
+        resource_prefixes=set(),
+        library_prefixes={"seleniumlibrary"},
+    )
+    assert target is None
+    assert confidence == BindingConfidence.LOW
+
+    # Resource-qualified calls may still HIGH-bind to the user keyword.
+    target_res, confidence_res = binder._resolve_keyword(
+        "Common.Get Text",
+        normalize_keyword_name("Common.Get Text"),
+        kw_by_norm,
+        resource_prefixes={"common"},
+        library_prefixes={"seleniumlibrary"},
+    )
+    assert target_res is user_kw
+    assert confidence_res == BindingConfidence.HIGH
+
+
 def test_extract_emits_nested_calls_for_keyword_dispatch(tmp_path: Path) -> None:
     suite = tmp_path / "suite.robot"
     suite.write_text(

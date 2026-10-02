@@ -141,6 +141,25 @@ class SqliteIndexStore(IndexStore):
         async with aiosqlite.connect(self._database_path) as db:
             if scope == IndexScope.WORKSPACE:
                 if scope_id:
+                    # Delete references BEFORE symbols/files — the project_id /
+                    # file_path subqueries must still see the rows they join on.
+                    # (Previously symbols were wiped first, so refs never cleared
+                    # and full rebuilds with clear_existing=False duplicated them.)
+                    await db.execute(
+                        "DELETE FROM index_references WHERE project_id IN ("
+                        "SELECT DISTINCT project_id FROM index_symbols "
+                        "WHERE workspace_id = ? AND project_id IS NOT NULL "
+                        "UNION "
+                        "SELECT DISTINCT project_id FROM index_files "
+                        "WHERE workspace_id = ? AND project_id IS NOT NULL"
+                        ")",
+                        (scope_id, scope_id),
+                    )
+                    await db.execute(
+                        "DELETE FROM index_references WHERE file_path IN "
+                        "(SELECT file_path FROM index_files WHERE workspace_id = ?)",
+                        (scope_id,),
+                    )
                     await db.execute(
                         "DELETE FROM index_symbols WHERE workspace_id = ?",
                         (scope_id,),
@@ -149,26 +168,21 @@ class SqliteIndexStore(IndexStore):
                         "DELETE FROM index_files WHERE workspace_id = ?",
                         (scope_id,),
                     )
-                    await db.execute(
-                        "DELETE FROM index_references WHERE project_id IN "
-                        "(SELECT DISTINCT project_id FROM index_symbols WHERE workspace_id = ?)",
-                        (scope_id,),
-                    )
                 else:
+                    await db.execute("DELETE FROM index_references")
                     await db.execute("DELETE FROM index_symbols")
                     await db.execute("DELETE FROM index_files")
-                    await db.execute("DELETE FROM index_references")
             elif scope == IndexScope.PROJECT and scope_id:
+                await db.execute(
+                    "DELETE FROM index_references WHERE project_id = ?",
+                    (scope_id,),
+                )
                 await db.execute(
                     "DELETE FROM index_symbols WHERE project_id = ?",
                     (scope_id,),
                 )
                 await db.execute(
                     "DELETE FROM index_files WHERE project_id = ?",
-                    (scope_id,),
-                )
-                await db.execute(
-                    "DELETE FROM index_references WHERE project_id = ?",
                     (scope_id,),
                 )
             elif scope == IndexScope.FILE and scope_id:
